@@ -45,6 +45,7 @@ class EloquentChatHistoryTest extends TestCase
             $table->string('role');
             $table->json('content')->nullable();
             $table->json('meta')->nullable();
+            $table->timestamp('archived_at')->nullable();
             $table->timestamps();
 
             $table->index('thread_id');
@@ -164,14 +165,7 @@ class EloquentChatHistoryTest extends TestCase
         // Create history with small context window
         $smallHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId, contextWindow: 100);
 
-        // Add many messages to exceed context window
-        // Start with UserMessage (i=1 is odd) to create valid sequence
-        for ($i = 1; $i <= 20; $i++) {
-            $message = $i % 2 === 1
-                ? new UserMessage("User message $i with some text")
-                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
-            $smallHistory->addMessage($message);
-        }
+        $this->addMessagesBeyondContextWindow($smallHistory);
 
         $messages = $smallHistory->getMessages();
 
@@ -182,9 +176,39 @@ class EloquentChatHistoryTest extends TestCase
         // First message should be a user message (valid sequence)
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
 
-        // Note: The database may have more messages than memory during the addition process
-        // This test mainly verifies that truncation happens in memory
-        // Database synchronization behavior may vary based on implementation
+        // The trimmed messages are archived in the database, not deleted
+        $rows = ChatMessage::query()->where('thread_id', $this->threadId);
+        $this->assertEquals(count($messages), (clone $rows)->whereNull('archived_at')->count());
+        $this->assertEquals(20 - count($messages), (clone $rows)->whereNotNull('archived_at')->count());
+    }
+
+    public function test_loads_only_unarchived_messages(): void
+    {
+        $smallHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId, contextWindow: 100);
+
+        $this->addMessagesBeyondContextWindow($smallHistory);
+
+        $active = $smallHistory->getMessages();
+
+        $reloaded = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $messages = $reloaded->getMessages();
+
+        $this->assertCount(count($active), $messages);
+        $this->assertEquals($active[0]->getContent(), $messages[0]->getContent());
+    }
+
+    /**
+     * Twenty alternating messages whose usage grows past a 100 tokens context window.
+     */
+    protected function addMessagesBeyondContextWindow(EloquentChatHistory $history): void
+    {
+        // Start with UserMessage (i=1 is odd) to create valid sequence
+        for ($i = 1; $i <= 20; $i++) {
+            $message = $i % 2 === 1
+                ? new UserMessage("User message $i with some text")
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
+            $history->addMessage($message);
+        }
     }
 
     public function test_multiple_threads_are_isolated(): void

@@ -39,7 +39,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
         $persistence = $this->retainingPersistence();
 
@@ -73,7 +73,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
 
         $agent = Agent::make(threadId: 'thread-4');
@@ -132,7 +132,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
         $second = Agent::make(workflowId: 'thread-42');
         $second->setAiProvider(new FakeAIProvider());
@@ -153,7 +153,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
         $persistence = new InMemoryPersistence();
 
@@ -297,7 +297,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
         $provider = new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply'));
         $agent = Agent::make(threadId: 'thread-a')->setAiProvider($provider)->setInstructions('test');
@@ -398,7 +398,7 @@ class ThreadIdentityTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
 
         $agent = Agent::make();
@@ -441,7 +441,7 @@ class ThreadIdentityTest extends TestCase
                 $pdo = new PDO('sqlite::memory:');
                 $pdo->exec('CREATE TABLE chat_messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    thread_id TEXT, role TEXT, content TEXT, meta TEXT
+                    thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
                 )');
 
                 return new SQLChatHistory($pdo);

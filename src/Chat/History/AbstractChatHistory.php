@@ -28,6 +28,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 
 use function array_map;
+use function array_slice;
 use function count;
 use function end;
 use function is_array;
@@ -127,9 +128,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Backend hook: remove the persisted messages from position zero up to $index (exclusive).
+     * Backend hook: the messages trimmed away from the head of the thread, oldest first.
+     *
+     * @param Message[] $messages
      */
-    protected function onTrimHistory(int $index): void
+    protected function onTrimHistory(array $messages): void
     {
     }
 
@@ -162,11 +165,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         $trimmed = $this->trimmer->trim($this->history, $this->contextWindow);
 
-        $skipIndex = count($this->history) - count($trimmed);
+        $removed = array_slice($this->history, 0, count($this->history) - count($trimmed));
 
-        if ($skipIndex > 0) {
+        if ($removed !== []) {
             $this->history = $trimmed;
-            $this->onTrimHistory($skipIndex);
+            $this->onTrimHistory($removed);
         }
     }
 

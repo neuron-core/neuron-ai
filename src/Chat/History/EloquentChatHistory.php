@@ -10,8 +10,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
 
 use function array_merge;
-
-use const PHP_INT_MAX;
+use function count;
 
 class EloquentChatHistory extends AbstractChatHistory
 {
@@ -39,6 +38,7 @@ class EloquentChatHistory extends AbstractChatHistory
         $messages = $model->newQuery()
             ->select(['role', 'content', 'meta'])
             ->where('thread_id', $this->requireThreadId())
+            ->whereNull('archived_at')
             ->orderBy('id')
             ->get();
 
@@ -68,28 +68,22 @@ class EloquentChatHistory extends AbstractChatHistory
     /**
      * @throws ChatHistoryException
      */
-    protected function onTrimHistory(int $index): void
+    protected function onTrimHistory(array $messages): void
     {
-        if ($index <= 0) {
-            return;
-        }
-
         /** @var Model $model */
         $model = new $this->modelClass();
 
-        // Get the IDs of messages to keep (skip the first $index messages)
-        $idsToKeep = $model->newQuery()
+        // Archive the oldest unarchived messages of the thread.
+        $ids = $model->newQuery()
             ->where('thread_id', $this->requireThreadId())
+            ->whereNull('archived_at')
             ->orderBy('id')
-            ->offset($index)
-            ->limit(PHP_INT_MAX)
+            ->limit(count($messages))
             ->pluck('id');
 
-        // Delete messages not in the keep list
         $model->newQuery()
-            ->where('thread_id', $this->requireThreadId())
-            ->whereNotIn('id', $idsToKeep)
-            ->delete();
+            ->whereIn('id', $ids)
+            ->update(['archived_at' => $model->freshTimestampString()]);
     }
 
     /**
