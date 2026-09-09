@@ -208,7 +208,7 @@ class ToolApprovalFlowTest extends TestCase
         $call = ToolCall::make('read_file', 'call_a');
         $event = $this->createToolCallEvent([$call]);
 
-        $result = $this->assertExecutes($node, $event, $state);
+        $this->assertExecutes($node, $event, $state);
 
         $this->assertSame('executed', $call->getResult());
         $this->assertNull($call->getApprovalState(), 'A non-gated call must keep null approval state');

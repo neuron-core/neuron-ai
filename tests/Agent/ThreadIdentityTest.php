@@ -331,8 +331,6 @@ class ThreadIdentityTest extends TestCase
 
         $this->assertSame('thread-a', $agent->getThreadId());
         $this->assertSame($first, $agent->getChatHistory());
-        foreach ($stream as $chunk) {
-        }
 
         $agent->setChatHistory($second)->chat(new UserMessage('Second conversation'));
 

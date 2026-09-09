@@ -583,7 +583,7 @@ class AgentMemoryTest extends TestCase
         ));
         $firstStream = $first($firstEvent, $firstState);
         $firstEvents = iterator_to_array($firstStream);
-        $firstResult = $firstStream->getReturn();
+        $firstStream->getReturn();
 
         $replayedState = $this->inferenceState('Question');
         $replayedEvent = new RecallMemoryEvent();
@@ -595,7 +595,7 @@ class AgentMemoryTest extends TestCase
         ));
         $replayedStream = $replayed($replayedEvent, $replayedState);
         $replayedEvents = iterator_to_array($replayedStream);
-        $replayedResult = $replayedStream->getReturn();
+        $replayedStream->getReturn();
 
         $this->assertSame(['Question'], $memory->recalls);
         $this->assertContainsOnlyInstancesOf(StepStartedStreamEvent::class, [$firstEvents[0], $replayedEvents[0]]);

@@ -84,8 +84,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
-        $inferenceEvent = new AIInferenceEvent();
-                $toolCallEvent = new ToolCallEvent($toolCallMessage);
+        $toolCallEvent = new ToolCallEvent($toolCallMessage);
         $node = new ToolNode(new InMemoryChatHistory());
 
         $originalInstructions = $state->request->instructions->getContent();
@@ -182,8 +181,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $toolCallMessage = new ToolCallMessage(null, [ToolCall::make('test', 'call_1')]);
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
-        $inferenceEvent = new AIInferenceEvent();
-                $toolCallEvent = new ToolCallEvent($toolCallMessage);
+        $toolCallEvent = new ToolCallEvent($toolCallMessage);
         $node = new ToolNode(new InMemoryChatHistory());
 
         // Should not throw or modify anything

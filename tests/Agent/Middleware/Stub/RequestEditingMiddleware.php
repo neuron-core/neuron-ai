@@ -16,6 +16,8 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowState;
 
+use function array_map;
+
 class RequestEditingMiddleware implements WorkflowMiddleware
 {
     public int $entryCalls = 0;
@@ -31,7 +33,7 @@ class RequestEditingMiddleware implements WorkflowMiddleware
 
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        if (!$state instanceof AgentState || !($node instanceof InferenceNode || $node instanceof ToolNode)) {
+        if (!$state instanceof AgentState || !$node instanceof InferenceNode && !$node instanceof ToolNode) {
             return;
         }
 

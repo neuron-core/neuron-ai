@@ -7,6 +7,8 @@ namespace NeuronAI\Tests\Workflow\Executor\Stub;
 use Closure;
 use NeuronAI\Workflow\WorkflowState;
 
+use function get_object_vars;
+
 class RestorableState extends WorkflowState
 {
     public ?Closure $operation = null;

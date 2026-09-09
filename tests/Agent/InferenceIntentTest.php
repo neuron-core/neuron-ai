@@ -24,6 +24,7 @@ use stdClass;
 
 use function serialize;
 use function unserialize;
+use function get_object_vars;
 
 class InferenceIntentTest extends TestCase
 {

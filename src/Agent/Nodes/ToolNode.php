@@ -59,10 +59,9 @@ use const JSON_PRETTY_PRINT;
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
+    use ChatHistoryHelper;
     /** @var AgentState */
     protected WorkflowState $state;
-
-    use ChatHistoryHelper;
 
     /**
      * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null

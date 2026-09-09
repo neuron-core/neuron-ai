@@ -28,6 +28,9 @@ use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function iterator_to_array;
+use function serialize;
+use function unserialize;
 
 class AgentInstructionsTest extends TestCase
 {

@@ -23,7 +23,6 @@ use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;

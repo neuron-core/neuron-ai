@@ -467,7 +467,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             if ($acceptedInputs === []) {
                 $control = $this->store->control();
                 $checkpoint = $this->store->loadCheckpoint();
-                $state = $checkpoint === null ? $workflow->getState() : $workflow->restoreState($checkpoint);
+                $state = $checkpoint instanceof \NeuronAI\Workflow\WorkflowState ? $workflow->restoreState($checkpoint) : $workflow->getState();
                 $workflow->setState($state);
                 $this->stampState($state);
                 $state->setInputResults($this->inputResults);

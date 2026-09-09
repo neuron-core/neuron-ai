@@ -47,7 +47,7 @@ class TodoPlanning implements WorkflowMiddleware
      */
     public function before(NodeInterface $node, Event $event, WorkflowState $state): void
     {
-        if (!$state instanceof AgentState || !($event instanceof AIInferenceEvent || $event instanceof ToolCallEvent)) {
+        if (!$event instanceof AIInferenceEvent && !$event instanceof ToolCallEvent) {
             return;
         }
 

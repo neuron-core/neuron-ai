@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Agent\Nodes;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Exceptions\AgentException;
 use PHPUnit\Framework\Attributes\DataProvider;
-
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;

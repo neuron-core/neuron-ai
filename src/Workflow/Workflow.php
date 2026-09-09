@@ -138,7 +138,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
         // An already-set start event wins: on a same-instance segment the
         // local state and the record are identical.
-        if (isset($this->startEvent)) {
+        if ($this->startEvent instanceof \NeuronAI\Workflow\Events\Event) {
             return;
         }
 
