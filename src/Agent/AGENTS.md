@@ -1,434 +1,108 @@
 # Agent Module
 
-AI agent built on Workflow. Provides chat, streaming, and structured output modes.
+`Agent` is a `Workflow` whose graph implements the agentic loop: instructions + history + tools → inference → tool execution → inference again → final response, in chat, streaming and structured-output modes. Study it as the reference composition; extend it, swap its nodes, or use it as a node inside your own workflow.
 
-**Dependencies**: `src/Workflow/AGENTS.md`, `src/Chat/AGENTS.md`, `src/Providers/AGENTS.md`, `src/Tools/AGENTS.md`
+## Defining an agent
 
-## Extension Pattern (Recommended)
-
-Create a custom agent class extending `Agent`:
+The extension pattern: lazy hooks provide the collaborators, so an agent class is a complete, self-describing unit.
 
 ```php
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\Messages\SystemMessage;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\Anthropic\Anthropic;
 
 class YouTubeAgent extends Agent
 {
     protected function provider(): AIProviderInterface
     {
-        return new Anthropic(
-            key: env('ANTHROPIC_API_KEY'),
-            model: 'claude-sonnet-4-6',
-        );
+        return new Anthropic(key: env('ANTHROPIC_API_KEY'), model: 'claude-sonnet-4-6');
     }
 
     protected function instructions(): SystemMessage|string
     {
-        return new SystemMessage(
-            <<<PROMPT
+        return new SystemMessage(<<<PROMPT
             You are an AI agent specialized in writing YouTube video summaries.
-
-            Get the URL of a YouTube video, or ask the user to provide one.
-            Use the tools you have available to retrieve the transcription of the video,
-            then write the summary.
-
-            Write the summary in a paragraph without using lists.
-            After the summary add a list of three sentences as the most important takeaways.
-            PROMPT
-        );
+            Use the tools you have available to retrieve the transcription, then write the summary.
+            PROMPT);
     }
 
     protected function tools(): array
     {
-        return [
-            GetTranscriptionTool::make(env('SUPADATA_API_KEY')),
-        ];
+        return [GetTranscriptionTool::make(env('SUPADATA_API_KEY'))];
     }
 }
 
-// Usage
-use NeuronAI\Chat\Messages\UserMessage;
-
-$response = YouTubeAgent::make()
-    ->chat(
-        new UserMessage('Summarize this: https://youtube.com/watch?v=...')
-    )
-    ->getMessage();
+$state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://youtube.com/watch?v=...'));
+echo $state->getMessage()->getContent();
 ```
 
-`instructions()` can also return a plain string — it gets wrapped in a `SystemMessage`
-automatically. Call `->cache()` on the `SystemMessage` to mark its system content blocks
-for provider-side prompt caching.
+Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `addTool()`, `setChatHistory()`, `setMemory()`, `setPersistence()`), and an explicit setter wins over the hook. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
 
-## Fluent Definition (Alternative)
+| Verb | Nature |
+|---|---|
+| `chat($messages)` | Eager: runs to completion and returns `AgentState` |
+| `stream($messages)` | Pull-stream `Generator` of native chunks, or adapter lines; `getReturn()` is the `AgentState` |
+| `structured($messages, $class)` | Eager: returns the typed output |
+| `run($inputs = null, ...)` / `events(...)` | The Workflow terminals: no input starts a run, an explicit array continues one |
+| `toolApprovalDecisions($decisions)` | Stages approval decisions (sugar for `signal('approval', ...)`) for the following `run()` or `events()` |
 
-For quick prototyping or simple use cases:
+`AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
-```php
-use NeuronAI\Agent;
-use NeuronAI\Providers\Anthropic\Anthropic;
+## The graph is a function of the definition
 
-$agent = Agent::make()
-    ->setAiProvider(new Anthropic(key: '...', model: '...'))
-    ->setInstructions('You are a helpful assistant.')
-    ->addTool($tool);
+Default nodes are rebuilt through Workflow's `nodes()` hook at every execution segment, from the current configuration and never from which sugar method was called. Explicitly added nodes and registered middleware stay attached; custom node construction that must read configuration belongs in `nodes()` / `entryNodes()`.
 
-$response = $agent->chat(new UserMessage('Hello'))->getMessage();
+```text
+AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─────────────────┐
+ (messages+options)                                 or StructuredInferenceEvent ─► StructuredOutputNode ├► ToolNode ⟲
+                                                                                                      │ final response
+                                                                                     [StoreMemoryNode] ─► Stop
 ```
 
-## The static graph & execution intent
-
-The Agent builds fresh default nodes through Workflow's `nodes()` hook at each
-execution segment. The graph is a function of the current agent definition,
-never of which sugar method was called:
-
-```
-AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─┐
- (messages+intent)                 when requested      or StructuredInferenceEvent     ├► ToolNode ⟲
-                                                       ─► StructuredOutputNode ───────┘
-                                                                     │ final response
-                                                                     ▼
-                                                       [StoreMemoryNode] ─► Stop
-                                                          when requested
-```
-
-Fluent configuration changes take effect when the next segment bootstraps:
-provider, instructions, tools and toolkit guidelines, tool limits and error handling,
-parallel tool execution, history, and memory are injected into fresh nodes. Tools
-are expanded again for that segment. Explicitly added nodes and registered
-middleware remain attached; custom node construction belongs in `nodes()` or
-`entryNodes()` when it must read current configuration. RAG's entry chain follows
-the same lifecycle.
-
-Each `chat()`, `stream()`, or `structured()` call creates a fresh start event through
-the `startEvent()` hook, so inference settings do not leak between turns. A resume
-uses the recorded event intent and instructions with the currently configured live
-capabilities. Configuration changes during an active segment apply to the next
-segment; history replacement remains forbidden while executing.
-
-- `AgentStartEvent` carries public `messages` and `options` properties. Its
-  `AgentRunOptions` contains `stream`, `outputClass`, `maxRetries`, `recallMemory`,
-  and `rememberMemory`. All are mutable, typed properties. Framework nodes preserve
-  mode and memory policy within a run by convention; there is no immutable API.
-- `StartNode` initializes the public typed `AgentState::$request` from the start
-  messages and options, cloned instructions, and the effective tool list. RAG
-  initializes it in `PreProcessNode`, before retrieval. A fresh entry replaces the
-  previous request; before entry, the property is uninitialized.
-- `AIInferenceEvent`, `StructuredInferenceEvent`, and `RecallMemoryEvent` are routing
-  signals. `ToolCallEvent` carries only the tool-call message. Nodes and middleware
-  read and mutate the same `state->request`; events never forward it.
-  `AIInferenceEvent::fromRequest()` chooses the exact routing class from
-  `request->options->outputClass`. Memory recall enriches the request before routing.
-- Chat vs stream is transport: `ChatNode` reads `request->options->stream`. Both
-  paths record the same memoized `ProviderResponse`. Structured output retains its
-  dedicated node and attempt-indexed memos. `maxRetries` counts retries after the
-  first attempt: `0` disables retries, `1` allows two attempts; negatives act as `0`.
-- The tool loop replaces `request->messages` with the uncommitted tool call/result
-  pair (only the result when approval already committed the call), then routes the
-  same request back to inference. Those messages are combined with stored history;
-  changing them does not overwrite chat history.
+- Each `chat()` / `stream()` / `structured()` builds a fresh `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`, `recallMemory`, `rememberMemory`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
+- `StartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
+- Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
+- The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
+- The effective tool list is shared by inference and tool execution. Executable tools are excluded from request serialization (they may hold closures or connections): `Agent::restoreState()` re-seeds `bootstrapTools()` on recalled state, and tool-contributing middleware reapply their changes in `before()`. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
 
 Middleware edits the working request directly:
 
 ```php
 $state->request->instructions->addContent($context);
 $state->request->tools[] = $tool;
-$state->request->messages = [$message];
 ```
 
-The effective tool list is shared by inference and tool execution. State snapshots
-persist the request's instructions, pending messages, and options. Request
-serialization excludes executable tools, which can hold closures or connections.
-`Agent::restoreState()` reattaches the current base registry whenever saved state
-re-enters the workflow; middleware reapply additions and removals before the
-relevant node executes. Live state never passes through this hook.
+### Middleware
 
-Cloning `AgentState` deeply copies request messages, instructions, and options so
-parallel branches cannot change one another's request data. Each clone retains its
-own tool selection array with references to the live tools; execution binds call
-inputs onto a clone of the selected tool. Providers, history, and memory remain
-constructor-injected services rather than persisted state.
-
-| Method | Effect |
-|--------|--------|
-| `chat($messages)` | Eager: ignites and runs to completion → `AgentState` (buffered transport) |
-| `stream($messages)` | Pull-stream: a `Generator` yielding native chunks or lines from the Workflow's configured adapter; `getReturn()` is the `AgentState`. |
-| `structured($messages, $class)` | Eager: returns the typed output |
-| `run($inputs = null, $expectedRunId = null, $expectedAttempt = null)` | Eager Workflow terminal: no input starts a run; an explicit array continues one. |
-| `events($inputs = null, $expectedRunId = null, $expectedAttempt = null)` | Pull-stream Workflow terminal; `getReturn()` is the `AgentState`. |
-| `toolApprovalDecisions($decisions)` | Stages approval decisions by tool call ID for the following `run()` or `events()`. |
-
-```php
-// Chat (eager → AgentState)
-$state = YouTubeAgent::make()->chat(new UserMessage('Hello'));
-echo $state->getMessage()->getContent();
-
-// Streaming (Generator → AgentState via getReturn())
-foreach (YouTubeAgent::make()->stream(new UserMessage('Hello')) as $chunk) {
-    echo $chunk->content;
-}
-
-// Structured output
-$report = MyAgent::make()->structured($message, ReportSchema::class);
-
-// Resume an approval by thread ID and decisions alone.
-$state = MyAgent::make()
-    ->setChatHistory($history)
-    ->setPersistence($persistence)
-    ->toolApprovalDecisions(['call_123' => 'approve'])
-    ->run();
-echo $state->getMessage()->getContent();
-```
-
-**`run()` and `events()` express both start and continuation.** With no input they start a new run; an explicit input array continues the existing one. Use `run([])` to evaluate due deadlines or recover without delivering an answer. Agent approvals are staged with `toolApprovalDecisions()`; durable platform SDKs pass addressed `ResumeInput` values directly to `run()` or `events()`. The run's mode never needs restating: intent is persisted in the ignition record (see *Ignition & thread identity* below).
-
-`chat()` and `run()` are eager and return `AgentState`; `stream()` and `events()` are pull-stream verbs returning a `Generator`.
-Workflow's generic state contract binds the inherited execution methods to
-`AgentState`; Agent does not override `run()` or `events()` merely to narrow
-their return types.
-`AgentState::getMessage()` reads the final assistant
-message off the stored provider response; `isInterrupted()` /
-`getInterruptRequest()` surface an approval pause on the state itself, just
-like a plain `WorkflowState`.
-
-## Middleware (`Middleware/`)
-
-Register via `$workflow->addMiddleware(NodeClass::class, $middleware)`:
-
-| Middleware | Purpose |
-|------------|---------|
-| `TodoPlanning` | Injects todo planning capabilities |
-| `Summarization` | Adds conversation summarization |
-
-Middleware shapes events before a node acts; flow control and I/O belong to the nodes
-themselves (tool approval, previously a middleware, now lives in `ToolNode`).
-
-Node matching is subclass-aware (`instanceof`), so middleware registered for a
-class also applies to its subclasses. `ChatNode` (chat + stream transport) and
-`StructuredOutputNode` are both always registered — the event's exact class
-selects the route at traversal time. They share the `InferenceNode` base
-class, so register mode-agnostic inference middleware (`Summarization`,
-`TodoPlanning`, `ToolSearchMiddleware`) against `InferenceNode::class` to have
-it fire on whichever inference route the run takes.
-
-### `AgentMiddleware` — typed hooks for the agent context
-
-Extend `AgentMiddleware` and implement `beforeAgentNode(AgentNodeInterface $node,
-Event $event, AgentState $state)` / `afterAgentNode(...)`. On misattachment
-outside the agent context `onAgentContextMismatch()` fires instead — empty by
-default, override it to fail loudly when a silent skip would be a hazard.
-Middleware read the chat history from the node they wrap
-(`$node->getChatHistory()`), never from their own constructor.
+Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `instanceof`, so `InferenceNode::class` (the base of `ChatNode` and `StructuredOutputNode`, both always registered) is the target for mode-agnostic inference middleware such as `Summarization`, `TodoPlanning` and `ToolSearchMiddleware`. Extend `AgentMiddleware` for typed hooks: `beforeAgentNode()` / `afterAgentNode()` receive `AgentNodeInterface` and `AgentState`, and `onAgentContextMismatch()` fires on misattachment (empty by default, override it to fail loudly). Middleware read chat history from the node they wrap (`$node->getChatHistory()`), never from their own constructor. Flow control and I/O stay in nodes: tool approval, once a middleware, lives in `ToolNode`.
 
 ## Chat history is a service, not state
 
-The chat history is injected into agent nodes as a constructor dependency
-(`AgentNodeInterface`), never carried in `AgentState` — per-step snapshots stay
-O(1) instead of embedding the conversation. Consequences:
+History is injected into agent nodes as a constructor dependency (`AgentNodeInterface`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
 
-- History writes go through `addToChatHistory($messages, $memo)`, which wraps
-  the write in a durable memo so a crash-replay skips it instead of duplicating
-  the tail.
-- A message commits only when the step that consumes it succeeds: inference
-  nodes commit their inbound after the provider call lands, and a non-gated
-  tool cycle commits the call/result pair together through the *next*
-  inference's inbound write — a tool crash or failed follow-up call
-  leaves the tail at the last committed message, never at a dangling tool call.
-  Only an approval-gated cycle writes its `ToolCallMessage` early (pre-suspend).
-- Durable workflow persistence requires a comparably durable chat history
-  (`InMemoryChatHistory` loses the thread across processes).
-- `AgentState::getMessage()` reads the final message off the stored provider
-  response; `AgentState::getSteps()` reports the current execution cycle's
-  messages only (transient, available even on an interrupted final state).
+- Writes go through `addToChatHistory($messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail.
+- A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Only an approval-gated cycle writes its `ToolCallMessage` early, pre-suspend.
+- Durable workflow persistence needs a comparably durable history: `InMemoryChatHistory` loses the thread across processes.
+- `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
 
-### Memory-aware history wiring
+## Memory
 
-`SemanticMemory` is the ready-to-use vector-backed implementation. It reuses
-the RAG vector-store and embeddings interfaces. Give it a dedicated collection
-or index using the default `DocumentSchema`: the built-in `sourceType` and
-`sourceName` fields isolate memory documents by type and thread, so no custom
-schema is needed. A shared store whose schema declares other required metadata
-fields will reject memory documents that do not contain them.
+`MemoryInterface` (`recall(query)`, `remember(threadId, user, assistant)`, `forget(threadId)`) is the customization boundary: each implementation owns its retrieval scope. `SemanticMemory` is the vector-backed one, reusing the RAG store and embeddings interfaces with the default `DocumentSchema` (`sourceType` / `sourceName` isolate memory documents by type and thread, so give it a dedicated collection). Its `recallThreadIds` is an explicit allowlist, the current thread is not added implicitly, and it must come from trusted application data: never accept thread IDs from a client without an ownership check.
 
-```php
-use NeuronAI\Agent\Memory\SemanticMemory;
-use NeuronAI\Chat\History\FileChatHistory;
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
-use NeuronAI\RAG\VectorStore\FileVectorStore;
+Memory attaches independently of history (`memory()` hook or `setMemory()`), and `getChatHistory()` always returns the developer's exact instance; memory never wraps or proxies it. When attached, `RecallMemoryNode` runs once per turn before the first provider call (memoized; recalled strings are appended as a trailing `<CONVERSATION-MEMORIES>` system block and never enter history) and `StoreMemoryNode` stores the plain user/assistant exchange after the final response (tool traffic excluded; failed or interrupted turns store nothing). Both yield `memory.recall` / `memory.store` step events and emit count-only observability events. Inference nodes know nothing about memory, and a memory-free agent keeps its original graph.
 
-class MyAgent extends Agent
-{
-    protected function provider(): AIProviderInterface {...}
+`setMemoryUsage(recall:, remember:)` sets per-run intent for the two branches (a disabled branch is not traversed), and a suspended run resumes with its original choices. Working history and long-term memory share thread identity but have separate lifecycles: `flushAll()` clears only history (so `Summarization` can compact the context window), while `resetConversation()` forgets memory first and then clears history, leaving history untouched if forgetting fails.
 
-    protected function memory(): ?MemoryInterface
-    {
-        return new SemanticMemory(
-            vectorStore: new FileVectorStore(
-                directory: storage_path('app/agent-memory'),
-            ),
-            embeddings: new OpenAIEmbeddingsProvider(
-                key: env('OPENAI_API_KEY'),
-                model: 'text-embedding-3-small',
-            ),
-            topK: 5,
-            recallThreadIds: [...]
-        );
-    }
+## Tool approval
 
-    protected function chatHistory(): ChatHistoryInterface
-    {
-        return new FileChatHistory('path/directory');
-    }
-}
-
-$state = SupportAgent::make(threadId: $threadId)->chat(...);
-```
-
-`recallThreadIds` is the exact, non-empty recall allowlist owned by that
-`SemanticMemory` instance; the current thread is not added implicitly. Resolve
-the list from trusted application data, such as conversations owned by the
-authenticated user, and never accept thread IDs from a client without an
-ownership check. Duplicate IDs are removed.
-
-Recall searches the allowed threads together and applies `topK` globally.
-`remember()` and `forget()` remain scoped to one explicit thread, so completed
-exchanges are always stored in the current conversation and
-`resetConversation()` deletes only that conversation.
-
-`MemoryInterface` is the customization boundary: `recall()` receives only the
-query and returns relevant conversation excerpts, so each implementation owns
-its retrieval scope. `remember()` stores a completed exchange in one thread,
-and `forget()` removes one thread. Implement it directly for a non-vector
-backend.
-
-`setMemory(MemoryInterface $memory)` attaches memory independently from chat
-history, like every other Agent component. `getChatHistory()` always returns
-the exact developer-provided history instance; memory does not wrap, replace,
-or proxy it. Calling `setMemory()` before or after `setChatHistory()` produces
-the same result.
-
-`setMemoryUsage(recall: bool, remember: bool)` independently controls the two
-branches for each new run. Both default to true, preserving the normal
-recall-before-inference and remember-after-inference behavior. For example,
-keep writing memories while honoring a user's per-turn recall preference:
-
-```php
-$agent
-    ->setMemory($memory)
-    ->setMemoryUsage(
-        recall: $user->allowsMemoryRecall(),
-        remember: true,
-    )
-    ->chat($message);
-```
-
-Use `setMemoryUsage(recall: false)` for remember-only,
-`setMemoryUsage(remember: false)` for recall-only, or set both false to skip
-memory for the run while keeping the component attached. The choices are run
-intent: they can change between turns, survive structured routing and tool
-loops, and a suspended run resumes with its original choices. Memory nodes
-are included whenever memory is attached, but disabled branches are not
-traversed and emit no stream or observability events.
-
-Subclasses may provide the dependency through the lazy hook instead:
-
-```php
-protected function memory(): ?MemoryInterface
-{
-    return new ProjectMemory(/* ... */);
-}
-```
-
-An explicit `setMemory()` call wins over the hook. Memory can be added or replaced
-between interactions; the next segment injects the current component into its nodes.
-
-`RecallMemoryNode` runs after instructions are complete and before the first
-provider call. Recall is durably memoized there. Recalled strings are appended to a trailing
-`<CONVERSATION-MEMORIES>` system block; they never enter chat history. This
-works for chat, stream, structured output, and RAG without route-specific
-configuration. Tool iterations return directly to inference, so recall runs
-once per turn rather than once per tool call.
-
-The node yields `StepStartedStreamEvent('memory.recall')` and a matching
-`StepFinishedStreamEvent` around that work. The finished event reports only the
-number of recalled memories, never their content or thread IDs.
-
-After the final inference writes its response to chat history, a
-`StoreMemoryEvent` routes the completed message slice through
-`StoreMemoryNode`. The node extracts the plain user-assistant exchange and
-memoizes `remember()` as its own durable side effect. Tool-assisted turns are
-stored only after their final assistant response; `ToolCallMessage` and
-`ToolResultMessage` remain protocol traffic and are excluded. Failed
-inference, incomplete streams, and interrupted tool loops produce no memory.
-The store node similarly yields `memory.store` step started/finished events.
-These portable events are visible in a native stream and are translated by
-AG-UI or Vercel adapters without either adapter depending on memory classes.
-
-Memory operations also emit PSR-14 observability pairs around the actual memory
-boundary: `MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` /
-`MemoryStored`. The recall completion event exposes only the recalled-memory
-count; it never exposes queries, recalled content, retrieval scope, or thread
-IDs. The existing `WorkflowNodeStart` / `WorkflowNodeEnd` events still describe
-generic node execution. If a memory operation throws, its starting event is
-followed by the existing `AgentError` and no successful completion event.
-
-Inference nodes do not depend on `MemoryInterface` and perform no recall,
-prompt injection, pair extraction, or storage. They only route final responses
-to the store phase when remembering is requested and memory is available. The
-Agent adds the recall and store nodes only when memory is configured, so a
-memory-free Agent keeps its original graph and execution cost. Implement
-`MemoryInterface` to customize recall, redaction, or persistence.
-
-Chat history and long-term memory share thread identity, but they have separate
-lifecycles. `ChatHistoryInterface::flushAll()` clears only working history.
-This allows `Summarization` and custom middleware to compact or rewrite the
-context window without deleting durable semantic memories.
-
-Use the explicit aggregate operation when the user intends to permanently
-delete the entire conversation:
-
-```php
-$agent->resetConversation();
-```
-
-`resetConversation()` calls `MemoryInterface::forget($threadId)` first, when
-memory is configured, and then clears chat history. If forgetting fails, chat
-history remains untouched and the exception propagates. Without configured
-memory, it simply clears chat history.
-
-## Persistence & Tool Approval
-
-`ToolNode` gates tool execution behind human approval — there is no middleware
-to attach; the gate runs on every tool call and asks each tool. Messages carry `ToolCall`
-value objects: the node resolves every call against ONE source — the inference
-state request's tool list, the cycle's effective set (agent base plus middleware additions, minus
-middleware removals) — clones the match, binds the call's inputs, executes, and settles
-the result back onto the call. A call naming a tool outside that set throws a
-`ToolException`. Exceptions escaping tool execution are bugs and propagate (a
-*conversational* failure is a returned `ToolOutput::error()` — see
-`src/Tools/AGENTS.md`); `toolErrorHandler(fn (Throwable $e, ToolCall $call):
-string|ToolOutput|null)` is the cross-cutting override — a returned string or
-`ToolOutput` settles as the call's result, `null` declines and the exception
-propagates. Executable tools are transient in state persistence: the executor passes
-recalled state through `Workflow::restoreState()` before it re-enters traversal.
-The Agent override re-seeds `bootstrapTools()` on the recorded request. Live state
-never passes through restoration, so middleware additions and removals remain in
-effect during ordinary transitions. Tool-contributing middleware reapply their
-changes in `before()`. The node itself holds no tool registry. **Each tool declares** its
-intrinsic risk via the protected `approvalPolicy(array $inputs)` hook, and the agent
-developer overrides the declaration per tool at
-attach time, in both directions:
+`ToolNode` gates execution: on every call it asks each tool `requiresApproval(inputs)` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
 ```php
 protected function tools(): array
 {
     return [
-        DeleteFileTool::make()->requireApproval(),        // force, even if it declares false
-        RiskyThirdPartyTool::make()->suppressApproval(),  // waive a declared gate
-        TransferMoneyTool::make()->withApprovalPolicy(    // replace the policy
-            fn (ToolInterface $t): bool|string => ($t->getInputs()['amount'] ?? 0) > 100
+        DeleteFileTool::make()->requireApproval(),
+        RiskyThirdPartyTool::make()->suppressApproval(),
+        TransferMoneyTool::make()->withApprovalPolicy(
+            fn (ToolInterface $tool): bool|string => ($tool->getInputs()['amount'] ?? 0) > 100
                 ? 'Transfers above $100 require a human sign-off'
                 : false
         ),
@@ -436,24 +110,7 @@ protected function tools(): array
 }
 ```
 
-Both the declaration and a policy callback return `bool|string` — a string counts as `true`
-and doubles as the approval reason shown to the approver (persisted as `approvalReason` on
-the tool entry in chat history, exposed on the `ApprovalRequest` actions as `reason`). When
-a gated tool is requested, `chat()` returns suspended instead of completed — cross-process
-flows require **workflow persistence AND a durable chat history** (the suspend-time
-`ToolCallMessage` in chat history is what lets a cold process render and resume the pending
-approval).
-
-```php
-use NeuronAI\Workflow\Persistence\DatabasePersistence;
-
-$agent = YouTubeAgent::make()
-    ->setPersistence(new DatabasePersistence($pdo));
-    // + a durable ChatHistory
-```
-
-A continuation delivers decisions as a **cumulative** payload keyed by tool callId — the entire
-decision set, restated on every continuation:
+When a gated tool is requested, `chat()` returns suspended. A continuation delivers decisions as a **cumulative** payload keyed by call ID, restated in full on every continuation:
 
 ```php
 $agent->toolApprovalDecisions([
@@ -462,108 +119,14 @@ $agent->toolApprovalDecisions([
 ])->run();
 ```
 
-A tool runs iff explicitly approved; silence is never consent. An incomplete payload
-re-suspends, and partial decisions are deliberately **not** persisted anywhere —
-accumulation lives with the caller (an app collecting decisions one at a time gathers
-them itself before resuming). The latest payload wins, so decisions are revisable until
-the set completes. The UI re-renders pending approvals by reading chat history (last
-message, tools with `getApprovalState()`) — no workflow boot; final outcomes are read
-from the `ToolResultMessage` that follows. The thread stays effectively
-**locked** until the full decision set is delivered — the engine's
-one-live-run-per-workflow-ID refusal (see *Thread-first continuation* below)
-blocks any new turn until the pending approvals are settled.
+A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and partial decisions are deliberately not persisted anywhere (accumulation lives with the caller, and the latest payload wins). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
 
-### Leases: surviving a killed process
+## The thread IS the workflow ID
 
-Every Agent run holds a **ten-minute lease** by default (`leaseTimeout()`).
-A caught failure records `failed` and the next turn supersedes it, but a
-process killed with no chance to write (memory limit, `max_execution_time`,
-an OOM-killed container) leaves the thread `running`, and nothing can tell
-that apart from a live worker. The lease resolves it: every step commit
-renews a deadline, so once it passes the next `chat()` supersedes the dead
-run instead of refusing; until then the refusal names the deadline. Raise it
-above your slowest provider or tool call with `setLeaseTimeout()` or by
-overriding `leaseTimeout()`. `null` disables it, in which case a killed
-process strands the thread until `run([])` takes it over. The renewal rides
-on the step commit, so the lease costs no extra write.
-### Thread-first continuation: the thread IS the workflow ID
-
-The Agent declares its **threadId as the run's workflow ID** (`workflowId()`), so the
-run's durable records live in the partition named by the thread itself. There
-is no pointer and no index: the approve/deny endpoint needs only the thread
-id, one read answers "is a run in flight here", and nothing about execution
-identity ever touches chat history:
+The Agent declares its `threadId` as the run's workflow ID (`workflowId()`), so a run's durable records live in the partition named by the thread. No pointer, no index: the approve endpoint needs only the thread ID, one read answers "is a run in flight here", and execution identity never touches chat history.
 
 ```php
-// New execution cycle: nothing stored anywhere by the application — the
-// thread IS the workflow ID. The history is constructed WITHOUT identity; the
-// framework binds the resolved threadId into it.
-$agent = Agent::make(threadId: $threadId)
-    ->setChatHistory(new SQLChatHistory($pdo))
-    ->setPersistence($persistence);
-
-$agent->toolApprovalDecisions(['call_123' => 'approve'])
-    ->run();
-// (a pre-bound history — new SQLChatHistory($pdo, $threadId) — declares the
-// same identity by adoption and works identically)
-```
-
-The decision-map form specifically resolves Agent tool approval. Ordinary
-Workflow event waits use `signal()`, due timers use `run([])`, and a
-platform can address any interruption type with `ResumeInput`. One live run per
-thread is enforced by the engine: a new `chat()` while a run is suspended on the
-thread is **refused** loudly with a `RunInFlightException` that names the pending
-`approval` event and carries the `ApprovalRequest` in `interrupts`; settle the
-pending run first — typically `toolApprovalDecisions()` followed by `run()` with decline decisions. A continuation
-that can identify no run at all (no workflow ID, nothing in flight) throws a
-`WorkflowException` rather than running against the wrong one.
-
-A *failed* turn does not lock the thread. A provider outage or a crashed tool
-commits `failed` under the thread; the inbound message was never written to
-history, so nothing dangles. The next `chat()` supersedes the dead generation
-and starts a fresh turn with whatever messages it carries. Call `run([])`
-instead to replay the failed turn as it was, reusing every memoized step (a
-long tool loop is not re-billed). See *Failed and dead generations* in
-`src/Workflow/AGENTS.md`.
-
-`abandonRun()` discards a dead turn without starting a new one (a "dismiss"
-action) and returns false when nothing is in flight. It **refuses while an
-approval is pending**: the pre-suspend `ToolCallMessage` would be left
-unanswered in history and every provider rejects the next turn, so settle the
-approval with `toolApprovalDecisions()` instead. `resetConversation()` frees
-the thread unconditionally, since it wipes the history anyway.
-
-The declared workflow ID is `null` while no thread identity has been declared —
-the run then lives under an engine-generated workflow ID (`getWorkflowId()` after the
-first segment) and the threadId, if any, arrives from the ignition record.
-See `src/Workflow/AGENTS.md` for the workflow ID model and the identity truth
-table.
-
-## Ignition & thread identity
-
-The **Agent owns its thread identity**: `Agent::getThreadId(): ?string` is a
-nullable slot validated by `adoptThreadId()` during implicit adoption. An explicit
-`setChatHistory()` call with a different pre-bound history selects a new conversation.
-The framework **never generates** a thread identity — it is always a developer statement, and a run without one
-is simply not findable by its thread (`workflowId()` null, generated workflow ID, no
-`threadId` in the ignition record).
-
-**Collaborators are bound, not identity-constructed.** Chat histories are
-thread-scoped by nature but constructible *without* their thread
-(`ChatHistoryInterface::setThreadId()` / `getThreadId(): ?string`; loading is
-lazy): the Agent binds the resolved identity into an unbound history before
-first use. Wiring code can therefore leave identity to the caller:
-
-```php
-class SupportAgent extends Agent
-{
-    protected function chatHistory(): ChatHistoryInterface
-    {
-        return new SQLChatHistory($this->pdo, contextWindow: 50000);   // identity: not your job
-    }
-}
-
-// Fresh turn (a controller): identity enters through the ONE front door.
+// Fresh turn (controller): identity enters through the one front door.
 SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
@@ -571,72 +134,20 @@ SupportAgent::make(threadId: $threadId)
     ->toolApprovalDecisions(['call_123' => 'approve'])
     ->run();
 
-// WorkflowId-first resume (background wake): the record supplies the thread
-// identity — the developer writes nothing.
-SupportAgent::make(workflowId: $ticket->workflowId)->run(
-    [ResumeInput::fromArray($ticket->input)],
-    expectedRunId: $ticket->runId,
-);
+// WorkflowId-first resume (background wake): the ignition record supplies the thread.
+SupportAgent::make(workflowId: $ticket->workflowId)
+    ->run([ResumeInput::fromArray($ticket->input)], expectedRunId: $ticket->runId);
 ```
 
-Implicit identity adoption rejects disagreeing non-null claims (`AgentException`).
-An explicit history setter selects the conversation instead:
+Identity is **always a developer statement; the framework never generates one**. It resolves from `make(threadId:)`, from adoption of a pre-bound history passed to `setChatHistory()` (which selects that conversation), or from the ignition record on a workflowId-first resume. Disagreeing non-null claims throw `AgentException`: a record contradicting an explicit claim is a misidentified continuation. Once resolved, the Agent binds the identity into an unbound history (`setThreadId()`, itself assign-once). A run without identity lives under an engine-generated workflow ID and is simply not findable by its thread; a hook-provided history that self-keys materializes after the ignition record is written, so it does not make a run thread-findable either.
 
-1. **Explicit**: `Agent::make(threadId: 'thread-42')`.
-2. **Adoption from a pre-bound history**: `setChatHistory(new SQLChatHistory($pdo, 'thread-42'))`
-   selects the history's key as the agent's identity, replacing the previous selection.
-3. **The ignition record** (workflowId-first resume): `applyIgnitionContext()`
-   adopts the recorded threadId — adoption validates, so a record
-   contradicting an explicitly claimed identity throws (a misidentified
-   continuation). The engine's own check fires even earlier: a declared
-   threadId disagreeing with an explicit `make(workflowId:)` is refused at
-   identity resolution.
+One live run per thread has these consequences:
 
-`setChatHistory()` can replace history between interactions, including after a
-completed, failed, or suspended turn. A different thread clears local workflow/run
-identity, state, start-event intent, and staged signals; persisted runs and both
-histories remain intact. Swap back to the original history to continue its suspended
-run. An unbound replacement adopts the current thread. The next segment constructs
-its agent nodes with the replacement history. Replacing history during an
-active execution or stream throws `AgentException`.
+- A new `chat()` while a run is suspended on the thread is refused with `RunInFlightException`, carrying the pending `ApprovalRequest`; settle it first. The thread stays locked until the full decision set is delivered.
+- A *failed* turn does not lock the thread: the inbound message was never written, so the next `chat()` supersedes the dead generation, while `run([])` replays it reusing every memoized step (a long tool loop is not re-billed).
+- Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
+- `abandonRun()` dismisses a dead turn but refuses while an approval is pending, since the pre-suspend `ToolCallMessage` would be left unanswered in history; `resetConversation()` frees the thread unconditionally.
 
-**Thread-findability requires identity declared before the run starts** (the two
-sources above, or the record on a resume). A pre-bound *hook* history (the
-in-memory default self-keying, or a subclass hook choosing a fixed key) is
-adopted and validated when it materializes during bootstrap — but that is
-after the workflow ID is resolved and the ignition record written, so it does
-not make the run findable by its thread. `getThreadId()` is a pure read of the
-slot; hooks may consult it freely (null on anonymous runs).
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread clears local run identity and staged signals while persisted runs stay intact, and replacing it during an active execution throws.
 
-The moment identity resolves, the Agent binds it into an unbound history
-(`setThreadId()`, itself conflict-guarded: re-pointing a bound history at a
-different thread always throws). A durable history *used* while unbound
-fails loudly ("thread-scoped and no thread identity was given").
-
-Every durable run persists its **ignition record** at first execution: the
-runId (generation stamp), the start event (messages + intent), plus the
-Agent's context bag (`['threadId' => ...]`, read from the identity slot;
-omitted when anonymous). That is what makes a suspended run continuable from
-a **blank process** — a factory that knows only the workflow ID.
-
-- `setChatHistory()` accepts a `ChatHistoryInterface` (pre-bound = identity
-  declaration; unbound = the framework binds). `setChannel()` accepts a
-  concrete channel or null.
-- **Adapted stream delivery**: a `StreamingChannelInterface` has two ports —
-  `send(object)` for native chunks and `sendLine(string)` for protocol lines. With no
-  adapter attached, the channel receives native chunks via `send()`. Attach a stream
-  adapter via `setStreamAdapter($adapter)` and the workflow runs each yielded chunk through
-  it once. Pull iteration yields the resulting lines (including the adapter's
-  `start()`/`end()` framing), and an attached channel receives the same lines via
-  `sendLine()`. The adapter decides the output shape; the channel independently decides
-  the destination (Pusher, websocket, …). An adapter is stateful for one stream.
-- **Persisted-wins**: on a resume the recorded start event and context win over
-  the factory's defaults. Editing `instructions()` between suspend and resume
-  does not affect the resumed run — the record is the run's contract; the
-  factory supplies capability (provider, tools, history), the record supplies
-  intent.
-
-**Security note — threadId is untrusted input used as a storage key.** The
-frontend-supplied threadId selects which conversation is read, written, and
-resumed. Authorize user ↔ thread ownership BEFORE opening a history with it;
-the framework performs no access control.
+**Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.

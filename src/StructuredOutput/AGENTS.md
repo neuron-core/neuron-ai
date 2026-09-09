@@ -1,39 +1,20 @@
 # StructuredOutput Module
 
-JSON schema-based extraction with PHP class mapping.
+Turns a PHP class into a JSON Schema for the model, then turns the model's answer back into a validated instance of that class. The PHP class is the single source of truth: property types, nullability and attributes drive schema generation, deserialization and validation alike.
 
-## Core
+## Pipeline
 
-| File | Purpose |
-|------|---------|
-| `JsonSchema.php` | Generates JSON Schema from PHP attributes |
-| `JsonExtractor.php` | Extracts and parses JSON from AI responses |
-| `SchemaProperty.php` | Attribute for custom schema properties |
-| `SchemaPropertiesInterface.php` | Runtime schema property definitions |
+`JsonSchema` (class → schema, from property types and `#[SchemaProperty]` attributes; nested objects, arrays and enums included) → provider call → `JsonExtractor` (finds the JSON inside a free-form answer: fenced blocks, bracket scanning, pluggable extractors) → `Deserializer` (JSON → object) → `Validator` (attribute-driven rules from `Validation/Rules/`).
 
-## Usage
+The Agent's `StructuredOutputNode` runs this pipeline in a retry loop: a deserialization or validation failure is sent back to the model as a correction message and the call is retried up to `maxRetries`. Each attempt is a distinct provider call, so its memo is attempt-indexed and a replay recalls a succeeded attempt without re-calling the provider.
 
-```php
-class UserProfile {
-    #[SchemaProperty(description: 'User name')]
-    public string $name;
+## Runtime schema properties
 
-    #[SchemaProperty(description: 'User age')]
-    public int $age;
-}
-
-$schema = JsonSchema::make(UserProfile::class)->generate();
-// Returns JSON Schema for the class
-```
-
-## Runtime Schema Properties
-
-PHP attribute arguments must be compile-time constants, so `SchemaProperty`
-cannot carry dynamic values (translated descriptions, config-driven constraints).
-Implement `SchemaPropertiesInterface` to build `SchemaProperty` objects at runtime:
+PHP attribute arguments must be compile-time constants, so `#[SchemaProperty]` cannot carry a translated description or a config-driven constraint. `SchemaPropertiesInterface` is the escape hatch: the class builds `SchemaProperty` objects at runtime.
 
 ```php
-class UserProfile implements SchemaPropertiesInterface {
+class UserProfile implements SchemaPropertiesInterface
+{
     public string $name;
 
     #[SchemaProperty(description: 'User age')]
@@ -41,45 +22,9 @@ class UserProfile implements SchemaPropertiesInterface {
 
     public static function schemaProperties(): array
     {
-        return [
-            'name' => new SchemaProperty(description: trans('user.name')),
-        ];
+        return ['name' => new SchemaProperty(description: trans('user.name'))];
     }
 }
 ```
 
-Resolution rules (`SchemaProperty::resolve()`, shared by `JsonSchema` and `Deserializer`):
-- A property listed in `schemaProperties()` uses that object (it replaces the attribute entirely).
-- A property not listed falls back to its `#[SchemaProperty]` attribute.
-- Runtime definitions behave identically to attributes, including `anyOf` array hydration.
-
-The method is static and receives no context: runtime values must come from
-globally reachable state (translator helpers, config, a service locator).
-
-## Schema Generation
-
-Reads PHP attributes and types to generate compatible JSON Schema:
-- String, int, float, bool
-- Arrays and nested objects
-- Optional vs required properties
-- Enum support
-
-## JSON Extraction
-
-`JsonExtractor` handles:
-- Finding JSON in mixed content
-- Parsing code blocks with ```json
-- Repairing malformed JSON
-- Multiple JSON objects
-
-## Validation (`Validation/`)
-
-Post-extraction validation rules.
-
-## Deserializer (`Deserializer/`)
-
-Maps JSON to PHP objects.
-
-## Dependencies
-
-- `Chat` module for message types
+`SchemaProperty::resolve()` is the one resolution point shared by `JsonSchema` and `Deserializer`: a property listed in `schemaProperties()` uses that object and ignores its attribute entirely; anything else falls back to the attribute. The method is static and receives no context, so runtime values must come from globally reachable state (translator helpers, config, a service locator).

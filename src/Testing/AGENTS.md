@@ -1,66 +1,22 @@
 # Testing Module
 
-Test fakes and utilities for testing Neuron applications.
+Fakes shipped with the framework so applications, and our own test suite, can exercise real wiring without network or infrastructure. Every fake implements the corresponding framework contract (`AIProviderInterface`, `EmbeddingsProviderInterface`, `VectorStoreInterface`, `WorkflowMiddleware`, `McpTransportInterface`, `StreamingChannelInterface`), so it plugs into the same seam a production implementation would and nothing in the system under test is mocked away.
 
-## Fakes
+## Pattern: queue responses, record calls, assert
 
-| Class | Purpose |
-|-------|---------|
-| `FakeAIProvider` | Mock AI responses, record calls |
-| `FakeEmbeddingsProvider` | Mock embeddings |
-| `FakeVectorStore` | Mock vector store |
-| `FakeMiddleware` | Track middleware execution |
-| `FakeMcpTransport` | Mock MCP transport, record send/receive |
-| `FakeChannel` | Record channel deliveries (sent/lines/suspended states/completions/failures); `throwOnSend` exercises the failure policy |
-| `FakeMessageMapper` | Mock message mapping |
-| `FakeToolMapper` | Mock tool mapping |
-
-## FakeAIProvider Usage
+A fake is pre-loaded with the responses it should return and records everything it receives (`RequestRecord`, `MiddlewareRecord`); assertions read the recording.
 
 ```php
-$provider = new FakeAIProvider();
-$provider->addResponse(new AssistantMessage('Hello!'));
+$provider = new FakeAIProvider(new AssistantMessage('Hello!'));
 
-$agent = Agent::make()->withProvider($provider);
-$response = $agent->chat(new UserMessage('Hi'));
+Agent::make()->setAiProvider($provider)->chat(new UserMessage('Hi'));
 
-// Verify calls
-$provider->assertCalled();
-$provider->assertCalledTimes(1);
+$provider->assertCallCount(1);
+$provider->assertSent(fn (RequestRecord $request): bool => $request->messages[0]->getContent() === 'Hi');
 ```
 
-**PHP Generator Gotcha**: `FakeAIProvider::stream()` uses separate `streamChunks()` method to ensure side effects execute. See project memory for details.
+`FakeMcpTransport` applies the same shape at the JSON-RPC level: queue responses, then `assertMethodSent('initialize')`, `assertToolCalled('search')`, and so on. `FakeChannel` records deliveries (`sent`, `lines`, suspended/completed/failed states) and its `throwOnSend` exercises the workflow's failure policy.
 
-## Record Types
+## Generator gotcha
 
-| Class | Purpose |
-|-------|---------|
-| `RequestRecord` | Captured request details |
-| `MiddlewareRecord` | Captured middleware execution |
-
-## FakeMcpTransport Usage
-
-Test double for `McpTransportInterface`. Queue predetermined responses, then assert what was sent/received.
-
-```php
-$transport = new FakeMcpTransport(
-    ['result' => ['tools' => []]],
-    ['result' => ['content' => 'Hello']],
-);
-
-$transport->connect();
-$transport->send(['method' => 'initialize', 'params' => []]);
-$response = $transport->receive(); // first queued response
-
-$transport->assertConnected();
-$transport->assertMethodSent('initialize');
-$transport->assertInitialized(); // checks initialize + notifications/initialized
-$transport->assertToolsListCalled();
-$transport->assertToolCalled('search');
-```
-
-## Dependencies
-
-- `Providers` module (implements interfaces)
-- `MCP` module (`FakeMcpTransport` implements `McpTransportInterface`)
-- `Workflow` module (`FakeChannel` implements `StreamingChannelInterface`)
+`FakeAIProvider::stream()` must record the call and consume the queued response **eagerly**, then delegate chunk emission to a separate `streamChunks()` generator: a generator body does not run until it is iterated, so side effects placed inside it would never happen for a caller that only checks the recording. Keep that split when touching stream fakes.

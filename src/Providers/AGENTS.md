@@ -1,157 +1,31 @@
 # Providers Module
 
-AI provider abstractions. All providers implement `AIProviderInterface`.
+Adapters between Neuron's messaging layer and each AI vendor's API. Every provider implements `AIProviderInterface` (`chat()`, `stream()`, `structured()`, `setTools()`, `systemPrompt()`): it takes Neuron `Message`s and returns a `ProviderResponse` or a `Generator` of stream chunks, so the Agent never sees a vendor payload.
 
-**Dependencies**: `src/Chat/AGENTS.md`, `src/HttpClient/AGENTS.md`
+## Anatomy of a provider
 
-## Interface
+Each vendor directory holds cooperating pieces with one responsibility each:
 
-```php
-interface AIProviderInterface {
-    public function chat(array $messages): Message;
-    public function stream(array $messages): Generator;
-    public function setTools(array $tools): self;
-}
-```
+- the provider class owns the HTTP conversation: `HasHttpClient` for the injectable client, `SSEParser` plus a `BasicStreamState` subclass for streaming, `HandleWithTools` for the tool registry. `newToolCall()` validates the tool name the model asked for against that registry before a `ToolCall` is created;
+- a `MessageMapper` (`MessageMapperInterface`) translates Neuron messages, content blocks and tool call/result messages into the vendor format;
+- a `ToolMapper` (`ToolMapperInterface`) translates `Tool` definitions into the vendor's tool schema, when the API supports tools.
 
-## Provider Implementations
+Keep the split: mapping is pure data translation, tested in isolation from HTTP. OpenAI-compatible vendors (Deepseek, ZAI, Cohere, Grok, ...) extend `OpenAI` and its mappers instead of duplicating the protocol; `OpenAILike` / `OpenAILikeResponses` are the generic "any OpenAI-compatible endpoint" variants for the Chat Completions and Responses APIs, configured with a base URI.
 
-| Directory | Provider |
-|-----------|----------|
-| `Anthropic/` | Claude API |
-| `OpenAI/` | GPT models |
-| `Gemini/` | Google Gemini |
-| `Ollama/` | Local models |
-| `Mistral/` | Mistral AI |
-| `Deepseek/` | Deepseek |
-| `Cohere/` | Cohere |
-| `HuggingFace/` | Hugging Face |
-| `XAI/` | xAI Grok |
-| `ZAI/` | Zhipu AI |
-| `AWS/` | AWS Bedrock |
-| `ElevenLabs/` | ElevenLabs TTS |
+## Multimodal and failed tool results
 
-Each provider has:
-- `*Provider.php` - Main implementation
-- `*MessageMapper.php` - Converts `Message` → API format
-- `*ToolMapper.php` - Converts `Tool` → API format (if tools supported)
+A tool result is `string|ToolOutput`. Mappers detect multimodality on the **value** (`$tool->getResult() instanceof ToolOutput`), never on the tool type, and map the blocks natively where the API accepts them (Anthropic, Bedrock, Gemini, OpenAI Chat and Responses, Mistral) by reusing the mapper's existing block mapping; block types an API does not support fall out through the same null-filtering, and text-only APIs (Ollama) fall back to `ToolOutput::getText()`. An error output (`ToolOutput::error()`) sets the vendor's native error flag where one exists (`is_error` on Anthropic, `status: "error"` on Bedrock); elsewhere the feedback text itself carries the semantics.
 
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `AIProviderInterface.php` | Main contract |
-| `HandleWithTools.php` | Trait for tool management |
-| `MessageMapperInterface.php` | Message conversion contract |
-| `ToolMapperInterface.php` | Tool conversion contract |
-| `SSEParser.php` | Server-Sent Events parsing for streaming |
-| `OpenAILike.php` | Base for OpenAI-compatible APIs |
-| `OpenAILikeResponses.php` | Response handling for OpenAI-like APIs |
-| `BasicStreamState.php` | Stream state tracking |
-
-## Multimodal Tool Results
-
-A tool result is `string|ToolOutput` (see `src/Tools/AGENTS.md`). Each MessageMapper's
-tool-result mapping checks `$tool->getResult() instanceof ToolOutput` — detection is on
-the value, never the tool type — and maps the content blocks natively where the
-underlying API accepts them, reusing the mapper's existing block-mapping code:
-
-| Provider | Behavior with a `ToolOutput` result |
-|----------|-------------------------------------|
-| Anthropic | `tool_result.content` as native block array (`text`, `image`, `document`) |
-| AWS Bedrock | `toolResult.content` as native block array (`text`, `image`, `document`, `video`, `audio`) |
-| Gemini | `functionResponse.response.content` = `{parts: [...]}` (`text`, `inline_data`, `file_data`) |
-| OpenAI Chat Completions | `content` as block array (`text`, `image_url`). Inherited by Cohere, Deepseek, ZAI |
-| OpenAI Responses | `function_call_output.output` as block array (`input_text`, `input_image`, `input_file`) |
-| Mistral | `content` as block array (`text`, `image_url`, `document_url`, `input_audio`) |
-| Ollama | Text-only API — falls back to `ToolOutput::getText()` |
-
-Block types a provider's API doesn't support fall out through the mapper's existing
-null-filtering. Plain string results map exactly as before.
-
-An error output (`ToolOutput::error()`) additionally sets the provider's
-native error flag where one exists — `is_error: true` on Anthropic's `tool_result`,
-`status: "error"` on Bedrock's `toolResult`. The other providers have no such concept;
-the feedback text itself carries the error semantics.
-
-## Usage with Agent Extension Pattern
-
-Create a custom agent class extending `Agent`:
+## Wiring into an agent
 
 ```php
-use NeuronAI\Agent;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\SystemPrompt;
-
 class MyAgent extends Agent
 {
     protected function provider(): AIProviderInterface
     {
-        return new Anthropic(
-            key: env('ANTHROPIC_API_KEY'),
-            model: 'claude-sonnet-4-6',
-        );
+        return new Anthropic(key: env('ANTHROPIC_API_KEY'), model: 'claude-sonnet-4-6');
     }
-
-    public function instructions(): string
-    {
-        return (string) new SystemPrompt(
-            background: ['You are a helpful AI assistant.'],
-            steps: ['Answer questions accurately and concisely.'],
-            output: ['Be friendly and professional.']
-        );
-    }
-}
-
-// Usage
-$response = MyAgent::make()->chat(new UserMessage('Hello!'))->getMessage();
-```
-
-### Alternative Providers
-
-```php
-// OpenAI
-use NeuronAI\Providers\OpenAI\OpenAI;
-
-protected function provider(): AIProviderInterface
-{
-    return new OpenAI(
-        key: env('OPENAI_API_KEY'),
-        model: 'gpt-4o',
-    );
-}
-
-// Gemini
-use NeuronAI\Providers\Gemini\Gemini;
-
-protected function provider(): AIProviderInterface
-{
-    return new Gemini(
-        key: env('GEMINI_API_KEY'),
-        model: 'gemini-2.0-flash',
-    );
-}
-
-// Ollama (local)
-use NeuronAI\Providers\Ollama\Ollama;
-
-protected function provider(): AIProviderInterface
-{
-    return new Ollama(
-        model: 'llama3.2',
-    );
 }
 ```
 
-## Adding New Provider
-
-1. Create `src/Providers/NewProvider/`
-2. Implement `NewProviderProvider.php` with `AIProviderInterface`
-3. Create `NewProviderMessageMapper.php` implementing `MessageMapperInterface`
-4. Create `NewProviderToolMapper.php` if tools supported
-5. Use `HasHttpClient` trait for HTTP injection
-
-## HTTP Client
-
-Providers use `HttpClientInterface` via `HasHttpClient` trait. Default is `CurlHttpClient` (ext-curl, dependency-free); inject `GuzzleHttpClient` for Guzzle middleware support.
+The default HTTP client is `CurlHttpClient`; inject `GuzzleHttpClient` through `setHttpClient()` when Guzzle middleware is needed (see `src/HttpClient/AGENTS.md`).

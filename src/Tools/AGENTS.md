@@ -1,78 +1,18 @@
 # Tools Module
 
-Tool system for agent capabilities. Tools are callable functions exposed to AI.
-
-## Core
-
-| File | Purpose                                                                   |
-|------|---------------------------------------------------------------------------|
-| `ToolInterface.php` | Contract: `getName()`, `getDescription()`, `getProperties()`, `execute()` |
-| `Tool.php` | Base class with property definitions                                      |
-| `ToolCall.php` | The value object a tool invocation travels as (see below)                 |
-| `ToolOutput.php` | Multimodal tool result: wraps content blocks (text, image, file, audio, video) |
-| `ProviderTool.php` | Wrapper for MCP server tools                                              |
-| `ProviderToolInterface.php` | Contract for provider-exposed tools                                       |
+The tool system: callable capabilities exposed to the model. Self-contained.
 
 ## Tool vs ToolCall
 
-A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP
-clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is
-**conversation data**: the record of one invocation — name, callId, inputs, description,
-result (`string|ToolOutput`, guarded by `hasResult()`), and per-call approval state
-(`ApprovalState` + `approvalReason` + `rejectReason`). ToolCalls are what
-`ToolCallMessage`/`ToolResultMessage`, stream chunks, observability events, persistence,
-and the evaluation Trajectory carry; they are plain data and serialize natively.
-Providers build them (`HandleWithTools::newToolCall()`, validating the name against the
-registry), and `ToolNode` resolves each call back to a live tool at execution — against
-the inference event's tool list only, the cycle's effective set (see
-`src/Agent/AGENTS.md`). A call naming a tool outside that set is a loud `ToolException`,
-never a silent no-op.
-There is no `ToolDefinition` anymore: its data-only stand-in role IS `ToolCall`.
+A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is **conversation data**: the record of one invocation (name, callId, inputs, result guarded by `hasResult()`, per-call approval state). ToolCalls are what messages, stream chunks, observability events, persistence and the evaluation `Trajectory` carry; they are plain data and serialize natively. There is no separate "tool definition" value object: that role *is* `ToolCall`.
 
-## Creating Custom Tools
+Providers build them (`HandleWithTools::newToolCall()`, validating the name against the registry), and `ToolNode` resolves each call back to a live tool at execution time against the inference request's tool list, the cycle's effective set (`src/Agent/AGENTS.md`). A call naming a tool outside that set is a loud `ToolException`, never a silent no-op. Nothing about a tool, closures included, is ever serialized.
 
-Extend `Tool` and implement required methods:
+## Defining a tool
+
+Extend `Tool`. `name` and `description` are class property defaults, so the constructor stays free for dependencies; `properties()` describes the JSON schema (`ToolProperty`, `ArrayProperty`, `ObjectProperty`), and `__invoke()` receives the inputs as named arguments.
 
 ```php
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\PropertyType;
-
-class GetTranscriptionTool extends Tool
-{
-    protected string $name = 'get_transcription';
-
-    protected ?string $description = 'Retrieve the transcription of a YouTube video.';
-
-    protected function properties(): array
-    {
-        return [
-            new ToolProperty(
-                name: 'video_url',
-                type: PropertyType::STRING,
-                description: 'The URL of the YouTube video.',
-                required: true
-            )
-        ];
-    }
-
-    public function __invoke(string $video_url): string
-    {
-        // Your API call logic here
-        return $transcription;
-    }
-}
-```
-
-### Tools with Dependencies
-
-For tools that need constructor dependencies, keep the constructor but set `name` and `description` as class property defaults:
-
-```php
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\PropertyType;
-
 class GetTranscriptionTool extends Tool
 {
     protected string $name = 'get_transcription';
@@ -86,272 +26,31 @@ class GetTranscriptionTool extends Tool
     protected function properties(): array
     {
         return [
-            new ToolProperty(
-                name: 'video_url',
-                type: PropertyType::STRING,
-                description: 'The URL of the YouTube video.',
-                required: true
-            )
+            new ToolProperty(name: 'video_url', type: PropertyType::STRING, description: 'The URL of the YouTube video.', required: true),
         ];
     }
 
     public function __invoke(string $video_url): string
     {
-        // Your API call logic here
-        return $transcription;
+        return $this->fetchTranscription($video_url);
     }
 }
 ```
 
-## Multimodal Tool Output
+Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the system prompt; `only()` / `exclude()` / `with()` adjust the provided set per agent. Tool runs are counted by `getRunKey()`, the tool name by default, so `toolMaxRuns()` applies per tool; override it, or use the `TrackByInputs` trait, for parameter-aware limits.
 
-A tool result is `string|ToolOutput` (read from the settled `ToolCall`'s `getResult()`;
-call it only when `hasResult()` is true — a call that never executed, e.g. pending or
-rejected, has no result). Return a
-`ToolOutput` from `__invoke()` to send content blocks (reusing the Chat module's
-`ContentBlockInterface` implementations) back to the model instead of plain text —
-no opt-in interface, the feature is first-class on every tool:
-
-```php
-use NeuronAI\Chat\Enums\MediaType;
-use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Tools\ToolOutput;
-
-public function __invoke(string $symbol): ToolOutput
-{
-    return new ToolOutput([
-        new TextContent("Price chart for {$symbol}"),
-        new ImageContent($base64, SourceType::BASE64, MediaType::PNG),
-    ]);
-}
-```
-
-Single-block shortcuts: `ToolOutput::text(...)`, `::image(...)`, `::file(...)`,
-`::audio(...)`, `::video(...)` — each mirrors the corresponding content block's
-constructor.
-
-## Tool Failures
+## Results: return value vs exception
 
 The split falls on the natural boundary of the language:
 
-- **Return value = conversational outcome.** A failure the model should see and
-  recover from is *returned*: `return ToolOutput::error('Rate limited, retry after
-  60s');` — a `ToolOutput` whose `isError()` is true, carrying the feedback as a
-  text block. Catch your own exceptions at the tool boundary and convert them
-  visibly.
-- **Escaped exception = bug.** It propagates and aborts the run (fail-fast; the
-  history stays consistent). There is no framework exception class that
-  gets converted to a result.
+- **A return value is a conversational outcome.** A tool returns a string, an array (JSON-encoded) or a `ToolOutput`: a multimodal result built from the Chat module's content blocks (`ToolOutput::text/image/file/audio/video()`, or a block array). A failure the model should see and recover from is *returned*: `ToolOutput::error('Rate limited, retry after 60s')` carries the feedback as a text block with `isError()` true. Catch your own exceptions at the tool boundary and convert them visibly.
+- **An escaped exception is a bug.** It propagates and aborts the run (fail-fast; history stays consistent). There is no framework exception that gets converted into a result. The agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call): string|ToolOutput|null)` is the cross-cutting override: a returned value settles as the call's result and the loop continues, `null` declines and the exception propagates.
 
-The agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call):
-string|ToolOutput|null)` is the cross-cutting override for escaped exceptions: a
-returned string or `ToolOutput` settles as the call's result and the loop continues;
-`null` declines and the exception propagates. Providers with a native error concept
-map the flag (`is_error: true` on Anthropic, `status: "error"` on Bedrock);
-elsewhere the feedback text itself carries the semantics. The flag survives the
-chat-history round-trip (see `src/Chat/AGENTS.md`).
+Consumers detect multimodality on the **value** (`$call->getResult() instanceof ToolOutput`), never on the tool type. Providers whose API accepts content blocks map them natively and set their native error flag where one exists; text-only consumers (Ollama, stream adapters, token counting) fall back to `ToolOutput::getText()`, so include a `TextContent` in outputs meant to work everywhere (`ToolOutput` is `Stringable` for the same reason). `ToolNode`'s durable memo records the full `ToolOutput`, so a crash-replay restores multimodal results without re-running the tool.
 
-Consumers detect multimodality on the **value**, never the tool type:
-`$call->getResult() instanceof ToolOutput`. Providers whose API accepts content
-blocks in tool results map them natively; text-only consumers (Ollama, stream
-adapters, token counting) fall back to `ToolOutput::getText()` — the concatenated
-text blocks (empty when there are none, so include a `TextContent` in outputs meant
-to work everywhere). `ToolOutput` is `Stringable` (delegating to `getText()`), so
-string interpolation degrades gracefully.
+## Approval
 
-String and array returns from `__invoke()` behave exactly as before (arrays are
-JSON-encoded). Chat history round-trips a `ToolOutput` result as a content block
-array (see `src/Chat/AGENTS.md`), and `ToolNode`'s durable memo records the full
-`ToolOutput`, so crash-replay restores multimodal results without re-running the
-tool.
-
-## Custom Run Key Tracking
-
-By default, Neuron tracks tool runs by tool name only. This means a tool called multiple times with different parameters counts against the same run limit.
-
-For tools that need custom tracking (e.g., parameter-aware), implement the `getRunKey()` method:
-
-```php
-use NeuronAI\Tools\Tool;
-use NeuronAI\Tools\ToolProperty;
-use NeuronAI\Tools\PropertyType;
-
-class ReadFileTool extends Tool
-{
-    protected string $name = 'read_file';
-
-    protected ?string $description = 'Read a portion of a file.';
-
-    protected function properties(): array
-    {
-        return [
-            ToolProperty::make('path', PropertyType::STRING, 'File path', true),
-            ToolProperty::make('offset', PropertyType::INTEGER, 'Byte offset', true),
-            ToolProperty::make('length', PropertyType::INTEGER, 'Bytes to read', true),
-        ];
-    }
-
-    public function __invoke(string $path, int $offset, int $length): string
-    {
-        // Read file portion
-        return file_get_contents($path, false, null, $offset, $length);
-    }
-
-    public function getRunKey(): string
-    {
-        // Track runs by path and offset, allowing different offsets
-        return $this->getName() . ':' . $this->getInput('path') . ':' . $this->getInput('offset');
-    }
-}
-```
-
-Alternatively, use the `TrackByInputs` trait for automatic input-based keys:
-
-```php
-use NeuronAI\Tools\TrackByInputs;
-
-class ReadFileTool extends Tool
-{
-    use TrackByInputs;
-}
-```
-
-## Property Types
-
-| Class | JSON Schema Type |
-|-------|------------------|
-| `ToolProperty` | string, number, boolean (via `PropertyType` enum) |
-| `ArrayProperty` | array with item schema |
-| `ObjectProperty` | object with nested properties |
-
-## Usage with Agent Extension Pattern
-
-Register tools in your custom agent class:
-
-```php
-use NeuronAI\Agent;
-use NeuronAI\Providers\AIProviderInterface;
-use NeuronAI\Providers\Anthropic\Anthropic;
-use NeuronAI\SystemPrompt;
-
-class YouTubeAgent extends Agent
-{
-    protected function provider(): AIProviderInterface
-    {
-        return new Anthropic(
-            key: env('ANTHROPIC_API_KEY'),
-            model: 'claude-sonnet-4-6',
-        );
-    }
-
-    public function instructions(): string
-    {
-        return (string) new SystemPrompt(
-            background: ['You are an AI agent specialized in writing YouTube video summaries.'],
-            steps: [
-                'Get the URL of a YouTube video, or ask the user to provide one.',
-                'Use the tools you have available to retrieve the transcription of the video.',
-                'Write the summary.',
-            ],
-            output: [
-                'Write a summary in a paragraph without using lists.',
-                'After the summary add a list of three sentences as the most important takeaways.',
-            ]
-        );
-    }
-
-    protected function tools(): array
-    {
-        return [
-            new GetTranscriptionTool(env('SUPADATA_API_KEY')),
-        ];
-    }
-}
-
-// Usage
-use NeuronAI\Chat\Messages\UserMessage;
-
-$response = YouTubeAgent::make()->chat(
-    new UserMessage('Summarize this: https://youtube.com/watch?v=...')
-);
-```
-
-## Toolkits (`Toolkits/`)
-
-Group related tools. Extend `AbstractToolkit`:
-
-```php
-use NeuronAI\Tools\Toolkits\AbstractToolkit;
-
-class MyToolkit extends AbstractToolkit
-{
-    public function guidelines(): ?string
-    {
-        return "Guidelines go into the system prompt of the agent to help the model use the tools provided below.";
-    }
-
-    public function provide(): array
-    {
-        return [
-            new ToolA(),
-            new ToolB()
-        ];
-    }
-}
-
-// In agent
-protected function tools(): array
-{
-    return [
-        new MyToolkit(),
-    ];
-}
-```
-
-### Built-in Toolkits
-
-| Toolkit | Purpose |
-|---------|---------|
-| `Calculator/` | Math operations |
-| `MySQL/` | MySQL database queries |
-| `PGSQL/` | PostgreSQL queries |
-| `Tavily/` | Web search API |
-| `Zep/` | Zep memory integration |
-| `AWS/` | AWS services (SES, etc.) |
-| `Jina/` | Jina AI embeddings |
-| `Supadata/` | Supadata API |
-| `FileSystem/` | File operations |
-| `Calendar/` | Calendar operations |
-
-## Retrieval Tool
-
-`RetrievalTool.php` - Generic tool for RAG document retrieval.
-
-## Tool Approval
-
-A tool declares its own intrinsic risk by overriding the protected
-`approvalPolicy(array $inputs): bool|string` hook (default `false`). Declarations are
-**live by default**: `ToolNode` asks every tool on every call — no middleware
-or agent-level switch exists. The agent developer overrides the declaration per instance,
-at attach time, in both directions:
-
-- `requireApproval(bool $require = true)` — force the gate's answer either way.
-- `suppressApproval()` — sugar for `requireApproval(false)`; waives a declared gate.
-- `withApprovalPolicy(callable $policy)` — replace the policy with a
-  `fn(ToolInterface $tool): bool|string` callback.
-
-The last configured override wins (each clears the other). The public
-`requiresApproval(array $inputs)` on `ToolInterface` is the *resolution point* the node
-consults: override → declaration. The node always asks the LIVE registry tool with the
-call's inputs bound, so the answer cannot drift across a suspend/resume
-boundary — and nothing about the tool (closures included) is ever serialized.
-
-Returning a **string counts as `true`** and doubles as the approval reason — the outbound
-"why am I asking" shown to the approver, surfaced on the `ApprovalRequest` actions and
-persisted on the tool entry (`getApprovalReason()` / `approvalReason` in the serialized
-message):
+A tool declares its own intrinsic risk through the protected `approvalPolicy(array $inputs): bool|string` hook (default `false`); a string counts as `true` and doubles as the approval reason shown to the approver. Declarations are live: `ToolNode` asks every tool on every call, with the call's inputs bound, so the answer cannot drift across a suspend/resume boundary. There is no middleware and no agent-level switch to attach.
 
 ```php
 class TransferMoneyTool extends Tool
@@ -365,14 +64,6 @@ class TransferMoneyTool extends Tool
 }
 ```
 
-Per-call approval state (`pending` / `approved` / `rejected`) is stamped on the
-`ToolCall` entries of the `ToolCallMessage` and persisted in **chat history** — that is
-the system of record, not workflow state. See `ApprovalState`. Two reasons may
-accompany it, with opposite directions: `approvalReason` (outbound, the requester's
-purpose) and `rejectReason` (inbound, the approver's feedback — rejection-only, recorded
-via `ToolCall::setApprovalState(ApprovalState::Rejected, $reason)` and read via
-`getRejectReason()`).
+The agent developer overrides the declaration per instance at attach time, in both directions: `requireApproval()` forces the gate, `suppressApproval()` waives a declared one, `withApprovalPolicy(fn (ToolInterface $tool): bool|string)` replaces the policy. The last override wins. `ToolInterface::requiresApproval(array $inputs)` is the resolution point the node consults: override first, then declaration.
 
-## Dependencies
-
-None. Tools module is self-contained.
+Per-call approval state (`ApprovalState`: pending / approved / rejected) is stamped on the `ToolCall` entries of the `ToolCallMessage` and persisted in **chat history**, the system of record for approvals; workflow state holds none of it. Two reasons travel with it in opposite directions: `approvalReason` (outbound, why the tool asked) and `rejectReason` (inbound, the approver's feedback, recorded on rejection only). The resume flow is described in `src/Agent/AGENTS.md`.

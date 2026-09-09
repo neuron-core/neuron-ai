@@ -1,157 +1,40 @@
 # Chat Module
 
-Unified messaging layer. Used by Agent, RAG, and Providers.
+The messaging layer shared by Agent, RAG and Providers: messages, content blocks, stream chunks and chat history. Self-contained.
 
-## Messages (`Messages/`)
+## Messages are content blocks
 
-Base `Message` class manages content as `ContentBlock[]`:
+`Message` manages `ContentBlock[]` (`TextContent`, `ImageContent`, `FileContent`, `AudioContent`, `VideoContent`, `ReasoningContent`, `SystemContent`), so multimodality is native rather than bolted on. `getContent()` is the text-only view; `getContentBlocks()` is the truth.
 
 ```php
-$message = new UserMessage([
+new UserMessage([
     new TextContent('Analyze this:'),
     new ImageContent('https://...', SourceType::URL, MediaType::JPEG),
 ]);
 ```
 
-| Class | Role |
-|-------|------|
-| `Message.php` | Base, manages `ContentBlock[]` |
-| `SystemMessage` | System instructions, carries `SystemContent` blocks (cacheable via `->cache()`) |
-| `UserMessage` | User input |
-| `AssistantMessage` | AI response |
-| `ToolCallMessage` | Tool invocation request — carries `ToolCall[]` (conversation data) |
-| `ToolResultMessage` | Tool execution result — the same `ToolCall[]`, settled with results |
+`SystemMessage` carries `SystemContent` blocks; `->cache()` marks them for provider-side prompt caching. `ToolCallMessage` (an `AssistantMessage`) and `ToolResultMessage` (a `UserMessage`) carry the same `ToolCall[]`: pure conversation data, settled with results in the second. Executable tools never appear in messages (see `src/Tools/AGENTS.md`). Content blocks accept `string|MediaType` for the media type and normalize to string, so custom MIME types always work.
 
-**Key methods**: `getContent()` (text only), `getContentBlocks()`, `addContentBlock()`
+## Chat history
 
-## Content Blocks (`Messages/ContentBlocks/`)
+`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
 
-All implement `ContentBlock` interface:
+### Identity: histories are bound, not identity-constructed
 
-| Block | Usage |
-|-------|-------|
-| `TextContent` | Plain text |
-| `ImageContent` | Images (URL or base64) |
-| `FileContent` | Documents (PDF, etc.) |
-| `AudioContent` | Audio files |
-| `VideoContent` | Video files |
-| `ReasoningContent` | AI reasoning traces |
+A history is thread-scoped by nature but constructible *without* its thread: loading is lazy, so the Agent can bind the resolved thread ID into an unbound history before it is ever touched (`new SQLChatHistory($pdo)` in a hook, identity supplied once by `Agent::make(threadId:)`). The rules, implemented in `AbstractChatHistory`:
 
-Source types: `SourceType::URL` or `SourceType::BASE64`
+- `setThreadId()` is assign-once: the same id is a no-op, a different id throws `ChatHistoryException`. Re-pointing a conversation at another thread is never legitimate.
+- A durable backend *used* while unbound throws loudly, never a silent read of a wrong, empty thread.
+- Constructor identity is optional and positioned after the required dependencies (`new SQLChatHistory($pdo, 'thread-1')`); passing it pre-binds the history, which the Agent adopts as an identity declaration. `InMemoryChatHistory` self-keys when none is given.
 
-## Chat History (`History/`)
+Thread identity itself belongs to the Agent (`src/Agent/AGENTS.md`); the history only validates against it.
 
-Implementations of `ChatHistoryInterface`:
+### Invariants
 
-| Class | Storage |
-|-------|---------|
-| `InMemoryChatHistory` | Array (testing) |
-| `FileChatHistory` | JSON files |
-| `SQLChatHistory` | PDO database (one row per message, keyed by `thread_id`) |
-| `EloquentChatHistory` | Laravel Eloquent (one row per message, keyed by `thread_id`) |
+- **Alternation.** A plain `UserMessage` can never directly follow a `ToolCallMessage`: the calls must be answered by a `ToolResultMessage` first. `HistoryTrimmer::validateAlternation()` enforces it on every append, which also covers sequences loaded from storage; a custom `HistoryTrimmerInterface` takes over this responsibility.
+- **Append-only.** `addMessage()` always appends; there is no update or replace, so a direct `ChatHistoryInterface` implementation that appends is fully conformant. Write-once convergence under crash replay is the *writer's* job, not the store's: agent nodes wrap history writes in durable memos (`src/Agent/AGENTS.md`).
+- **Nothing dangles.** Messages commit only after the step that consumes them succeeds, so a failed provider call or a crashed tool never leaves a user message or tool call at the tail. The single exception is an approval-gated `ToolCallMessage`, written before the suspend so a cold process can render the pending approval from history alone.
+- **Approval is recorded on messages.** The `tool_call` message keeps its pending snapshot forever; the final outcomes (approved/rejected, feedback, results) live on the `ToolResultMessage` that follows. "Is approval pending?" is answered by the thread tail alone. Serialized tool entries carry `approval`, `approvalReason` (outbound, why the tool asked) and `rejectReason` (inbound, the approver's feedback); entries stored without these keys deserialize as not gated.
+- **No execution identity.** History records nothing about the workflow run that produced a message. Reattaching to a suspended run is the engine's job, keyed by the thread itself (`src/Workflow/AGENTS.md`).
 
-**Base**: `AbstractChatHistory` provides common logic. Subclasses persist through one
-protected no-op hook per primitive history mutation — append (`onNewMessage`), head-trim
-(`onTrimHistory`), clear (`clear`) — or ignore the granular hooks and rewrite the whole
-state via `setMessages()` (File, InMemory).
-
-**Identity — histories are bound, not identity-constructed**:
-`ChatHistoryInterface::setThreadId(string)` / `getThreadId(): ?string` (null until
-bound). A history is thread-scoped by nature but constructible *without* its thread —
-loading is **lazy** (deferred to first read/write), so the Agent can bind the resolved
-identity into an unbound history before it is ever touched. The rules, implemented once
-in `AbstractChatHistory`:
-
-- `setThreadId()` is assign-once in effect: same id → no-op; a *different* id →
-  `ChatHistoryException` (re-pointing a conversation at another thread is never
-  legitimate).
-- A durable backend **used** while unbound throws loudly ("thread-scoped and no thread
-  identity was given") — never a silent read of a wrong, empty thread.
-- Constructor identity is optional and positioned after required dependencies
-  (`new SQLChatHistory($pdo, 'thread-1')`, `new EloquentChatHistory(Model::class, 't')`,
-  `new FileChatHistory($dir, 'key')`): passing it *pre-binds* the history, which the
-  Agent treats as an identity declaration (adoption). `InMemoryChatHistory` self-keys
-  via `uniqid()` when none is given (its own storage default, not framework identity
-  fabrication).
-
-The framework's thread identity lives on the **Agent** (`Agent::getThreadId()`, see
-`src/Agent/AGENTS.md`). Implicit attachment validates the history's key against it;
-an explicit `setChatHistory()` call can select another conversation using a new history.
-
-### Message alternation
-
-A pure `UserMessage` can never directly follow a `ToolCallMessage` — the tool calls must be
-answered by a `ToolResultMessage` first (which itself extends `UserMessage` and is the expected
-continuation). Enforced by `HistoryTrimmer::validateAlternation()` (`ChatHistoryException`),
-which runs on every `addMessage()` append and therefore also covers sequences loaded from
-storage. This is pure sequence validation, independent of tool approval; note that a custom
-`HistoryTrimmerInterface` implementation takes over this responsibility.
-
-### Append-only history & tool approval
-
-`addMessage()` always appends — the history has no update or replace operation, so a
-direct `ChatHistoryInterface` implementation that appends is fully conformant.
-Write-once convergence lives with the single writer, not the store: when approval-gated
-tools are present, `ToolNode` writes the annotated `ToolCallMessage` (pending states)
-exactly once, through a durable memoized write, **before** any approval suspend —
-a resume or crash-replay pass skips the write instead of duplicating the
-tail. With no gated tools nothing is written there at all: the call/result pair travels
-as the next inference's inbound messages and commits together only after that provider
-call succeeds, so a tool crash or a failed follow-up call can never leave a
-dangling `tool_call` at the tail.
-
-The `tool_call` message keeps its pending snapshot forever; the **final approval
-outcomes** (approved/rejected + feedback + results) are recorded on the
-`ToolResultMessage` that follows it. "Is approval pending?" = the thread tail is a
-`tool_call` whose tools are pending.
-
-(Replay convergence for message writes is handled by the agent nodes' memoized
-history writes — see `src/Agent/AGENTS.md`.)
-
-Tool entries are `ToolCall` value objects (`NeuronAI\Tools\ToolCall`) — pure
-conversation data; executable tools never appear in messages. Serialized entries carry
-three approval fields: `approval` (`pending`|`approved`|
-`rejected`, or absent for a non-gated tool), `approvalReason` (outbound — why the tool is
-asking for approval, declared by the tool or its attach-time policy), and `rejectReason`
-(inbound — the approver's feedback, rejection-only). Old stored histories without these
-keys deserialize as `null` (not gated).
-
-A tool entry's `result` is a string, a content block array when the tool returned a
-multimodal `ToolOutput`, or `{is_error: true, blocks: [...]}` when it returned an
-error output (`ToolOutput::error()` — see `src/Tools/AGENTS.md`).
-`AbstractChatHistory::deserializeToolResult()` discriminates on shape — the `is_error`
-marker rebuilds an error `ToolOutput`, an array whose first element has a `type` key
-rebuilds a plain `ToolOutput` through the shared content block deserializer, anything
-else stays a string — so legacy stored histories deserialize unchanged (never carrying
-the marker, they come back as non-error).
-
-Chat history carries **no execution identity**. A suspended `ToolCallMessage` records
-the pending approval snapshot — enough to *render* a pending approval from history
-alone — and nothing about the workflow run that produced it. Reattaching to that run is
-the engine's job: the Agent declares its threadId as the run's address, so the
-run's durable records live under the thread itself (see
-`src/Workflow/AGENTS.md`). Old stored histories may still carry a `run_id` /
-`resume_token` metadata key; it deserializes into the generic metadata bag and is never
-read.
-
-### History Trimming
-
-`HistoryTrimmer` reduces token count when history exceeds limits:
-- Uses `TokenCounter` to estimate tokens
-- Preserves system messages
-- Removes oldest messages first
-
-## Enums (`Enums/`)
-
-- `ContentBlockType` - TEXT, IMAGE, FILE, AUDIO, VIDEO
-- `SourceType` - URL, BASE64
-- `MediaType` - common MIME types (JPEG, PNG, PDF, MP3, MP4, ...). Content blocks accept `string|MediaType` for `mediaType` and normalize to `string`, so custom MIME strings always work
-- `MessageRole` - USER, ASSISTANT, SYSTEM, TOOL
-
-## Stream (`Messages/Stream/`)
-
-Streaming message chunks for real-time responses.
-
-## Dependencies
-
-None. Chat is self-contained.
+A tool entry's `result` round-trips as a string, a content block array (a multimodal `ToolOutput`) or `{is_error: true, blocks: [...]}` for `ToolOutput::error()`; `deserializeToolResult()` discriminates on shape, so legacy stored histories come back unchanged.
