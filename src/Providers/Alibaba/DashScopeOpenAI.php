@@ -46,7 +46,9 @@ class DashScopeOpenAI extends OpenAI
                 -1,
                 new ReasoningContent($reasoningContent)
             );
-            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            if ($reasoningContent !== '') {
+                yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            }
         } else {
             yield from parent::processContentDelta($choice);
         }

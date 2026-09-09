@@ -160,7 +160,9 @@ trait HandleStream
         if ($delta['type'] === 'thinking_delta') {
             $thinking = $delta['thinking'];
             $this->streamState->updateContentBlock($index, $thinking);
-            yield new ReasoningChunk($this->streamState->messageId(), $thinking);
+            if ($thinking !== '') {
+                yield new ReasoningChunk($this->streamState->messageId(), $thinking);
+            }
             return;
         }
 

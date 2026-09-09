@@ -145,7 +145,9 @@ trait HandleStream
 
             $chunk = match ($block::class) {
                 TextContent::class => new TextChunk($this->streamState->messageId(), $block->getContent()),
-                ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $block->getContent()),
+                ReasoningContent::class => $block->getContent() !== ''
+                    ? new ReasoningChunk($this->streamState->messageId(), $block->getContent())
+                    : null,
                 default => null,
             };
 

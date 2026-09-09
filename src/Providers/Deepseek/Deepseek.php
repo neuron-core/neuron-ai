@@ -102,7 +102,9 @@ class Deepseek extends OpenAI
             $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
 
             // Yield chunk for real-time streaming
-            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            if ($reasoningContent !== '') {
+                yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            }
         }
     }
 
@@ -126,7 +128,9 @@ class Deepseek extends OpenAI
                 new ReasoningContent($reasoningContent)
             );
             // Yield chunk for real-time streaming
-            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            if ($reasoningContent !== '') {
+                yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+            }
         }
     }
 }

@@ -105,12 +105,16 @@ trait HandleStream
                 case 'response.reasoning_summary_part.added':
                     $content = $event['part']['text'] ?? '';
                     $this->streamState->addContentBlock($event['item_id'], new ReasoningContent($content));
-                    yield new ReasoningChunk($event['item_id'], $content);
+                    if ($content !== '') {
+                        yield new ReasoningChunk($event['item_id'], $content);
+                    }
                     break;
                 case 'response.reasoning_summary_text.delta':
                     $content = $event['delta'] ?? '';
                     $this->streamState->updateContentBlock($event['item_id'], $content);
-                    yield new ReasoningChunk($event['item_id'], $content);
+                    if ($content !== '') {
+                        yield new ReasoningChunk($event['item_id'], $content);
+                    }
                     break;
 
                     /*

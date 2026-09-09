@@ -88,7 +88,9 @@ trait HandleStream
                             $contentBlockIndex,
                             new ReasoningContent($reasoningContent['text'])
                         );
-                        yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent['text']);
+                        if ($reasoningContent['text'] !== '') {
+                            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent['text']);
+                        }
                     }
 
                     if (isset($reasoningContent['redactedContent'])) {

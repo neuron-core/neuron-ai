@@ -70,7 +70,8 @@ trait HandleStream
                 return new ProviderResponse(message: $message);
             }
 
-            if ($thinking = $line['message']['thinking'] ?? null) {
+            $thinking = $line['message']['thinking'] ?? '';
+            if ($thinking !== '') {
                 $this->streamState->reasoning .= $thinking;
                 yield new ReasoningChunk($this->streamState->messageId(), $thinking);
                 continue;

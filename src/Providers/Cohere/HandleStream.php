@@ -85,7 +85,9 @@ trait HandleStream
                         $line['index'],
                         new ReasoningContent($content['thinking'])
                     );
-                    yield new ReasoningChunk($this->streamState->messageId(), $content['thinking']);
+                    if ($content['thinking'] !== '') {
+                        yield new ReasoningChunk($this->streamState->messageId(), $content['thinking']);
+                    }
                 }
             }
         }

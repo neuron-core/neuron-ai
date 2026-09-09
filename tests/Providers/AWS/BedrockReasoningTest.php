@@ -16,12 +16,49 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Providers\AWS\MessageMapper;
+use NeuronAI\Tests\Support\ReasoningStreamAssertions;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
 
 class BedrockReasoningTest extends TestCase
 {
+    use ReasoningStreamAssertions;
+
+    #[DataProvider('reasoning_sequences')]
+    public function test_reasoning_stream_preserves_signed_blocks(array $fragments, array $expected): void
+    {
+        $events = [];
+        foreach ($fragments as $fragment) {
+            $events[] = ['contentBlockDelta' => ['contentBlockIndex' => 0, 'delta' => ['reasoningContent' => ['text' => $fragment]]]];
+        }
+        $events[] = ['contentBlockDelta' => ['contentBlockIndex' => 0, 'delta' => ['reasoningContent' => ['signature' => 'sig-test']]]];
+        $events[] = ['contentBlockDelta' => ['contentBlockIndex' => 1, 'delta' => ['text' => 'Answer']]];
+        $events[] = ['messageStop' => ['stopReason' => 'end_turn']];
+        $events[] = ['metadata' => ['usage' => ['inputTokens' => 3, 'outputTokens' => 4]]];
+        $client = $this->getMockBuilder(BedrockRuntimeClient::class)
+            ->disableOriginalConstructor()
+            ->addMethods(['converseStream'])
+            ->getMock();
+        $client->expects($this->once())->method('converseStream')
+            ->willReturn(new Result(['stream' => $this->eventIterator($events)]));
+        $provider = new BedrockRuntime($client, 'model');
+        [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
+
+        $this->assertCount(2, $message->getContentBlocks());
+        $this->assertSame(implode('', $fragments), $message->getReasoning()?->content);
+        $this->assertSame('sig-test', $message->getReasoning()->id);
+        $this->assertSame('Answer', $message->getContent());
+        $this->assertInstanceOf(TextChunk::class, $chunks[count($chunks) - 1]);
+        $this->assertSame(3, $message->getUsage()->inputTokens);
+        $this->assertSame(4, $message->getUsage()->outputTokens);
+        $this->assertSame(
+            ['reasoningContent' => ['reasoningText' => ['text' => implode('', $fragments), 'signature' => 'sig-test']]],
+            (new MessageMapper())->map([$message])[0]['content'][0],
+        );
+    }
+
     public function test_stream_handles_reasoning_delta_union(): void
     {
         $events = [

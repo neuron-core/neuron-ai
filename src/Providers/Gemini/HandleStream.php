@@ -184,7 +184,9 @@ trait HandleStream
         if ($part['thought'] ?? false) {
             // Accumulate the reasoning text
             $this->streamState->updateContentBlock('reasoning', $part['text']);
-            yield new ReasoningChunk($this->streamState->messageId(), $part['text']);
+            if ($part['text'] !== '') {
+                yield new ReasoningChunk($this->streamState->messageId(), $part['text']);
+            }
         } else {
             // Accumulate simple text output
             $this->streamState->updateContentBlock('text', $part['text']);

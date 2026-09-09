@@ -38,6 +38,8 @@ interface AIProviderInterface
      * Yields intermediate chunks (TextChunk, ReasoningChunk, etc.) during streaming
      * for real-time delivery to the user. The generator MUST return a
      * ProviderResponse as its final value.
+     * Reasoning chunks carry non-empty text; the returned message may still
+     * contain empty signed reasoning blocks.
      *
      * @return Generator<int, StreamChunk, mixed, ProviderResponse>
      */
