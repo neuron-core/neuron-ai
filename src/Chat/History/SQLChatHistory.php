@@ -39,6 +39,9 @@ class SQLChatHistory extends AbstractChatHistory
 {
     protected string $table;
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function __construct(
         protected PDO $pdo,
         ?string $threadId = null,
@@ -53,6 +56,9 @@ class SQLChatHistory extends AbstractChatHistory
         }
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function loadThread(): void
     {
         $stmt = $this->pdo->prepare("SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id");
@@ -66,6 +72,9 @@ class SQLChatHistory extends AbstractChatHistory
         }
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function onNewMessage(Message $message): void
     {
         $stmt = $this->pdo->prepare(
@@ -77,6 +86,9 @@ class SQLChatHistory extends AbstractChatHistory
         ));
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function onTrimHistory(int $index): void
     {
         if ($index <= 0) {
@@ -97,6 +109,9 @@ class SQLChatHistory extends AbstractChatHistory
         $stmt->execute($ids);
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function clear(): void
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE thread_id = :thread_id");
@@ -145,6 +160,9 @@ class SQLChatHistory extends AbstractChatHistory
         ];
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function sanitizeTableName(string $tableName): string
     {
         $tableName = trim($tableName);
@@ -162,6 +180,9 @@ class SQLChatHistory extends AbstractChatHistory
         return $tableName;
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function tableExists(string $tableName): bool
     {
         $driver = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);

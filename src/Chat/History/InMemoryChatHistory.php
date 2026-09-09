@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Exceptions\ChatHistoryException;
 use function uniqid;
 
 class InMemoryChatHistory extends AbstractChatHistory
 {
+    /**
+     * @throws ChatHistoryException
+     */
     public function __construct(
         ?string $threadId = null,
         int $contextWindow = 50000,

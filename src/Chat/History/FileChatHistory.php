@@ -21,6 +21,9 @@ use const LOCK_EX;
 
 class FileChatHistory extends AbstractChatHistory
 {
+    /**
+     * @throws ChatHistoryException
+     */
     public function __construct(
         protected string $directory,
         ?string $key = null,
@@ -49,6 +52,9 @@ class FileChatHistory extends AbstractChatHistory
         }
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function getFilePath(): string
     {
         return $this->directory . DIRECTORY_SEPARATOR . $this->prefix.$this->requireThreadId().$this->ext;
@@ -62,6 +68,9 @@ class FileChatHistory extends AbstractChatHistory
         $this->updateFile();
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function clear(): void
     {
         if (file_exists($this->getFilePath()) && !unlink($this->getFilePath())) {
@@ -69,6 +78,9 @@ class FileChatHistory extends AbstractChatHistory
         }
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function updateFile(): void
     {
         $content = json_encode($this->jsonSerialize());
