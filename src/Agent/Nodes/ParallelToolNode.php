@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Nodes;
 
 use Generator;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -34,6 +35,27 @@ use function array_keys;
 
 class ParallelToolNode extends ToolNode
 {
+    protected ?Closure $beforeChild;
+
+    protected ?Closure $afterChild;
+
+    public function __construct(
+        ChatHistoryInterface $chatHistory,
+        int $maxRuns = 10,
+        ?callable $errorHandler = null,
+        ?callable $beforeChild = null,
+        ?callable $afterChild = null,
+    ) {
+        parent::__construct($chatHistory, $maxRuns, $errorHandler);
+
+        $this->beforeChild = $beforeChild !== null
+            ? Closure::fromCallable($beforeChild)
+            : null;
+        $this->afterChild = $afterChild !== null
+            ? Closure::fromCallable($afterChild)
+            : null;
+    }
+
     /**
      * @throws ToolException
      * @throws ToolRunsExceededException
@@ -109,11 +131,23 @@ class ParallelToolNode extends ToolNode
 
                 // Fork children return the serialized RESULT only — the
                 // tool object and its dependencies never cross the process boundary.
+                $beforeChild = $this->beforeChild;
+                $afterChild = $this->afterChild;
                 return Fork::new()->run(
                     ...array_map(
-                        fn (ToolInterface $tool): Closure => function () use ($tool): string {
+                        fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild, $afterChild): string {
                             try {
-                                $tool->execute();
+                                if ($beforeChild instanceof Closure) {
+                                    $beforeChild();
+                                }
+
+                                try {
+                                    $tool->execute();
+                                } finally {
+                                    if ($afterChild instanceof Closure) {
+                                        $afterChild();
+                                    }
+                                }
 
                                 return serialize($tool->getResult());
                             } catch (Throwable $exception) {

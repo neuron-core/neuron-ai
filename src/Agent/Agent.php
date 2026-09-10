@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
@@ -65,6 +66,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
+    protected ?Closure $beforeParallelToolChild = null;
+
+    protected ?Closure $afterParallelToolChild = null;
+
     protected bool $executing = false;
 
     /**
@@ -83,9 +88,25 @@ class Agent extends Workflow implements AgentInterface
         }
     }
 
-    public function parallelToolCalls(bool $enabled): AgentInterface
-    {
+    /**
+     * Determines whether tools should be executed in parallel and optionally
+     * configures callbacks to initialize and clean up resources in each child process.
+     *
+     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
+     */
+    public function parallelToolCalls(
+        bool $enabled,
+        ?callable $beforeChild = null,
+        ?callable $afterChild = null,
+    ): AgentInterface {
         $this->parallelToolCalls = $enabled;
+        $this->beforeParallelToolChild = $beforeChild !== null
+            ? Closure::fromCallable($beforeChild)
+            : null;
+        $this->afterParallelToolChild = $afterChild !== null
+            ? Closure::fromCallable($afterChild)
+            : null;
+
         return $this;
     }
 
@@ -301,7 +322,13 @@ class Agent extends Workflow implements AgentInterface
         $memoryAvailable = $memory instanceof MemoryInterface;
 
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler())
+            ? new ParallelToolNode(
+                $chatHistory,
+                $this->toolMaxRuns,
+                $this->resolveToolErrorHandler(),
+                $this->beforeParallelToolChild,
+                $this->afterParallelToolChild,
+            )
             : new ToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $nodes = [

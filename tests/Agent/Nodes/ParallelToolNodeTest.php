@@ -19,6 +19,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 class ParallelToolNodeTest extends TestCase
 {
@@ -135,7 +136,15 @@ class ParallelToolNodeTest extends TestCase
         $this->assertSame(1, $state->getToolRuns('another_tool'));
 
         // Recovery: brand-new engine, same persistence (simulates a process restart).
-        $node2 = new ParallelToolNode(new InMemoryChatHistory());
+        $node2 = new ParallelToolNode(
+            new InMemoryChatHistory(),
+            beforeChild: static function (): void {
+                throw new RuntimeException('Child initialization must not repeat on recovery.');
+            },
+            afterChild: static function (): void {
+                throw new RuntimeException('Child cleanup must not repeat on recovery.');
+            },
+        );
         $node2->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node2($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
