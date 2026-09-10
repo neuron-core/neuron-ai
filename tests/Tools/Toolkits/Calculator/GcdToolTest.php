@@ -42,7 +42,12 @@ class GcdToolTest extends TestCase
     public function test_rejects_invalid_lists(): void
     {
         $this->assertToolError('Provide at least two integers.', ($this->tool)([7]));
-        $this->assertToolError('The value at index 1 is not an integer.', ($this->tool)([7, 'a']));
-        $this->assertToolError('The value at index 0 is not an integer.', ($this->tool)([2.5, 5]));
+    }
+
+    public function test_the_framework_rejects_a_non_integer_element(): void
+    {
+        $this->tool->setInputs(['numbers' => [7, 'a']])->execute();
+
+        $this->assertToolError('Parameter "numbers" element 1 must be of type integer, string given.', $this->tool->getResult());
     }
 }

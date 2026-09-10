@@ -13,8 +13,6 @@ use NeuronAI\Tools\ToolProperty;
 use function array_map;
 use function array_sum;
 use function count;
-use function is_float;
-use function is_int;
 
 /**
  * Base of the tools that describe a dataset: they share the `numbers` input,
@@ -36,21 +34,11 @@ abstract class StatisticTool extends Tool
     }
 
     /**
-     * The feedback for a dataset the statistic cannot be computed on, null when it is valid.
+     * The feedback for an empty dataset, null when there is data.
      */
     protected function invalidDataset(array $numbers): ?ToolOutput
     {
-        if ($numbers === []) {
-            return ToolOutput::error('The dataset cannot be empty.');
-        }
-
-        foreach ($numbers as $index => $value) {
-            if (!is_int($value) && !is_float($value)) {
-                return ToolOutput::error("The value at index {$index} is not a number.");
-            }
-        }
-
-        return null;
+        return $numbers === [] ? ToolOutput::error('The dataset cannot be empty.') : null;
     }
 
     /**

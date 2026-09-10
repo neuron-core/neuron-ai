@@ -14,7 +14,6 @@ use function bcpowmod;
 use function count;
 use function extension_loaded;
 use function intdiv;
-use function is_int;
 
 /**
  * Base of the tools that return exact integers of any size. They are built on
@@ -33,21 +32,11 @@ abstract class IntegerTool extends Tool
     }
 
     /**
-     * The feedback for a list that is not made of at least two integers, null when it is.
+     * The feedback for a list of fewer than two integers, null when there are enough.
      */
     protected function invalidIntegers(array $numbers): ?ToolOutput
     {
-        if (count($numbers) < 2) {
-            return ToolOutput::error('Provide at least two integers.');
-        }
-
-        foreach ($numbers as $index => $number) {
-            if (!is_int($number)) {
-                return ToolOutput::error("The value at index {$index} is not an integer.");
-            }
-        }
-
-        return null;
+        return count($numbers) < 2 ? ToolOutput::error('Provide at least two integers.') : null;
     }
 
     protected function gcd(string $a, string $b): string

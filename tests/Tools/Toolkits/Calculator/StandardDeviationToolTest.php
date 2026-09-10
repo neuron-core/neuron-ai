@@ -44,6 +44,6 @@ class StandardDeviationToolTest extends TestCase
 
     public function test_rejects_invalid_datasets(): void
     {
-        $this->assertToolError('The value at index 1 is not a number.', ($this->tool)([1, 'x']));
+        $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
     }
 }

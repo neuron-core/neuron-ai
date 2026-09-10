@@ -41,6 +41,5 @@ class ModeToolTest extends TestCase
     public function test_rejects_invalid_datasets(): void
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
-        $this->assertToolError('The value at index 2 is not a number.', ($this->tool)([1, 1, null]));
     }
 }

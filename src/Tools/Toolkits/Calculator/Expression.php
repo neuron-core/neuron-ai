@@ -7,6 +7,7 @@ namespace NeuronAI\Tools\Toolkits\Calculator;
 use function abs;
 use function acos;
 use function acosh;
+use function array_key_exists;
 use function asin;
 use function asinh;
 use function atan;
@@ -64,11 +65,16 @@ class Expression
 
     protected const CONSTANTS = ['pi' => M_PI, 'e' => M_E];
 
-    protected const FUNCTIONS = [
-        'sqrt', 'cbrt', 'root', 'pow', 'abs', 'exp', 'ln', 'log', 'log10', 'log2',
-        'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
-        'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-        'floor', 'ceil', 'round', 'trunc', 'min', 'max', 'radians', 'degrees',
+    /**
+     * The argument counts each function accepts; null accepts any number of arguments.
+     */
+    protected const ARITY = [
+        'sqrt' => [1], 'cbrt' => [1], 'root' => [2], 'pow' => [2], 'abs' => [1], 'exp' => [1],
+        'ln' => [1], 'log' => [1, 2], 'log10' => [1], 'log2' => [1],
+        'sin' => [1], 'cos' => [1], 'tan' => [1], 'asin' => [1], 'acos' => [1], 'atan' => [1], 'atan2' => [2],
+        'sinh' => [1], 'cosh' => [1], 'tanh' => [1], 'asinh' => [1], 'acosh' => [1], 'atanh' => [1],
+        'floor' => [1], 'ceil' => [1], 'round' => [1, 2], 'trunc' => [1], 'min' => null, 'max' => null,
+        'radians' => [1], 'degrees' => [1],
     ];
 
     /**
@@ -108,15 +114,16 @@ class Expression
         preg_match_all(self::TOKEN_PATTERN, $this->source, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE | PREG_UNMATCHED_AS_NULL);
 
         foreach ($matches as $match) {
-            foreach (['number', 'name', 'operator'] as $type) {
-                if ($match[$type][0] !== null) {
-                    $text = $match[$type][0] === '**' ? '^' : $match[$type][0];
-                    $this->tokens[] = ['type' => $type, 'text' => $text, 'offset' => $match[$type][1]];
-                    continue 2;
-                }
-            }
+            $type = match (true) {
+                $match['number'][0] !== null => 'number',
+                $match['name'][0] !== null => 'name',
+                $match['operator'][0] !== null => 'operator',
+                default => throw ExpressionException::at("Unexpected character '{$match['invalid'][0]}'", $match['invalid'][1]),
+            };
 
-            throw ExpressionException::at("Unexpected character '{$match['invalid'][0]}'", $match['invalid'][1]);
+            $text = $match[$type][0];
+
+            $this->tokens[] = ['type' => $type, 'text' => $text === '**' ? '^' : $text, 'offset' => $match[$type][1]];
         }
     }
 
@@ -168,11 +175,15 @@ class Expression
         $token = $this->advance();
 
         if ($token['type'] === 'number') {
-            return $this->number($token);
+            $integer = filter_var($token['text'], FILTER_VALIDATE_INT);
+
+            return $this->finite($integer === false ? (float) $token['text'] : $integer, "'{$token['text']}'", $token['offset']);
         }
 
         if ($token['type'] === 'name') {
-            return $this->accept('(') !== null ? $this->call($token) : $this->constant($token);
+            return $this->accept('(') !== null
+                ? $this->call($token)
+                : self::CONSTANTS[$token['text']] ?? throw ExpressionException::at("Unknown identifier '{$token['text']}'", $token['offset']);
         }
 
         if ($token['text'] === '(') {
@@ -183,25 +194,6 @@ class Expression
         }
 
         throw ExpressionException::at("Unexpected '{$token['text']}'", $token['offset']);
-    }
-
-    /**
-     * @param array{type: string, text: string, offset: int} $token
-     */
-    protected function number(array $token): int|float
-    {
-        $integer = filter_var($token['text'], FILTER_VALIDATE_INT);
-        $value = $integer === false ? (float) $token['text'] : $integer;
-
-        return $this->finite($value, "'{$token['text']}'", $token['offset']);
-    }
-
-    /**
-     * @param array{type: string, text: string, offset: int} $token
-     */
-    protected function constant(array $token): float
-    {
-        return self::CONSTANTS[$token['text']] ?? throw ExpressionException::at("Unknown identifier '{$token['text']}'", $token['offset']);
     }
 
     /**
@@ -227,48 +219,49 @@ class Expression
      */
     protected function invoke(string $name, array $arguments, int $offset): int|float
     {
-        if ($name === 'min' || $name === 'max') {
-            return $name === 'min' ? min($arguments) : max($arguments);
+        if (!array_key_exists($name, self::ARITY)) {
+            throw ExpressionException::at("Unknown function '{$name}'", $offset);
+        }
+
+        if (self::ARITY[$name] !== null && !in_array(count($arguments), self::ARITY[$name], true)) {
+            throw ExpressionException::at("Wrong number of arguments for {$name}()", $offset);
         }
 
         $x = $arguments[0];
         $y = $arguments[1] ?? 0;
 
-        return match ([$name, count($arguments)]) {
-            ['sqrt', 1] => sqrt($x),
-            ['cbrt', 1] => $this->root($x, 3, $offset),
-            ['root', 2] => $this->root($x, $y, $offset),
-            ['pow', 2] => $this->power($x, $y, $offset),
-            ['abs', 1] => abs($x),
-            ['exp', 1] => exp($x),
-            ['ln', 1], ['log', 1] => log($x),
-            ['log', 2] => $y > 0 ? log($x, $y) : NAN,
-            ['log10', 1] => log10($x),
-            ['log2', 1] => log($x, 2),
-            ['sin', 1] => sin($x),
-            ['cos', 1] => cos($x),
-            ['tan', 1] => tan($x),
-            ['asin', 1] => asin($x),
-            ['acos', 1] => acos($x),
-            ['atan', 1] => atan($x),
-            ['atan2', 2] => atan2($x, $y),
-            ['sinh', 1] => sinh($x),
-            ['cosh', 1] => cosh($x),
-            ['tanh', 1] => tanh($x),
-            ['asinh', 1] => asinh($x),
-            ['acosh', 1] => acosh($x),
-            ['atanh', 1] => atanh($x),
-            ['floor', 1] => floor($x),
-            ['ceil', 1] => ceil($x),
-            ['round', 1] => round($x),
-            ['round', 2] => round($x, (int) $y),
-            ['trunc', 1] => $x < 0 ? ceil($x) : floor($x),
-            ['radians', 1] => deg2rad($x),
-            ['degrees', 1] => rad2deg($x),
-            default => throw ExpressionException::at(
-                in_array($name, self::FUNCTIONS, true) ? "Wrong number of arguments for {$name}()" : "Unknown function '{$name}'",
-                $offset,
-            ),
+        return match ($name) {
+            'sqrt' => sqrt($x),
+            'cbrt' => $this->root($x, 3, $offset),
+            'root' => $this->root($x, $y, $offset),
+            'pow' => $this->power($x, $y, $offset),
+            'abs' => abs($x),
+            'exp' => exp($x),
+            'ln' => log($x),
+            'log' => count($arguments) === 1 ? log($x) : ($y > 0 ? log($x, $y) : NAN),
+            'log10' => log10($x),
+            'log2' => log($x, 2),
+            'sin' => sin($x),
+            'cos' => cos($x),
+            'tan' => tan($x),
+            'asin' => asin($x),
+            'acos' => acos($x),
+            'atan' => atan($x),
+            'atan2' => atan2($x, $y),
+            'sinh' => sinh($x),
+            'cosh' => cosh($x),
+            'tanh' => tanh($x),
+            'asinh' => asinh($x),
+            'acosh' => acosh($x),
+            'atanh' => atanh($x),
+            'floor' => floor($x),
+            'ceil' => ceil($x),
+            'round' => round($x, (int) $y),
+            'trunc' => $x < 0 ? ceil($x) : floor($x),
+            'min' => min($arguments),
+            'max' => max($arguments),
+            'radians' => deg2rad($x),
+            'degrees' => rad2deg($x),
         };
     }
 
@@ -300,11 +293,7 @@ class Expression
 
     protected function power(int|float $base, int|float $exponent, int $offset): int|float
     {
-        if ($exponent < 0) {
-            $this->nonZero($base, $offset);
-        }
-
-        return $base ** $exponent;
+        return $exponent < 0 ? $this->nonZero($base, $offset) ** $exponent : $base ** $exponent;
     }
 
     protected function root(int|float $radicand, int|float $degree, int $offset): int|float

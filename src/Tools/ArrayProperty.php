@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
+use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\StaticConstructor;
 
+use function get_debug_type;
+use function is_array;
 use function is_null;
 
 /**
@@ -100,6 +103,31 @@ class ArrayProperty implements ToolPropertyInterface
     public function getItems(): ?ToolPropertyInterface
     {
         return $this->items;
+    }
+
+    public function cast(mixed $input): mixed
+    {
+        if ($input === null) {
+            return null;
+        }
+
+        if (!is_array($input)) {
+            throw new InvalidToolInput('must be of type array, ' . get_debug_type($input) . ' given');
+        }
+
+        if (!$this->items instanceof ToolPropertyInterface) {
+            return $input;
+        }
+
+        foreach ($input as $index => $item) {
+            try {
+                $input[$index] = $this->items->cast($item);
+            } catch (InvalidToolInput $exception) {
+                throw new InvalidToolInput("element {$index} {$exception->getMessage()}", $exception->getCode(), $exception);
+            }
+        }
+
+        return $input;
     }
 
     /**

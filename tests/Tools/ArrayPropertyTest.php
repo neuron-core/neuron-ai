@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
+use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
@@ -146,5 +147,31 @@ class ArrayPropertyTest extends TestCase
             minItems: 10,
             maxItems: 9
         );
+    }
+
+    public function test_cast_converts_each_element_through_the_items_property(): void
+    {
+        $property = new ArrayProperty('numbers', items: new ToolProperty('number', PropertyType::INTEGER));
+
+        $this->assertSame([12, 18], $property->cast([12, '18']));
+        $this->assertNull($property->cast(null));
+    }
+
+    public function test_cast_names_the_failing_element(): void
+    {
+        $property = new ArrayProperty('numbers', items: new ToolProperty('number', PropertyType::INTEGER));
+
+        $this->expectException(InvalidToolInput::class);
+        $this->expectExceptionMessage('element 1 must be of type integer, string given');
+
+        $property->cast([12, 'a']);
+    }
+
+    public function test_cast_rejects_a_non_array(): void
+    {
+        $this->expectException(InvalidToolInput::class);
+        $this->expectExceptionMessage('must be of type array, string given');
+
+        (new ArrayProperty('numbers'))->cast('12, 18');
     }
 }

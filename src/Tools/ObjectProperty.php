@@ -7,6 +7,8 @@ namespace NeuronAI\Tools;
 use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\StaticConstructor;
+use NeuronAI\StructuredOutput\Deserializer\Deserializer;
+use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonSchema;
 use ReflectionException;
 
@@ -18,6 +20,7 @@ use function class_exists;
 use function in_array;
 use function is_null;
 use function is_array;
+use function json_encode;
 
 /**
  * @method static static make(string $name, string $description, bool $required = false, ?string $class = null, array $properties = [], bool $nullable = false)
@@ -253,5 +256,14 @@ class ObjectProperty implements ToolPropertyInterface
     public function getClass(): ?string
     {
         return $this->class;
+    }
+
+    /**
+     * @throws DeserializerException
+     * @throws ReflectionException
+     */
+    public function cast(mixed $input): mixed
+    {
+        return $this->class === null ? $input : Deserializer::make()->fromJson(json_encode($input), $this->class);
     }
 }

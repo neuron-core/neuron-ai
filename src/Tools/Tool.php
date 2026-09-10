@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use Closure;
+use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
-use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use ReflectionException;
 use stdClass;
 
 use function array_key_exists;
-use function array_map;
 use function array_reduce;
 use function is_array;
 use function json_encode;
@@ -299,36 +298,20 @@ abstract class Tool implements ToolInterface
             }
         }
 
-        $parameters = array_reduce($this->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $propertyName = $property->getName();
-            $inputs = $this->getInputs();
+        $parameters = [];
 
-            // Missing optional properties become explicit nulls for a consistent structure
-            if (!array_key_exists($propertyName, $inputs)) {
-                $carry[$propertyName] = null;
-                return $carry;
+        foreach ($this->getProperties() as $property) {
+            $name = $property->getName();
+
+            try {
+                // Missing optional properties become explicit nulls for a consistent structure
+                $parameters[$name] = array_key_exists($name, $this->inputs) ? $property->cast($this->inputs[$name]) : null;
+            } catch (InvalidToolInput $exception) {
+                // A value the model sent in the wrong type is feedback to correct the call, not a bug
+                $this->setResult(ToolOutput::error("Parameter \"{$name}\" {$exception->getMessage()}."));
+                return;
             }
-
-            $inputValue = $inputs[$propertyName];
-
-            if ($property instanceof ObjectProperty && $property->getClass()) {
-                $carry[$propertyName] = Deserializer::make()->fromJson(json_encode($inputValue), $property->getClass());
-                return $carry;
-            }
-
-            if ($property instanceof ArrayProperty) {
-                $items = $property->getItems();
-                if ($items instanceof ObjectProperty && $items->getClass()) {
-                    $class = $items->getClass();
-                    $carry[$propertyName] = array_map(fn (array|object $input): object => Deserializer::make()->fromJson(json_encode($input), $class), $inputValue);
-                    return $carry;
-                }
-            }
-
-            $carry[$propertyName] = $inputValue;
-            return $carry;
-
-        }, []);
+        }
 
         $this->setResult($this->__invoke(...$parameters));
     }

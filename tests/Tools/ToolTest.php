@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructor;
 use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructorFluent;
 use NeuronAI\Tests\Tools\Stub\TestToolClassWithParentConstructor;
@@ -21,6 +22,8 @@ use Error;
 
 class ToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     public function test_tool_instance(): void
     {
         $tool = new class () extends Tool {
@@ -40,6 +43,41 @@ class ToolTest extends TestCase
         $this->assertEquals(null, $tool->getCallId());
         $tool->setCallId('test');
         $this->assertEquals('test', $tool->getCallId());
+    }
+
+    public function test_inputs_are_cast_to_the_declared_types(): void
+    {
+        $tool = $this->doublingTool();
+
+        $tool->setInputs(['n' => '5'])->execute();
+
+        $this->assertSame('10', $tool->getResult());
+    }
+
+    public function test_an_input_of_the_wrong_type_is_a_tool_error(): void
+    {
+        $tool = $this->doublingTool();
+
+        $tool->setInputs(['n' => 'five'])->execute();
+
+        $this->assertToolError('Parameter "n" must be of type integer, string given.', $tool->getResult());
+    }
+
+    protected function doublingTool(): Tool
+    {
+        return new class () extends Tool {
+            protected string $name = 'double';
+
+            protected function properties(): array
+            {
+                return [new ToolProperty('n', PropertyType::INTEGER, 'An integer', true)];
+            }
+
+            public function __invoke(int $n): int
+            {
+                return $n * 2;
+            }
+        };
     }
 
     public function test_required_properties(): void

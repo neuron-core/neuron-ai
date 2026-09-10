@@ -34,6 +34,5 @@ class MeanToolTest extends TestCase
     public function test_rejects_invalid_datasets(): void
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
-        $this->assertToolError('The value at index 1 is not a number.', ($this->tool)([2, 'abc', 4]));
     }
 }

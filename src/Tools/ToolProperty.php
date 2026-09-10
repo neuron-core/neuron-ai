@@ -4,9 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
+use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\StaticConstructor;
 
+use function filter_var;
+use function get_debug_type;
+use function is_bool;
 use function is_null;
+use function is_scalar;
+
+use const FILTER_NULL_ON_FAILURE;
+use const FILTER_VALIDATE_BOOL;
+use const FILTER_VALIDATE_FLOAT;
+use const FILTER_VALIDATE_INT;
 
 /**
  * @method static static make(string $name, PropertyType $type, string $description, bool $required = false, array $enum = [], bool $nullable = false)
@@ -84,5 +94,23 @@ class ToolProperty implements ToolPropertyInterface
         }
 
         return $schema;
+    }
+
+    public function cast(mixed $input): mixed
+    {
+        if ($input === null) {
+            return null;
+        }
+
+        // A boolean is only a boolean: filter_var() would read true as 1 and false as an empty string
+        $value = is_bool($input) && $this->type !== PropertyType::BOOLEAN ? null : match ($this->type) {
+            PropertyType::INTEGER => filter_var($input, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE),
+            PropertyType::NUMBER => filter_var($input, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE) ?? filter_var($input, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE),
+            PropertyType::STRING => is_scalar($input) ? (string) $input : null,
+            PropertyType::BOOLEAN => filter_var($input, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE),
+            default => $input,
+        };
+
+        return $value ?? throw new InvalidToolInput("must be of type {$this->type->value}, " . get_debug_type($input) . ' given');
     }
 }

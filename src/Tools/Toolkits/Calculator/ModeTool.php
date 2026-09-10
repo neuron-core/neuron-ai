@@ -6,7 +6,9 @@ namespace NeuronAI\Tools\Toolkits\Calculator;
 
 use NeuronAI\Tools\ToolOutput;
 
+use function array_count_values;
 use function array_keys;
+use function array_map;
 use function implode;
 use function max;
 use function sort;
@@ -32,13 +34,7 @@ class ModeTool extends StatisticTool
      */
     protected function modes(array $numbers): string
     {
-        $frequencies = [];
-
-        foreach ($numbers as $value) {
-            $key = Number::format($value);
-            $frequencies[$key] = ($frequencies[$key] ?? 0) + 1;
-        }
-
+        $frequencies = array_count_values(array_map(Number::format(...), $numbers));
         $modes = array_keys($frequencies, max($frequencies), true);
         sort($modes, SORT_NUMERIC);
 

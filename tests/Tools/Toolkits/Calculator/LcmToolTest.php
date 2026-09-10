@@ -41,6 +41,5 @@ class LcmToolTest extends TestCase
     public function test_rejects_invalid_lists(): void
     {
         $this->assertToolError('Provide at least two integers.', ($this->tool)([]));
-        $this->assertToolError('The value at index 1 is not an integer.', ($this->tool)([4, '6']));
     }
 }
