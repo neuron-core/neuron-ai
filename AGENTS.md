@@ -62,6 +62,7 @@ Individual tests: `vendor/bin/phpunit tests/AgentTest.php` or `--filter testMeth
 - If you need fake or testing object to build test cases put them in a Stub namespace inside the main module so they could be reused by other test cases.
 - Put general utilities helpers, traits, classes, in Tests\Support namespace.
 - Use snake_case format for test methods.
+- Do not run the full test suite and static analysis, only verify the part of the project you are working on.
 
 ## Think Before Coding
 

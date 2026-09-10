@@ -28,6 +28,7 @@ class StreamableHttpTransport implements McpTransportInterface
 {
     protected readonly HttpClientInterface $httpClient;
     protected ?string $sessionId = null;
+    protected ?string $protocolVersion = null;
     protected ?HttpResponse $lastResponse = null;
 
     /**
@@ -78,6 +79,10 @@ class StreamableHttpTransport implements McpTransportInterface
 
             if ($this->sessionId !== null) {
                 $headers['Mcp-Session-Id'] = $this->sessionId;
+            }
+
+            if ($this->protocolVersion !== null) {
+                $headers['MCP-Protocol-Version'] = $this->protocolVersion;
             }
 
             $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
@@ -142,10 +147,16 @@ class StreamableHttpTransport implements McpTransportInterface
         }
     }
 
+    public function setProtocolVersion(string $version): void
+    {
+        $this->protocolVersion = $version;
+    }
+
     public function disconnect(): void
     {
         // HTTP is stateless: nothing to close, just drop session state
         $this->sessionId = null;
+        $this->protocolVersion = null;
         $this->lastResponse = null;
     }
 

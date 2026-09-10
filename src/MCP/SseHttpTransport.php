@@ -338,6 +338,13 @@ class SseHttpTransport implements McpTransportInterface
         return $response;
     }
 
+    /**
+     * The HTTP+SSE transport predates the MCP-Protocol-Version header.
+     */
+    public function setProtocolVersion(string $version): void
+    {
+    }
+
     public function disconnect(): void
     {
         $this->cleanup();

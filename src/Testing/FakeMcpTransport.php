@@ -23,6 +23,8 @@ class FakeMcpTransport implements McpTransportInterface
 
     protected bool $connected = false;
 
+    protected ?string $protocolVersion = null;
+
     protected int $receiveCallCount = 0;
 
     protected int $sendCallCount = 0;
@@ -82,6 +84,11 @@ class FakeMcpTransport implements McpTransportInterface
         $this->received[] = $response;
 
         return $response;
+    }
+
+    public function setProtocolVersion(string $version): void
+    {
+        $this->protocolVersion = $version;
     }
 
     public function disconnect(): void
@@ -144,6 +151,15 @@ class FakeMcpTransport implements McpTransportInterface
     public function assertDisconnected(): void
     {
         Assert::assertFalse($this->connected, 'Transport should be disconnected.');
+    }
+
+    public function assertProtocolVersion(string $expected): void
+    {
+        Assert::assertSame(
+            $expected,
+            $this->protocolVersion,
+            "Expected negotiated protocol version {$expected}, got ".($this->protocolVersion ?? 'none').'.'
+        );
     }
 
     public function assertSendCount(int $expected): void

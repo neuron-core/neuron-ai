@@ -18,5 +18,11 @@ interface McpTransportInterface
      */
     public function receive(): array;
 
+    /**
+     * Called once the initialize handshake has settled the protocol
+     * version every later message is sent under.
+     */
+    public function setProtocolVersion(string $version): void;
+
     public function disconnect(): void;
 }

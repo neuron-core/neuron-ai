@@ -6,6 +6,7 @@ Model Context Protocol connector. An MCP server's tools become ordinary Neuron t
 
 - `McpConnector` is the developer-facing entry point. `tools()` lists the server's tools, applies the `only()` / `exclude()` filters, and wraps each one in an `McpTool`: a `Tool` subclass whose `__invoke()` forwards the call back through the connector. Its input schema is translated into the regular `ToolProperty` / `ArrayProperty` / `ObjectProperty` definitions.
 - `McpClient` speaks JSON-RPC over an `McpTransportInterface`, selected from the config: `command` → `StdioTransport` (local process), `url` → `StreamableHttpTransport`, or `SseHttpTransport` when `async` is true; a custom `transport` instance can be passed instead. HTTP transports accept an optional `HttpClientInterface` (default `CurlHttpClient`).
+- The client speaks the handshake-based protocol revisions: it requests `2025-11-25` in `initialize`, hands the version the server settles on to the transport, and `StreamableHttpTransport` echoes it as the `MCP-Protocol-Version` header on every later request. The stateless `2026-07-28` revision (no handshake, per-request `_meta`) is not implemented.
 - The connector serializes to its config and filters only; the client, transport and HTTP client are dropped and rebuilt lazily on first use after unserialize.
 
 ```php

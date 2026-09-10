@@ -161,6 +161,13 @@ class StdioTransport implements McpTransportInterface
         throw new McpException("Timeout waiting for response from MCP server");
     }
 
+    /**
+     * Newline-delimited JSON has no envelope to carry the version: only HTTP echoes it as a header.
+     */
+    public function setProtocolVersion(string $version): void
+    {
+    }
+
     public function disconnect(): void
     {
         if (is_resource($this->process)) {

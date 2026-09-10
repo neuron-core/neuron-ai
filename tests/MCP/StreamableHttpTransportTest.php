@@ -88,10 +88,13 @@ class StreamableHttpTransportTest extends TestCase
         $responseProperty = $reflection->getProperty('lastResponse');
         $responseProperty->setValue($transport, new HttpResponse(200, ''));
 
+        $transport->setProtocolVersion('2025-11-25');
+
         // Disconnect should clear state
         $transport->disconnect();
 
         $this->assertNull($sessionProperty->getValue($transport));
         $this->assertNull($responseProperty->getValue($transport));
+        $this->assertNull($reflection->getProperty('protocolVersion')->getValue($transport));
     }
 }

@@ -15,6 +15,12 @@ use function is_null;
 
 class McpClient
 {
+    /**
+     * The newest revision still negotiated through the initialize handshake:
+     * from 2026-07-28 the version travels in every request's _meta instead.
+     */
+    protected const PROTOCOL_VERSION = '2025-11-25';
+
     private McpTransportInterface $transport;
 
     private int $requestId = 0;
@@ -61,10 +67,8 @@ class McpClient
             'id' => ++$this->requestId,
             'method' => 'initialize',
             'params' => [
-                'protocolVersion' => '2024-11-05',
-                'capabilities' => (object) [
-                    'sampling' => new stdClass(),
-                ],
+                'protocolVersion' => self::PROTOCOL_VERSION,
+                'capabilities' => new stdClass(),
                 'clientInfo' => (object) [
                     'name' => 'neuron-ai',
                     'version' => '1.0.0',
@@ -77,6 +81,8 @@ class McpClient
         if ($response['id'] !== $this->requestId) {
             throw new McpException('Invalid response ID');
         }
+
+        $this->transport->setProtocolVersion($response['result']['protocolVersion'] ?? self::PROTOCOL_VERSION);
 
         $request = [
             'jsonrpc' => '2.0',
