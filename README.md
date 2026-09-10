@@ -139,17 +139,9 @@ As you can see in the example above, the Agent has memory of the ongoing convers
 
 ## Monitoring & Debugging
 
-Integrating AI Agents into your application, you’re not working only with functions and deterministic code,
-you program your agent influencing probability distributions. Same input ≠ output.
-That means reproducibility, versioning, and debugging become real problems.
-
 Many of the Agents you build with Neuron will contain multiple steps with multiple invocations of LLM calls,
 tool usage, access to external memories, etc. As these applications get more and more complex, it becomes crucial
 to be able to inspect what exactly your agent is doing and why.
-
-Why is the model taking certain decisions? What data is the model reacting to? Prompting is not programming
-in the common sense. No static types, small changes break output, long prompts cost latency,
-and no two models behave exactly the same with the same prompt.
 
 The best way to take your AI application under control is with [Inspector](https://inspector.dev). After you sign up,
 make sure to set the `INSPECTOR_INGESTION_KEY` variable in the application environment file to start monitoring:
