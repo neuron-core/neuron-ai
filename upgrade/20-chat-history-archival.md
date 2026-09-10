@@ -52,29 +52,8 @@ Nothing to migrate. Archived entries are written to the same `.chat` file with a
 `archived_at` key (ISO 8601). Files written before this change contain only
 unarchived entries and load as before.
 
-## 3. Custom backends
-
-If you extend `AbstractChatHistory`, the trim hook now receives the trimmed messages
-(oldest first) instead of their count:
-
-Before:
-
-```php
-protected function onTrimHistory(int $index): void
-```
-
-After:
-
-```php
-/**
- * @param Message[] $messages
- */
-protected function onTrimHistory(array $messages): void
-```
-
 ## What to search for
 
 ```
-grep -rn "onTrimHistory" --include="*.php" .
 grep -rn "chat_messages" --include="*.php" --include="*.sql" .
 ```

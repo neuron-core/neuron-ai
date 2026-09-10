@@ -94,13 +94,15 @@ class SQLChatHistory extends AbstractChatHistory
     /**
      * @throws ChatHistoryException
      */
-    protected function onTrimHistory(array $messages): void
+    protected function onTrimHistory(int $index): void
     {
-        $limit = count($messages);
+        if ($index <= 0) {
+            return;
+        }
 
-        // Archive the oldest unarchived messages of the thread.
+        // Archive the first $index unarchived messages of the thread.
         $stmt = $this->pdo->prepare(
-            "SELECT id FROM {$this->table} WHERE thread_id = :thread_id AND archived_at IS NULL ORDER BY id LIMIT {$limit}"
+            "SELECT id FROM {$this->table} WHERE thread_id = :thread_id AND archived_at IS NULL ORDER BY id LIMIT {$index}"
         );
         $stmt->execute(['thread_id' => $this->requireThreadId()]);
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);

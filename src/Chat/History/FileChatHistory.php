@@ -7,6 +7,7 @@ namespace NeuronAI\Chat\History;
 use NeuronAI\Exceptions\ChatHistoryException;
 
 use function array_merge;
+use function array_slice;
 use function date;
 use function file_exists;
 use function file_get_contents;
@@ -78,11 +79,11 @@ class FileChatHistory extends AbstractChatHistory
         $this->history = $this->deserializeMessages($active);
     }
 
-    protected function onTrimHistory(array $messages): void
+    protected function onTrimHistory(int $index): void
     {
         $archivedAt = date(DATE_ATOM);
 
-        foreach ($messages as $message) {
+        foreach (array_slice($this->history, 0, $index) as $message) {
             $this->archived[] = array_merge($message->jsonSerialize(), ['archived_at' => $archivedAt]);
         }
     }

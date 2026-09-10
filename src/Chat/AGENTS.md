@@ -17,7 +17,7 @@ new UserMessage([
 
 ## Chat history
 
-`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`, handed the trimmed messages) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
+`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`, invoked before the in-memory history drops the trimmed head) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
 
 ### Trimming archives, it never deletes
 

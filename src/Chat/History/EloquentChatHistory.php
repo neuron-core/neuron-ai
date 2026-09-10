@@ -10,7 +10,6 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
 
 use function array_merge;
-use function count;
 
 class EloquentChatHistory extends AbstractChatHistory
 {
@@ -68,17 +67,21 @@ class EloquentChatHistory extends AbstractChatHistory
     /**
      * @throws ChatHistoryException
      */
-    protected function onTrimHistory(array $messages): void
+    protected function onTrimHistory(int $index): void
     {
+        if ($index <= 0) {
+            return;
+        }
+
         /** @var Model $model */
         $model = new $this->modelClass();
 
-        // Archive the oldest unarchived messages of the thread.
+        // Archive the first $index unarchived messages of the thread.
         $ids = $model->newQuery()
             ->where('thread_id', $this->requireThreadId())
             ->whereNull('archived_at')
             ->orderBy('id')
-            ->limit(count($messages))
+            ->limit($index)
             ->pluck('id');
 
         $model->newQuery()
