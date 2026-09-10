@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowHandlerInterface;
 use NeuronAI\Workflow\WorkflowState;
+use Closure;
 use Throwable;
 
 use function is_array;
@@ -41,6 +42,10 @@ class Agent extends Workflow implements AgentInterface
 
     protected bool $parallelToolCalls = false;
 
+    protected ?Closure $beforeParallelToolChild = null;
+
+    protected ?Closure $afterParallelToolChild = null;
+
     public function init(?InterruptRequest $resumeRequest = null): WorkflowHandlerInterface
     {
         $this->resolveState()->resetToolRuns();
@@ -50,14 +55,24 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Determines whether tools should be executed in parallel.
-     * Override this method to return true to enable parallel tool execution.
+     * Determines whether tools should be executed in parallel and optionally
+     * configures callbacks to initialize and clean up resources in each child process.
      *
      * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
-    public function parallelToolCalls(bool $enabled): AgentInterface
-    {
+    public function parallelToolCalls(
+        bool $enabled,
+        ?callable $beforeChild = null,
+        ?callable $afterChild = null,
+    ): AgentInterface {
         $this->parallelToolCalls = $enabled;
+        $this->beforeParallelToolChild = $beforeChild !== null
+            ? Closure::fromCallable($beforeChild)
+            : null;
+        $this->afterParallelToolChild = $afterChild !== null
+            ? Closure::fromCallable($afterChild)
+            : null;
+
         return $this;
     }
 
@@ -78,7 +93,12 @@ class Agent extends Workflow implements AgentInterface
 
         // Select the appropriate ToolNode based on the parallel execution setting
         $toolNode = $this->parallelToolCalls
-            ? new ParallelToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler())
+            ? new ParallelToolNode(
+                $this->toolMaxRuns,
+                $this->resolveToolErrorHandler(),
+                $this->beforeParallelToolChild,
+                $this->afterParallelToolChild,
+            )
             : new ToolNode($this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         // Add nodes to the workflow instance
