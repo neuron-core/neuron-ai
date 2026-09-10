@@ -127,7 +127,9 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     }
 
     /**
-     * Backend hook: remove the persisted messages from position zero up to $index (exclusive).
+     * Backend hook: the messages from position zero up to $index (exclusive) fell out
+     * of the context window. Runs before $this->history drops them, so a backend can
+     * still read what is being trimmed.
      */
     protected function onTrimHistory(int $index): void
     {
@@ -165,8 +167,8 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
         $skipIndex = count($this->history) - count($trimmed);
 
         if ($skipIndex > 0) {
-            $this->history = $trimmed;
             $this->onTrimHistory($skipIndex);
+            $this->history = $trimmed;
         }
     }
 

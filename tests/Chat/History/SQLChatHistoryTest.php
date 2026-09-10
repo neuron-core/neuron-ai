@@ -44,6 +44,7 @@ class SQLChatHistoryTest extends TestCase
           role VARCHAR(32) NOT NULL,
           content LONGTEXT NULL,
           meta LONGTEXT NULL,
+          archived_at DATETIME NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -114,13 +115,7 @@ class SQLChatHistoryTest extends TestCase
         // Create history with small context window
         $smallHistory = new SQLChatHistory(pdo: $this->pdo, threadId: $this->threadId, contextWindow: 100);
 
-        // Add many messages to exceed context window
-        for ($i = 1; $i <= 20; $i++) {
-            $message = $i % 2 !== 0
-                ? new UserMessage("User message $i with some text")
-                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
-            $smallHistory->addMessage($message);
-        }
+        $this->addMessagesBeyondContextWindow($smallHistory);
 
         $messages = $smallHistory->getMessages();
 
@@ -131,11 +126,45 @@ class SQLChatHistoryTest extends TestCase
         // First message should be a user message (valid sequence)
         $this->assertInstanceOf(UserMessage::class, $messages[0]);
 
-        // The trimmed messages must also be deleted from the database
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM chat_messages WHERE thread_id = :thread_id");
+        // The trimmed messages are archived in the database, not deleted
+        $this->assertEquals(count($messages), $this->countRows('archived_at IS NULL'));
+        $this->assertEquals(20 - count($messages), $this->countRows('archived_at IS NOT NULL'));
+    }
+
+    public function test_loads_only_unarchived_messages(): void
+    {
+        $smallHistory = new SQLChatHistory(pdo: $this->pdo, threadId: $this->threadId, contextWindow: 100);
+
+        $this->addMessagesBeyondContextWindow($smallHistory);
+
+        $active = $smallHistory->getMessages();
+
+        $reloaded = new SQLChatHistory($this->pdo, $this->threadId);
+        $messages = $reloaded->getMessages();
+
+        $this->assertCount(count($active), $messages);
+        $this->assertEquals($active[0]->getContent(), $messages[0]->getContent());
+    }
+
+    /**
+     * Twenty alternating messages whose usage grows past a 100 tokens context window.
+     */
+    protected function addMessagesBeyondContextWindow(SQLChatHistory $history): void
+    {
+        for ($i = 1; $i <= 20; $i++) {
+            $message = $i % 2 !== 0
+                ? new UserMessage("User message $i with some text")
+                : (new AssistantMessage("Assistant message $i with some text"))->setUsage(new Usage(100 * $i, 150));
+            $history->addMessage($message);
+        }
+    }
+
+    protected function countRows(string $condition): int
+    {
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM chat_messages WHERE thread_id = :thread_id AND {$condition}");
         $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $this->assertEquals(count($messages), $result['count']);
+
+        return (int) $stmt->fetchColumn();
     }
 
     public function test_adds_one_row_per_message(): void

@@ -20,7 +20,9 @@ use function preg_match;
 use function trim;
 
 /**
- * Stores one row per message, associated to a thread_id.
+ * Stores one row per message, associated to a thread_id. Messages trimmed out of
+ * the context window are archived (archived_at) rather than deleted, and only
+ * the unarchived ones are loaded back.
  *
  * CREATE TABLE chat_messages (
  * id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -28,6 +30,7 @@ use function trim;
  * role VARCHAR(32) NOT NULL,
  * content LONGTEXT NULL,
  * meta LONGTEXT NULL,
+ * archived_at DATETIME NULL,
  * created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
  * updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  *
@@ -61,7 +64,9 @@ class SQLChatHistory extends AbstractChatHistory
      */
     protected function loadThread(): void
     {
-        $stmt = $this->pdo->prepare("SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id");
+        $stmt = $this->pdo->prepare(
+            "SELECT role, content, meta FROM {$this->table} WHERE thread_id = :thread_id AND archived_at IS NULL ORDER BY id"
+        );
         $stmt->execute(['thread_id' => $this->requireThreadId()]);
         $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -95,8 +100,10 @@ class SQLChatHistory extends AbstractChatHistory
             return;
         }
 
-        // Delete the first $index messages of the thread.
-        $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE thread_id = :thread_id ORDER BY id LIMIT {$index}");
+        // Archive the first $index unarchived messages of the thread.
+        $stmt = $this->pdo->prepare(
+            "SELECT id FROM {$this->table} WHERE thread_id = :thread_id AND archived_at IS NULL ORDER BY id LIMIT {$index}"
+        );
         $stmt->execute(['thread_id' => $this->requireThreadId()]);
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -105,7 +112,9 @@ class SQLChatHistory extends AbstractChatHistory
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE id IN ({$placeholders})");
+        $stmt = $this->pdo->prepare(
+            "UPDATE {$this->table} SET archived_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})"
+        );
         $stmt->execute($ids);
     }
 

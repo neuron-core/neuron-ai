@@ -149,7 +149,7 @@ class AgentThreadContinuationTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT
+            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
         )');
         $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();

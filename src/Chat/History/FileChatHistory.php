@@ -6,6 +6,9 @@ namespace NeuronAI\Chat\History;
 
 use NeuronAI\Exceptions\ChatHistoryException;
 
+use function array_merge;
+use function array_slice;
+use function date;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
@@ -16,11 +19,24 @@ use function json_encode;
 use function unlink;
 use function mkdir;
 
+use const DATE_ATOM;
 use const DIRECTORY_SEPARATOR;
 use const LOCK_EX;
 
+/**
+ * Stores the whole thread in one JSON file. Messages trimmed out of the context
+ * window stay in the file marked by archived_at, and only the unarchived entries
+ * are loaded back.
+ */
 class FileChatHistory extends AbstractChatHistory
 {
+    /**
+     * Serialized entries of the archived messages, written back on every save.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    protected array $archived = [];
+
     /**
      * @throws ChatHistoryException
      */
@@ -46,9 +62,29 @@ class FileChatHistory extends AbstractChatHistory
 
     protected function loadThread(): void
     {
-        if (is_file($this->getFilePath())) {
-            $messages = json_decode(file_get_contents($this->getFilePath()), true) ?? [];
-            $this->history = $this->deserializeMessages($messages);
+        if (!is_file($this->getFilePath())) {
+            return;
+        }
+
+        $active = [];
+
+        foreach (json_decode(file_get_contents($this->getFilePath()), true) ?? [] as $entry) {
+            if (isset($entry['archived_at'])) {
+                $this->archived[] = $entry;
+            } else {
+                $active[] = $entry;
+            }
+        }
+
+        $this->history = $this->deserializeMessages($active);
+    }
+
+    protected function onTrimHistory(int $index): void
+    {
+        $archivedAt = date(DATE_ATOM);
+
+        foreach (array_slice($this->history, 0, $index) as $message) {
+            $this->archived[] = array_merge($message->jsonSerialize(), ['archived_at' => $archivedAt]);
         }
     }
 
@@ -73,6 +109,8 @@ class FileChatHistory extends AbstractChatHistory
      */
     protected function clear(): void
     {
+        $this->archived = [];
+
         if (file_exists($this->getFilePath()) && !unlink($this->getFilePath())) {
             throw new ChatHistoryException("Unable to delete the file '{$this->getFilePath()}'");
         }
@@ -83,7 +121,7 @@ class FileChatHistory extends AbstractChatHistory
      */
     protected function updateFile(): void
     {
-        $content = json_encode($this->jsonSerialize());
+        $content = json_encode([...$this->archived, ...$this->history]);
         $filePath = $this->getFilePath();
 
         // Try to write with LOCK_EX first for thread safety

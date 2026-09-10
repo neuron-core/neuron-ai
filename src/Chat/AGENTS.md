@@ -17,7 +17,11 @@ new UserMessage([
 
 ## Chat history
 
-`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
+`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`, invoked before the in-memory history drops the trimmed head) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
+
+### Trimming archives, it never deletes
+
+The durable backends (SQL, Eloquent, File) keep the messages trimmed out of the context window: a trim stamps them with `archived_at` (a nullable column on the messages table, a key on the file entry) and loading reads only the unarchived ones, so the full transcript stays available to the application while the model sees the trimmed thread. `flushAll()` is the one destructive operation: it removes the whole thread, archived messages included. `InMemoryChatHistory` simply drops what it trims.
 
 ### Identity: histories are bound, not identity-constructed
 
