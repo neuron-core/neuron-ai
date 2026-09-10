@@ -95,16 +95,16 @@ class Agent extends Workflow implements AgentInterface
      * Note: Parallel execution requires the pcntl extension and spatie/fork package.
      */
     public function parallelToolCalls(
-        bool $enabled,
+        bool $enabled = true,
         ?callable $beforeChild = null,
         ?callable $afterChild = null,
     ): AgentInterface {
         $this->parallelToolCalls = $enabled;
         $this->beforeParallelToolChild = $beforeChild !== null
-            ? Closure::fromCallable($beforeChild)
+            ? $beforeChild(...)
             : null;
         $this->afterParallelToolChild = $afterChild !== null
-            ? Closure::fromCallable($afterChild)
+            ? $afterChild(...)
             : null;
 
         return $this;
