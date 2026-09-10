@@ -10,11 +10,18 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use DateTimeImmutable;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\ActionDecision;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_column;
+use function array_key_last;
 use function iterator_to_array;
 use function json_decode;
 use function substr;
@@ -160,6 +167,132 @@ class AGUIAdapterTest extends TestCase
         $this->assertStringContainsString('"type":"TOOL_CALL_ARGS"', $events[1]);
         $this->assertStringContainsString('"delta":"{\"operation\":\"add\"}"', $events[1]);
         $this->assertStringContainsString('"type":"TOOL_CALL_END"', $events[2]);
+    }
+
+    public function test_suspended_closes_a_streamed_tool_call_and_finishes_with_the_interrupt_outcome(): void
+    {
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        iterator_to_array($adapter->start(), false);
+        iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Let me check')), false);
+        iterator_to_array($adapter->transform(new ToolArgumentChunk('msg_123', 'geolocation_get', '{"save":true}', 'call_1')), false);
+
+        $events = $this->decode($adapter->suspended([1 => $this->approval('call_1', 'Location access needs consent')]));
+
+        // The argument chunk already closed the text message; only the tool call is still open.
+        $this->assertSame(['TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertSame('call_1', $events[0]['toolCallId']);
+        $this->assertSame([
+            'type' => 'RUN_FINISHED',
+            'threadId' => 'thread_test',
+            'runId' => 'run_test',
+            'outcome' => [
+                'type' => 'interrupt',
+                'interrupts' => [[
+                    'id' => 'call_1',
+                    'reason' => 'tool_call',
+                    'toolCallId' => 'call_1',
+                    'message' => 'Location access needs consent',
+                    'metadata' => [
+                        'id' => 'call_1',
+                        'name' => 'geolocation_get',
+                        'description' => null,
+                        'decision' => 'pending',
+                        'feedback' => null,
+                        'reason' => 'Location access needs consent',
+                        'inputs' => ['save' => true],
+                    ],
+                ]],
+            ],
+        ], $events[1]);
+    }
+
+    public function test_suspended_announces_a_pending_tool_call_that_never_reached_the_stream(): void
+    {
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        iterator_to_array($adapter->start(), false);
+
+        $events = $this->decode($adapter->suspended([1 => $this->approval('call_1')]));
+
+        $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertSame(['type' => 'TOOL_CALL_START', 'toolCallId' => 'call_1', 'toolCallName' => 'geolocation_get'], $events[0]);
+        $this->assertSame('{"save":true}', $events[1]['delta']);
+
+        $interrupt = $events[3]['outcome']['interrupts'][0];
+        $this->assertSame('call_1', $interrupt['toolCallId']);
+        // Without a per-action reason the request message is the prompt.
+        $this->assertSame('1 tool call requires approval', $interrupt['message']);
+    }
+
+    public function test_suspended_exposes_one_interrupt_per_action_with_its_decision_state(): void
+    {
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        iterator_to_array($adapter->start(), false);
+        $request = (new ApprovalRequest('2 tool calls require approval', [
+            new Action('call_a', 'delete_file', decision: ActionDecision::Approved, inputs: ['path' => '/tmp/a']),
+            new Action('call_b', 'send_email', inputs: ['to' => 'team@example.com']),
+        ]))->withId(1);
+
+        $events = $this->decode($adapter->suspended([1 => $request]));
+
+        $interrupts = $events[array_key_last($events)]['outcome']['interrupts'];
+        $this->assertSame(['call_a', 'call_b'], array_column($interrupts, 'id'));
+        $this->assertSame('approved', $interrupts[0]['metadata']['decision']);
+        $this->assertSame('pending', $interrupts[1]['metadata']['decision']);
+    }
+
+    public function test_suspended_encodes_other_requests_under_a_namespaced_reason(): void
+    {
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        iterator_to_array($adapter->start(), false);
+        $request = (new WaitForEventRequest('order.approved', new DateTimeImmutable('2026-09-11T10:00:00+00:00')))->withId(3);
+
+        $events = $this->decode($adapter->suspended([3 => $request]));
+
+        $this->assertCount(1, $events);
+        $this->assertSame([
+            'id' => '3',
+            'reason' => 'neuron:wait_for_event',
+            'message' => "Waiting for event 'order.approved' (expires at 2026-09-11T10:00:00+00:00)",
+            'metadata' => [
+                'interruptId' => 3,
+                'type' => 'wait_for_event',
+                'eventName' => 'order.approved',
+                'expiresAt' => '2026-09-11T10:00:00+00:00',
+            ],
+            'expiresAt' => '2026-09-11T10:00:00+00:00',
+        ], $events[0]['outcome']['interrupts'][0]);
+    }
+
+    public function test_suspended_is_silent_after_a_failed_run(): void
+    {
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        iterator_to_array($adapter->start(), false);
+        iterator_to_array($adapter->error(new RuntimeException('Failed')), false);
+
+        $this->assertSame([], iterator_to_array($adapter->suspended([1 => $this->approval('call_1')]), false));
+    }
+
+    private function approval(string $callId, ?string $reason = null): ApprovalRequest
+    {
+        $request = new ApprovalRequest('1 tool call requires approval', [
+            new Action($callId, 'geolocation_get', reason: $reason, inputs: ['save' => true]),
+        ]);
+
+        return $request->withId(1);
+    }
+
+    /**
+     * @param iterable<string> $frames
+     * @return list<array<string, mixed>>
+     */
+    private function decode(iterable $frames): array
+    {
+        $events = [];
+        foreach ($frames as $frame) {
+            $events[] = json_decode(substr($frame, 6, -2), true);
+        }
+
+        return $events;
     }
 
     private function createMockTool(string $name, array $inputs): ToolCall

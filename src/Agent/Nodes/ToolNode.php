@@ -282,6 +282,7 @@ class ToolNode extends Node implements AgentNodeInterface
                 decision: $this->mapDecision($call->getApprovalState()),
                 feedback: $call->getRejectReason(),
                 reason: $call->getApprovalReason(),
+                inputs: $inputs,
             );
         }
 

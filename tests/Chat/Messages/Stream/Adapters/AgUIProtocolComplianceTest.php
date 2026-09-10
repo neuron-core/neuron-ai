@@ -11,9 +11,12 @@ use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
@@ -179,6 +182,28 @@ class AgUIProtocolComplianceTest extends TestCase
         $last = $events[array_key_last($events)];
         $this->assertSame('thread_custom', $last['threadId']);
         $this->assertSame('run_custom', $last['runId']);
+    }
+
+    public function test_suspended_flow_is_compliant(): void
+    {
+        $adapter = new AGUIAdapter('thread_test');
+        $request = (new ApprovalRequest('1 tool call requires approval', [
+            new Action('call_1', 'search', inputs: ['query' => 'test']),
+        ]))->withId(1);
+
+        $events = $this->collect(
+            $adapter->start(),
+            $adapter->transform(new TextChunk('msg_1', 'Searching')),
+            $adapter->transform(new ToolArgumentChunk('msg_1', 'search', '{"query":"test"}', 'call_1')),
+            $adapter->suspended([1 => $request]),
+        );
+
+        $this->assertCompliant($events);
+        $this->assertSame([
+            'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END',
+            'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED',
+        ], array_column($events, 'type'));
+        $this->assertSame('interrupt', $events[array_key_last($events)]['outcome']['type']);
     }
 
     public function test_portable_events_are_compliant_run_level_events(): void

@@ -17,6 +17,8 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\UniqueIdGenerator;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;
 
 /**
@@ -215,6 +217,59 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
     public function start(): iterable
     {
         return [];
+    }
+
+    /**
+     * Terminate a suspended run instead of calling end(). A pending approval
+     * is the protocol's own tool-approval request: the call's complete input
+     * lands first (only deltas, or nothing, reached the stream before the
+     * gate), then the request per action. Any other interrupt travels as a
+     * transient data part.
+     *
+     * @param array<int, InterruptRequest> $requests
+     * @return iterable<string>
+     */
+    public function suspended(array $requests): iterable
+    {
+        if ($this->runFailed) {
+            return;
+        }
+
+        foreach ($requests as $request) {
+            if (! $request instanceof ApprovalRequest) {
+                yield $this->sse([
+                    'type' => 'data-workflow-interrupt',
+                    'data' => $request->jsonSerialize(),
+                    'transient' => true,
+                ]);
+                continue;
+            }
+
+            // A buffered turn streamed no message chunk: the tool parts still need one.
+            if (! $this->started) {
+                $this->started = true;
+                yield $this->sse(['type' => 'start', 'messageId' => $this->generateId('msg')]);
+            }
+
+            foreach ($request->getActions() as $action) {
+                yield $this->sse([
+                    'type' => 'tool-input-available',
+                    'toolCallId' => $action->id,
+                    'toolName' => $action->name,
+                    'input' => $action->inputs,
+                ]);
+
+                yield $this->sse([
+                    'type' => 'tool-approval-request',
+                    'toolCallId' => $action->id,
+                    'approvalId' => $action->id,
+                    'reason' => $action->reason ?? $request->getMessage(),
+                ]);
+            }
+        }
+
+        yield $this->sse(['type' => 'finish']);
+        yield "data: [DONE]\n\n";
     }
 
     public function error(Throwable $error): iterable

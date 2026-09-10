@@ -458,14 +458,21 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             throw $e;
         }
 
+        $state = $this->getState();
+        if ($state->isInterrupted()) {
+            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->suspended($state->getInterruptRequests())) as $output) {
+                yield $output;
+            }
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->suspended(clone $state));
+
+            return $state;
+        }
+
         foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
             yield $output;
         }
 
-        $state = $this->getState();
-        if ($state->isInterrupted()) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->suspended(clone $state));
-        } elseif ($state->getStatus() === WorkflowStatus::Completed) {
+        if ($state->getStatus() === WorkflowStatus::Completed) {
             $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->completed($state, $this->workflowId ?? 'unresolved'));
         }
 
@@ -473,16 +480,22 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * An InterruptEvent is the suspension terminal, never stream content: an
+     * adapter encodes it through suspended() and a channel is notified
+     * through suspended(), so only native pull consumers see the event itself.
+     *
      * @return Generator<int, object|string>
      */
     protected function streamOutput(object $item): Generator
     {
         $adapter = $this->getStreamAdapter();
         if ($adapter instanceof StreamAdapterInterface) {
+            if ($item instanceof InterruptEvent) {
+                return;
+            }
+
             foreach ($adapter->transform($item) as $line) {
-                if (!$item instanceof InterruptEvent) {
-                    $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
-                }
+                $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
                 yield $line;
             }
             return;

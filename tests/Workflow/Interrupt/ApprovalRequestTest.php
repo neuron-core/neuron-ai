@@ -105,4 +105,14 @@ class ApprovalRequestTest extends TestCase
         $this->assertInstanceOf(\NeuronAI\Workflow\Interrupt\WaitForEventRequest::class, $request);
         $this->assertSame(\NeuronAI\Workflow\Interrupt\InterruptType::WaitForEvent, $request->type());
     }
+
+    public function test_actions_carry_the_inputs_they_would_run_with(): void
+    {
+        $action = new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']);
+
+        $this->assertSame(['path' => '/tmp/x'], $action->inputs);
+        $this->assertSame(['path' => '/tmp/x'], $action->jsonSerialize()['inputs']);
+        // No arguments encode as an empty JSON object, never an empty list.
+        $this->assertSame('{}', json_encode((new Action('call_2', 'ping'))->jsonSerialize()['inputs']));
+    }
 }

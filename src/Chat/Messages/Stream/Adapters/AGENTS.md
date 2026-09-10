@@ -15,7 +15,7 @@ An adapter is stateful for one stream; never share an instance between concurren
 
 ## Contract
 
-`start()` (optional framing), `transform(object $chunk)` (one object → zero or more strings), `end()` (termination on completion or suspension) and `error(Throwable $error)` (failure frames instead of `end()`; return `[]` when the protocol has none). The Workflow calls `error()` itself for failures during streamed execution or chunk transformation; the channel still receives `failed()` and the exception is rethrown to the caller. After `error()` an adapter emits no further frames.
+`start()` (optional framing), `transform(object $chunk)` (one object → zero or more strings), and one terminal per segment, selected by the Workflow from the segment's outcome: `end()` on completion, `suspended(array $requests)` on suspension (the active `InterruptRequest`s keyed by interrupt ID, encoded so the client learns what the run waits for; return `[]` when the protocol cannot express a pause) and `error(Throwable $error)` on failure (return `[]` when the protocol has no failure frames). The Workflow calls `error()` itself for failures during streamed execution or chunk transformation; the channel still receives `failed()` and the exception is rethrown to the caller. After `error()` an adapter emits no further frames. An `InterruptEvent` never reaches `transform()`.
 
 ## Portable stream events
 
@@ -44,8 +44,8 @@ Resolution order: a yielded `StreamEventInterface` is encoded directly; then an 
 
 ## Protocol invariants
 
-- **AG-UI**: `RUN_STARTED` is the first frame, `RUN_FINISHED` or `RUN_ERROR` the last; a text or reasoning lifecycle closes before an incompatible one begins; step, activity and custom events are run-level and never create, close or reuse text message state; the configured thread and run IDs are preserved on run framing.
-- **Vercel**: `start` is emitted exactly once, lazily, right before the first message-bearing native chunk, so a portable event may legitimately be the first yielded item; portable conversions are transient data never appended to the persisted assistant message; success ends with `finish` then `[DONE]`, failure with `error` then `[DONE]`.
+- **AG-UI**: `RUN_STARTED` is the first frame, `RUN_FINISHED` or `RUN_ERROR` the last; a text or reasoning lifecycle closes before an incompatible one begins; step, activity and custom events are run-level and never create, close or reuse text message state; the configured thread and run IDs are preserved on run framing. A suspended run closes every open tool call (the protocol forbids `RUN_FINISHED` with one active), announces gated calls that never reached the stream, and ends with `RUN_FINISHED` carrying `outcome: {type: interrupt}`: one `tool_call` interrupt per `ApprovalRequest` action (its `id` and `toolCallId` are the tool call ID, `message` the approval reason, `metadata` the action) and one `neuron:<type>` interrupt per other request (its portable JSON as `metadata`), with `expiresAt` when the request has a deadline.
+- **Vercel**: `start` is emitted exactly once, lazily, right before the first message-bearing native chunk, so a portable event may legitimately be the first yielded item; portable conversions are transient data never appended to the persisted assistant message; success ends with `finish` then `[DONE]`, failure with `error` then `[DONE]`. A suspended run emits `tool-input-available` then `tool-approval-request` per approval action (the approval ID is the tool call ID) before `finish`, and any other request as a transient `data-workflow-interrupt` part.
 
 ## Durability
 

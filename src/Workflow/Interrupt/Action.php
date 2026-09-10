@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Interrupt;
 
 use JsonSerializable;
+use stdClass;
 
 /**
  * A single action awaiting a human decision. A pure outbound value object:
@@ -15,13 +16,14 @@ use JsonSerializable;
 class Action implements JsonSerializable
 {
     /**
-     * @param string             $id          Unique identifier for this action (the tool callId)
-     * @param string             $name        Short human-readable name
-     * @param string|null        $description Detailed description of what this action does
-     * @param ActionDecision     $decision    Current decision state
-     * @param string|null        $feedback    Optional feedback from the approver (reject reason)
-     * @param string|null        $reason      Why approval is being requested (declared by the
-     *                                        tool or the middleware config — outbound)
+     * @param string               $id          Unique identifier for this action (the tool callId)
+     * @param string               $name        Short human-readable name
+     * @param string|null          $description Detailed description of what this action does
+     * @param ActionDecision       $decision    Current decision state
+     * @param string|null          $feedback    Optional feedback from the approver (reject reason)
+     * @param string|null          $reason      Why approval is being requested (declared by the
+     *                                          tool or the middleware config — outbound)
+     * @param array<string, mixed> $inputs      The arguments the action would run with (the tool call inputs)
      */
     public function __construct(
         public readonly string $id,
@@ -30,6 +32,7 @@ class Action implements JsonSerializable
         public readonly ActionDecision $decision = ActionDecision::Pending,
         public readonly ?string $feedback = null,
         public readonly ?string $reason = null,
+        public readonly array $inputs = [],
     ) {
     }
 
@@ -60,6 +63,7 @@ class Action implements JsonSerializable
             'decision' => $this->decision->value,
             'feedback' => $this->feedback,
             'reason' => $this->reason,
+            'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
         ];
     }
 }

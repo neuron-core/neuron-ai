@@ -232,7 +232,7 @@ gets the rejection template as the tool result. `abandonRun()` refuses while an
 approval is pending, because the pre-suspend tool call would be left unanswered
 in history; `resetConversation()` wipes the history and frees the thread instead.
 
-For streaming, a new message uses `stream($message)`; an approval continuation uses `toolApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one.
+For streaming, a new message uses `stream($message)`; an approval continuation uses `toolApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one. With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists one `tool_call` interrupt per pending call (its `id` is the callId); with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Map the client's answers to the decision map above and continue the same way.
 
 ## A Complete Decision Round Trip
 

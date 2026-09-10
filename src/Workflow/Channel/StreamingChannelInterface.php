@@ -28,7 +28,7 @@ interface StreamingChannelInterface
 
     /**
      * An adapted protocol line — a stream adapter's transform() output or
-     * one of its start()/end() framing lines.
+     * one of its start()/end()/suspended()/error() framing lines.
      */
     public function sendLine(string $line): void;
 

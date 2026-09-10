@@ -8,6 +8,8 @@ use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use Throwable;
 
+use function count;
+
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
  * ids, so two independent instances produce identical output for the same
@@ -30,6 +32,11 @@ class ParityAdapter implements StreamAdapterInterface
     public function error(Throwable $error): iterable
     {
         yield 'error:' . $error->getMessage() . "\n";
+    }
+
+    public function suspended(array $requests): iterable
+    {
+        yield 'suspended:' . count($requests) . "\n";
     }
 
     public function end(): iterable

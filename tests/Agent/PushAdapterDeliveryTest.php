@@ -7,14 +7,24 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Tests\Agent\Stub\ParityAdapter;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Channel\CallbackChannel;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
+use function array_column;
+use function array_map;
 use function count;
 use function implode;
 use function iterator_to_array;
+use function json_decode;
+use function substr;
 
 class PushAdapterDeliveryTest extends TestCase
 {
@@ -83,5 +93,56 @@ class PushAdapterDeliveryTest extends TestCase
 
         $this->assertSame(["start\n", "end\n"], $pulled);
         $this->assertSame($pulled, $sink);
+    }
+
+    public function test_suspended_stream_frames_are_identical_between_pull_and_push(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'geolocation_get';
+
+            protected ?string $description = 'Get the browser geolocation';
+
+            protected function approvalPolicy(array $inputs): string
+            {
+                return 'Location access needs consent';
+            }
+
+            public function __invoke(bool $save = true): string
+            {
+                return 'lat/long';
+            }
+        };
+
+        $channel = new FakeChannel();
+        $agent = Agent::make(threadId: 'thread-1')
+            ->setPersistence(new InMemoryPersistence())
+            ->setStreamAdapter(new AGUIAdapter('thread-1', 'run-1'))
+            ->setChannel($channel);
+        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [
+            ToolCall::make('geolocation_get', 'call_1', ['save' => true]),
+        ])));
+        $agent->addTool($tool);
+
+        $generator = $agent->stream(new UserMessage('Where am I?'));
+        $pulled = iterator_to_array($generator, false);
+        $state = $generator->getReturn();
+
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame($pulled, $channel->lines);
+        $this->assertCount(1, $channel->suspendedStates);
+        $this->assertSame([], $channel->completions);
+
+        // The gated call never reached the stream (a one-shot provider): the
+        // suspension announces it, closes it, and binds the interrupt to it.
+        $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
+        $this->assertSame(
+            ['RUN_STARTED', 'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'],
+            array_column($events, 'type'),
+        );
+        $interrupt = $events[4]['outcome']['interrupts'][0];
+        $this->assertSame('tool_call', $interrupt['reason']);
+        $this->assertSame('call_1', $interrupt['toolCallId']);
+        $this->assertSame('Location access needs consent', $interrupt['message']);
+        $this->assertSame(['save' => true], $interrupt['metadata']['inputs']);
     }
 }

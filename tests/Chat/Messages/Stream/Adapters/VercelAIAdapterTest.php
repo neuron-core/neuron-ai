@@ -12,9 +12,14 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_column;
+use function array_pop;
 use function iterator_to_array;
 use function json_decode;
 use function preg_match;
@@ -245,6 +250,91 @@ class VercelAIAdapterTest extends TestCase
             $this->assertNotNull($decoded);
             $this->assertArrayHasKey('type', $decoded);
         }
+    }
+
+    public function test_suspended_requests_approval_for_each_pending_action(): void
+    {
+        iterator_to_array($this->adapter->transform(new ToolArgumentChunk('msg_123', 'delete_file', '{"path":"/tmp/x"}', 'call_1')), false);
+        $request = (new ApprovalRequest('1 tool call requires approval', [
+            new Action('call_1', 'delete_file', reason: 'Deleting a file is irreversible', inputs: ['path' => '/tmp/x']),
+        ]))->withId(1);
+
+        $frames = iterator_to_array($this->adapter->suspended([1 => $request]), false);
+
+        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+        $events = $this->decode($frames);
+        $this->assertSame(['tool-input-available', 'tool-approval-request', 'finish'], array_column($events, 'type'));
+        $this->assertSame([
+            'type' => 'tool-input-available',
+            'toolCallId' => 'call_1',
+            'toolName' => 'delete_file',
+            'input' => ['path' => '/tmp/x'],
+        ], $events[0]);
+        $this->assertSame([
+            'type' => 'tool-approval-request',
+            'toolCallId' => 'call_1',
+            'approvalId' => 'call_1',
+            'reason' => 'Deleting a file is irreversible',
+        ], $events[1]);
+    }
+
+    public function test_suspended_starts_the_message_before_a_buffered_tool_call(): void
+    {
+        $request = (new ApprovalRequest('1 tool call requires approval', [
+            new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']),
+        ]))->withId(1);
+
+        $frames = iterator_to_array($this->adapter->suspended([1 => $request]), false);
+
+        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+        $events = $this->decode($frames);
+        $this->assertSame(['start', 'tool-input-available', 'tool-approval-request', 'finish'], array_column($events, 'type'));
+        // Without a per-action reason the request message is the prompt.
+        $this->assertSame('1 tool call requires approval', $events[2]['reason']);
+    }
+
+    public function test_suspended_encodes_other_requests_as_transient_data(): void
+    {
+        $request = (new WaitForEventRequest('order.approved'))->withId(3);
+
+        $frames = iterator_to_array($this->adapter->suspended([3 => $request]), false);
+
+        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+        $this->assertSame([
+            [
+                'type' => 'data-workflow-interrupt',
+                'data' => [
+                    'interruptId' => 3,
+                    'type' => 'wait_for_event',
+                    'eventName' => 'order.approved',
+                    'expiresAt' => null,
+                ],
+                'transient' => true,
+            ],
+            ['type' => 'finish'],
+        ], $this->decode($frames));
+    }
+
+    public function test_suspended_is_silent_after_a_failed_run(): void
+    {
+        iterator_to_array($this->adapter->error(new RuntimeException('Failed')), false);
+
+        $request = (new WaitForEventRequest('order.approved'))->withId(1);
+        $this->assertSame([], iterator_to_array($this->adapter->suspended([1 => $request]), false));
+    }
+
+    /**
+     * @param list<string> $frames
+     * @return list<array<string, mixed>>
+     */
+    private function decode(array $frames): array
+    {
+        $events = [];
+        foreach ($frames as $frame) {
+            $events[] = json_decode(substr($frame, 6, -2), true);
+        }
+
+        return $events;
     }
 
     private function createMockTool(string $name, array $inputs): ToolCall

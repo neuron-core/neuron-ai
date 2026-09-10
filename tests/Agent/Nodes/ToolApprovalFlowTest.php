@@ -194,6 +194,7 @@ class ToolApprovalFlowTest extends TestCase
 
         $request = $this->assertSuspends($node, $this->createToolCallEvent([$call]), $state);
         $this->assertEquals(ActionDecision::Pending, $this->actionsById($request)['call_a']->decision);
+        $this->assertSame(['path' => '/tmp/x'], $this->actionsById($request)['call_a']->inputs);
 
         // History carries the annotated ToolCallMessage with the call pending.
         $last = $this->lastToolCall($node);
