@@ -7,16 +7,18 @@ description: Implement human-in-the-loop tool approval flows with Neuron AI agen
 
 This skill helps you gate agent tool execution behind human approval and build the application around it: the server endpoint, the UI, and the decision round trip.
 
+Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+
 ## The Mental Model
 
 **Approval is owned by `ToolNode` and configured on the tools themselves**. There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
-**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Continuing needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread ID alone, stages the decisions with `toolApprovalDecisions()`, and finishes with `run()` or `events()`. No workflow coordination ID is stored on the side.
+**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Continuing needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread ID alone, stages the decisions with `submitInputs($decisions, new ApprovalTranslator())`, and finishes with `run()` or `events()`. No workflow coordination ID is stored on the side.
 
 Two facts shape the UI:
 
 - **History is append-only.** The suspended `tool_call` message keeps its *pending snapshot* forever; the final outcomes (approved/rejected + feedback + results) are recorded on the `tool_call_result` message that follows it. "Is approval pending?" = the thread tail is a `tool_call` with pending tools.
-- **Partial decisions are not persisted anywhere.** The approval payload is **cumulative** — every continuation restates the entire decision set, and accumulation lives with your application (client- or server-side) until the set is complete.
+- **Partial decisions are retained in the persisted interruption snapshot.** `ApprovalTranslator` fills omitted decisions from that snapshot, so each submission can contain only the newest decisions. Explicit updates to an already-decided action in a still-open batch win.
 
 ## Enabling Approval
 
@@ -155,28 +157,28 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 
 ### The contract
 
-1. **Cumulative** — the payload is the *entire decision set*, restated on every continuation. A decision that is not restated is not remembered: an omitted `callId` reverts to pending.
-2. **Accumulation lives with your app** — collect decisions client- or server-side; the framework deliberately persists no partial progress (a process death loses undelivered partials; the caller re-sends).
+1. **Cumulative at the node boundary** — `ApprovalTranslator` restates the complete delivered set internally, filling omitted decisions from the persisted interruption snapshot.
+2. **Translation accumulates delivered decisions** — the translator combines new decisions with the persisted interruption snapshot; undelivered client-side choices remain the application's responsibility.
 3. **Revisable until complete** — the latest delivered payload wins, so a resubmitted `callId` overwrites its earlier decision while any tool is still pending.
 4. **Completeness is the point of no return** — the moment every gated tool has a decision, the workflow proceeds immediately.
 5. **Silence is never consent** — an incomplete set re-suspends; a tool executes only on explicit `"approve"`.
-6. **Unknown ids and malformed values are ignored** — they don't error, they simply don't land.
+6. **Unknown IDs and malformed values fail translation** — no input is staged when validation fails.
 
 ### UI submission patterns
 
 - **Batch with confirmation (the natural fit)**: collect decisions locally, submit one complete map on "Confirm". For a review step, **withhold one decision until confirmed** — an incomplete set is your draft state. This is the intended way to build a confirm stage; there is deliberately no built-in one.
-- **Submit-per-click**: keep the accumulated map in your app (client state or your own store) and send the *whole map so far* on every click. Each incomplete submission re-suspends; the run proceeds when the last decision lands. Never send only the newest decision — the earlier ones would revert to pending.
+- **Submit-per-click**: send the newest decision on every click. The translator preserves previously delivered decisions, and an incomplete submission re-suspends until the last decision lands.
 
 ### Pitfalls
 
-- **Sending only the newest decision loses the earlier ones** — the payload is cumulative; an omitted decision reverts that tool to pending. Always restate the full set.
-- **A typo'd `callId` fails silently** — the thread just stays suspended. After every submission, check the response: if still `awaiting_approval`, diff your accumulated map against the pending cards.
+- **Direct workflow signals still require cumulative payloads** — `ApprovalTranslator` handles accumulation for `submitInputs()`; callers bypassing translation must restate the full decision set themselves.
+- **A typo'd `callId` fails translation** — native decisions must match an action in the persisted requests.
 - **`["approve", "note"]` doesn't exist** — it is malformed and silently ignored; the tool stays pending. Only rejections carry text.
 - **The tail message won't show partial progress** — it keeps its pending snapshot (append-only history). Render interim progress from your own accumulated map, not from the thread.
 
 ## One Endpoint for the Whole Conversation
 
-A normal turn and an approval continuation share the same agent construction: build it from the thread ID, feed it what the client sent, and return the thread's new state. With `decisions`, `toolApprovalDecisions()` stages the approval signal and `run()` continues the pending run; with a message, `chat()` starts a fresh run.
+A normal turn and an approval continuation share the same agent construction: build it from the thread ID, feed it what the client sent, and return the thread's new state. With `decisions`, `submitInputs($decisions, new ApprovalTranslator())` translates and stages the approval inputs and `run()` continues the pending run; with a message, `chat()` starts a fresh run.
 
 ```php
 use NeuronAI\Chat\Messages\UserMessage;
@@ -186,7 +188,7 @@ use NeuronAI\Exceptions\RunInFlightException;
  * POST /threads/{threadId}/chat — body is ONE of:
  *   { "message": "Delete the old logs file" }
  *   { "decisions": { "toolu_01...": "approve", "toolu_08...": ["reject", "why"] } }
- * `decisions` is the FULL accumulated set (cumulative contract).
+ * `decisions` contains new choices or the full set; translation preserves previous choices.
  */
 function chatEndpoint(string $threadId, array $body): array
 {
@@ -194,7 +196,7 @@ function chatEndpoint(string $threadId, array $body): array
 
     try {
         $state = isset($body['decisions'])
-            ? $agent->toolApprovalDecisions($body['decisions'])
+            ? $agent->submitInputs($body['decisions'], new ApprovalTranslator())
                 ->run()                                                // answer → continue the pending run
             : $agent->chat(new UserMessage($body['message']));         // message → start a new run
     } catch (RunInFlightException $e) {
@@ -232,7 +234,7 @@ gets the rejection template as the tool result. `abandonRun()` refuses while an
 approval is pending, because the pre-suspend tool call would be left unanswered
 in history; `resetConversation()` wipes the history and frees the thread instead.
 
-For streaming, a new message uses `stream($message)`; an approval continuation uses `toolApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one. With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists one `tool_call` interrupt per pending call (its `id` is the callId); with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Map the client's answers to the decision map above and continue the same way.
+For streaming, a new message uses `stream($message)`; an approval continuation uses `submitInputs($decisions, new ApprovalTranslator())->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one. With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists one `tool_call` interrupt per pending call (its `id` is the callId); with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Map the client's answers to the decision map above and continue the same way.
 
 ## A Complete Decision Round Trip
 

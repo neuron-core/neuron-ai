@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
+use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
@@ -17,6 +19,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\CountingTool;
 use NeuronAI\Tools\DeferredTool;
@@ -79,7 +82,7 @@ class DeferredToolFlowTest extends TestCase
         $this->assertSame(1, CountingTool::$executions);
         $this->assertCount(2, $this->history->getMessages());
 
-        $state = $this->agent()->toolResults(['external' => ['result' => ['text' => 'Hello']]])->run();
+        $state = $this->agent()->submitInputs(['external' => ['result' => ['text' => 'Hello']]], new ToolResultsTranslator())->run();
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('Done', $state->getMessage()->getContent());
         $this->assertSame(1, CountingTool::$executions);
@@ -98,16 +101,16 @@ class DeferredToolFlowTest extends TestCase
             new AssistantMessage('Done'),
         );
         $this->agent([new DeferredTool('browser')])->chat(new UserMessage('Go'));
-        $state = $this->agent()->toolResults(['a' => ['result' => false]])->run();
+        $state = $this->agent()->submitInputs(['a' => ['result' => false]], new ToolResultsTranslator())->run();
         $request = $state->getInterruptRequest();
         $this->assertInstanceOf(ToolResultsRequest::class, $request);
         $this->assertCount(1, $request->getToolCalls());
         $this->assertSame('b', $request->getToolCalls()[0]->getCallId());
 
-        $state = $this->agent()->toolResults(['a' => ['result' => false]])->run();
+        $state = $this->agent()->submitInputs(['a' => ['result' => false]], new ToolResultsTranslator())->run();
         $this->assertTrue($state->isInterrupted());
         $this->assertSame(1, $this->provider->getCallCount());
-        $state = $this->agent()->toolResults(['b' => ['error' => 'User cancelled']])->run();
+        $state = $this->agent()->submitInputs(['b' => ['error' => 'User cancelled']], new ToolResultsTranslator())->run();
         $this->assertFalse($state->isInterrupted());
         $calls = $this->completedCalls();
         $this->assertSame('false', $calls[0]->getResult());
@@ -125,13 +128,13 @@ class DeferredToolFlowTest extends TestCase
             new AssistantMessage('Done'),
         );
         $this->agent([new DeferredTool('browser')])->chat(new UserMessage('Go'));
-        $this->agent()->toolResults(['a' => ['result' => 'accepted']])->run();
+        $this->agent()->submitInputs(['a' => ['result' => 'accepted']], new ToolResultsTranslator())->run();
         try {
-            $this->agent()->toolResults($payload)->run();
+            $this->agent()->submitInputs($payload, new ToolResultsTranslator())->run();
             $this->fail('Invalid results must be rejected before acceptance.');
-        } catch (WorkflowException) {
+        } catch (WorkflowException|InputTranslationException) {
         }
-        $this->assertFalse($this->agent()->toolResults(['b' => ['result' => null]])->run()->isInterrupted());
+        $this->assertFalse($this->agent()->submitInputs(['b' => ['result' => null]], new ToolResultsTranslator())->run()->isInterrupted());
         $calls = $this->completedCalls();
         $this->assertSame('accepted', $calls[0]->getResult());
         $this->assertSame('null', $calls[1]->getResult());
@@ -162,9 +165,9 @@ class DeferredToolFlowTest extends TestCase
         $state = $this->agent($tools)->chat(new UserMessage('Go'));
         $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
         $this->assertSame(0, CountingTool::$executions);
-        $state = $this->agent($tools)->toolApprovalDecisions([
+        $state = $this->agent($tools)->submitInputs([
             'allowed' => 'approve', 'rejected' => 'reject', 'local' => 'approve',
-        ])->run();
+        ], new ApprovalTranslator())->run();
         $request = $state->getInterruptRequest();
         $this->assertInstanceOf(ToolResultsRequest::class, $request);
         $this->assertCount(1, $request->getToolCalls());
@@ -172,7 +175,7 @@ class DeferredToolFlowTest extends TestCase
         $this->assertSame(1, CountingTool::$executions);
         $this->assertCount(2, $this->history->getMessages());
 
-        $this->agent()->toolResults(['allowed' => ['result' => 'ok']])->run();
+        $this->agent()->submitInputs(['allowed' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertSame(1, CountingTool::$executions);
         $this->assertCount(4, $this->history->getMessages());
         $this->assertStringContainsString('user rejected', $this->completedCalls()[1]->getResult());
@@ -186,7 +189,7 @@ class DeferredToolFlowTest extends TestCase
         );
         $tools = [(new DeferredTool('browser'))->requireApproval()];
         $this->agent($tools)->chat(new UserMessage('Go'));
-        $this->assertFalse($this->agent($tools)->toolApprovalDecisions(['a' => 'reject'])->run()->isInterrupted());
+        $this->assertFalse($this->agent($tools)->submitInputs(['a' => 'reject'], new ApprovalTranslator())->run()->isInterrupted());
     }
 
     public function test_parallel_execution_excludes_deferred_calls_before_forking(): void
@@ -201,7 +204,7 @@ class DeferredToolFlowTest extends TestCase
         );
         $state = $this->agent([new CountingTool(), new DeferredTool('browser')], true)->chat(new UserMessage('Go'));
         $this->assertInstanceOf(ToolResultsRequest::class, $state->getInterruptRequest());
-        $this->agent([], true)->toolResults(['external' => ['result' => 'ok']])->run();
+        $this->agent([], true)->submitInputs(['external' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertSame(['Results for: one', 'ok', 'Results for: two'], array_map(
             fn (ToolCall $call): string|ToolOutput => $call->getResult(), $this->completedCalls(),
         ));
@@ -215,7 +218,7 @@ class DeferredToolFlowTest extends TestCase
         );
         $first = iterator_to_array($this->agent([new DeferredTool('browser')])->stream(new UserMessage('Go')));
         $this->assertCount(1, array_filter($first, fn (object $item): bool => $item instanceof ToolCallChunk));
-        $stream = $this->agent()->toolResults(['external' => ['result' => 0]])->events();
+        $stream = $this->agent()->submitInputs(['external' => ['result' => 0]], new ToolResultsTranslator())->events();
         $second = iterator_to_array($stream);
         $this->assertFalse($stream->getReturn()->isInterrupted());
         $this->assertCount(0, array_filter($second, fn (object $item): bool => $item instanceof ToolCallChunk));
@@ -253,7 +256,7 @@ class DeferredToolFlowTest extends TestCase
             $request = $state->getInterruptRequest();
             $this->assertInstanceOf(ToolResultsRequest::class, $request);
             $this->assertSame(['pending'], array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()));
-            $this->agent()->toolResults(['pending' => ['result' => 'ok']])->run();
+            $this->agent()->submitInputs(['pending' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         }
         $completed = $this->completedCalls();
         $this->assertSame('Results for: PHP', $completed[0]->getResult());
@@ -276,7 +279,7 @@ class DeferredToolFlowTest extends TestCase
         $this->provider->addResponses(new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true)]));
         $this->agent([new DeferredTool('browser')])->chat(new UserMessage('Go'));
         $this->expectException(AgentException::class);
-        $this->expectExceptionMessage('toolResults()');
+        $this->expectExceptionMessage('submitInputs()');
         $this->agent()->abandonRun();
     }
 }

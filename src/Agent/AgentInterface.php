@@ -76,10 +76,4 @@ interface AgentInterface extends WorkflowInterface
      * @param Message|Message[] $messages
      */
     public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
-
-    /** @param array<array-key, mixed> $decisions */
-    public function toolApprovalDecisions(array $decisions): static;
-
-    /** @param array<array-key, array{result?: mixed, error?: string}> $results */
-    public function toolResults(array $results): static;
 }

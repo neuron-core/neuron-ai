@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
+use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -20,17 +21,29 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 interface WorkflowInterface
 {
     /**
-     * With no inputs, ignite a new run. An explicit input array continues an
-     * existing run; [] delivers no external answer.
+     * Execute the staged operation, or start/recover a failed run by default.
      *
-     * @param list<ResumeInput>|null $inputs
      * @return TState
      */
-    public function run(
-        ?array $inputs = null,
+    public function run(): WorkflowState;
+
+    /**
+     * Stage a continuation; empty inputs recover or process due timers.
+     *
+     * @param list<ResumeInput> $inputs
+     */
+    public function resume(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
-    ): WorkflowState;
+    ): static;
+
+    /**
+     * Translate against persisted requests and stage inputs for run() or events().
+     *
+     * @param array<array-key, mixed> $payload
+     */
+    public function submitInputs(array $payload, InputTranslatorInterface $translator): static;
 
     /** @param array<string, mixed> $payload */
     public function signal(string $name, array $payload = []): static;
@@ -52,20 +65,11 @@ interface WorkflowInterface
     public function retainCompletionUntilAcknowledged(bool $retain = true): static;
 
     /**
-     * Stream a new run, or continue one when inputs are supplied.
+     * Stream the staged operation, or start/recover a failed run by default.
      *
-     * With no arguments this starts a run. An explicit input array continues
-     * one; an empty input array delivers no external answer. Continuation
-     * fences require an explicit input array.
-     *
-     * @param list<ResumeInput>|null $inputs
      * @return Generator<int, object|string, mixed, TState>
      */
-    public function events(
-        ?array $inputs = null,
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): Generator;
+    public function events(): Generator;
 
     /**
      * The workflow ID, also the continuation handle: pass it back to the

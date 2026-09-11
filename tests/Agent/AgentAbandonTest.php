@@ -71,7 +71,7 @@ class AgentAbandonTest extends TestCase
             $this->makeAgent($provider, $history, $persistence, $tool)->abandonRun();
             $this->fail('A pending approval should refuse abandonment.');
         } catch (AgentException $e) {
-            $this->assertStringContainsString('toolApprovalDecisions()', $e->getMessage());
+            $this->assertStringContainsString('submitInputs()', $e->getMessage());
         }
 
         // Nothing was disturbed: the run and its history tail are untouched
@@ -80,7 +80,7 @@ class AgentAbandonTest extends TestCase
         $this->assertCount(2, $history->getMessages());
 
         $message = $this->makeAgent($provider, $history, $persistence, $tool)
-            ->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])
+            ->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());
     }

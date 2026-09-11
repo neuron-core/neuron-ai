@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Adapters;
+namespace NeuronAI\Workflow\Streaming\Adapter;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
@@ -12,8 +14,6 @@ use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -22,7 +22,6 @@ use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
-
 use function array_reverse;
 
 class StoreMemoryNode extends Node implements AgentNodeInterface

@@ -216,7 +216,7 @@ class ToolResolutionTest extends TestCase
         // tool resolution on replay, so take the run over without waiting.
         $agent2->setLeaseTimeout(null);
 
-        $message = $agent2->run([])->getMessage();
+        $message = $agent2->resume()->run()->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());
 

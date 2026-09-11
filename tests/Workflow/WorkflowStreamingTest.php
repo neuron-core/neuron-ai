@@ -166,7 +166,7 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
             ->setPersistence($persistence)
-            ->events([ResumeInput::event($first->getInterruptRequest(), [])]);
+            ->resume([ResumeInput::event($first->getInterruptRequest(), [])])->events();
 
         iterator_to_array($generator);
 
@@ -203,11 +203,11 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-replay')
             ->setPersistence($persistence)
-            ->events(
+            ->resume(
                 [],
                 expectedRunId: $first->getRunId(),
                 expectedExecutionAttempt: $first->getExecutionAttempt(),
-            );
+            )->events();
 
         iterator_to_array($generator);
         $state = $generator->getReturn();

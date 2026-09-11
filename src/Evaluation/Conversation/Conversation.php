@@ -180,9 +180,9 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->run([
+            $state = $this->agent->resume([
                 ResumeInput::event($request, $payload),
-            ]);
+            ])->run();
         }
     }
 

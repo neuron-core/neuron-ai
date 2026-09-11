@@ -2,13 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Adapters\Events;
+namespace NeuronAI\Agent\Adapters\Events;
 
 use NeuronAI\Exceptions\StreamAdapterException;
-
 use function trim;
 
-class StepStartedStreamEvent implements StreamEventInterface
+class StepFinishedStreamEvent implements StreamEventInterface
 {
     /**
      * @param array<string, mixed> $metadata

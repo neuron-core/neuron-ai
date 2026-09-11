@@ -36,7 +36,7 @@ class AcceptedResumeInputTest extends TestCase
         self::assertNotNull($request);
 
         try {
-            $this->workflow(true)->run([ResumeInput::event($request, $payload)]);
+            $this->workflow(true)->resume([ResumeInput::event($request, $payload)])->run();
             self::fail('Expected the node to fail after accepting its input.');
         } catch (RuntimeException $e) {
             self::assertSame('Failed after memoizing the accepted answer.', $e->getMessage());
@@ -52,7 +52,7 @@ class AcceptedResumeInputTest extends TestCase
     public function test_duplicate_delivery_recovers_with_the_accepted_answer(array $payload): void
     {
         $request = $this->failAfterAcceptingInput($payload);
-        $state = $this->workflow()->run([ResumeInput::event($request, $payload)]);
+        $state = $this->workflow()->resume([ResumeInput::event($request, $payload)])->run();
 
         self::assertEquals($payload, $state->get('payload'));
         self::assertEquals($state->get('payload'), $state->get('memo'));
@@ -71,7 +71,7 @@ class AcceptedResumeInputTest extends TestCase
     public function test_inputless_recovery_reuses_the_accepted_answer(): void
     {
         $this->failAfterAcceptingInput();
-        $state = $this->workflow()->run([]);
+        $state = $this->workflow()->resume()->run();
 
         self::assertSame(['answer' => 'original'], $state->get('payload'));
         self::assertSame($state->get('payload'), $state->get('memo'));
@@ -87,14 +87,14 @@ class AcceptedResumeInputTest extends TestCase
             : ResumeInput::event($request, ['answer' => 'replacement']);
 
         try {
-            $this->workflow()->run([$input]);
+            $this->workflow()->resume([$input])->run();
             self::fail('Expected conflicting resume input to be rejected.');
         } catch (WorkflowException $e) {
             self::assertStringContainsString('already has an accepted input', $e->getMessage());
         }
 
         self::assertSame($control, $this->persistence->get('accepted-input', '__control'));
-        $state = $this->workflow()->run([]);
+        $state = $this->workflow()->resume()->run();
         self::assertSame(['answer' => 'original'], $state->get('payload'));
         self::assertSame($state->get('payload'), $state->get('memo'));
     }

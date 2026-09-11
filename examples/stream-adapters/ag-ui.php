@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
+use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;

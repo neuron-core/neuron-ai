@@ -57,15 +57,15 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame(1, $first->getExecutionAttempt());
         $this->assertSame([1, 2], array_keys($first->getInterruptRequests()));
 
-        $partial = $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+        $partial = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
         $this->assertSame([2], array_keys($partial->getInterruptRequests()));
 
-        $completed = $workflow->run([
+        $completed = $workflow->resume([
             ResumeInput::event((new ApprovalRequest('test'))->withId(1), []),
             ResumeInput::event((new ApprovalRequest('test'))->withId(2), []),
-        ]);
+        ])->run();
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(3, $completed->getExecutionAttempt());
@@ -143,7 +143,7 @@ class ParallelInterruptTest extends TestCase
             }
 
             $workflow->run();
-            $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+            $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
 
             $this->assertSame(3, $counter->runs);
         }

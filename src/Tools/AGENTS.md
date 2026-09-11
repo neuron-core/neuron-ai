@@ -61,7 +61,7 @@ The original schema is retained for provider serialization, preserving additiona
 
 `ToolInterface::getInputSchema()` is the provider-neutral schema boundary. `Tool` builds it from its properties; `DeferredTool` returns its supplied schema when present. Provider mappers consume that schema and retain their provider-specific adaptations (including Gemini's nullable-type conversion). Schema preservation does not perform input validation or guarantee that a provider supports every JSON Schema keyword.
 
-`DeferredTool::execute()` is final and throws `ToolException`. Callers must identify the capability through `DeferredToolInterface` and arrange external execution instead. The default agent tool node finishes approvals and local execution, then hands outstanding external calls to `AwaitToolResultsNode`. Submit their results through `Agent::toolResults()`; see `src/Agent/AGENTS.md` for the durable continuation contract. Protocol payload parsing remains an integration concern.
+`DeferredTool::execute()` is final and throws `ToolException`. Callers must identify the capability through `DeferredToolInterface` and arrange external execution instead. The default agent tool node finishes approvals and local execution, then hands outstanding external calls to `AwaitToolResultsNode`. Submit their results through `Agent::submitInputs($results, new ToolResultsTranslator())`; see `src/Agent/AGENTS.md` for the durable continuation contract. Protocol payload parsing remains an integration concern.
 
 ## Results: return value vs exception
 

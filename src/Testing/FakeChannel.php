@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Testing;
 
-use NeuronAI\Workflow\Channel\StreamingChannelInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 

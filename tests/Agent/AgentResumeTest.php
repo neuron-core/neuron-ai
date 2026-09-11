@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -98,7 +99,7 @@ class AgentResumeTest extends TestCase
         $agent2->setChannel($channel);
 
         // The approval wrapper hides the signal name; events() selects streaming.
-        $handler2 = $agent2->toolApprovalDecisions(['call_1' => 'approve'])
+        $handler2 = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
             ->events();
         $chunks = iterator_to_array($handler2);
         $state = $handler2->getReturn();
@@ -163,7 +164,7 @@ class AgentResumeTest extends TestCase
 
         // Continuation is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
-        $user = $agent2->toolApprovalDecisions(['call_1' => 'approve'])
+        $user = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
             ->run()
             ->get('structured_output');
 
@@ -196,15 +197,15 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])]);
+        $partial = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])])->run();
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // The full, restated decision set completes the run.
-        $complete = $agent1->run([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
+        $complete = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
             'call_a' => 'approve',
             'call_b' => 'approve',
-        ])]);
+        ])])->run();
         $this->assertSame('Both searches done.', $complete->getMessage()->getContent());
     }
 
@@ -249,7 +250,7 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->get('structured_output');
+        $user = $rag2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
@@ -277,7 +278,7 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($suspended->isInterrupted());
 
         // PHP converts a numeric-string JSON object key to an integer array key.
-        $completed = $agent->toolApprovalDecisions([123 => 'approve'])->run();
+        $completed = $agent->submitInputs([123 => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame('Search complete.', $completed->getMessage()->getContent());

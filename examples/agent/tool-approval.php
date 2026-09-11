@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -111,7 +112,7 @@ while ($state->isInterrupted()) {
      */
     echo "\nContinuing Agent...\n\n";
     $agent = $makeAgent();
-    $state = $agent->toolApprovalDecisions($decisions)->run();
+    $state = $agent->submitInputs($decisions, new ApprovalTranslator())->run();
 }
 
 echo 'Agent: ' . $state->getMessage()->getContent() . "\n";

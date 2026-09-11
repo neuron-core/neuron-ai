@@ -6,19 +6,20 @@ namespace NeuronAI\Workflow;
 
 use Closure;
 use Generator;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Observability\ListenerRegistry;
-use NeuronAI\Workflow\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
+use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use Throwable;
-
 use function array_merge;
 use function is_array;
 
@@ -53,10 +54,33 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /** @var TState|null */
     protected ?WorkflowState $state;
 
+    /**
+     * signal() must wait for run() or events() before delivery.
+     * Keep the event name here until then.
+     */
     protected ?string $stagedSignalName = null;
 
-    /** @var array<string, mixed> */
+    /**
+     * The waiting node needs the data supplied to signal().
+     * Keep it with the pending signal until delivery.
+     *
+     * @var array<string, mixed>
+     */
     protected array $stagedSignalPayload = [];
+
+    /**
+     * resume() must keep its inputs until execution, along with any
+     * run/attempt checks that prevent delivery to a changed run.
+     *
+     * @var array{inputs: list<ResumeInput>, runId: string|null, executionAttempt: int|null}|null
+     */
+    protected ?array $stagedInputs = null;
+
+    /**
+     * A new Agent message must not recover the previous failed turn.
+     * Forces a fresh execution for chat(), stream(), and structured().
+     */
+    protected bool $forceNewRun = false;
 
     /**
      * @param TState|null $state
@@ -349,17 +373,74 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param list<ResumeInput>|null $inputs
+     * Execute the staged operation, or start/recover a failed run by default.
+     *
      * @return TState
      * @throws WorkflowException
      * @throws Throwable
      */
-    public function run(
-        ?array $inputs = null,
+    public function run(): WorkflowState
+    {
+        return $this->consume($this->events());
+    }
+
+    /**
+     * Stage an addressed continuation. Empty inputs recover or process due timers.
+     *
+     * @param list<ResumeInput> $inputs
+     * @throws WorkflowException
+     */
+    public function resume(
+        array $inputs = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
-    ): WorkflowState {
-        return $this->consume($this->events($inputs, $expectedRunId, $expectedExecutionAttempt));
+    ): static {
+        $this->assertNoStagedOperation();
+        $this->stagedInputs = [
+            'inputs' => $inputs,
+            'runId' => $expectedRunId,
+            'executionAttempt' => $expectedExecutionAttempt,
+        ];
+        return $this;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function assertNoStagedOperation(): void
+    {
+        if ($this->stagedSignalName !== null) {
+            throw new WorkflowException("Signal '{$this->stagedSignalName}' is already staged for this workflow.");
+        }
+        if ($this->stagedInputs !== null || $this->forceNewRun) {
+            throw new WorkflowException('An execution operation is already staged for this workflow.');
+        }
+    }
+
+    /**
+     * Translate and stage inputs for the next run() or events() continuation.
+     *
+     * @param array<array-key, mixed> $payload
+     * @throws InputTranslationException
+     * @throws WorkflowException
+     */
+    public function submitInputs(array $payload, InputTranslatorInterface $translator): static
+    {
+        $this->assertNoStagedOperation();
+
+        $run = $this->getExecutor()->inspect($this);
+        if ($run === null) {
+            throw new InputTranslationException('There is no persisted run to continue.');
+        }
+
+        $inputs = $translator->translate($payload, $run->interrupts);
+        if ($inputs === []) {
+            throw new InputTranslationException('The payload contains no matching continuation input.');
+        }
+
+        // Keep the inspected identity: another continuation may advance the run
+        // between submission and execution, making these inputs stale.
+        return $this->resume($inputs, $run->runId, $run->executionAttempt);
     }
 
     /**
@@ -368,11 +449,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     public function signal(string $name, array $payload = []): static
     {
-        if ($this->stagedSignalName !== null) {
-            throw new WorkflowException(
-                "Signal '{$this->stagedSignalName}' is already staged for this workflow."
-            );
-        }
+        $this->assertNoStagedOperation();
 
         $this->stagedSignalName = $name;
         $this->stagedSignalPayload = $payload;
@@ -390,48 +467,35 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param list<ResumeInput>|null $inputs
+     * Stream the staged operation, or start/recover a failed run by default.
+     *
      * @return Generator<int, object|string, mixed, TState>
      * @throws Throwable
      */
-    public function events(
-        ?array $inputs = null,
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): Generator {
-        if ($this->stagedSignalName !== null) {
-            if ($inputs !== null || $expectedRunId !== null || $expectedExecutionAttempt !== null) {
-                throw new WorkflowException(
-                    'A staged signal cannot be combined with addressed inputs or continuation fences.'
-                );
-            }
+    public function events(): Generator
+    {
+        if ($this->stagedInputs !== null) {
+            $continuation = $this->stagedInputs;
+            $this->stagedInputs = null;
+            return $this->forwardEvents($this->getExecutor()->resume(
+                $this,
+                $continuation['inputs'],
+                $continuation['runId'],
+                $continuation['executionAttempt'],
+            ));
+        }
 
+        if ($this->stagedSignalName !== null) {
             $name = $this->stagedSignalName;
             $payload = $this->stagedSignalPayload;
             $this->stagedSignalName = null;
             $this->stagedSignalPayload = [];
-
             return $this->forwardEvents($this->getExecutor()->signal($this, $name, $payload));
         }
 
-        if ($inputs === null) {
-            if ($expectedRunId !== null || $expectedExecutionAttempt !== null) {
-                throw new WorkflowException(
-                    'Continuation fences require an explicit input array; use [] for inputless continuation.'
-                );
-            }
-
-            return $this->forwardEvents($this->getExecutor()->execute($this));
-        }
-
-        $generator = $this->getExecutor()->resume(
-            $this,
-            $inputs,
-            $expectedRunId,
-            $expectedExecutionAttempt,
-        );
-
-        return $this->forwardEvents($generator);
+        $fresh = $this->forceNewRun;
+        $this->forceNewRun = false;
+        return $this->forwardEvents($this->getExecutor()->execute($this, fresh: $fresh));
     }
 
     /**

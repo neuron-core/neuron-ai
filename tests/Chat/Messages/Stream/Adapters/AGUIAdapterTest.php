@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
 
 use DateTimeImmutable;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
@@ -76,11 +77,11 @@ class AGUIAdapterTest extends TestCase
         $this->assertCount(3, $events);
         $this->assertSame([
             'type' => 'REASONING_MESSAGE_END',
-            'messageId' => 'msg_test',
+            'messageId' => 'reasoning_msg_test',
         ], json_decode(substr($events[0], 6, -2), true));
         $this->assertSame([
             'type' => 'REASONING_END',
-            'messageId' => 'msg_test',
+            'messageId' => 'reasoning_msg_test',
         ], json_decode(substr($events[1], 6, -2), true));
         $this->assertStringContainsString('"type":"RUN_ERROR"', $events[2]);
         $this->assertSame([], iterator_to_array($adapter->end(), false));
@@ -98,126 +99,67 @@ class AGUIAdapterTest extends TestCase
         $this->assertSame([], iterator_to_array($adapter->start(), false));
     }
 
-    public function test_tool_argument_chunks_stream_start_and_args_deltas(): void
+    public function test_argument_fragments_are_buffered_until_committed_frontend_dispatch(): void
     {
-        $adapter = new AGUIAdapter('thread_test');
-
-        // Open a text stream so the tool call gets a parent message id
-        $textEvents = iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Let me check')), false);
-        $this->assertStringContainsString('"type":"TEXT_MESSAGE_START"', $textEvents[0]);
-
-        $first = iterator_to_array($adapter->transform(
-            new ToolArgumentChunk('msg_123', 'calculator', '{"operation":', 'call_1')
-        ), false);
-
-        // First fragment closes the text stream, then starts the tool call
-        $this->assertCount(3, $first);
-        $this->assertStringContainsString('"type":"TEXT_MESSAGE_END"', $first[0]);
-        $this->assertStringContainsString('"type":"TOOL_CALL_START"', $first[1]);
-        $this->assertStringContainsString('"toolCallId":"call_1"', $first[1]);
-        $this->assertStringContainsString('"toolCallName":"calculator"', $first[1]);
-        $this->assertStringContainsString('"parentMessageId"', $first[1]);
-        $this->assertStringContainsString('"type":"TOOL_CALL_ARGS"', $first[2]);
-        $this->assertStringContainsString('"delta":"{\"operation\":"', $first[2]);
-
-        $second = iterator_to_array($adapter->transform(
-            new ToolArgumentChunk('msg_123', 'calculator', '"add"}', 'call_1')
-        ), false);
-
-        // Subsequent fragments only emit args deltas
-        $this->assertCount(1, $second);
-        $this->assertStringContainsString('"type":"TOOL_CALL_ARGS"', $second[0]);
-        $this->assertStringContainsString('"delta":"\"add\"}"', $second[0]);
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        foreach (['{"operation":', '"add"}'] as $delta) {
+            $this->assertSame([], iterator_to_array($adapter->transform(new ToolArgumentChunk('msg', 'calculator', $delta, 'call_1')), false));
+        }
+        $call = new ToolCall('calculator', 'call_1', ['operation' => 'add'], deferred: true);
+        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk($call)), false));
+        $events = $this->decode($adapter->suspended([(new ToolResultsRequest([$call]))->withId(1)]));
+        $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertSame('{"operation":"add"}', $events[1]['delta'] . $events[2]['delta']);
+        $this->assertArrayNotHasKey('outcome', $events[4]);
     }
 
-    public function test_tool_call_chunk_after_streamed_arguments_only_ends_the_call(): void
+    public function test_local_tool_call_is_published_with_its_result(): void
     {
         $adapter = new AGUIAdapter('thread_test');
-
-        iterator_to_array($adapter->transform(new ToolArgumentChunk('msg_123', 'calculator', '{"operation":"add"}', 'call_1')), false);
-
+        iterator_to_array($adapter->transform(new ToolArgumentChunk('msg', 'calculator', '{"operation":"add"}', 'call_1')), false);
         $tool = $this->createMockTool('calculator', ['operation' => 'add'])->setCallId('call_1');
-        $events = iterator_to_array($adapter->transform(new ToolCallChunk($tool)), false);
-
-        // Start and args were already streamed: only TOOL_CALL_END is emitted
-        $this->assertCount(1, $events);
-        $this->assertStringContainsString('"type":"TOOL_CALL_END"', $events[0]);
-        $this->assertStringContainsString('"toolCallId":"call_1"', $events[0]);
-
+        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk($tool)), false));
         $tool->setResult('42');
-        $events = iterator_to_array($adapter->transform(new ToolResultChunk($tool)), false);
-
-        $this->assertCount(1, $events);
-        $this->assertStringContainsString('"type":"TOOL_CALL_RESULT"', $events[0]);
-        $this->assertStringContainsString('"toolCallId":"call_1"', $events[0]);
+        $events = $this->decode($adapter->transform(new ToolResultChunk($tool)));
+        $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'TOOL_CALL_RESULT'], array_column($events, 'type'));
+        $this->assertSame('call_1', $events[3]['toolCallId']);
+        $this->assertSame('42', $events[3]['content']);
     }
 
-    public function test_tool_call_chunk_without_streamed_arguments_emits_full_sequence(): void
+    public function test_buffered_provider_dispatch_includes_complete_arguments(): void
     {
-        $adapter = new AGUIAdapter('thread_test');
-
-        // One-shot providers (e.g. Gemini, Ollama) yield no ToolArgumentChunk
-        $tool = $this->createMockTool('calculator', ['operation' => 'add'])->setCallId('call_1');
-        $events = iterator_to_array($adapter->transform(new ToolCallChunk($tool)), false);
-
-        $this->assertCount(3, $events);
-        $this->assertStringContainsString('"type":"TOOL_CALL_START"', $events[0]);
-        $this->assertStringContainsString('"type":"TOOL_CALL_ARGS"', $events[1]);
-        $this->assertStringContainsString('"delta":"{\"operation\":\"add\"}"', $events[1]);
-        $this->assertStringContainsString('"type":"TOOL_CALL_END"', $events[2]);
+        $adapter = new AGUIAdapter('thread_test', 'run_test');
+        $call = new ToolCall('calculator', 'call_1', ['operation' => 'add'], deferred: true);
+        $events = $this->decode($adapter->suspended([(new ToolResultsRequest([$call]))->withId(1)]));
+        $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertSame('{"operation":"add"}', $events[1]['delta']);
     }
 
-    public function test_suspended_closes_a_streamed_tool_call_and_finishes_with_the_interrupt_outcome(): void
+    public function test_approval_interrupt_does_not_publish_an_executable_tool_call(): void
     {
         $adapter = new AGUIAdapter('thread_test', 'run_test');
         iterator_to_array($adapter->start(), false);
         iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Let me check')), false);
         iterator_to_array($adapter->transform(new ToolArgumentChunk('msg_123', 'geolocation_get', '{"save":true}', 'call_1')), false);
-
-        $events = $this->decode($adapter->suspended([1 => $this->approval('call_1', 'Location access needs consent')]));
-
-        // The argument chunk already closed the text message; only the tool call is still open.
-        $this->assertSame(['TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
-        $this->assertSame('call_1', $events[0]['toolCallId']);
-        $this->assertSame([
-            'type' => 'RUN_FINISHED',
-            'threadId' => 'thread_test',
-            'runId' => 'run_test',
-            'outcome' => [
-                'type' => 'interrupt',
-                'interrupts' => [[
-                    'id' => 'call_1',
-                    'reason' => 'tool_call',
-                    'toolCallId' => 'call_1',
-                    'message' => 'Location access needs consent',
-                    'metadata' => [
-                        'id' => 'call_1',
-                        'name' => 'geolocation_get',
-                        'description' => null,
-                        'decision' => 'pending',
-                        'feedback' => null,
-                        'reason' => 'Location access needs consent',
-                        'inputs' => ['save' => true],
-                    ],
-                ]],
-            ],
-        ], $events[1]);
+        $events = $this->decode($adapter->suspended([$this->approval('call_1', 'Consent required')]));
+        $this->assertSame(['TEXT_MESSAGE_END', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertSame('msg_123', $events[2]['messages'][0]['id']);
+        $this->assertArrayNotHasKey('toolCalls', $events[2]['messages'][0]);
+        $interrupt = $events[3]['outcome']['interrupts'][0];
+        $this->assertSame('call_1', $interrupt['id']);
+        $this->assertSame('confirmation', $interrupt['reason']);
+        $this->assertSame('Consent required', $interrupt['message']);
+        $this->assertSame('geolocation_get', $interrupt['metadata']['name']);
     }
 
-    public function test_suspended_announces_a_pending_tool_call_that_never_reached_the_stream(): void
+    public function test_buffered_approval_has_a_snapshot_and_response_schema(): void
     {
         $adapter = new AGUIAdapter('thread_test', 'run_test');
-        iterator_to_array($adapter->start(), false);
-
-        $events = $this->decode($adapter->suspended([1 => $this->approval('call_1')]));
-
-        $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
-        $this->assertSame(['type' => 'TOOL_CALL_START', 'toolCallId' => 'call_1', 'toolCallName' => 'geolocation_get'], $events[0]);
-        $this->assertSame('{"save":true}', $events[1]['delta']);
-
-        $interrupt = $events[3]['outcome']['interrupts'][0];
-        $this->assertSame('call_1', $interrupt['toolCallId']);
-        // Without a per-action reason the request message is the prompt.
+        $events = $this->decode($adapter->suspended([$this->approval('call_1')]));
+        $this->assertSame(['STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'], array_column($events, 'type'));
+        $interrupt = $events[2]['outcome']['interrupts'][0];
+        $this->assertSame('call_1', $interrupt['id']);
+        $this->assertSame(['approved'], $interrupt['responseSchema']['required']);
         $this->assertSame('1 tool call requires approval', $interrupt['message']);
     }
 
@@ -246,7 +188,7 @@ class AGUIAdapterTest extends TestCase
 
         $events = $this->decode($adapter->suspended([3 => $request]));
 
-        $this->assertCount(1, $events);
+        $this->assertCount(3, $events);
         $this->assertSame([
             'id' => '3',
             'reason' => 'neuron:wait_for_event',
@@ -258,7 +200,7 @@ class AGUIAdapterTest extends TestCase
                 'expiresAt' => '2026-09-11T10:00:00+00:00',
             ],
             'expiresAt' => '2026-09-11T10:00:00+00:00',
-        ], $events[0]['outcome']['interrupts'][0]);
+        ], $events[2]['outcome']['interrupts'][0]);
     }
 
     public function test_suspended_is_silent_after_a_failed_run(): void

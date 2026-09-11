@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\SharedRequestInterruptNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use function array_column;
@@ -50,13 +50,13 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
         $this->assertSame(
-            ['RUN_STARTED', 'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'],
+            ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),
         );
 
         $finished = $events[array_key_last($events)];
         $this->assertSame('interrupt', $finished['outcome']['type']);
-        $this->assertSame('call_1', $finished['outcome']['interrupts'][0]['toolCallId']);
+        $this->assertSame('call_1', $finished['outcome']['interrupts'][0]['id']);
         $this->assertSame('needs a human', $finished['outcome']['interrupts'][0]['message']);
     }
 
@@ -97,7 +97,7 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $state = $workflow
             ->setStreamAdapter($completed)
-            ->run([ResumeInput::event($state->getInterruptRequest(), [])]);
+            ->resume([ResumeInput::event($state->getInterruptRequest(), [])])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(['paused', 'done'], $channel->lines);

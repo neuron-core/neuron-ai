@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
-use NeuronAI\Tests\Agent\Stub\ParityAdapter;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Tests\Agent\Stub\ParityAdapter;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Channel\CallbackChannel;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use PHPUnit\Framework\TestCase;
-
 use function array_column;
 use function array_map;
 use function count;
@@ -132,16 +131,15 @@ class PushAdapterDeliveryTest extends TestCase
         $this->assertCount(1, $channel->suspendedStates);
         $this->assertSame([], $channel->completions);
 
-        // The gated call never reached the stream (a one-shot provider): the
-        // suspension announces it, closes it, and binds the interrupt to it.
+        // Approval proposals stay in interrupt metadata, off the executable tool channel.
         $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
         $this->assertSame(
-            ['RUN_STARTED', 'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'],
+            ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),
         );
-        $interrupt = $events[4]['outcome']['interrupts'][0];
-        $this->assertSame('tool_call', $interrupt['reason']);
-        $this->assertSame('call_1', $interrupt['toolCallId']);
+        $interrupt = $events[3]['outcome']['interrupts'][0];
+        $this->assertSame('confirmation', $interrupt['reason']);
+        $this->assertSame('call_1', $interrupt['id']);
         $this->assertSame('Location access needs consent', $interrupt['message']);
         $this->assertSame(['save' => true], $interrupt['metadata']['inputs']);
     }

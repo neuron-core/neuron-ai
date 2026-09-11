@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
@@ -85,11 +86,11 @@ class WorkflowIdentityTest extends TestCase
         $duplicate = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
             ->setPersistence($persistence)
-            ->run([ResumeInput::fromArray([
+            ->resume([ResumeInput::fromArray([
                 'interruptId' => 99,
                 'kind' => 'event',
                 'payload' => [],
-            ])]);
+            ])])->run();
 
         $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
         $this->assertSame(ResumeInputStatus::Stale, $duplicate->getInputResults()[0]->status);
@@ -117,11 +118,11 @@ class WorkflowIdentityTest extends TestCase
         $result = Workflow::make('failed-run')
             ->setPersistence($persistence)
             ->addNode(new NodeOne())
-            ->run([ResumeInput::fromArray([
+            ->resume([ResumeInput::fromArray([
                 'interruptId' => 99,
                 'kind' => 'event',
                 'payload' => [],
-            ])]);
+            ])])->run();
 
         $this->assertSame(WorkflowStatus::Failed, $result->getStatus());
         $this->assertSame(ResumeInputStatus::Stale, $result->getInputResults()[0]->status);
@@ -247,7 +248,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
 
         $retry = Workflow::make('retained-completion')->setPersistence($persistence);
-        $replayed = $retry->run([], expectedRunId: $runId);
+        $replayed = $retry->resume([], expectedRunId: $runId)->run();
 
         $this->assertSame($completed->all(), $replayed->all());
         $retry->acknowledgeCompletion($runId);
@@ -482,7 +483,9 @@ class WorkflowIdentityTest extends TestCase
         // A new run at the same key is a deliberate statement: the dead
         // generation is swept and replaced, not replayed.
         $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
-        $state = $this->execute($fresh, $persistence);
+        $this->configure($fresh, $persistence);
+        iterator_to_array((new WorkflowExecutor())->execute($fresh, fresh: true));
+        $state = $fresh->getState();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertNotSame($crashed->getRunId(), $fresh->getRunId());
@@ -521,7 +524,7 @@ class WorkflowIdentityTest extends TestCase
 
         // Recovery keeps the generation: same run ID, only the failed step runs again.
         $recovered = Workflow::make('thread_1')->addNode($flaky)->setPersistence($persistence);
-        $state = $recovered->run([]);
+        $state = $recovered->resume()->run();
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertTrue($state->get('recovered'));
@@ -631,7 +634,8 @@ class WorkflowIdentityTest extends TestCase
         // The refusal reports the generation as it was read for the sweep
         // decision, and says the sweep lost; no second read is made.
         try {
-            $this->execute(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            $fresh = $this->configure(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
+            iterator_to_array((new WorkflowExecutor())->execute($fresh, fresh: true));
             $this->fail('The igniter should lose the fenced sweep.');
         } catch (RunInFlightException $e) {
             $this->assertSame($crashed->getRunId(), $e->runId);

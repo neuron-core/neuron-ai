@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow\Executor;
 use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
+use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
@@ -21,17 +22,21 @@ use NeuronAI\Workflow\WorkflowState;
  */
 interface WorkflowExecutorInterface
 {
+    /** Read the run's coordination state without claiming or executing it. */
+    public function inspect(WorkflowRuntimeInterface $workflow): ?WorkflowRunSnapshot;
+
     /**
-     * Ignite a new run, yielding every event in real time and returning the
+     * Start a run or recover a failed one, yielding events and returning the
      * final state.
      *
+     * Set fresh to replace a failed generation instead of recovering it.
      * The executor drives the full segment lifecycle: it resolves the
      * workflow ID, resolves ignition (register / adopt / refuse) and calls
      * the workflow's bootstrap() before traversal begins.
      *
      * @return Generator<int, Event, mixed, WorkflowState>
      */
-    public function execute(WorkflowRuntimeInterface $workflow): Generator;
+    public function execute(WorkflowRuntimeInterface $workflow, bool $fresh = false): Generator;
 
     /**
      * Continue an existing run, optionally delivering addressed inputs.

@@ -35,6 +35,7 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
+use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -63,13 +64,33 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /** @var ResumeInputResult[] */
     protected array $inputResults = [];
 
+    public function inspect(WorkflowRuntimeInterface $workflow): ?WorkflowRunSnapshot
+    {
+        if ($workflow->getWorkflowId() === null && $workflow->workflowId() === null) {
+            return null;
+        }
+        // Use an independent store: inspection cannot replace an in-flight segment's fence.
+        $store = new WorkflowRunStore(
+            $workflow->getPersistence(),
+            $workflow->getSerializer(),
+            $this->resolveWorkflowId($workflow, continuing: true),
+        );
+        $control = $store->loadControl();
+        return $control === null ? null : new WorkflowRunSnapshot(
+            $control->runId,
+            $control->status,
+            $control->executionAttempt,
+            $control->interruptRequests(),
+        );
+    }
+
     /**
      * @return Generator<int, Event, mixed, WorkflowState>
      * @throws Throwable
      */
-    public function execute(WorkflowRuntimeInterface $workflow): Generator
+    public function execute(WorkflowRuntimeInterface $workflow, bool $fresh = false): Generator
     {
-        return $this->executeSegment($workflow);
+        return $this->executeSegment($workflow, recoverFailed: !$fresh);
     }
 
     /**
@@ -122,6 +143,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         ?int $expectedExecutionAttempt = null,
         ?string $signalName = null,
         array $signalPayload = [],
+        bool $recoverFailed = false,
     ): Generator {
         $this->beginSegment();
 
@@ -145,7 +167,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                     $signalName,
                     $signalPayload,
                 )
-                : $this->startRun($workflow);
+                : $this->startRun($workflow, $recoverFailed);
 
             if ($terminalState instanceof WorkflowState) {
                 return $terminalState;
@@ -340,7 +362,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @throws WorkflowException
      */
-    protected function startRun(WorkflowRuntimeInterface $workflow): ?WorkflowState
+    protected function startRun(WorkflowRuntimeInterface $workflow, bool $recoverFailed): ?WorkflowState
     {
         $this->runId = UniqueIdGenerator::generateId('run_');
         $control = new WorkflowControl(
@@ -353,6 +375,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $ignited = $this->store->initialize($control, $ignition);
         $current = $ignited ? null : $this->store->loadControl();
+
+        if ($recoverFailed && $current?->status === WorkflowStatus::Failed) {
+            // Fence the observed failure so recovery cannot target a generation
+            // or attempt that another worker replaced while we were reading.
+            return $this->continueRun($workflow, [], $current->runId, $current->executionAttempt, null, []);
+        }
 
         // A dead generation (failed, or lease expired) is swept and replaced; the
         // delete is fenced by the bytes just read, so a concurrent claimant wins.

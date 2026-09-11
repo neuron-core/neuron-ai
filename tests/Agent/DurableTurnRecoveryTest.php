@@ -18,12 +18,14 @@ use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\CountingTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowStatus;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use function array_map;
 use function glob;
@@ -129,7 +131,7 @@ class DurableTurnRecoveryTest extends TestCase
         $this->assertSame(['Search for PHP frameworks'], $this->contents($history->getMessages()));
 
         $provider->addResponses(new AssistantMessage('Laravel and Symfony.'));
-        $state = $this->makeAgent($provider, $history, $persistence, $tool)->run([]);
+        $state = $this->makeAgent($provider, $history, $persistence, $tool)->run();
 
         // Only the failed step ran again: the first inference and the tool
         // were recalled, and the follow-up carried the original message plus
@@ -178,6 +180,46 @@ class DurableTurnRecoveryTest extends TestCase
         $this->assertNull((new FilePersistence($this->directory))->get('thread-file', '__control'));
     }
 
+    /** @return iterable<string, array{string}> */
+    public static function executionMethods(): iterable
+    {
+        foreach (['chat', 'stream', 'structured', 'run', 'events'] as $method) {
+            yield $method => [$method];
+        }
+    }
+
+    #[DataProvider('executionMethods')]
+    public function test_new_turn_methods_preserve_new_messages_and_plain_terminals_recover(string $method): void
+    {
+        $provider = new FakeAIProvider();
+        $failed = $this->fileAgent($provider);
+        try {
+            $failed->chat(new UserMessage('first message'));
+            $this->fail('Expected the provider failure.');
+        } catch (ProviderException) {
+        }
+        $provider->addResponses(new AssistantMessage('{"name":"Recovered"}'));
+        $agent = $this->fileAgent($provider);
+        $newTurn = in_array($method, ['chat', 'stream', 'structured'], true);
+        $arguments = $newTurn ? [new UserMessage('second message')] : [];
+        if ($method === 'structured') {
+            $arguments[] = User::class;
+        }
+        $result = $agent->$method(...$arguments);
+        if ($result instanceof \Generator) {
+            iterator_to_array($result);
+        }
+        $this->assertSame(
+            [$newTurn ? 'second message' : 'first message'],
+            $this->contents($provider->getRecorded()[0]->messages),
+        );
+        if ($newTurn) {
+            $this->assertNotSame($failed->getRunId(), $agent->getRunId());
+        } else {
+            $this->assertSame($failed->getRunId(), $agent->getRunId());
+        }
+    }
+
     public function test_blank_file_backed_instances_keep_a_pending_approval_locked_until_settled(): void
     {
         $tool = new SearchTool();
@@ -202,7 +244,7 @@ class DurableTurnRecoveryTest extends TestCase
 
         // Process 3: the approval is delivered from a cold start and the run completes.
         $message = $this->fileAgent($provider, $tool)
-            ->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])
+            ->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()
             ->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());

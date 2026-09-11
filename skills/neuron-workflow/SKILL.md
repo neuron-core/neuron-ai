@@ -123,16 +123,16 @@ class MyWorkflow extends Workflow
 
 ### Execution API
 
-`run()` and `events()` are the only execution terminals. Their arguments
-distinguish a new run from continuation:
+`run()` and `events()` are the only execution terminals. Staged operations
+distinguish a fresh execution from continuation:
 
 | Call | Meaning |
 |---|---|
-| `run()` | Start a new run and return its final `TState` (`WorkflowState` by default). |
-| `run([])` | Continue without external input: evaluate due waits or recover a crashed/failed attempt. |
-| `run($inputs, $expectedRunId?, $expectedExecutionAttempt?)` | Continue eagerly with an addressed `ResumeInput[]` batch. |
-| `events()` | Start a new run and yield intermediate output; `getReturn()` is the final `TState`. |
-| `events([])` / `events($inputs, ...)` | Stream an inputless or addressed continuation. |
+| `run()` | Start or recover a failed run and return its final `TState` (`WorkflowState` by default). |
+| `resume()->run()` | Continue without external input: evaluate due waits or recover a crashed/failed attempt. |
+| `resume($inputs, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Continue eagerly with an addressed `ResumeInput[]` batch. |
+| `events()` | Start or recover a failed run and yield intermediate output; `getReturn()` is the final `TState`. |
+| `resume()->events()` / `resume($inputs, ...)->events()` | Stream an inputless or addressed continuation. |
 | `signal($name, $payload)->run()` | Deliver an application event, then continue eagerly. |
 | `signal($name, $payload)->events()` | Deliver an application event, then stream the continued segment. |
 | `abandonRun($expectedRunId?)` | Discard the run holding the workflow ID so a new one can ignite; `false` when nothing is in flight. Refuses a retained completion and a run under a fresh lease. |
@@ -147,8 +147,8 @@ requests. It broadcasts to every active wait with that exact name and throws
 when none match; signals are not queued. Only one signal may be staged before
 the following terminal call.
 
-Continuation fences require an explicit input array and cannot be combined
-with a staged signal. There is no separate `resume()` public method.
+Continuation fences belong to `resume()`, including inputless continuations.
+Only one operation may be staged: `resume()`, `signal()`, or `submitInputs()`.
 
 ## Workflow State
 
@@ -215,14 +215,14 @@ By default, workflows use `InMemoryPersistence` — results are kept in memory a
 
 Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store. A run's records live in the partition named by its workflow ID; the run ID is a generation stamp inside that partition. Completed steps are replayed from cache and never re-executed; addressed interrupted steps continue; failed steps retry.
 
-After a crash, reconstruct the workflow with the same persistence and workflow
-ID, then call `run([])`. The explicit empty list selects inputless continuation:
-the engine replays completed steps without inventing an external answer.
+After a caught failure, reconstruct the workflow with the same persistence and
+workflow ID and call `run()` or `events()`. A persisted failed execution is recovered
+automatically, reusing completed steps and memoized operations.
 
-A failed generation does not block the workflow ID: a plain `run()` at the same
-ID sweeps it and starts a new generation with the new start event. Choose
-`run([])` to replay it and reuse every committed step, or `run()` to start
-over with different input.
+Use `resume()->run()` for explicit inputless continuation, including due timers,
+recovery of a process that died without recording failure, and retained outcomes.
+Use `resume($inputs, expectedRunId: $runId)->run()` for addressed delivery.
+All staging methods are lazy; `run()` and `events()` take no arguments.
 
 ### Persistence Backends
 
@@ -268,7 +268,7 @@ $workflow->setLeaseTimeout(300);
 
 Every step commit renews a deadline inside the control record at no extra
 write. A run whose deadline has passed is treated as dead: the next `run()`
-supersedes it and `run([])` may take it over. Without a lease only `run([])`
+supersedes it and `resume()->run()` may take it over. Without a lease only `resume()->run()`
 can take over a `running` record. Pick a value above the longest single node
 (a slow provider or tool call). Plain workflows are opt-in; `Agent` holds a
 ten-minute lease by default, and `setLeaseTimeout(null)` disables it. A
@@ -420,10 +420,10 @@ passes the earlier run ID so a stale delivery cannot reach a newer generation:
 ```php
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 
-$state = $workflow->run(
+$state = $workflow->resume(
     [ResumeInput::event($request, $payload)],
     expectedRunId: $suspendedState->getRunId(),
-);
+)->run();
 ```
 
 ### Continuing by business key — the workflow ID
@@ -453,7 +453,7 @@ class OrderWorkflow extends Workflow
 // requests without delivering an answer:
 $workflow = OrderWorkflow::make(orderId: $orderId)
     ->setPersistence($persistence);
-$pending = $workflow->run([]);
+$pending = $workflow->resume()->run();
 $requests = $pending->getInterruptRequests();
 
 // Or deliver a known application signal directly.
@@ -462,16 +462,16 @@ $state = $workflow
     ->run();
 ```
 
-Rules: **one live run per workflow ID** — `run()` with no inputs starts a new
-run and throws `RunInFlightException` when a live one holds the ID: a
+Rules: **one live run per workflow ID** — a plain `run()` starts or recovers a
+failed run and throws `RunInFlightException` when a live one holds the ID: a
 suspended run, a retained completion, or a running attempt whose lease has not
 expired. The exception carries `runId`, `status`, `executionAttempt`,
 `leaseExpiresAt`, and the active `interrupts`, and its message names the verb
-that settles the state. A failed generation, or one whose lease expired, is
-not live: the next `run()` sweeps it. Settle a pending run with
-`signal(...)->run()` or `run($inputs)`, or discard it with `abandonRun()`.
+that settles the state. A failed generation is recovered automatically.
+A running generation whose lease expired is swept on a new start. Settle a pending run with
+`signal(...)->run()` or `resume($inputs)->run()`, or discard it with `abandonRun()`.
 Completed records are swept by default,
-so a later explicit continuation such as `run([])` throws "No run in flight";
+so a later explicit continuation such as `resume()->run()` throws "No run in flight";
 a no-input `run()` may start a new generation. A continuation with no workflow
 ID at all throws. A declared `workflowId()` wins over an explicit
 `make($workflowId)`; a disagreement throws (misidentified run). Plain workflows
@@ -527,7 +527,7 @@ $state = Workflow::make(workflowId: $workflowId)
     ->run();
 ```
 
-When the deadline elapses, a timer worker invokes `run([])`. Workflow validates
+When the deadline elapses, a timer worker invokes `resume()->run()`. Workflow validates
 the clock, resolves every currently due wait, and `awaitEvent()` returns `null`.
 A platform that already owns an addressed delivery may instead send
 `ResumeInput::expired($request)`. Branch on the node result rather than comparing
@@ -540,7 +540,7 @@ clocks inside the node.
 $this->sleepUntil($wakeAt);
 ```
 
-When an external timer fires, reconstruct the workflow and call `run([])`;
+When an external timer fires, reconstruct the workflow and call `resume()->run()`;
 Workflow checks whether the wake time is actually due. Infrastructure that
 already owns an addressed delivery can instead pass
 `ResumeInput::timer($request)` to `run()` or `events()`.
@@ -738,7 +738,7 @@ the Vercel AI SDK, or a future protocol. `StreamEventInterface`
 provides that portable boundary:
 
 ```php
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
 
 public function __invoke(ProcessEvent $event, WorkflowState $state): \Generator
 {
@@ -1122,9 +1122,9 @@ if ($state->isInterrupted()) {
     $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->run([
+        ->resume([
             ResumeInput::event($request, ['answer' => $decision]),
-        ]);
+        ])->run();
 }
 ```
 

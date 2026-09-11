@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -221,7 +222,7 @@ class AgentConfigurationTest extends TestCase
         $runId = $agent->getRunId();
 
         $agent->setAiProvider($second)->setInstructions('Updated instructions')->setMemoryUsage(false, false);
-        $state = $agent->toolApprovalDecisions(['call_1' => 'approve'])->run();
+        $state = $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($runId, $agent->getRunId());

@@ -11,8 +11,8 @@ declare(strict_types=1);
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;

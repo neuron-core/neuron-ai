@@ -7,11 +7,9 @@ namespace NeuronAI\Agent;
 use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Agent\Memory\MemoryInterface;
-use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
+use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StartNode;
@@ -22,16 +20,15 @@ use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
-
 use function end;
 use function is_array;
 use function is_string;
@@ -153,6 +150,8 @@ class Agent extends Workflow implements AgentInterface
             $this->state = null;
             $this->stagedSignalName = null;
             $this->stagedSignalPayload = [];
+            $this->stagedInputs = null;
+            $this->forceNewRun = false;
             $this->startEvent = null;
         }
 
@@ -245,6 +244,8 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * Permanently clear both long-term memory and chat history for this conversation.
+     *
+     * @throws ChatHistoryException
      */
     public function resetConversation(): self
     {
@@ -280,8 +281,8 @@ class Agent extends Workflow implements AgentInterface
         $lastMessage = end($messages);
         if ($lastMessage instanceof ToolCallMessage) {
             throw new AgentException(
-                'The conversation has an unanswered tool call: settle the pending '
-                . 'toolApprovalDecisions() or toolResults() before abandoning the run.'
+                'The conversation has an unanswered tool call: settle its approval or result '
+                . 'with submitInputs() before abandoning the run.'
             );
         }
 
@@ -436,6 +437,16 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * @throws WorkflowException
+     */
+    protected function prepareNewTurn(): void
+    {
+        $this->assertNoStagedOperation();
+        $this->setStartEvent($this->startEvent());
+        $this->forceNewRun = true;
+    }
+
+    /**
      * A new turn starts a new run — to continue a suspended run use
      * {@see run()}. Runs eagerly to completion; the returned state
      * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
@@ -447,7 +458,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function chat(Message|array $messages = []): AgentState
     {
-        $this->setStartEvent($this->startEvent());
+        $this->prepareNewTurn();
         $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
 
         return $this->run();
@@ -467,7 +478,7 @@ class Agent extends Workflow implements AgentInterface
      */
     public function stream(Message|array $messages = []): Generator
     {
-        $this->setStartEvent($this->startEvent());
+        $this->prepareNewTurn();
         $this->getStartEvent()->options->stream = true;
         $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
         return yield from $this->events();
@@ -483,7 +494,7 @@ class Agent extends Workflow implements AgentInterface
         ?string $class = null,
         int $maxRetries = 1,
     ): mixed {
-        $this->setStartEvent($this->startEvent());
+        $this->prepareNewTurn();
         $this->getStartEvent()->options->outputClass = $class ?? $this->getOutputClass();
         $this->getStartEvent()->options->maxRetries = $maxRetries;
         $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
@@ -491,24 +502,6 @@ class Agent extends Workflow implements AgentInterface
         $finalState = $this->run();
 
         return $finalState->get('structured_output');
-    }
-
-    /**
-     * @param array<array-key, mixed> $decisions
-     * @throws WorkflowException
-     */
-    public function toolApprovalDecisions(array $decisions): static
-    {
-        return $this->signal(ApprovalRequest::EVENT_NAME, $decisions);
-    }
-
-    /**
-     * @param array<array-key, array{result?: mixed, error?: string}> $results
-     * @throws WorkflowException
-     */
-    public function toolResults(array $results): static
-    {
-        return $this->signal(ToolResultsRequest::EVENT_NAME, $results);
     }
 
     /**

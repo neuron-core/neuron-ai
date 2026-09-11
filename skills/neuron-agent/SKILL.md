@@ -7,6 +7,8 @@ description: Create and configure Neuron AI agents with providers, tools, instru
 
 This skill helps you create and configure Neuron AI agents for building agentic applications in PHP.
 
+Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+
 ## Core Agent Structure
 
 A Neuron agent extends the `Agent` class and implements key methods:
@@ -44,22 +46,22 @@ Workflow uses:
 | `chat($messages)` | `AgentState` — starts a new run and consumes it eagerly |
 | `stream($messages)` | `Generator` — starts a new run; `getReturn()` is the `AgentState` |
 | `structured($messages, $class)` | The typed output — starts a new run and consumes it eagerly |
-| `run($inputs = null, $expectedRunId = null, $expectedExecutionAttempt = null)` | `AgentState` — inherited eager Workflow terminal |
-| `events($inputs = null, $expectedRunId = null, $expectedExecutionAttempt = null)` | `Generator` — inherited pull-stream Workflow terminal; `getReturn()` is the `AgentState` |
-| `toolApprovalDecisions($decisions)` | Stages Agent approval decisions; finish with `run()` or `events()` |
+| `run()` | `AgentState` — inherited eager Workflow terminal |
+| `events()` | `Generator` — inherited pull-stream Workflow terminal; `getReturn()` is the `AgentState` |
+| `submitInputs($decisions, new ApprovalTranslator())` | Stages Agent approval decisions; finish with `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
 Read the assistant message off it with `getMessage()`, and read an approval pause with
 `isInterrupted()` / `getInterruptRequest()` — the same surface a plain `WorkflowState`
 exposes.
 
-There is no separate `resume()` API. The inherited Workflow terminals express both
-operations: calling `run()` / `events()` with no input starts a run, while an explicit
-`ResumeInput[]` continues one. `run([])` is an inputless continuation for due timers
+The inherited `run()` / `events()` terminals execute staged intent. Without a
+staged operation they start or recover a failed run. `resume($inputs, ...)` stages
+an explicit continuation. Agent new-turn methods select a fresh execution internally. `resume()->run()` is an inputless continuation for due timers
 or crash recovery (a failed turn needs neither: the next `chat()` supersedes
 it). Agent tool approval normally hides `ResumeInput` behind
-`toolApprovalDecisions($decisions)->run()` or
-`toolApprovalDecisions($decisions)->events()`.
+`submitInputs($decisions, new ApprovalTranslator())->run()` or
+`submitInputs($decisions, new ApprovalTranslator())->events()`.
 
 `Agent` specializes the generic `Workflow<AgentState>` contract, so inherited
 `run()`, `events()`, `getState()`, and `setState()` retain the concrete
@@ -130,8 +132,7 @@ Map an application event by its exact class when domain code should remain
 independent from Neuron's portable event objects:
 
 ```php
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;use NeuronAI\Agent\Adapters\VercelAIAdapter;
 
 $adapter = (new VercelAIAdapter())->mapEvent(
     IndexingProgress::class,
@@ -154,7 +155,7 @@ class matches, so a parent-class mapping does not silently capture subclasses.
 **Laravel example:**
 
 ```php
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 
 Route::post('/chat', function (Request $request) {
     $adapter = new VercelAIAdapter();
@@ -669,7 +670,7 @@ if ($state->isInterrupted()) {
     $state = MyAgent::make(threadId: $threadId)
         ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->toolApprovalDecisions(['call_123' => 'approve'])
+        ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
         ->run();
 }
 
@@ -682,7 +683,7 @@ instead of `run()` when the continued segment must stream.
 
 Other interruption types use the generic Workflow API: application-controlled
 event waits use `signal($name, $payload)->run()`, due timers and inputless
-recovery use `run([])`, and durable platform SDKs pass addressed
+recovery use `resume()->run()`, and durable platform SDKs pass addressed
 `ResumeInput[]` to `run()` or `events()`. A background, workflow-ID-first
 continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
@@ -694,13 +695,13 @@ Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersisten
 A provider outage or a crashed tool leaves a **failed** turn with nothing in
 history: the inbound message commits only after the provider call succeeds.
 The thread is not locked. The next `chat()` supersedes the failed turn with
-whatever message the user sends next; `run([])` replays it instead, reusing
+whatever message the user sends next; `resume()->run()` replays it instead, reusing
 the first inference and any tool runs already committed.
 
 A **pending approval** does lock the thread: a `chat()` while the run is
 suspended throws `RunInFlightException`, whose message names the awaited
 `approval` event and whose `interrupts` carry the `ApprovalRequest`. Catch it
-to re-render the pending decision, and settle it with `toolApprovalDecisions()`
+to re-render the pending decision, and settle it with `submitInputs($decisions, new ApprovalTranslator())`
 (decline decisions are the cancel path).
 
 `abandonRun()` dismisses a failed turn without starting a new one and returns
@@ -715,7 +716,7 @@ OOM-killed container) leaves the thread `running`; once the lease deadline
 passes, the next `chat()` supersedes the dead run instead of refusing. Raise it
 above your slowest provider or tool call with `setLeaseTimeout()` or by
 overriding `leaseTimeout()`; `null` disables it, in which case a killed
-process strands the thread until `run([])` takes it over. A suspended run holds
+process strands the thread until `resume()->run()` takes it over. A suspended run holds
 no lease, so a pending approval never expires on its own.
 
 ## Key Decisions

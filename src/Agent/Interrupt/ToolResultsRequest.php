@@ -40,6 +40,12 @@ class ToolResultsRequest extends WaitForEventRequest
         return array_values($this->pendingCalls);
     }
 
+    /** @return array<array-key, array{result?: mixed, error?: string}> */
+    public function getResults(): array
+    {
+        return $this->results;
+    }
+
     public function getMessage(): string
     {
         return 'Waiting for external tool results';

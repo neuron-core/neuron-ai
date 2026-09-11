@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Memory;
 
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
@@ -15,9 +18,6 @@ use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -477,7 +477,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setPersistence($persistence);
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
-        $resumed = $resumingAgent->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
+        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])])->run();
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run the approved lookup.'], $memory->recalls);
@@ -513,7 +513,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
 
-        $resumed = $resumingAgent->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])]);
+        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])])->run();
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run without remembering.'], $memory->recalls);

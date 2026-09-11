@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
-use NeuronAI\Workflow\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;

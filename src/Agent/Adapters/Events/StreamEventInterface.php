@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Adapters\Events;
+namespace NeuronAI\Agent\Adapters\Events;
 
 /**
  * A protocol-neutral event that a stream adapter can encode for a UI.

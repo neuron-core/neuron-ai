@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Stub;
 
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use Throwable;
-
 use function count;
 
 /**

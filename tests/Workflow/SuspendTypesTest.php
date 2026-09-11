@@ -121,7 +121,7 @@ class SuspendTypesTest extends TestCase
         $workflow->signal('second');
     }
 
-    public function test_staged_signal_rejects_explicit_continuation_arguments(): void
+    public function test_staged_signal_rejects_an_explicit_resume(): void
     {
         $workflow = Workflow::make(workflowId: 'signal-input-conflict')
             ->setPersistence(new InMemoryPersistence())
@@ -131,17 +131,17 @@ class SuspendTypesTest extends TestCase
         $workflow->signal('user.signup');
 
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
-        $this->expectExceptionMessage('cannot be combined with addressed inputs');
+        $this->expectExceptionMessage("Signal 'user.signup' is already staged");
 
-        $workflow->run([]);
+        $workflow->resume()->run();
     }
 
-    public function test_continuation_fence_requires_explicit_input_array(): void
+    public function test_inputless_resume_preserves_the_requested_run_fence(): void
     {
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
-        $this->expectExceptionMessage('require an explicit input array');
+        $this->expectExceptionMessage("expected run 'run_1', current run is 'none'");
 
-        Workflow::make(workflowId: 'explicit-input-fence')->run(expectedRunId: 'run_1');
+        Workflow::make(workflowId: 'explicit-input-fence')->resume(expectedRunId: 'run_1')->run();
     }
 
     public function test_sleep_until_pauses_and_resumes(): void
@@ -188,7 +188,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage("incompatible with interrupt 1");
 
-        $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void
@@ -261,7 +261,7 @@ class SuspendTypesTest extends TestCase
         $this->assertInstanceOf(SleepUntilRequest::class, $state->getInterruptRequest());
         $this->assertFalse($state->has('node_three_executed'));
 
-        $state = $workflow->run([]);
+        $state = $workflow->resume()->run();
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('sleep_resumed'));
         $this->assertTrue($state->get('node_three_executed'));
@@ -273,7 +273,7 @@ class SuspendTypesTest extends TestCase
             ->addNodes([new NodeOne(), new SleepUntilNode(new DateTimeImmutable('+1 hour')), new NodeThree()]);
 
         $workflow->run();
-        $state = $workflow->run([]);
+        $state = $workflow->resume()->run();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertFalse($state->get('sleep_resumed', false));
@@ -292,7 +292,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage('arrived before its wake time');
 
-        $workflow->run([ResumeInput::timer($request)]);
+        $workflow->resume([ResumeInput::timer($request)])->run();
     }
 
     public function test_inputless_resume_expires_due_event_wait(): void
@@ -305,7 +305,7 @@ class SuspendTypesTest extends TestCase
             ]);
 
         $workflow->run();
-        $state = $workflow->run([]);
+        $state = $workflow->resume()->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertTrue($state->get('timed_out'));
@@ -329,7 +329,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage('arrived before its deadline');
 
-        $workflow->run([ResumeInput::expired($request)]);
+        $workflow->resume([ResumeInput::expired($request)])->run();
     }
 
     public function test_wait_for_event_request_carries_deadline(): void

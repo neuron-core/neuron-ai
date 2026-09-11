@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -68,7 +69,7 @@ class AgentRequestStateTest extends TestCase
             ->addTool(new SearchTool());
         $resumed->addGlobalMiddleware($freshMiddleware);
 
-        $resumed->toolApprovalDecisions(['call_1' => 'approve']);
+        $resumed->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
         $state = $resumed->run();
 
         $this->assertFalse($state->isInterrupted());

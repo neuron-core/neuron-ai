@@ -93,6 +93,7 @@ When editing existing code:
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it - don't delete it.
+- Do not add public methods or public APIs we have not clearly discussed before. Explain it to me before implementation to have explicit confirmation.
 
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.

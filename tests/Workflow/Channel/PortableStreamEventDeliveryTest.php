@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\PortableProgressNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\WorkflowProgress;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
-use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
-use function json_decode;
 use function iterator_to_array;
+use function json_decode;
 use function substr;
 
 class PortableStreamEventDeliveryTest extends TestCase

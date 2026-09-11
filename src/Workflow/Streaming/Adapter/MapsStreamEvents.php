@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Adapters;
+namespace NeuronAI\Workflow\Streaming\Adapter;
 
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StreamEventInterface;
+use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
 use NeuronAI\Exceptions\StreamAdapterException;
 
 trait MapsStreamEvents

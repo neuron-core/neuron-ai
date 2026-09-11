@@ -66,7 +66,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
         $this->assertNotNull($persistence->get('ign_sweep', '__ignition'));
 
-        $state = $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 42])]);
+        $state = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 42])])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(42, $state->get('answer'));
@@ -85,7 +85,7 @@ class IgnitionTest extends TestCase
 
             // A blank instance: same factory shape, workflow ID only — no start event set.
             $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
-            $state = $second->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 42])]);
+            $state = $second->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 42])])->run();
 
             $this->assertFalse($state->isInterrupted());
             // The node replayed with the ADOPTED event: without adoption the
@@ -109,7 +109,7 @@ class IgnitionTest extends TestCase
         // instance adopts the record, delivers nothing, and re-suspends at
         // the same step.
         $second = $this->workflow('ign_replay', $persistence);
-        $state = $second->run([]);
+        $state = $second->resume()->run();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('recovered', $state->get('ignited_with'));
@@ -122,7 +122,7 @@ class IgnitionTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'ign_unknown'");
 
-        $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 1])]);
+        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['answer' => 1])])->run();
     }
 
     public function test_ignition_and_steps_share_the_workflow_persistence_under_a_custom_executor(): void

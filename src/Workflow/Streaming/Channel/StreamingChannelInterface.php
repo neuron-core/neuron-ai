@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Channel;
+namespace NeuronAI\Workflow\Streaming\Channel;
 
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;

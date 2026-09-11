@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Channel;
 
 use Error;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
-use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\FailingStreamNode;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-
 use function array_column;
 use function array_key_last;
 use function array_map;
@@ -82,7 +81,7 @@ class StreamFailureDeliveryTest extends TestCase
             'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END', 'RUN_ERROR',
         ]];
         yield 'Vercel before output' => [new VercelAIAdapter(), false, ['error']];
-        yield 'Vercel after output' => [new VercelAIAdapter(), true, ['start', 'text-delta', 'error']];
+        yield 'Vercel after output' => [new VercelAIAdapter(), true, ['start', 'text-start', 'text-delta', 'text-end', 'error']];
     }
 
     public function test_custom_adapter_receives_original_throwable_during_run(): void

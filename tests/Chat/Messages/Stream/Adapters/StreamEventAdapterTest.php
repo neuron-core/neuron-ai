@@ -4,22 +4,21 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\DetailedIndexingProgress;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\IndexingProgress;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\SuppressedProgress;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\UnsupportedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
-use NeuronAI\Chat\Messages\Stream\Adapters\CustomizableStreamAdapterInterface;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StreamEventInterface;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Exceptions\StreamAdapterException;
+use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use PHPUnit\Framework\TestCase;
-
 use function array_column;
 use function iterator_to_array;
 use function json_decode;
@@ -104,7 +103,7 @@ class StreamEventAdapterTest extends TestCase
         $message = $this->decode($adapter->transform(new TextChunk('message-1', 'Hello')));
 
         $this->assertSame(['data-status'], array_column($beforeMessage, 'type'));
-        $this->assertSame(['start', 'text-delta'], array_column($message, 'type'));
+        $this->assertSame(['start', 'text-start', 'text-delta'], array_column($message, 'type'));
         $this->assertSame('message-1', $message[0]['messageId']);
     }
 

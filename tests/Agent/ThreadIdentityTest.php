@@ -61,7 +61,7 @@ class ThreadIdentityTest extends TestCase
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $second->run([]);
+        $second->resume()->run();
 
         $this->assertSame('thread-1', $second->getThreadId());
         $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
@@ -140,7 +140,7 @@ class ThreadIdentityTest extends TestCase
         $second->setPersistence($persistence);
         $second->setChatHistory(new SQLChatHistory($pdo));
 
-        $state = $second->run([]);
+        $state = $second->resume()->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-42', $second->getChatHistory()->getThreadId());
@@ -375,7 +375,7 @@ class ThreadIdentityTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Misidentified run');
 
-        $second->run([]);
+        $second->resume()->run();
     }
 
     public function test_anonymous_run_adopts_the_default_history_self_key(): void

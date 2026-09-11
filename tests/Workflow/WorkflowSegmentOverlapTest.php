@@ -88,7 +88,7 @@ class WorkflowSegmentOverlapTest extends TestCase
 
         // The run it left behind is still marked running with no lease, so an
         // inputless continuation on the same instance takes it over.
-        $state = $workflow->run([]);
+        $state = $workflow->resume()->run();
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
     }

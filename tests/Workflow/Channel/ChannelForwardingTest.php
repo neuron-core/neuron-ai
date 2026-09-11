@@ -17,9 +17,9 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
-use NeuronAI\Workflow\Channel\CallbackChannel;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -144,7 +144,7 @@ class ChannelForwardingTest extends TestCase
 
         $workflow->run();
         // An incomplete payload interrupts again with a new active request.
-        $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['partial' => true])]);
+        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['partial' => true])])->run();
 
         $this->assertCount(2, $channel->suspendedStates);
         $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[0]->getInterruptRequest());
@@ -157,7 +157,7 @@ class ChannelForwardingTest extends TestCase
         );
         $this->assertCount(0, $channel->completions);
 
-        $state = $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(2), ['complete' => true])]);
+        $state = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(2), ['complete' => true])])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(2, $channel->suspendedStates);
@@ -209,7 +209,7 @@ class ChannelForwardingTest extends TestCase
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
         $workflow->setChannel($resumeSegment);
-        $state = $workflow->run([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])]);
+        $state = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->sent);

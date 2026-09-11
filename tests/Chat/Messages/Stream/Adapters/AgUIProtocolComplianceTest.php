@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
@@ -46,6 +46,8 @@ class AgUIProtocolComplianceTest extends TestCase
      * @var array<string, list<string>>
      */
     private const REQUIRED_FIELDS = [
+        'STATE_SNAPSHOT' => ['snapshot'],
+        'MESSAGES_SNAPSHOT' => ['messages'],
         'RUN_STARTED' => ['runId', 'threadId'],
         'RUN_FINISHED' => ['runId', 'threadId'],
         'STEP_STARTED' => ['stepName'],
@@ -200,7 +202,7 @@ class AgUIProtocolComplianceTest extends TestCase
         $this->assertCompliant($events);
         $this->assertSame([
             'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END',
-            'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED',
+            'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED',
         ], array_column($events, 'type'));
         $this->assertSame('interrupt', $events[array_key_last($events)]['outcome']['type']);
     }

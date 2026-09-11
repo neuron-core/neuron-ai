@@ -41,9 +41,9 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `chat($messages)` | Eager: runs to completion and returns `AgentState` |
 | `stream($messages)` | Pull-stream `Generator` of native chunks, or adapter lines; `getReturn()` is the `AgentState` |
 | `structured($messages, $class)` | Eager: returns the typed output |
-| `run($inputs = null, ...)` / `events(...)` | The Workflow terminals: no input starts a run, an explicit array continues one |
-| `toolApprovalDecisions($decisions)` | Stages approval decisions (sugar for `signal('approval', ...)`) for the following `run()` or `events()` |
-| `toolResults($results)` | Stages external tool results (sugar for `signal('tool_results', ...)`) for the following `run()` or `events()` |
+| `run()` / `events()` | Execute staged intent; otherwise start or automatically recover a failed execution |
+| `resume($inputs = [], ...)` | Stage a durable continuation |
+| `submitInputs($payload, $translator)` | Translates against persisted interruptions and stages addressed inputs for the following `run()` or `events()` |
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
@@ -58,7 +58,7 @@ AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEve
                                                                                      [StoreMemoryNode] ─► Stop
 ```
 
-- Each `chat()` / `stream()` / `structured()` builds a fresh `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`, `recallMemory`, `rememberMemory`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
+- Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`, `recallMemory`, `rememberMemory`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
 - `StartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
 - Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
 - The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
@@ -111,16 +111,18 @@ protected function tools(): array
 }
 ```
 
-When a gated tool is requested, `chat()` returns suspended. A continuation delivers decisions as a **cumulative** payload keyed by call ID, restated in full on every continuation:
+When a gated tool is requested, `chat()` returns suspended. A continuation submits decisions keyed by call ID through `NeuronAI\Agent\Interrupt\ApprovalTranslator`:
 
 ```php
-$agent->toolApprovalDecisions([
+$agent->submitInputs([
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
-])->run();
+], new ApprovalTranslator())->run();
 ```
 
-A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and partial decisions are deliberately not persisted anywhere (accumulation lives with the caller, and the latest payload wins). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
+A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and the translator fills omitted decisions from the persisted interruption snapshot (explicit updates to the still-open batch win). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
+
+`submitInputs()` is inherited from Workflow and accepts any `InputTranslatorInterface`, including AG-UI, Vercel and custom formats. It reads the persisted run, rejects empty translations, and keeps its run/attempt fences until `run()` or `events()` consumes the inputs. A concurrent continuation invalidates that snapshot. No protocol-specific branching lives in Agent; see `Frontend/README.md`.
 
 ## Tool run limits
 
@@ -150,10 +152,11 @@ $request = $state->getInterruptRequest();
 // Expose the pending ToolResultsRequest to the external executor.
 
 // A later request reconstructs the agent with the same thread, persistence and history.
-$state = $agent->toolResults([
+// Use NeuronAI\Agent\Interrupt\ToolResultsTranslator for the native result map.
+$state = $agent->submitInputs([
     'call_123' => ['result' => ['title' => 'Example']],
     'call_456' => ['error' => 'User cancelled the browser operation'],
-])->run(); // Or events() to stream the continuation.
+], new ToolResultsTranslator())->run(); // Or events() to stream the continuation.
 ```
 
 Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.
@@ -174,12 +177,12 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
 SupportAgent::make(threadId: $threadId)
-    ->toolApprovalDecisions(['call_123' => 'approve'])
+    ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
     ->run();
 
 // WorkflowId-first resume (background wake): the ignition record supplies the thread.
 SupportAgent::make(workflowId: $ticket->workflowId)
-    ->run([ResumeInput::fromArray($ticket->input)], expectedRunId: $ticket->runId);
+    ->resume([ResumeInput::fromArray($ticket->input)], expectedRunId: $ticket->runId)->run();
 ```
 
 Identity is **always a developer statement; the framework never generates one**. It resolves from `make(threadId:)`, from adoption of a pre-bound history passed to `setChatHistory()` (which selects that conversation), or from the ignition record on a workflowId-first resume. Disagreeing non-null claims throw `AgentException`: a record contradicting an explicit claim is a misidentified continuation. Once resolved, the Agent binds the identity into an unbound history (`setThreadId()`, itself assign-once). A run without identity lives under an engine-generated workflow ID and is simply not findable by its thread; a hook-provided history that self-keys materializes after the ignition record is written, so it does not make a run thread-findable either.
@@ -187,10 +190,10 @@ Identity is **always a developer statement; the framework never generates one**.
 One live run per thread has these consequences:
 
 - A new `chat()` while a run is suspended on the thread is refused with `RunInFlightException`, carrying the pending `ApprovalRequest`; settle it first. The thread stays locked until the full decision set is delivered.
-- A *failed* turn does not lock the thread: the inbound message was never written, so the next `chat()` supersedes the dead generation, while `run([])` replays it reusing every memoized step (a long tool loop is not re-billed).
+- A *failed* turn does not lock the thread: the inbound message was never written, so the next `chat()` supersedes the dead generation, while plain `run()` or `events()` recovers it reusing every memoized step (a long tool loop is not re-billed).
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
 - `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
-**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread clears local run identity and staged signals while persisted runs stay intact, and replacing it during an active execution throws.
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread clears local run identity and staged signals and submitted inputs while persisted runs stay intact, and replacing it during an active execution throws.
 
 **Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.

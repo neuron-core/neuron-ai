@@ -59,7 +59,7 @@ class DurableBranchTest extends TestCase
             self::assertSame('Branch failed after its state was persisted.', $e->getMessage());
         }
 
-        $state = $make(false)->run([]);
+        $state = $make(false)->resume()->run();
 
         self::assertSame(42, $state->get('analysis')['text']);
         self::assertFalse($state->has('branch_value'));

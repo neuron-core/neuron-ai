@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
+use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
@@ -22,7 +22,6 @@ use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Observability\Events\MemoryRecalled;
 use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Workflow\Node;
-
 use function count;
 use function end;
 use function implode;

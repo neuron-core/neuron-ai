@@ -2,27 +2,31 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\Messages\Stream\Adapters;
+namespace NeuronAI\Agent\Adapters;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
+use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
+use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepStartedStreamEvent;
-use NeuronAI\Chat\Messages\Stream\Adapters\Events\StreamEventInterface;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Tools\ToolCall;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
+use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
 use Throwable;
-use function array_keys;
 use function json_encode;
 
 /**
@@ -41,6 +45,8 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
     protected bool $runFailed = false;
 
+    protected bool $finished = false;
+
     /** @var array<string, string> Tool name to tool call ID */
     protected array $toolCallIds = [];
 
@@ -50,21 +56,39 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     /** @var array<string, bool> Started tool calls whose TOOL_CALL_END was not emitted yet */
     protected array $openToolCalls = [];
 
+    /** @var array<string, list<string>> */
+    protected array $argumentDeltas = [];
+
+    /** @var array<string, array<string, mixed>> */
+    protected array $messages = [];
+
     /** @var array<string, bool> */
-    protected array $toolCallArgsStreamed = [];
+    protected array $knownResults = [];
 
     protected bool $reasoningStarted = false;
 
     protected ?string $reasoningMessageId = null;
 
     /**
-     * @param string $threadId The conversation's thread ID. Required: an invented id would
-     *                         emit protocol events for a conversation the store has never
-     *                         heard of, silently corrupting identity downstream.
-     * @param string|null $runId Optional run ID, echoed back to the client as required by the protocol
+     * Seed the protocol snapshot with the frontend's current conversation and state.
+     * @param list<array<string, mixed>> $messages
+     * @param array<string, mixed> $state
      */
-    public function __construct(protected string $threadId, protected ?string $runId = null)
-    {
+    public function __construct(
+        protected string $threadId,
+        protected ?string $runId = null,
+        array $messages = [],
+        protected array $state = [],
+    ) {
+        foreach ($messages as $message) {
+            $this->messages[$message['id']] = $message;
+            foreach ($message['toolCalls'] ?? [] as $call) {
+                $this->toolCallStarted[$call['id']] = true;
+            }
+            if (($message['role'] ?? null) === 'tool') {
+                $this->knownResults[$message['toolCallId']] = true;
+            }
+        }
     }
 
     /**
@@ -72,7 +96,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
      */
     public function transform(object $chunk): iterable
     {
-        if ($this->runFailed) {
+        if ($this->runFailed || $this->finished) {
             return;
         }
 
@@ -80,20 +104,24 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
         if ($resolved) {
             if ($streamEvent instanceof StreamEventInterface) {
-                yield from $this->handleStreamEvent($streamEvent);
+                foreach ($this->handleStreamEvent($streamEvent) as $frame) {
+                    yield $frame;
+                }
             }
 
             return;
         }
 
-        yield from match (true) {
+        foreach (match (true) {
             $chunk instanceof TextChunk => $this->handleText($chunk),
             $chunk instanceof ReasoningChunk => $this->handleReasoning($chunk),
             $chunk instanceof ToolArgumentChunk => $this->handleToolArgument($chunk),
             $chunk instanceof ToolCallChunk => $this->handleToolCall($chunk),
             $chunk instanceof ToolResultChunk => $this->handleToolResult($chunk),
             default => []
-        };
+        } as $frame) {
+            yield $frame;
+        }
     }
 
     /**
@@ -101,7 +129,12 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
      */
     protected function handleStreamEvent(StreamEventInterface $event): iterable
     {
-        yield from match (true) {
+        if ($event instanceof ActivityStreamEvent) {
+            $this->messages[$event->id] = [
+                'id' => $event->id, 'role' => 'activity', 'activityType' => $event->type, 'content' => (object) $event->data,
+            ];
+        }
+        foreach (match (true) {
             $event instanceof StepStartedStreamEvent => $this->handleStepEvent(
                 'STEP_STARTED',
                 $event->name,
@@ -127,7 +160,9 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             default => throw new StreamAdapterException(
                 'AG-UI cannot encode stream event ' . $event::class . '.'
             ),
-        };
+        } as $frame) {
+            yield $frame;
+        }
     }
 
     /**
@@ -157,8 +192,14 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             yield $event;
         }
 
+        if ($this->messageStarted && $chunk->messageId !== null && $this->currentMessageId !== $chunk->messageId) {
+            foreach ($this->endText() as $frame) {
+                yield $frame;
+            }
+        }
+
         if (! $this->messageStarted) {
-            $this->currentMessageId = $this->generateId('msg');
+            $this->currentMessageId = $chunk->messageId ?? $this->generateId('msg');
             $this->messageStarted = true;
 
             yield $this->sse([
@@ -167,6 +208,10 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
                 'role' => 'assistant',
             ]);
         }
+
+        $id = $this->currentMessageId;
+        $this->messages[$id] ??= ['id' => $id, 'role' => 'assistant', 'content' => ''];
+        $this->messages[$id]['content'] .= $chunk->content;
 
         yield $this->sse([
             'type' => 'TEXT_MESSAGE_CONTENT',
@@ -185,104 +230,107 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             yield $event;
         }
 
+        $reasoningId = 'reasoning_' . $chunk->messageId;
+        if ($this->reasoningStarted && $this->reasoningMessageId !== $reasoningId) {
+            foreach ($this->endReasoning() as $frame) {
+                yield $frame;
+            }
+        }
         if (! $this->reasoningStarted) {
             $this->reasoningStarted = true;
-            $this->reasoningMessageId = $chunk->messageId;
+            $this->reasoningMessageId = $reasoningId;
 
             yield $this->sse([
                 'type' => 'REASONING_START',
-                'messageId' => $chunk->messageId,
+                'messageId' => $this->reasoningMessageId,
             ]);
 
             yield $this->sse([
                 'type' => 'REASONING_MESSAGE_START',
-                'messageId' => $chunk->messageId,
+                'messageId' => $this->reasoningMessageId,
                 'role' => 'reasoning',
             ]);
         }
 
+        $this->messages[$reasoningId] ??= ['id' => $reasoningId, 'role' => 'reasoning', 'content' => ''];
+        $this->messages[$reasoningId]['content'] .= $chunk->content;
+
         yield $this->sse([
             'type' => 'REASONING_MESSAGE_CONTENT',
-            'messageId' => $chunk->messageId,
+            'messageId' => $this->reasoningMessageId,
             'delta' => $chunk->content,
         ]);
     }
 
     protected function handleToolArgument(ToolArgumentChunk $chunk): iterable
     {
-        // Capture the parent message id before closing the text stream resets it
-        $parentMessageId = $this->currentMessageId;
-
-        foreach ($this->endReasoning() as $event) {
-            yield $event;
-        }
-        foreach ($this->endText() as $event) {
-            yield $event;
-        }
-
-        $toolCallId = $chunk->toolCallId
-            ?? $this->toolCallIds[$chunk->toolName]
-            ?? $this->generateId('call');
-        $this->toolCallIds[$chunk->toolName] = $toolCallId;
-
-        foreach ($this->startToolCall($toolCallId, $chunk->toolName, $parentMessageId) as $event) {
-            yield $event;
-        }
-
-        $this->toolCallArgsStreamed[$toolCallId] = true;
-
-        yield $this->sse([
-            'type' => 'TOOL_CALL_ARGS',
-            'toolCallId' => $toolCallId,
-            'delta' => $chunk->delta,
-        ]);
+        // AG-UI clients may execute unanswered calls when the run finishes.
+        // Keep proposals off the executable tool channel until dispatch commits.
+        $id = $chunk->toolCallId ?? $this->toolCallIds[$chunk->toolName] ?? $this->generateId('call');
+        $this->toolCallIds[$chunk->toolName] = $id;
+        $this->argumentDeltas[$id][] = $chunk->delta;
+        return [];
     }
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
-        // Capture the parent message id before closing the text stream resets it
-        $parentMessageId = $this->currentMessageId;
+        $this->resolveToolCallId($chunk);
+        return [];
+    }
 
-        foreach ($this->endReasoning() as $event) {
-            yield $event;
+    protected function publishToolCall(ToolCall $call): iterable
+    {
+        $toolCallId = $this->resolveToolCallId(new ToolCallChunk($call));
+        if (isset($this->toolCallStarted[$toolCallId])) {
+            return;
         }
-        foreach ($this->endText() as $event) {
-            yield $event;
+        $parentMessageId = $this->currentMessageId ?? $this->generateId('msg');
+        foreach ($this->endReasoning() as $frame) {
+            yield $frame;
         }
-
-        $toolName = $chunk->tool->getName();
-        $toolCallId = $this->resolveToolCallId($chunk);
-
-        foreach ($this->startToolCall($toolCallId, $toolName, $parentMessageId) as $event) {
-            yield $event;
+        foreach ($this->endText() as $frame) {
+            yield $frame;
         }
-
-        // Skip the args when they were already streamed as ToolArgumentChunk deltas
-        $args = $chunk->tool->getInputs();
-        if ($args !== [] && ! isset($this->toolCallArgsStreamed[$toolCallId])) {
-            yield $this->sse([
-                'type' => 'TOOL_CALL_ARGS',
-                'toolCallId' => $toolCallId,
-                'delta' => json_encode($args),
-            ]);
+        foreach ($this->startToolCall($toolCallId, $call->getName(), $parentMessageId) as $frame) {
+            yield $frame;
         }
-
-        foreach ($this->endToolCall($toolCallId) as $event) {
-            yield $event;
+        $arguments = json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR);
+        foreach ($this->argumentDeltas[$toolCallId] ?? [$arguments] as $delta) {
+            yield $this->sse(['type' => 'TOOL_CALL_ARGS', 'toolCallId' => $toolCallId, 'delta' => $delta]);
         }
+        unset($this->argumentDeltas[$toolCallId]);
+        foreach ($this->endToolCall($toolCallId) as $frame) {
+            yield $frame;
+        }
+        $this->messages[$parentMessageId] ??= ['id' => $parentMessageId, 'role' => 'assistant', 'content' => ''];
+        $this->messages[$parentMessageId]['toolCalls'][] = [
+            'id' => $toolCallId,
+            'type' => 'function',
+            'function' => ['name' => $call->getName(), 'arguments' => $arguments],
+        ];
     }
 
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
         $toolCallId = $this->resolveToolCallId($chunk);
-
-        yield $this->sse([
-            'type' => 'TOOL_CALL_RESULT',
-            'toolCallId' => $toolCallId,
-            'content' => (string) $chunk->tool->getResult(),
-            'role' => 'tool',
-            'messageId' => $this->generateId('msg'),
-        ]);
+        if (isset($this->knownResults[$toolCallId])) {
+            return;
+        }
+        foreach ($this->publishToolCall($chunk->tool) as $frame) {
+            yield $frame;
+        }
+        $result = $chunk->tool->getResult();
+        $id = $this->generateId('msg');
+        $message = [
+            'id' => $id, 'role' => 'tool', 'toolCallId' => $toolCallId, 'content' => (string) $result,
+        ];
+        if ($result instanceof ToolOutput && $result->isError()) {
+            $message['error'] = $result->getText();
+        }
+        $this->messages[$id] = $message;
+        $this->knownResults[$toolCallId] = true;
+        unset($message['id']);
+        yield $this->sse(['type' => 'TOOL_CALL_RESULT', 'messageId' => $id, ...$message]);
     }
 
     protected function resolveToolCallId(ToolCallChunk|ToolResultChunk $chunk): string
@@ -340,7 +388,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
     public function start(): iterable
     {
-        if ($this->runFailed) {
+        if ($this->runFailed || $this->finished) {
             return;
         }
 
@@ -353,57 +401,55 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         ]);
     }
 
-    /**
-     * Terminate a suspended run instead of calling end(): the protocol forbids
-     * finishing a run with an active tool call, so every open call is closed,
-     * calls awaiting a decision that never reached the stream are announced,
-     * and RUN_FINISHED carries the interrupt outcome the client resumes from.
-     *
-     * @param array<int, InterruptRequest> $requests
-     * @return iterable<string>
-     */
+    /** @param array<int, InterruptRequest> $requests */
     public function suspended(array $requests): iterable
     {
-        if ($this->runFailed) {
+        if ($this->runFailed || $this->finished) {
             return;
         }
-
-        // Capture the parent message id before closing the text stream resets it
-        $parentMessageId = $this->currentMessageId;
-
-        foreach ($this->endReasoning() as $event) {
-            yield $event;
+        foreach ($this->endReasoning() as $frame) {
+            yield $frame;
         }
-        foreach ($this->endText() as $event) {
-            yield $event;
+        foreach ($this->endText() as $frame) {
+            yield $frame;
         }
-
         $interrupts = [];
+        $frontendHandoff = array_filter($requests, fn (InterruptRequest $request): bool => !$request instanceof ToolResultsRequest) === [];
         foreach ($requests as $request) {
-            if (! $request instanceof ApprovalRequest) {
-                $interrupts[] = $this->interrupt($request);
-                continue;
-            }
-
-            foreach ($request->getActions() as $action) {
-                foreach ($this->announceToolCall($action, $parentMessageId) as $event) {
-                    yield $event;
+            if ($request instanceof ToolResultsRequest && $frontendHandoff) {
+                foreach ($request->getToolCalls() as $call) {
+                    foreach ($this->publishToolCall($call) as $frame) {
+                        yield $frame;
+                    }
                 }
-
-                $interrupts[] = $this->toolCallInterrupt($request, $action);
+            } elseif ($request instanceof ApprovalRequest) {
+                foreach ($request->getActions() as $action) {
+                    $interrupts[] = $this->withExpiry([
+                        'id' => $action->id,
+                        'reason' => 'confirmation',
+                        'message' => $action->reason ?? $request->getMessage(),
+                        'responseSchema' => [
+                            'type' => 'object',
+                            'properties' => ['approved' => ['type' => 'boolean'], 'reason' => ['type' => 'string']],
+                            'required' => ['approved'],
+                        ],
+                        'metadata' => $action->jsonSerialize(),
+                    ], $request);
+                }
+            } else {
+                $interrupts[] = $this->interrupt($request);
             }
         }
-
-        foreach (array_keys($this->openToolCalls) as $toolCallId) {
-            foreach ($this->endToolCall($toolCallId) as $event) {
-                yield $event;
+        if ($interrupts === []) {
+            // Ordinary frontend tools return role:tool messages, not resume[].
+            foreach ($this->end() as $frame) {
+                yield $frame;
             }
-        }
-
-        if ($this->runId === null) {
             return;
         }
-
+        $this->finished = true;
+        yield $this->sse(['type' => 'STATE_SNAPSHOT', 'snapshot' => (object) $this->state]);
+        yield $this->sse(['type' => 'MESSAGES_SNAPSHOT', 'messages' => array_values($this->messages)]);
         yield $this->sse([
             'type' => 'RUN_FINISHED',
             'threadId' => $this->threadId,
@@ -412,52 +458,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         ]);
     }
 
-    /**
-     * A gated call that never reached the stream (a buffered turn, or a
-     * provider sending its arguments in one shot) is announced here, so the
-     * interrupt binds to a tool call the client knows.
-     *
-     * @return iterable<string>
-     */
-    protected function announceToolCall(Action $action, ?string $parentMessageId): iterable
-    {
-        if (isset($this->toolCallStarted[$action->id])) {
-            return;
-        }
-
-        foreach ($this->startToolCall($action->id, $action->name, $parentMessageId) as $event) {
-            yield $event;
-        }
-
-        if ($action->inputs !== []) {
-            yield $this->sse([
-                'type' => 'TOOL_CALL_ARGS',
-                'toolCallId' => $action->id,
-                'delta' => json_encode($action->inputs),
-            ]);
-        }
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function toolCallInterrupt(ApprovalRequest $request, Action $action): array
-    {
-        return $this->withExpiry([
-            'id' => $action->id,
-            'reason' => 'tool_call',
-            'toolCallId' => $action->id,
-            'message' => $action->reason ?? $request->getMessage(),
-            'metadata' => $action->jsonSerialize(),
-        ], $request);
-    }
-
-    /**
-     * A request with no protocol-native shape keeps its portable description
-     * as metadata under a Neuron-namespaced reason.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     protected function interrupt(InterruptRequest $request): array
     {
         return $this->withExpiry([
@@ -531,14 +532,18 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
      */
     public function error(Throwable $error): iterable
     {
-        if ($this->runFailed) {
+        if ($this->runFailed || $this->finished) {
             return;
         }
 
         $this->runFailed = true;
 
-        yield from $this->endReasoning();
-        yield from $this->endText();
+        foreach ($this->endReasoning() as $frame) {
+            yield $frame;
+        }
+        foreach ($this->endText() as $frame) {
+            yield $frame;
+        }
 
         $event = [
             'type' => 'RUN_ERROR',
@@ -554,9 +559,10 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
     public function end(): iterable
     {
-        if ($this->runFailed) {
+        if ($this->runFailed || $this->finished) {
             return;
         }
+        $this->finished = true;
 
         foreach ($this->endReasoning() as $event) {
             yield $event;

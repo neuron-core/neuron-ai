@@ -1,5 +1,7 @@
 # Upgrade: Workflow signals and unified execution
 
+Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+
 ## Summary
 
 Application event delivery now uses named signals, while durable platform SDKs
@@ -17,25 +19,26 @@ resume(
 ): WorkflowState
 ```
 
-New application APIs:
+New application APIs (all staging methods finish with `run()` or `events()`):
 
 ```php
 signal(string $name, array $payload = []): static
-run(?array $inputs = null, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): WorkflowState
-events(?array $inputs = null, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): Generator
+resume(array $inputs = [], ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): static
+run(): WorkflowState
+events(): Generator
 ```
 
 Agent approval hides the internal signal name:
 
 ```php
-$agent->toolApprovalDecisions(['call_123' => 'approve'])->run();
-$agent->toolApprovalDecisions(['call_123' => 'approve'])->events();
+$agent->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())->run();
+$agent->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())->events();
 ```
 
-Durable platform SDKs use the same terminals with an explicit addressed input array:
+Durable platform SDKs stage an addressed continuation before invoking either terminal:
 
 ```php
-$state = $workflow->run($inputs, expectedRunId: $runId);
+$state = $workflow->resume($inputs, expectedRunId: $runId)->run();
 ```
 
 The two-layer contract removes coordination identity from ordinary application
@@ -63,7 +66,7 @@ domain payload keys:
 
 ```php
 $state = $agent
-    ->toolApprovalDecisions(['call_123' => 'approve'])
+    ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
     ->run();
 ```
 
@@ -74,10 +77,10 @@ Supply `expectedRunId` when the input may have been delayed, retried, queued, or
 delivered by an external platform:
 
 ```php
-$state = $workflow->run(
+$state = $workflow->resume(
     [ResumeInput::event($request, ['approved' => true])],
     expectedRunId: $runId,
-);
+)->run();
 ```
 
 The value is copied from the earlier suspended outcome; callers never invent it.
@@ -128,10 +131,10 @@ $state = $workflow->resume([], timedOut: true, expectedRunId: $runId);
 After — the platform schedules only the earliest workflow deadline:
 
 ```php
-$state = $workflow->run(
+$state = $workflow->resume(
     [],
     expectedRunId: $runId,
-);
+)->run();
 ```
 
 Workflow evaluates the clock and resolves every currently due `sleepUntil()` or
@@ -146,14 +149,14 @@ Pass all currently available answers in the same call. This supports parallel
 branches without making the caller choose an execution order:
 
 ```php
-$state = $workflow->run(
+$state = $workflow->resume(
     [
         ResumeInput::event($approvalRequest, ['approved' => true]),
         ResumeInput::event($documentRequest, ['documentId' => 'doc-7']),
         ResumeInput::timer($delayRequest),
     ],
     expectedRunId: $runId,
-);
+)->run();
 ```
 
 Each interrupt ID may appear only once in a batch. A matching run may partially
@@ -166,7 +169,7 @@ batch before any node executes.
 An explicit empty batch requests continuation without delivering an answer:
 
 ```php
-$workflow->run([]);
+$workflow->resume()->run();
 ```
 
 It evaluates due deadlines and continues the current run without inventing an
@@ -176,14 +179,14 @@ uses `signal('event.name')`; an exact platform delivery uses
 `ResumeInput::event($request, [])`.
 
 ```php
-$state = $workflow->run([]);
+$state = $workflow->resume()->run();
 
 // A durable worker fences the exact ownership state it observed.
-$state = $workflow->run(
+$state = $workflow->resume(
     [],
     expectedRunId: $runId,
     expectedExecutionAttempt: $executionAttempt,
-);
+)->run();
 ```
 
 ## Update custom persistence backends
@@ -238,7 +241,7 @@ $workflow = $factory->make($fnId, $workflowId)
     ->setPersistence($productionStore)
     ->retainCompletionUntilAcknowledged();
 
-$state = $workflow->run($inputs, expectedRunId: $runId);
+$state = $workflow->resume($inputs, expectedRunId: $runId)->run();
 
 // The SDK/platform durably reconciles $state->getInterruptRequests() here.
 ```
@@ -258,7 +261,7 @@ Platform SDK factories should enable replayable completion before invoking core:
 $workflow->retainCompletionUntilAcknowledged();
 ```
 
-With retention enabled, a lost completion response can retry `run([])` and
+With retention enabled, a lost completion response can retry `resume()->run()` and
 receive the same completed state without rerunning nodes. Once the platform has
 durably accepted that outcome, acknowledge the exact run:
 
@@ -321,7 +324,7 @@ matching interrupt-ID set once. Every retry reuses that exact set instead of
 matching the signal name again, so a delayed retry cannot satisfy a newer wait.
 
 Ordinary timer jobs store the workflow/run identity and earliest deadline, then
-invoke `run([], expectedRunId: $runId)`. They do not construct the
+invoke `resume(expectedRunId: $runId)->run()`. They do not construct the
 addressed timer entries shown above.
 
 Constructor mapping:
@@ -368,17 +371,19 @@ state keys directly.
 
 Search application code, packages, and tests for:
 
-- Workflow `->run(` calls whose array contains raw application payload
+- Workflow `->resume(` calls whose array contains raw application payload
   values; migrate them to `signal($name, $payload)`.
-- Agent approval endpoints that retain an interrupt request; migrate them to `toolApprovalDecisions($decisions)` followed by `run()` or `events()`.
+- Agent approval endpoints that retain an interrupt request; migrate them to `submitInputs($decisions, new ApprovalTranslator())` followed by `run()` or `events()`.
 - `timedOut:` and positional timeout booleans.
 - `expectedRunId:` passed as the third argument.
-- bare `->resume()` calls; migrate inputless continuation to `->run([])`.
-- Cloud handlers that forward decoded JSON arrays directly into `run()`.
+- bare `->resume()` calls; finish the staged continuation with `->run()` or `->events()`.
+- Cloud handlers that forward decoded JSON arrays directly into `run()`; use `submitInputs()` with a translator.
 - timer handlers that manufacture addressed timer/expiry inputs; ordinary
-  scheduling now invokes `run([])` after the deadline.
+  scheduling now invokes `resume()->run()` after the deadline.
 - `setScheduler()`, `SchedulerInterface`, and scheduler lifecycle callbacks.
 - SDK factories that need retained completion but do not enable and acknowledge it.
+
+A plain terminal automatically recovers a persisted failed execution. Agent new-turn methods select a fresh execution internally.
 
 ## Verification checklist
 
@@ -387,16 +392,16 @@ Search application code, packages, and tests for:
 - [ ] Agent approval uses decision maps keyed by tool-call ID.
 - [ ] Every delayed, queued platform continuation supplies the expected run ID.
 - [ ] Every exact platform event input supplies the interrupt ID it resolves.
-- [ ] Ordinary timer delivery calls `run([])`; Workflow evaluates
+- [ ] Ordinary timer delivery calls `resume()->run()`; Workflow evaluates
       which deadlines are due.
 - [ ] Advanced addressed event, expiry, and timer delivery uses the matching
       named `ResumeInput` constructor.
 - [ ] Multiple inputs for one segment contain no duplicate interrupt IDs.
 - [ ] No old `$timedOut` or nullable-payload resume calls remain.
-- [ ] Crash recovery uses `run([])`, without manufacturing an input.
+- [ ] Crash recovery uses `resume()->run()`, without manufacturing an input.
 - [ ] The Cloud SDK validates the JSON discriminator before constructing core values.
 - [ ] A stale run rejects the whole batch without executing nodes.
 - [ ] A mixed active/stale interrupt batch reports each input disposition.
 - [ ] Platform factories call `retainCompletionUntilAcknowledged()` and acknowledge
       only after the completed outcome is durable outside Workflow.
-- [ ] Scheduler callbacks and injection have been removed from integration code.
+- [ ] Scheduler callbacks and injection have been removed from integration code.)->run()

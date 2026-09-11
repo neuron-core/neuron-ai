@@ -50,7 +50,7 @@ class StateRestorationTest extends TestCase
         }
 
         $resumed = $make(false);
-        $state = $resumed->run([]);
+        $state = $resumed->resume()->run();
         $this->assertSame('restored:42', $state->get('analysis')['text']);
         $this->assertContains('text', $resumed->restorations);
         $this->assertFalse($state->has('branch_value'));
@@ -71,7 +71,7 @@ class StateRestorationTest extends TestCase
 
         $resumed = RestoringStateWorkflow::make('restorable-outcome');
         $resumed->setPersistence($persistence)->retainCompletionUntilAcknowledged();
-        $restored = $resumed->run([]);
+        $restored = $resumed->resume()->run();
         $this->assertSame('restored', ($restored->operation)());
         $this->assertSame(['main'], $resumed->restorations);
     }
@@ -102,7 +102,7 @@ class StateRestorationTest extends TestCase
         $this->assertContains('image:paused', $partial->restorations);
 
         $stale = $make();
-        $checkpoint = $stale->run([ResumeInput::event($textRequest, [])]);
+        $checkpoint = $stale->resume([ResumeInput::event($textRequest, [])])->run();
         $this->assertTrue($checkpoint->isInterrupted());
         $this->assertSame('restored', ($checkpoint->operation)());
         $this->assertSame(['main'], $stale->restorations);
