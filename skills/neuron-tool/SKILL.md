@@ -382,6 +382,26 @@ Limit how many times a tool can be called in a single session:
 $tool->setMaxRuns(5);  // Maximum 5 calls per session
 ```
 
+## Declaring Approval Risk
+
+Human oversight of tool execution is built into the agent: before running a tool it asks the tool whether it needs approval. A tool declares its own risk by overriding the protected `approvalPolicy()` hook. Returning a **string counts as `true` and doubles as the reason** shown to the approver:
+
+```php
+class TransferMoneyTool extends Tool
+{
+    protected function approvalPolicy(array $inputs): bool|string
+    {
+        return ($inputs['amount'] ?? 0) > 100
+            ? 'Transfers above $100 require a human sign-off'
+            : false;
+    }
+}
+```
+
+The default is `false` (no approval). Whoever attaches the tool can override the declaration in both directions with `requireApproval()`, `suppressApproval()`, or `withApprovalPolicy()`. The last configured override wins.
+
+Use the **neuron-tool-approval** skill for the rest of the flow: enabling persistence, rendering the approve/deny UI from chat history, and submitting decisions.
+
 ## Creating Toolkits
 
 Toolkits group related tools together with shared context.

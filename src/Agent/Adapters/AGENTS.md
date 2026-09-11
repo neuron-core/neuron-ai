@@ -4,7 +4,7 @@ The protocol boundary between Neuron's native streamed objects and UI transports
 
 ## Ownership and layering
 
-`StreamAdapterInterface` lives under `Chat` for public API compatibility, but the capability is consumed by `Workflow`, and it must stay free of Agent- and memory-specific concepts so custom workflows can use it:
+`StreamAdapterInterface` and `SSEAdapter` live under `Workflow\Streaming\Adapter` because the Workflow consumes the capability; the protocol-specific adapters live under `Agent\Adapters`. The Workflow-level contract must stay free of Agent- and memory-specific concepts so custom workflows can use it:
 
 - a node may `yield` any object as live, intermediate output, and must still `return` its routing event;
 - `Workflow::events()` exposes the native objects when no adapter is configured;

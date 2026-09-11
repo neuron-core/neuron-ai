@@ -713,105 +713,46 @@ All `before()` methods execute in registration order, then the node, then all `a
 
 ## Streaming Support
 
-Nodes can return `Generator` to yield intermediate results.
+Nodes can return a `Generator` to yield live output while they run. Yielded values are
+stream output only: the generator must still **return** a normal workflow `Event` to
+route to the next node.
 
 ```php
+use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
+
 class ProcessingNode extends Node
 {
     public function __invoke(ProcessEvent $event, WorkflowState $state): \Generator
     {
-        yield new ProgressEvent("Starting process...");
+        yield new ActivityStreamEvent(id: $event->jobId, type: 'indexing', data: ['processed' => 10, 'total' => 100]);
 
-        $result = $this->longRunningOperation();
-
-        yield new ProgressEvent("Completed!");
+        $result = $this->memoize('indexing', fn () => $this->longRunningOperation());
 
         return new ResultEvent($result);
     }
 }
 ```
 
-### Portable UI events
-
-A workflow node should not need to know whether its output is consumed by AG-UI,
-the Vercel AI SDK, or a future protocol. `StreamEventInterface`
-provides that portable boundary:
-
-```php
-use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
-
-public function __invoke(ProcessEvent $event, WorkflowState $state): \Generator
-{
-    yield new ActivityStreamEvent(
-        id: $event->jobId,
-        type: 'indexing',
-        data: ['processed' => 10, 'total' => 100],
-    );
-
-    $result = $this->memoize(
-        'indexing',
-        fn () => $this->finishIndexing($event),
-    );
-
-    return new ResultEvent($result);
-}
-```
-
-The portable vocabulary includes step started, step
-finished, replaceable activity/progress, and named custom events. These are
-intermediate stream values only: the generator must still **return** a normal
-workflow `Event` to route to the next node.
-
-For applications that already have domain-specific progress objects, the
-built-in adapters expose exact-class mappings:
-
-```php
-$adapter->mapEvent(
-    IndexingProgress::class,
-    static fn (IndexingProgress $event): ActivityStreamEvent =>
-        new ActivityStreamEvent(
-            id: $event->jobId,
-            type: 'indexing',
-            data: ['processed' => $event->processed, 'total' => $event->total],
-        ),
-);
-```
-
-The mapper returns a portable event, never JSON, SSE, or a protocol payload. It
-may return `null` to suppress that explicitly mapped event. Resolution is
-predictable: direct portable event, exact-class developer mapping, built-in chat
-chunk, then ignore an unknown unmapped object.
-
-The protocol translation is:
-
-| Portable meaning | AG-UI | Vercel AI SDK |
-|---|---|---|
-| step started / finished | `STEP_STARTED` / `STEP_FINISHED` | transient `data-workflow-step` |
-| activity or progress | `ACTIVITY_SNAPSHOT` | transient `data-workflow-activity` |
-| named custom data | `CUSTOM` | transient `data-{name}` |
-
-Yielded UI events are live and ephemeral. Durable replay restores the node's
-returned event; it does not replay earlier progress. Never make workflow
-correctness depend on a client receiving these events.
-
-The adapter API remains in the existing Chat namespace for compatibility even
-though Workflow consumes it. Do not move the namespace as part of implementing
-portable events. See `src/Chat/Messages/Stream/Adapters/AGENTS.md` for the full
-adapter design and lifecycle rules.
+Yielded output is live and ephemeral. Durable replay restores the node's returned
+event; it never replays earlier progress. Never make workflow correctness depend on a
+client receiving these events.
 
 ### Consuming Streams
 
 ```php
 $generator = $workflow->events();
 
-foreach ($generator as $event) {
-    if ($event instanceof ProgressEvent) {
-        echo $event->message . PHP_EOL;
+foreach ($generator as $item) {
+    if ($item instanceof ActivityStreamEvent) {
+        echo $item->type . PHP_EOL;
     }
 }
 
 $finalState = $generator->getReturn();
 ```
+
+The portable event vocabulary, protocol adapters (`setStreamAdapter()`), and push
+delivery through channels (`setChannel()`) are covered by the **neuron-streaming** skill.
 
 ## Workflow Export
 
