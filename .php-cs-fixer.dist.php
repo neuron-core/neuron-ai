@@ -5,7 +5,7 @@ use PhpCsFixer\Finder;
 
 $finder = Finder::create()
     ->in(__DIR__)
-    ->exclude('vendor');
+    ->exclude(['vendor', 'tests/Integration/Frontend/node_modules']);
 
 return (new Config())
     ->setParallelConfig(PhpCsFixer\Runner\Parallel\ParallelConfigFactory::detect())

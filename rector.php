@@ -21,6 +21,7 @@ return RectorConfig::configure()
         AddReturnTypeDeclarationRector::class,
     ])
     ->withSkip([
+        __DIR__ . '/tests/Integration/Frontend/node_modules',
         Rector\DeadCode\Rector\For_\RemoveDeadLoopRector::class => [
             // Empty foreach loops that intentionally consume a lazy generator.
             __DIR__ . '/src/Workflow/Workflow.php',

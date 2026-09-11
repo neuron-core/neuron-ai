@@ -58,6 +58,10 @@
         ],
         "test": [
             "vendor/bin/phpunit --colors=always"
+        ],
+        "test:frontend": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx --prefix tests/Integration/Frontend playwright test --config tests/Integration/Frontend/playwright.config.ts"
         ]
     },
     "scripts-descriptions": {
@@ -65,7 +69,8 @@
         "format": "Run PHP CS Fixer and PHPStan in a pipeline.",
         "style": "Run PHP CS Fixer to fix coding style issues.",
         "refactor": "Run rector for code refactoring.",
-        "test": "Run PHPUnit to test"
+        "test": "Run PHPUnit to test",
+        "test:frontend": "Run the Playwright frontend protocol integration suite"
     },
     "autoload": {
         "psr-4": {

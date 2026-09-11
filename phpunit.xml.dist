@@ -6,6 +6,7 @@
     <testsuites>
         <testsuite name="Neuron AI Test Suite">
             <directory>tests</directory>
+            <exclude>tests/Integration/Frontend</exclude>
         </testsuite>
     </testsuites>
     <source>
