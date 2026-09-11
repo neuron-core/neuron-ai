@@ -43,6 +43,7 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `structured($messages, $class)` | Eager: returns the typed output |
 | `run($inputs = null, ...)` / `events(...)` | The Workflow terminals: no input starts a run, an explicit array continues one |
 | `toolApprovalDecisions($decisions)` | Stages approval decisions (sugar for `signal('approval', ...)`) for the following `run()` or `events()` |
+| `toolResults($results)` | Stages external tool results (sugar for `signal('tool_results', ...)`) for the following `run()` or `events()` |
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
@@ -79,7 +80,7 @@ Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `insta
 History is injected into agent nodes as a constructor dependency (`AgentNodeInterface`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
 
 - Writes go through `addToChatHistory($messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail.
-- A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Only an approval-gated cycle writes its `ToolCallMessage` early, pre-suspend.
+- A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Approval-gated and externally executed cycles write their `ToolCallMessage` early, pre-suspend.
 - Durable workflow persistence needs a comparably durable history: `InMemoryChatHistory` loses the thread across processes.
 - `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
 
@@ -121,6 +122,48 @@ $agent->toolApprovalDecisions([
 
 A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and partial decisions are deliberately not persisted anywhere (accumulation lives with the caller, and the latest payload wins). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
 
+## Tool run limits
+
+`toolMaxRuns()` bounds logical tool calls across one complete agent run, including approval pauses and external execution waits. A tool's `getMaxRuns()` overrides the agent limit, and `getRunKey()` selects which counter it consumes. Rejected approvals consume no slot; a failed execution retried during recovery remains the same logical call.
+
+`AgentState` persists `__tool_runs`. `StartNode` and RAG's `PreProcessNode` reset counters when initializing a new run; completed entry steps are skipped on resume. Custom entry nodes that replace these should reset counters when starting their new run as well.
+
+`ToolNode::checkToolRuns()` records each call's run key, incremented count and effective limit in a step-scoped memo. It restores the count outside the memo using the maximum of the current and recorded values, then enforces the recorded limit. This repairs an older state snapshot after an incomplete step without consuming another slot. Accounting runs independently of execution-result memos, including before `ParallelToolNode` forks, so cached results still restore their counters. A recorded call keeps its limit on recovery; current configuration applies to new calls.
+
+## Deferred execution
+
+`ToolNode` filters by `ToolCall::isDeferred()` after the approval gate; rejected deferred calls stay in the locally settled group. It executes local calls first (only local calls enter `ParallelToolNode`'s fork), then returns `AwaitToolResultsEvent` when external results are pending. Otherwise it returns directly to inference. `executeLocalTools()` accepts the complete `ToolCall[]`, filters out runnable deferred calls, and returns the locally settled calls (including rejections) with their original indexes. It yields stream chunks but creates no messages; `__invoke()` selects the deferred batch by its flag and approval state and constructs the final result message. `ParallelToolNode` overrides the same array-based contract. The default graph always registers `AwaitToolResultsNode`, including when the current tool list has no deferred tools.
+
+```text
+ToolCallEvent → ToolNode → AIInferenceEvent / StructuredInferenceEvent
+                    └─→ AwaitToolResultsEvent → AwaitToolResultsNode
+                                                    └─→ AIInferenceEvent / StructuredInferenceEvent
+```
+
+The handoff carries separate `completedCalls` and `filterDeferredCalls` arrays, retaining their original batch indexes. Local outcomes, rejections and handled dispatch-limit errors belong to the completed group; only calls dispatched externally enter the deferred group. `AwaitToolResultsNode` resolves that explicit group, then merges and sorts both groups into the final result message. Executable tools never travel in the event. `ToolNode` is a completed durable step before the new node suspends; resuming external execution therefore does not repeat the approval gate or completed local execution. Result correlation relies on the call IDs supplied by the provider, as with normal tool calls. Existing tool run limits apply before dispatch.
+
+`AwaitToolResultsNode` suspends with `NeuronAI\Agent\Interrupt\ToolResultsRequest`, a `WaitForEventRequest` on the `tool_results` channel. `getToolCalls()` and the serialized `toolCalls` metadata describe the calls still awaiting results. The persisted request is the authority for pending execution; an earlier approval snapshot in chat history does not describe this later phase.
+
+```php
+$state = $agent->chat(new UserMessage('Read the page title'));
+$request = $state->getInterruptRequest();
+// Expose the pending ToolResultsRequest to the external executor.
+
+// A later request reconstructs the agent with the same thread, persistence and history.
+$state = $agent->toolResults([
+    'call_123' => ['result' => ['title' => 'Example']],
+    'call_456' => ['error' => 'User cancelled the browser operation'],
+])->run(); // Or events() to stream the continuation.
+```
+
+Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.
+
+The dispatched batch remains valid even if its definitions are absent from the resumed agent. Re-supply dynamically offered tools only when they should remain available for **future** model calls. Client schemas and results are untrusted inputs to the model context; applications must authorize the thread and the capabilities they expose.
+
+The default wait has no deadline. A customized `AwaitToolResultsNode::buildRequest()` can supply a `ToolResultsRequest` deadline (memoize its initial value so partial resumes do not extend it). Workflow's normal expiry continuation settles only the outstanding calls as error results; scheduling that continuation remains the application's responsibility. `abandonRun()` refuses an unanswered tool call; submit error outcomes or explicitly reset the conversation.
+
+This is the native workflow contract. Translating AG-UI or Vercel schemas, execution requests and inbound results belongs in protocol integrations. Use the durable suspension request as the dispatch boundary; a live stream chunk alone does not prove suspension has committed.
+
 ## The thread IS the workflow ID
 
 The Agent declares its `threadId` as the run's workflow ID (`workflowId()`), so a run's durable records live in the partition named by the thread. No pointer, no index: the approve endpoint needs only the thread ID, one read answers "is a run in flight here", and execution identity never touches chat history.
@@ -146,7 +189,7 @@ One live run per thread has these consequences:
 - A new `chat()` while a run is suspended on the thread is refused with `RunInFlightException`, carrying the pending `ApprovalRequest`; settle it first. The thread stays locked until the full decision set is delivered.
 - A *failed* turn does not lock the thread: the inbound message was never written, so the next `chat()` supersedes the dead generation, while `run([])` replays it reusing every memoized step (a long tool loop is not re-billed).
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
-- `abandonRun()` dismisses a dead turn but refuses while an approval is pending, since the pre-suspend `ToolCallMessage` would be left unanswered in history; `resetConversation()` frees the thread unconditionally.
+- `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
 **Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread clears local run identity and staged signals while persisted runs stay intact, and replacing it during an active execution throws.
 

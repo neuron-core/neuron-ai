@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow\Resume;
 use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
-use NeuronAI\Workflow\Interrupt\ResumeKind;
+use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
@@ -27,7 +27,7 @@ class ResumeInputTest extends TestCase
         $input = ResumeInput::fromArray($wire);
 
         $this->assertSame(7, $input->interruptId);
-        $this->assertSame(ResumeKind::Event, $input->kind);
+        $this->assertSame(ResumeType::Event, $input->kind);
         $this->assertSame(['approved' => true], $input->payload);
         $this->assertSame($wire, $input->jsonSerialize());
     }
@@ -57,7 +57,7 @@ class ResumeInputTest extends TestCase
         $input = ResumeInput::event($request, ['approved' => true]);
 
         $this->assertSame(7, $input->interruptId);
-        $this->assertSame(ResumeKind::Event, $input->kind);
+        $this->assertSame(ResumeType::Event, $input->kind);
         $this->assertSame(['approved' => true], $input->payload);
     }
 

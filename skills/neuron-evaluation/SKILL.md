@@ -358,7 +358,7 @@ conversation (that's why it is not an entry in the turns script — you can't kn
 *when* the model will call the gated tool):
 
 ```php
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 
 Conversation::make($agent)
     ->withTurns(['I want a refund for order #123', 'Yes, do it.'])

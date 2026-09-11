@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Providers;
 
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Tools\DeferredToolInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
@@ -29,8 +30,8 @@ trait HandleWithTools
     /**
      * Build the ToolCall record for a tool invocation requested by the model:
      * validates the name against the registered tools (unknown names
-     * throw, exactly like findTool()) and copies the live tool's description onto
-     * the call for rendering. The call is pure conversation data — execution
+     * throw, exactly like findTool()) and copies the live tool's description and
+     * deferred execution flag onto the call. The call is pure conversation data — execution
      * resolves against the live registry later, in ToolNode.
      *
      * @param array<string, mixed> $inputs
@@ -40,7 +41,7 @@ trait HandleWithTools
     {
         $tool = $this->findTool($name);
 
-        return new ToolCall($name, $callId, $inputs, $tool->getDescription());
+        return new ToolCall($name, $callId, $inputs, $tool->getDescription(), $tool instanceof DeferredToolInterface);
     }
 
     /**

@@ -7,11 +7,13 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\StartNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -36,6 +38,7 @@ class StaticGraphTest extends TestCase
         $this->assertInstanceOf(ChatNode::class, $map[AIInferenceEvent::class] ?? null);
         $this->assertInstanceOf(StructuredOutputNode::class, $map[StructuredInferenceEvent::class] ?? null);
         $this->assertInstanceOf(ToolNode::class, $map[ToolCallEvent::class] ?? null);
+        $this->assertInstanceOf(AwaitToolResultsNode::class, $map[AwaitToolResultsEvent::class] ?? null);
         $this->assertArrayNotHasKey(RecallMemoryEvent::class, $map);
         $this->assertArrayNotHasKey(StoreMemoryEvent::class, $map);
     }

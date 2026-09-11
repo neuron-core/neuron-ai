@@ -11,6 +11,10 @@ use NeuronAI\MCP\McpClient;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\MCP\McpTool;
 use NeuronAI\Testing\FakeMcpTransport;
+use NeuronAI\Tools\ArrayProperty;
+use NeuronAI\Tools\ObjectProperty;
+use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
@@ -299,6 +303,44 @@ class McpConnectorTest extends TestCase
 
         $this->assertCount(2, $tools);
         $transport->assertToolsListCalled();
+    }
+
+    public function test_tool_schema_builds_nested_properties_and_enum_array_items(): void
+    {
+        $this->transport->addResponses([
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'result' => ['tools' => [[
+                'name' => 'select',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'properties' => ['selection' => [
+                        'type' => ['object', 'null'],
+                        'properties' => ['labels' => [
+                            'type' => 'array',
+                            'minItems' => 1,
+                            'items' => ['type' => 'string', 'enum' => ['primary', 'secondary']],
+                        ]],
+                        'required' => ['labels'],
+                    ]],
+                    'required' => ['selection'],
+                ],
+            ]]],
+        ]);
+
+        $tools = $this->connector->tools();
+        $selection = $tools[0]->getProperties()[0];
+        $this->assertInstanceOf(ObjectProperty::class, $selection);
+        $this->assertTrue($selection->isRequired());
+        $this->assertTrue($selection->isNullable());
+        $labels = $selection->getProperties()[0];
+        $this->assertInstanceOf(ArrayProperty::class, $labels);
+        $this->assertTrue($labels->isRequired());
+        $this->assertSame(1, $labels->getJsonSchema()['minItems']);
+        $item = $labels->getItems();
+        $this->assertInstanceOf(ToolProperty::class, $item);
+        $this->assertSame(PropertyType::STRING, $item->getType());
+        $this->assertSame(['primary', 'secondary'], $item->getEnum());
     }
 
     public function test_fake_transport_tool_calling(): void

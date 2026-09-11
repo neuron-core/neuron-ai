@@ -21,15 +21,15 @@ final class ResumeInput implements JsonSerializable
      * @throws WorkflowException
      */
     protected function __construct(
-        public readonly int $interruptId,
-        public readonly ResumeKind $kind,
-        public readonly ?array $payload = null,
+        public readonly int        $interruptId,
+        public readonly ResumeType $kind,
+        public readonly ?array     $payload = null,
     ) {
         if ($this->interruptId < 1) {
             throw new WorkflowException('An interrupt ID must be a positive integer.');
         }
 
-        if ($this->kind === ResumeKind::Event) {
+        if ($this->kind === ResumeType::Event) {
             try {
                 json_encode($this->payload, JSON_THROW_ON_ERROR);
             } catch (JsonException $e) {
@@ -44,7 +44,7 @@ final class ResumeInput implements JsonSerializable
      */
     public static function event(InterruptRequest $request, array $payload): self
     {
-        return new self($request->getId(), ResumeKind::Event, $payload);
+        return new self($request->getId(), ResumeType::Event, $payload);
     }
 
     /**
@@ -52,7 +52,7 @@ final class ResumeInput implements JsonSerializable
      */
     public static function expired(InterruptRequest $request): self
     {
-        return new self($request->getId(), ResumeKind::Expired);
+        return new self($request->getId(), ResumeType::Expired);
     }
 
     /**
@@ -60,7 +60,7 @@ final class ResumeInput implements JsonSerializable
      */
     public static function timer(InterruptRequest $request): self
     {
-        return new self($request->getId(), ResumeKind::Timer);
+        return new self($request->getId(), ResumeType::Timer);
     }
 
     /**
@@ -74,11 +74,11 @@ final class ResumeInput implements JsonSerializable
         }
 
         return match ($data['kind'] ?? null) {
-            ResumeKind::Event->value => is_array($data['payload'] ?? null)
-                ? new self($data['interruptId'], ResumeKind::Event, $data['payload'])
+            ResumeType::Event->value => is_array($data['payload'] ?? null)
+                ? new self($data['interruptId'], ResumeType::Event, $data['payload'])
                 : throw new WorkflowException('A resume event input requires an array payload.'),
-            ResumeKind::Expired->value => new self($data['interruptId'], ResumeKind::Expired),
-            ResumeKind::Timer->value => new self($data['interruptId'], ResumeKind::Timer),
+            ResumeType::Expired->value => new self($data['interruptId'], ResumeType::Expired),
+            ResumeType::Timer->value => new self($data['interruptId'], ResumeType::Timer),
             default => throw new WorkflowException('Unknown resume input kind.'),
         };
     }
@@ -93,7 +93,7 @@ final class ResumeInput implements JsonSerializable
             'kind' => $this->kind->value,
         ];
 
-        if ($this->kind === ResumeKind::Event) {
+        if ($this->kind === ResumeType::Event) {
             $data['payload'] = $this->payload;
         }
 

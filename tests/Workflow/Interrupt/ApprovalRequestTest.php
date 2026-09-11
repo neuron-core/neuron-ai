@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Interrupt;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
-
-use function json_encode;
 use function json_decode;
+use function json_encode;
 
 class ApprovalRequestTest extends TestCase
 {

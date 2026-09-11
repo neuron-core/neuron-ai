@@ -28,6 +28,8 @@ class StartNode extends Node
 
     public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
     {
+        $state->resetToolRuns();
+
         // Clone so middleware can modify the event instructions
         // without leaking changes into the agent configuration.
         $state->request = new InferenceRequest(

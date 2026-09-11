@@ -4,9 +4,11 @@ The tool system: callable capabilities exposed to the model. Self-contained.
 
 ## Tool vs ToolCall
 
-A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is **conversation data**: the record of one invocation (name, callId, inputs, result guarded by `hasResult()`, per-call approval state). ToolCalls are what messages, stream chunks, observability events, persistence and the evaluation `Trajectory` carry; they are plain data and serialize natively. There is no separate "tool definition" value object: that role *is* `ToolCall`.
+A `Tool` is **capability**: schema, `__invoke()`, dependencies (DB connections, HTTP clients, closures). It lives on the agent's registry and never travels. A `ToolCall` is **conversation data**: the record of one invocation (name, callId, inputs, result guarded by `hasResult()`, deferred execution flag, per-call approval state). ToolCalls are what messages, stream chunks, observability events, persistence and the evaluation `Trajectory` carry; they are plain data and serialize natively. There is no separate "tool definition" value object: that role *is* `ToolCall`.
 
-Providers build them (`HandleWithTools::newToolCall()`, validating the name against the registry), and `ToolNode` resolves each call back to a live tool at execution time against the inference request's tool list, the cycle's effective set (`src/Agent/AGENTS.md`). A call naming a tool outside that set is a loud `ToolException`, never a silent no-op. Nothing about a tool, closures included, is ever serialized.
+Providers build them (`HandleWithTools::newToolCall()`, validating the name against the registry and recording whether the definition implements `DeferredToolInterface`), and `ToolNode` resolves each call back to a live tool at execution time against the inference request's tool list, the cycle's effective set (`src/Agent/AGENTS.md`). A call naming a tool outside that set is a loud `ToolException`, never a silent no-op. Nothing about a tool, closures included, is ever serialized.
+
+`ToolCall::isDeferred()` describes execution location independently of result and approval state. The flag survives workflow persistence and chat history storage, including after completion or rejection. Custom providers and manually constructed calls must supply `deferred: true` for externally executed tools.
 
 ## Defining a tool
 
@@ -37,7 +39,29 @@ class GetTranscriptionTool extends Tool
 }
 ```
 
-Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the system prompt; `only()` / `exclude()` / `with()` adjust the provided set per agent. Tool runs are counted by `getRunKey()`, the tool name by default, so `toolMaxRuns()` applies per tool; override it, or use the `TrackByInputs` trait, for parameter-aware limits.
+Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the system prompt; `only()` / `exclude()` / `with()` adjust the provided set per agent. Tool runs are counted by `getRunKey()`, the tool name by default, so `toolMaxRuns()` applies per tool over the entire agent run, including interruptions; override it, or use the `TrackByInputs` trait, for parameter-aware limits.
+
+## Deferred tools
+
+`DeferredToolInterface` marks tools whose execution belongs outside the backend. Construct `DeferredTool` from a name, optional description and optional input JSON Schema, without an `__invoke()` implementation:
+
+```php
+$tool = new DeferredTool(
+    name: $definition['name'],
+    description: $definition['description'],
+    inputSchema: $definition['parameters'],
+);
+```
+
+The constructor converts the supplied schema to `ToolProperty` / `ArrayProperty` / `ObjectProperty` instances through `ToolPropertyFactory::fromSchema()`. `getProperties()` exposes that list and `getRequiredProperties()` reads its required flags, just like other tools. Conversion is recursive for nested objects and array items, including enums, descriptions, nullable types, required flags and array bounds. MCP uses the same factory.
+
+The factory supports the existing property model, not arbitrary JSON Schema: `$ref`, `oneOf`, `anyOf`, `allOf`, `prefixItems`, and type unions with more than one non-null type throw `ToolException`. Missing types use the existing string default. Inline concrete property definitions before constructing a tool when using references or unions.
+
+The original schema is retained for provider serialization, preserving additional keywords such as string/numeric constraints and `additionalProperties` that the property classes do not expose. `addProperty()` rejects additions when an explicit schema was provided. Without a schema, the usual property builder and subclass `properties()` hook remain available. Approval remains independent of execution location: suppressing approval does not make a deferred tool locally executable.
+
+`ToolInterface::getInputSchema()` is the provider-neutral schema boundary. `Tool` builds it from its properties; `DeferredTool` returns its supplied schema when present. Provider mappers consume that schema and retain their provider-specific adaptations (including Gemini's nullable-type conversion). Schema preservation does not perform input validation or guarantee that a provider supports every JSON Schema keyword.
+
+`DeferredTool::execute()` is final and throws `ToolException`. Callers must identify the capability through `DeferredToolInterface` and arrange external execution instead. The default agent tool node finishes approvals and local execution, then hands outstanding external calls to `AwaitToolResultsNode`. Submit their results through `Agent::toolResults()`; see `src/Agent/AGENTS.md` for the durable continuation contract. Protocol payload parsing remains an integration concern.
 
 ## Results: return value vs exception
 

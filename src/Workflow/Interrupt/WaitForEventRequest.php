@@ -59,8 +59,8 @@ class WaitForEventRequest extends InterruptRequest
 
     public function validate(ResumeInput $input): void
     {
-        $valid = $input->kind === ResumeKind::Event
-            || ($input->kind === ResumeKind::Expired && $this->expiresAt instanceof DateTimeImmutable);
+        $valid = $input->kind === ResumeType::Event
+            || ($input->kind === ResumeType::Expired && $this->expiresAt instanceof DateTimeImmutable);
 
         if (!$valid) {
             throw new WorkflowException(
@@ -70,7 +70,7 @@ class WaitForEventRequest extends InterruptRequest
         }
 
         if (
-            $input->kind === ResumeKind::Expired
+            $input->kind === ResumeType::Expired
             && $this->expiresAt instanceof DateTimeImmutable
             && $this->expiresAt->getTimestamp() > time()
         ) {

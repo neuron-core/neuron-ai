@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Interrupt;
+namespace NeuronAI\Agent\Interrupt;
 
 use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
-
-use function array_values;
+use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use function array_map;
+use function array_values;
 use function sprintf;
 
 /**
@@ -25,6 +26,8 @@ use function sprintf;
  */
 class ApprovalRequest extends WaitForEventRequest
 {
+    public const EVENT_NAME = 'approval';
+
     /**
      * @var array<string, Action>
      */
@@ -45,7 +48,7 @@ class ApprovalRequest extends WaitForEventRequest
     ) {
         // A human decision is an external event on the "approval" channel;
         // type() is inherited as WaitForEvent.
-        parent::__construct('approval', $expiresAt);
+        parent::__construct(self::EVENT_NAME, $expiresAt);
 
         foreach ($actions as $action) {
             if (isset($this->actions[$action->id])) {

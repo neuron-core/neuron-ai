@@ -40,6 +40,16 @@ class InstructionsNodeIntentTest extends TestCase
         );
     }
 
+    public function test_new_rag_entry_resets_tool_counters(): void
+    {
+        $state = $this->enter(new AgentRunOptions());
+        $state->incrementToolRun('lookup');
+        $node = new PreProcessNode(new InMemoryChatHistory(), [], new SystemMessage('Test'), []);
+        $node(new AgentStartEvent([new UserMessage('New question')]), $state);
+
+        $this->assertSame(0, $state->getToolRuns('lookup'));
+    }
+
     public function test_default_intent_produces_plain_inference_event(): void
     {
         $state = $this->enter(new AgentRunOptions());

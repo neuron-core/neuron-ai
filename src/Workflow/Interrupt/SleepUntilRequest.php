@@ -44,7 +44,7 @@ class SleepUntilRequest extends InterruptRequest
 
     public function validate(ResumeInput $input): void
     {
-        if ($input->kind !== ResumeKind::Timer) {
+        if ($input->kind !== ResumeType::Timer) {
             throw new WorkflowException(
                 "Resume input '{$input->kind->value}' is incompatible with interrupt {$this->getId()} "
                 . "of type '{$this->type()->value}'."

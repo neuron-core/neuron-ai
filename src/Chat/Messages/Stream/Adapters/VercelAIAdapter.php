@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
@@ -17,7 +18,6 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\UniqueIdGenerator;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;
 

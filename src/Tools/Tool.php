@@ -129,6 +129,21 @@ abstract class Tool implements ToolInterface
         }, []);
     }
 
+    /** @return array<string, mixed> */
+    public function getInputSchema(): array
+    {
+        $properties = [];
+        foreach ($this->getProperties() as $property) {
+            $properties[$property->getName()] = $property->getJsonSchema();
+        }
+
+        return [
+            'type' => 'object',
+            'properties' => $properties === [] ? new stdClass() : $properties,
+            'required' => $this->getRequiredProperties(),
+        ];
+    }
+
     public function getAnnotations(): array
     {
         return $this->annotations;

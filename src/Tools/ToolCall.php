@@ -18,7 +18,7 @@ use function json_encode;
  * capability stays on the live ToolInterface registry — a ToolCall can never
  * execute anything.
  *
- * @method static static make(string $name, ?string $callId = null, array $inputs = [], ?string $description = null)
+ * @method static static make(string $name, ?string $callId = null, array $inputs = [], ?string $description = null, bool $deferred = false)
  */
 class ToolCall implements JsonSerializable
 {
@@ -49,7 +49,13 @@ class ToolCall implements JsonSerializable
         protected ?string $callId = null,
         protected array $inputs = [],
         protected ?string $description = null,
+        protected bool $deferred = false,
     ) {
+    }
+
+    public function isDeferred(): bool
+    {
+        return $this->deferred;
     }
 
     public function getName(): string
@@ -163,9 +169,6 @@ class ToolCall implements JsonSerializable
     }
 
     /**
-     * The wire shape is identical to the serialized tool entries of earlier
-     * versions, so stored histories and approval UIs are unaffected.
-     *
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array
@@ -174,6 +177,7 @@ class ToolCall implements JsonSerializable
             'callId' => $this->callId,
             'name' => $this->name,
             'description' => $this->description,
+            'deferred' => $this->deferred,
             'inputs' => $this->inputs === [] ? new stdClass() : $this->inputs,
             'result' => $this->result instanceof ToolOutput ? $this->result->jsonSerialize() : $this->result,
             'approval' => $this->approvalState?->value,

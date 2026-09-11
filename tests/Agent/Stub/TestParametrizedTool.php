@@ -60,6 +60,11 @@ class TestParametrizedTool implements ToolInterface
         return [];
     }
 
+    public function getInputSchema(): array
+    {
+        return ['type' => 'object'];
+    }
+
     public function getParameters(): array
     {
         return [];

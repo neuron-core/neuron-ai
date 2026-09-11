@@ -7,12 +7,10 @@ namespace NeuronAI\Providers\Gemini;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolPropertyInterface;
 use stdClass;
 
 use function array_filter;
 use function array_map;
-use function array_reduce;
 use function array_merge;
 use function array_values;
 use function count;
@@ -44,25 +42,8 @@ class ToolMapper implements ToolMapperInterface
         $payload = [
             'name' => $tool->getName(),
             'description' => $tool->getDescription(),
-            'parameters' => [
-                'type' => 'object',
-                'properties' => new stdClass(),
-                'required' => [],
-            ],
+            'parameters' => $this->stripNullableTypes($tool->getInputSchema()),
         ];
-
-        $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $carry[$property->getName()] = $this->stripNullableTypes($property->getJsonSchema());
-            return $carry;
-        }, []);
-
-        if (!empty($properties)) {
-            $payload['parameters'] = [
-                'type' => 'object',
-                'properties' => $properties,
-                'required' => $tool->getRequiredProperties(),
-            ];
-        }
 
         if ($tool->getParameters() !== []) {
             return array_merge($payload, $tool->getParameters());

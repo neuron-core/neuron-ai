@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use DateTimeImmutable;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\SleepUntilNode;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventWithTimeoutNode;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
@@ -20,7 +20,6 @@ use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
 use function glob;
 use function is_dir;
 use function rmdir;
@@ -28,7 +27,6 @@ use function serialize;
 use function sys_get_temp_dir;
 use function unlink;
 use function unserialize;
-
 use const DIRECTORY_SEPARATOR;
 
 class SuspendTypesTest extends TestCase

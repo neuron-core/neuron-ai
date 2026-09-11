@@ -7,8 +7,11 @@ namespace NeuronAI\Agent;
 use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StartNode;
@@ -23,15 +26,12 @@ use NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Tools\ApprovalState;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
-use function array_filter;
 use function end;
 use function is_array;
 use function is_string;
@@ -268,11 +268,9 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * A turn paused on an approval has already written the assistant's tool
-     * call to history; abandoning the run would leave it unanswered, and
-     * every provider rejects the next turn. Settle it with
-     * toolApprovalDecisions() instead. Dead turns abandon freely: their
-     * inbound message was never committed, so nothing dangles.
+     * Suspended tool cycles already have an assistant tool call in history.
+     * They must be settled before abandonment to avoid leaving an unanswered
+     * call in the next inference's context.
      *
      * @throws AgentException
      */
@@ -280,17 +278,10 @@ class Agent extends Workflow implements AgentInterface
     {
         $messages = $this->getChatHistory()->getMessages();
         $lastMessage = end($messages);
-        $pending = $lastMessage instanceof ToolCallMessage
-            ? array_filter(
-                $lastMessage->getToolCalls(),
-                static fn (ToolCall $call): bool => $call->getApprovalState() === ApprovalState::Pending,
-            )
-            : [];
-
-        if ($pending !== []) {
+        if ($lastMessage instanceof ToolCallMessage) {
             throw new AgentException(
-                'The conversation is waiting on a tool approval: settle it with '
-                . 'toolApprovalDecisions() before abandoning the run.'
+                'The conversation has an unanswered tool call: settle the pending '
+                . 'toolApprovalDecisions() or toolResults() before abandoning the run.'
             );
         }
 
@@ -336,6 +327,7 @@ class Agent extends Workflow implements AgentInterface
             new ChatNode($this->getProvider(), $chatHistory, $memoryAvailable),
             new StructuredOutputNode($this->getProvider(), $chatHistory, $memoryAvailable),
             $toolNode,
+            new AwaitToolResultsNode($chatHistory),
         ];
 
         if ($memory instanceof MemoryInterface) {
@@ -507,7 +499,16 @@ class Agent extends Workflow implements AgentInterface
      */
     public function toolApprovalDecisions(array $decisions): static
     {
-        return $this->signal('approval', $decisions);
+        return $this->signal(ApprovalRequest::EVENT_NAME, $decisions);
+    }
+
+    /**
+     * @param array<array-key, array{result?: mixed, error?: string}> $results
+     * @throws WorkflowException
+     */
+    public function toolResults(array $results): static
+    {
+        return $this->signal(ToolResultsRequest::EVENT_NAME, $results);
     }
 
     /**

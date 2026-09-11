@@ -4,20 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
-use NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter;
-use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
 use function array_column;
 use function array_pop;
 use function iterator_to_array;

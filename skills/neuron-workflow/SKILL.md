@@ -312,8 +312,7 @@ serializable; inject live services into the node instead. On an addressed
 continuation, `interrupt()` returns the inbound payload array:
 
 ```php
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;use NeuronAI\Workflow\Interrupt\Action;
 
 class DangerousOperationNode extends Node
 {

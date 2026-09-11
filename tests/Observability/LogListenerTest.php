@@ -4,29 +4,28 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Observability;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Observability\LogListener;
-use NeuronAI\Observability\LogObserver;
-use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\Events\MemoryRecalled;
 use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Observability\Events\WorkflowInterrupted;
+use NeuronAI\Observability\LogListener;
+use NeuronAI\Observability\LogObserver;
+use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Stringable;
-
 use function array_column;
 
 class LogListenerTest extends TestCase

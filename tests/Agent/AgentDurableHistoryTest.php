@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
-use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\SQLChatHistory;
@@ -17,21 +18,18 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PDO;
 use PHPUnit\Framework\TestCase;
-
 use function glob;
 use function is_dir;
 use function rmdir;
 use function strlen;
 use function sys_get_temp_dir;
 use function unlink;
-
 use const DIRECTORY_SEPARATOR;
 
 /**

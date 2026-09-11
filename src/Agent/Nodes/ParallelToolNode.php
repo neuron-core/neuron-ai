@@ -5,23 +5,22 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
-use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
 use Throwable;
 
 use function array_map;
+use function array_diff_key;
 use function array_values;
 use function class_exists;
 use function count;
@@ -57,26 +56,28 @@ class ParallelToolNode extends ToolNode
     }
 
     /**
+     * @param array<int, ToolCall> $calls
+     * @return Generator<int, ToolCallChunk|ToolResultChunk, mixed, array<int, ToolCall>>
      * @throws ToolException
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
+    protected function executeLocalTools(array $calls): Generator
     {
         // Sequential fallbacks: pcntl unavailable (e.g. Windows), spatie/fork
         // not installed, or a single call not worth forking for.
         if (!extension_loaded('pcntl')) {
-            return yield from parent::executeTools($toolCallMessage, $state);
+            return yield from parent::executeLocalTools($calls);
         }
 
         if (!class_exists(Fork::class)) {
-            return yield from parent::executeTools($toolCallMessage, $state);
+            return yield from parent::executeLocalTools($calls);
         }
 
-        $calls = $toolCallMessage->getToolCalls();
+        $calls = array_diff_key($calls, $this->filterDeferredCalls($calls));
 
-        if (count($calls) === 1) {
-            return yield from parent::executeTools($toolCallMessage, $state);
+        if (count($calls) <= 1) {
+            return yield from parent::executeLocalTools($calls);
         }
 
         // Only runnable calls enter the concurrent batch; rejected calls
@@ -106,27 +107,17 @@ class ParallelToolNode extends ToolNode
             $runnableCalls = array_values($runnable);
             $runnableKeys = array_keys($runnable);
 
-            // Resolution, run-count accounting, the max-runs guard, and the
-            // concurrent execution all live inside the memo so they happen at
-            // most once: on replay the cached results are returned and
-            // side-effecting tools are NOT re-invoked.
-            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls, $state): array {
-                // Resolve and guard parent-side, before forking.
+            // Restore accounting even when the batch's execution results are cached.
+            // All calls reserve their slots in the parent before any child starts.
+            foreach ($runnable as $index => $call) {
+                $this->checkToolRuns($call, $index);
+            }
+
+            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls): array {
+                // Resolve parent-side, before forking.
                 $resolved = [];
                 foreach ($runnableCalls as $pos => $call) {
-                    $tool = $this->resolveTool($call);
-
-                    $key = $tool->getRunKey();
-
-                    $state->incrementToolRun($key);
-
-                    // A tool's own max runs wins over the node's global limit.
-                    $maxTries = $tool->getMaxRuns() ?? $this->maxRuns;
-                    if ($state->getToolRuns($key) > $maxTries) {
-                        throw new ToolRunsExceededException("Tool {$call->getName()} has been attempted too many times: {$maxTries} attempts.");
-                    }
-
-                    $resolved[$pos] = $tool;
+                    $resolved[$pos] = $this->resolveTool($call);
                 }
 
                 // Fork children return the serialized RESULT only — the
@@ -198,6 +189,6 @@ class ParallelToolNode extends ToolNode
             $this->emit(new ToolCalled($call));
         }
 
-        return new ToolResultMessage(array_values($executedCalls));
+        return $executedCalls;
     }
 }

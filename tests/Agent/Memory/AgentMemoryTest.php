@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Memory;
 
-use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
+use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -35,15 +36,13 @@ use NeuronAI\Tests\Agent\Memory\Stub\InspectableMemory;
 use NeuronAI\Tests\Agent\Memory\Stub\MemoryLookupTool;
 use NeuronAI\Tests\Agent\Memory\Stub\RedactingStoreMemoryMiddleware;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tests\Support\WorkflowTestStore;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
 use function array_column;
 use function array_filter;
 use function array_key_last;

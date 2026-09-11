@@ -7,14 +7,13 @@ namespace NeuronAI\Evaluation\Conversation;
 use Closure;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\StaticConstructor;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Throwable;
-
 use function array_key_exists;
 use function get_debug_type;
 use function implode;

@@ -7,24 +7,23 @@ namespace NeuronAI\Tests\Evaluation\Conversation;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Conversation\Conversation;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Conversation\UserSimulator;
 use NeuronAI\Evaluation\EvaluationException;
-use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use PHPUnit\Framework\TestCase;
-
 use function json_encode;
 
 class ConversationTest extends TestCase

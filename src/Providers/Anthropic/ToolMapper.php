@@ -8,9 +8,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolPropertyInterface;
 
-use function array_reduce;
 use function is_string;
 use function array_merge;
 
@@ -36,19 +34,10 @@ class ToolMapper implements ToolMapperInterface
 
     protected function mapTool(ToolInterface $tool): array
     {
-        $properties = array_reduce($tool->getProperties(), function (array $carry, ToolPropertyInterface $property): array {
-            $carry[$property->getName()] = $property->getJsonSchema();
-            return $carry;
-        }, []);
-
         $payload = [
             'name' => $tool->getName(),
             'description' => $tool->getDescription(),
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => empty($properties) ? null : $properties,
-                'required' => $tool->getRequiredProperties(),
-            ],
+            'input_schema' => $tool->getInputSchema(),
         ];
 
         if ($tool->getParameters() !== []) {

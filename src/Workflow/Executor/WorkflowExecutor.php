@@ -27,7 +27,7 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputResult;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
-use NeuronAI\Workflow\Interrupt\ResumeKind;
+use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
@@ -805,8 +805,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $input = $active?->input;
         $resuming = $input instanceof ResumeInput;
-        $payload = $input?->kind === ResumeKind::Event ? $input->payload : null;
-        $timedOut = $input?->kind === ResumeKind::Expired;
+        $payload = $input?->kind === ResumeType::Event ? $input->payload : null;
+        $timedOut = $input?->kind === ResumeType::Expired;
 
         if ($active instanceof ActiveInterrupt && !$resuming) {
             return new StepResult(

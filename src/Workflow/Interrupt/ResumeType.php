@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Interrupt;
 
-enum ResumeKind: string
+enum ResumeType: string
 {
     case Event = 'event';
     case Expired = 'expired';

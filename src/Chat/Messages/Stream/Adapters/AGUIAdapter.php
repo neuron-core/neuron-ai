@@ -6,6 +6,7 @@ namespace NeuronAI\Chat\Messages\Stream\Adapters;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\StepFinishedStreamEvent;
@@ -18,11 +19,9 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use Throwable;
-
 use function array_keys;
 use function json_encode;
 

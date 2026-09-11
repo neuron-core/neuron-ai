@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
+use JsonException;
 use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\StaticConstructor;
-use NeuronAI\Tools\ArrayProperty;
-use NeuronAI\Tools\ObjectProperty;
-use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\ToolPropertyFactory;
 use Exception;
 use ReflectionException;
 
@@ -53,6 +51,7 @@ class McpConnector
 
     /**
      * @throws McpException
+     * @throws JsonException
      */
     protected function client(): McpClient
     {
@@ -112,9 +111,6 @@ class McpConnector
 
     /**
      * @param array<string, mixed> $item
-     * @throws ArrayPropertyException
-     * @throws ReflectionException
-     * @throws ToolException
      */
     protected function createTool(array $item): ToolInterface
     {
@@ -126,23 +122,7 @@ class McpConnector
             item: $item,
         );
 
-        if (!isset($item['inputSchema']['properties']) || !is_array($item['inputSchema']['properties'])) {
-            return $tool;
-        }
-
-        foreach ($item['inputSchema']['properties'] as $name => $prop) {
-            $required = in_array($name, $item['inputSchema']['required'] ?? []);
-
-            $typeSchema = $prop['type'] ?? PropertyType::STRING->value;
-            $type = PropertyType::fromSchema($typeSchema);
-            $nullable = is_array($typeSchema) && in_array('null', $typeSchema, true);
-
-            $property = match ($type) {
-                PropertyType::ARRAY => $this->createArrayProperty($name, $required, $prop, $nullable),
-                PropertyType::OBJECT => $this->createObjectProperty($name, $required, $prop, $nullable),
-                default => $this->createToolProperty($name, $type, $required, $prop, $nullable),
-            };
-
+        foreach (ToolPropertyFactory::fromSchema($item['inputSchema'] ?? []) as $property) {
             $tool->addProperty($property);
         }
 
@@ -150,59 +130,11 @@ class McpConnector
     }
 
     /**
-     * @param array<string, mixed> $prop
-     */
-    protected function createToolProperty(string $name, PropertyType $type, bool $required, array $prop, bool $nullable = false): ToolProperty
-    {
-        return new ToolProperty(
-            name: $name,
-            type: $type,
-            description: $prop['description'] ?? null,
-            required: $required,
-            enum: $prop['items']['enum'] ?? $prop['enum'] ?? [],
-            nullable: $nullable,
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $prop
-     * @throws ArrayPropertyException
-     */
-    protected function createArrayProperty(string $name, bool $required, array $prop, bool $nullable = false): ArrayProperty
-    {
-        return new ArrayProperty(
-            name: $name,
-            description: $prop['description'] ?? null,
-            required: $required,
-            items: new ToolProperty(
-                name: 'type',
-                type: PropertyType::from($prop['items']['type'] ?? 'string'),
-            ),
-            nullable: $nullable,
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $prop
-     * @throws ArrayPropertyException
-     * @throws ToolException
-     * @throws ReflectionException
-     */
-    protected function createObjectProperty(string $name, bool $required, array $prop, bool $nullable = false): ObjectProperty
-    {
-        return new ObjectProperty(
-            name: $name,
-            description: $prop['description'] ?? null,
-            required: $required,
-            nullable: $nullable,
-        );
-    }
-
-    /**
      * Tools delegate invocation back to the connector: interrupt
      * serialization cannot serialize an MCP connection held by a tool.
      *
      * @throws McpException
+     * @throws JsonException
      */
     public function invokeTool(array $item, array $arguments): mixed
     {

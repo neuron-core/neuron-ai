@@ -65,7 +65,9 @@ class InferenceIntentTest extends TestCase
         $this->assertSame('Original question', $start->messages[0]->getContent());
         $this->assertSame('Base instructions', $instructions->getContent());
 
+        $state->incrementToolRun('lookup');
         $node(new AgentStartEvent([new UserMessage('Next question')]), $state);
+        $this->assertSame(0, $state->getToolRuns('lookup'));
         $this->assertNotSame($request, $state->request);
         $this->assertFalse($state->request->options->stream);
         $this->assertSame('Base instructions', $state->request->instructions->getContent());
@@ -118,7 +120,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame('Question', $restored->request->messages[0]->getContent());
         $this->assertEquals($state->request->options, $restored->request->options);
         $this->assertSame([], $restored->getSteps());
-        $this->assertSame(0, $restored->getToolRuns('count_users'));
+        $this->assertSame(1, $restored->getToolRuns('count_users'));
 
         $agent = Agent::make();
         $agent->addTool($tool);

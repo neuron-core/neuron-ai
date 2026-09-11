@@ -28,6 +28,13 @@ interface ToolInterface extends JsonSerializable
      */
     public function getRequiredProperties(): array;
 
+    /**
+     * The provider-neutral JSON Schema for the tool's input object.
+     *
+     * @return array<string, mixed>
+     */
+    public function getInputSchema(): array;
+
     public function getParameters(): array;
 
     public function getInputs(): array;

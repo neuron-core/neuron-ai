@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionStartEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionWaitNode;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
-
 use function is_dir;
 use function mkdir;
 use function rmdir;

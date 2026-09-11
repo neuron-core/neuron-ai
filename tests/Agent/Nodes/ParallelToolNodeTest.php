@@ -93,7 +93,7 @@ class ParallelToolNodeTest extends TestCase
         $toolNode->setWorkflowContext(new NodeContext($state, $event));
 
         $this->expectException(ToolRunsExceededException::class);
-        $this->expectExceptionMessage('Tool bounded_tool has been attempted too many times: 1 attempts.');
+        $this->expectExceptionMessage('Tool bounded_tool has been executed too many times - 1');
 
         foreach ($toolNode($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -104,9 +104,8 @@ class ParallelToolNodeTest extends TestCase
     {
         // The concurrent execution path (the Spatie fork fan-out) is wrapped in a
         // durable memo. On crash recovery — a fresh step engine sharing the same
-        // persistence — the node re-executes but the memoized batch must NOT
-        // re-run: side-effecting tools stay at-most-once, and the run counters
-        // (incremented inside the memo) must not advance a second time.
+        // persistence — the node restores the memoized batch without executing
+        // it again, and reconstructs its counters from an older state snapshot.
         $runId = 'parallel_recovery_test';
         $persistence = new InMemoryPersistence();
         $stepId = ParallelToolNode::class . '-0';
@@ -135,7 +134,9 @@ class ParallelToolNodeTest extends TestCase
         $this->assertSame(1, $state->getToolRuns('regular_tool'));
         $this->assertSame(1, $state->getToolRuns('another_tool'));
 
-        // Recovery: brand-new engine, same persistence (simulates a process restart).
+        // Recovery starts with stale counters and no live registry for cached calls.
+        $state->resetToolRuns();
+        $state->request->tools = [];
         $node2 = new ParallelToolNode(
             new InMemoryChatHistory(),
             beforeChild: static function (): void {

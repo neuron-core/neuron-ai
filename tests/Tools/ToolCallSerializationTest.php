@@ -25,7 +25,7 @@ class ToolCallSerializationTest extends TestCase
 {
     public function test_native_serialization_round_trips_every_field(): void
     {
-        $call = ToolCall::make('count_users', 'call_1', ['limit' => 5], 'Count the users in the database');
+        $call = ToolCall::make('count_users', 'call_1', ['limit' => 5], 'Count the users in the database', deferred: true);
         $call->setResult('42')
             ->setApprovalReason('Counts rows in production')
             ->setApprovalState(ApprovalState::Rejected, 'not now');
@@ -34,6 +34,7 @@ class ToolCallSerializationTest extends TestCase
         $copy = unserialize(serialize($call));
 
         $this->assertSame('count_users', $copy->getName());
+        $this->assertTrue($copy->isDeferred());
         $this->assertSame('Count the users in the database', $copy->getDescription());
         $this->assertSame(['limit' => 5], $copy->getInputs());
         $this->assertSame('call_1', $copy->getCallId());
@@ -65,7 +66,7 @@ class ToolCallSerializationTest extends TestCase
         $call = ToolCall::make('search', 'call_1', ['q' => 'x'], 'Search the web');
 
         $this->assertSame(
-            ['callId', 'name', 'description', 'inputs', 'result', 'approval', 'approvalReason', 'rejectReason'],
+            ['callId', 'name', 'description', 'deferred', 'inputs', 'result', 'approval', 'approvalReason', 'rejectReason'],
             array_keys($call->jsonSerialize())
         );
     }

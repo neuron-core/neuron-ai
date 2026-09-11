@@ -79,4 +79,7 @@ interface AgentInterface extends WorkflowInterface
 
     /** @param array<array-key, mixed> $decisions */
     public function toolApprovalDecisions(array $decisions): static;
+
+    /** @param array<array-key, array{result?: mixed, error?: string}> $results */
+    public function toolResults(array $results): static;
 }

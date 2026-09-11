@@ -47,6 +47,7 @@ class PreProcessNode extends Node implements AgentNodeInterface
      */
     public function __invoke(AgentStartEvent $event, AgentState $state): QueryPreProcessedEvent
     {
+        $state->resetToolRuns();
         $state->request = new InferenceRequest(
             instructions: clone $this->instructions,
             tools: $this->tools,

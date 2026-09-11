@@ -6,9 +6,9 @@ Adapters between Neuron's messaging layer and each AI vendor's API. Every provid
 
 Each vendor directory holds cooperating pieces with one responsibility each:
 
-- the provider class owns the HTTP conversation: `HasHttpClient` for the injectable client, `SSEParser` plus a `BasicStreamState` subclass for streaming, `HandleWithTools` for the tool registry. `newToolCall()` validates the tool name the model asked for against that registry before a `ToolCall` is created;
+- the provider class owns the HTTP conversation: `HasHttpClient` for the injectable client, `SSEParser` plus a `BasicStreamState` subclass for streaming, `HandleWithTools` for the tool registry. `newToolCall()` validates the tool name the model asked for against that registry before a `ToolCall` is created and records its deferred execution flag from `DeferredToolInterface`;
 - a `MessageMapper` (`MessageMapperInterface`) translates Neuron messages, content blocks and tool call/result messages into the vendor format;
-- a `ToolMapper` (`ToolMapperInterface`) translates `Tool` definitions into the vendor's tool schema, when the API supports tools.
+- a `ToolMapper` (`ToolMapperInterface`) translates `Tool` definitions into the vendor's tool schema, when the API supports tools. It consumes `ToolInterface::getInputSchema()` rather than rebuilding the schema from properties; provider-specific adaptations stay in the mapper.
 
 Keep the split: mapping is pure data translation, tested in isolation from HTTP. OpenAI-compatible vendors (Deepseek, ZAI, Cohere, Grok, ...) extend `OpenAI` and its mappers instead of duplicating the protocol; `OpenAILike` / `OpenAILikeResponses` are the generic "any OpenAI-compatible endpoint" variants for the Chat Completions and Responses APIs, configured with a base URI.
 

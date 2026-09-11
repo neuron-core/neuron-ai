@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
 
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\ActivityStreamEvent;
 use NeuronAI\Chat\Messages\Stream\Adapters\Events\CustomStreamEvent;
@@ -16,17 +17,15 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
 use PHPUnit\Framework\TestCase;
-
+use function array_column;
+use function array_key_last;
 use function iterator_to_array;
 use function json_decode;
 use function sprintf;
 use function str_ends_with;
 use function str_starts_with;
 use function substr;
-use function array_key_last;
-use function array_column;
 
 /**
  * Validates that {@see AGUIAdapter} emits an event stream compliant with the

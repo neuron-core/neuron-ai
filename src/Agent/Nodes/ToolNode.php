@@ -8,37 +8,40 @@ use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
-use NeuronAI\Workflow\Interrupt\ApprovalRequest;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
-
+use function array_diff_key;
 use function array_filter;
 use function array_key_exists;
+use function array_values;
 use function count;
 use function is_array;
 use function is_string;
 use function json_encode;
+use function ksort;
 use function sprintf;
 use function uniqid;
-
 use const JSON_PRETTY_PRINT;
 
 /**
@@ -50,12 +53,11 @@ use const JSON_PRETTY_PRINT;
  * the caller. A tool runs iff explicitly approved; an incomplete set
  * re-suspends, and partial decisions are deliberately not persisted.
  *
- * Chat history stays append-only with a single writer: a gated cycle writes
- * the annotated ToolCallMessage once (memoized, pre-suspend) so a cold process
- * can render pending approvals from history alone. A non-gated cycle writes
- * nothing here — the call/result pair commits together through the next
- * inference's deferred inbound write, so a tool crash or failed follow-up
- * call can never leave a dangling tool call in history.
+ * Gated and externally executed cycles write their ToolCallMessage once,
+ * before suspension. Other cycles commit the call/result pair together
+ * through the next inference's inbound write. Approved deferred calls pass
+ * to a separate durable step, so awaiting results cannot replay this gate
+ * or the completed local executions.
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
@@ -81,42 +83,47 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|Generator
+    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|AwaitToolResultsEvent|Generator
     {
-        // Every gated tool starts out pending on every pass: the cumulative
-        // resume payload is the sole source of truth — a decision that is not
-        // restated is not remembered, even on tool instances that survive in
-        // memory between passes.
-        $gated = $this->filterToolsRequiringApproval($event->toolCallMessage->getToolCalls());
+        $approvalGated = $this->resolveToolApprovals($event->toolCallMessage);
 
-        foreach ($gated as $call) {
-            $call->setApprovalState(ApprovalState::Pending);
-        }
+        $calls = $event->toolCallMessage->getToolCalls();
+        $executed = yield from $this->executeLocalTools($calls);
+        $deferred = $this->filterDeferredCalls($calls);
 
-        if ($gated !== []) {
-            // Written with pending states BEFORE any suspend, so a cold
-            // process renders pending approvals from history alone; the memo
-            // keeps a resume pass from duplicating the tail.
-            $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
-
-            // A tool runs if explicitly approved; silence is never consent.
-            // An incomplete decision set loops and re-suspends with the
-            // delivered decisions reflected on the outbound request.
-            while ($this->pendingTools($gated) !== []) {
-                $payload = $this->interrupt($this->buildApprovalRequest($gated));
-                $this->applyDecisions($payload ?? [], $gated);
-            }
-
-            foreach ($gated as $call) {
-                if ($call->getApprovalState() === ApprovalState::Rejected) {
-                    $this->stampRejectionResult($call);
+        if ($deferred !== []) {
+            // Record each dispatch's count before suspending. State preserves the
+            // run total across resumes; replay restores the recorded count without
+            // consuming another slot for the same call.
+            foreach ($deferred as $index => $call) {
+                try {
+                    $this->checkToolRuns($call, $index);
+                } catch (Throwable $e) {
+                    $this->handleError($e, $call);
+                    $executed[$index] = $call;
+                    unset($deferred[$index]);
+                    yield new ToolCallChunk($call);
+                    yield new ToolResultChunk($call);
+                    $this->emit(new ToolCalled($call));
                 }
             }
+
+            if ($deferred !== []) {
+                $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+                foreach ($deferred as $call) {
+                    $this->emit(new ToolCalling($call));
+                    yield new ToolCallChunk($call);
+                }
+
+                // Go to the deferred tool management node
+                return new AwaitToolResultsEvent($executed, $deferred);
+            }
         }
 
-        $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
+        ksort($executed);
+        $toolCallResult = new ToolResultMessage(array_values($executed));
 
-        if ($gated === []) {
+        if (!$approvalGated) {
             // Deferred pair-commit: the call/result pair travels as the next
             // inference's inbound messages and commits together only after
             // that provider call succeeds — a crash leaves the history tail
@@ -132,9 +139,70 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
+     * @return bool Whether this cycle required approval.
+     * @throws ToolException
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
+     */
+    protected function resolveToolApprovals(ToolCallMessage $message): bool
+    {
+        // Every gated tool starts out pending on every pass: the cumulative
+        // resume payload is the sole source of truth — a decision that is not
+        // restated is not remembered, even on tool instances that survive in
+        // memory between passes.
+        $gated = $this->filterToolsRequiringApproval($message->getToolCalls());
+
+        if ($gated === []) {
+            return false;
+        }
+
+        foreach ($gated as $call) {
+            $call->setApprovalState(ApprovalState::Pending);
+        }
+
+        // Written with pending states BEFORE any suspend, so a cold
+        // process renders pending approvals from history alone; the memo
+        // keeps a resume pass from duplicating the tail.
+        $this->addToChatHistory($message, 'history.toolcall');
+
+        // A tool runs if explicitly approved; silence is never consent.
+        // An incomplete decision set loops and re-suspends with the
+        // delivered decisions reflected on the outbound request.
+        while ($this->pendingTools($gated) !== []) {
+            $payload = $this->interrupt($this->buildApprovalRequest($gated));
+            $this->applyDecisions($payload ?? [], $gated);
+        }
+
+        foreach ($gated as $call) {
+            if ($call->getApprovalState() === ApprovalState::Rejected) {
+                $this->stampRejectionResult($call);
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, ToolCall> $calls
+     * @return array<int, ToolCall>
+     */
+    protected function filterDeferredCalls(array $calls): array
+    {
+        // Deferred tools can require approval too. Rejected calls keep their
+        // rejection result in the local path and are never dispatched externally.
+        return array_filter(
+            $calls,
+            fn (ToolCall $call): bool => $call->isDeferred()
+                && $call->getApprovalState() !== ApprovalState::Rejected,
+        );
+    }
+
+    /**
      * The single source for resolution is the state request's tool list —
      * the cycle's effective set. The node holds no registry of its own, so a
      * tool removed from the offering is removed from execution.
+     *
+     * @throws ToolException
      */
     protected function findLiveTool(string $name): ToolInterface
     {
@@ -323,18 +391,23 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
+     * Returns locally settled calls, including rejections, with original indexes.
+     *
+     * @param array<int, ToolCall> $calls
+     * @return Generator<int, ToolCallChunk|ToolResultChunk, mixed, array<int, ToolCall>>
      * @throws Throwable
      * @throws ToolRunsExceededException
      */
-    protected function executeTools(ToolCallMessage $toolCallMessage, AgentState $state): Generator
+    protected function executeLocalTools(array $calls): Generator
     {
-        foreach ($toolCallMessage->getToolCalls() as $index => $call) {
+        $local = array_diff_key($calls, $this->filterDeferredCalls($calls));
+        foreach ($local as $index => $call) {
             yield new ToolCallChunk($call);
-            $this->executeSingleTool($call, $state, $index);
+            $this->executeSingleTool($call, $index);
             yield new ToolResultChunk($call);
         }
 
-        return new ToolResultMessage($toolCallMessage->getToolCalls());
+        return $local;
     }
 
     /**
@@ -346,7 +419,7 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
      */
-    protected function executeSingleTool(ToolCall $call, AgentState $state, int $index): void
+    protected function executeSingleTool(ToolCall $call, int $index): void
     {
         // A rejected tool must not run; its rejection result was already stamped.
         if ($call->getApprovalState() === ApprovalState::Rejected) {
@@ -358,20 +431,11 @@ class ToolNode extends Node implements AgentNodeInterface
         $memoKey = 'tool.' . ($call->getCallId() ?? $call->getName()) . '.' . $index;
 
         try {
-            $result = $this->memoize($memoKey, function () use ($call, $state): string|ToolOutput {
+            $this->checkToolRuns($call, $index);
+            $result = $this->memoize($memoKey, function () use ($call): string|ToolOutput {
                 // Resolution happens inside the memo: on replay the recorded
                 // result is returned and the live registry is never consulted.
                 $tool = $this->resolveTool($call);
-
-                $key = $tool->getRunKey();
-
-                $state->incrementToolRun($key);
-
-                // A tool's own max runs wins over the node's global limit.
-                $runs = $tool->getMaxRuns() ?? $this->maxRuns;
-                if ($state->getToolRuns($key) > $runs) {
-                    throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($call->getInputs()));
-                }
 
                 $tool->execute();
                 return $tool->getResult();
@@ -382,6 +446,34 @@ class ToolNode extends Node implements AgentNodeInterface
             $this->handleError($e, $call);
         } finally {
             $this->emit(new ToolCalled($call));
+        }
+    }
+
+    /**
+     * Accounting is independent of execution-result memos: a replay must restore
+     * counts even when a tool result is already cached. Record before enforcing
+     * the limit so a rejected attempt keeps the same decision on recovery.
+     *
+     * @throws ToolRunsExceededException
+     * @throws ToolException
+     */
+    protected function checkToolRuns(ToolCall $call, int $index): void
+    {
+        $attempt = $this->memoize('tool_run.' . $index, function () use ($call): array {
+            $tool = $this->resolveTool($call);
+            $key = $tool->getRunKey();
+
+            return [
+                'key' => $key,
+                'count' => $this->state->getToolRuns($key) + 1,
+                'limit' => $tool->getMaxRuns() ?? $this->maxRuns,
+            ];
+        });
+
+        $this->state->restoreToolRunCount($attempt['key'], $attempt['count']);
+        $runs = $attempt['limit'];
+        if ($attempt['count'] > $runs) {
+            throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($call->getInputs()));
         }
     }
 

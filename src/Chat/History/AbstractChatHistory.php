@@ -262,6 +262,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 $tool['callId'] ?? null,
                 $tool['inputs'],
                 $tool['description'] ?? null,
+                $tool['deferred'] ?? false,
             );
             $call->setApprovalReason($tool['approvalReason'] ?? null);
 
@@ -297,6 +298,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
                 $tool['callId'] ?? null,
                 $tool['inputs'],
                 $tool['description'] ?? null,
+                $tool['deferred'] ?? false,
             );
             $call->setResult($this->deserializeToolResult($tool['result']))
                 ->setApprovalReason($tool['approvalReason'] ?? null);
