@@ -36,6 +36,10 @@ abstract class Tool implements ToolInterface
      */
     protected array $properties = [];
 
+    /**
+     * Raw provider-specific keys the ToolMapper merges verbatim into the tool
+     * definition sent to the LLM, e.g. a hand-written schema or cache_control.
+     */
     protected array $parameters = [];
 
     protected array $annotations = [];
