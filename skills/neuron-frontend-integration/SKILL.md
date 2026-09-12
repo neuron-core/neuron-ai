@@ -35,12 +35,20 @@ A `DeferredTool` is a declaration only: name, description and an optional JSON s
 ```php
 use NeuronAI\Tools\DeferredTool;
 
-new DeferredTool('read_title', 'Read the title of the page the user is looking at.');
-new DeferredTool('read_text', 'Read the text of an element on the page.', [
-    'type' => 'object',
-    'properties' => ['selector' => ['type' => 'string', 'description' => 'CSS selector']],
-    'required' => ['selector'],
-]);
+new DeferredTool(
+    name: 'read_title',
+    description: 'Read the title of the page the user is looking at.'
+);
+
+new DeferredTool(
+    name: 'read_text',
+    description: 'Read the text of an element on the page.',
+    inputSchema: [
+        'type' => 'object',
+        'properties' => ['selector' => ['type' => 'string', 'description' => 'CSS selector']],
+        'required' => ['selector'],
+    ]
+);
 ```
 
 Where the catalog comes from differs by protocol:
@@ -59,11 +67,12 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
-$agent = Agent::make();
-$agent->setChatHistory(new SQLChatHistory($pdo, $threadId));
-$agent->setPersistence(new DatabasePersistence($pdo));
-$agent->setAiProvider($provider);
-$agent->addTool($backendTools);
+$agent = Agent::make()
+    ->setChatHistory(new SQLChatHistory($pdo, $threadId));
+    ->setPersistence(new DatabasePersistence($pdo));
+    ->setAiProvider($provider);
+    ->addTool($backendTools);
+
 foreach ($frontendTools as $tool) {
     if (in_array($tool->getName(), $backendToolNames, true)) {
         throw new RuntimeException("Frontend tool '{$tool->getName()}' collides with a backend tool.");
@@ -84,10 +93,12 @@ $last = $messages === [] ? null : $messages[array_key_last($messages)];
 
 $translator = new AGUIInputTranslator();
 $agent = buildAgent($payload['threadId'], $translator->tools($payload));
+
 $adapter = new AGUIAdapter($payload['threadId'], $payload['runId'] ?? null, $messages, $payload['state'] ?? []);
 $agent->setStreamAdapter($adapter);
 
 $continuation = ($payload['resume'] ?? []) !== [] || ($last['role'] ?? null) === 'tool';
+
 if ($continuation) {
     $frames = $agent->submitInputs($payload, $translator)->events();
 } elseif (($last['role'] ?? null) === 'user') {

@@ -22,7 +22,7 @@ parameters:
     treatPhpDocTypesAsCertain: false
 
     excludePaths:
-        - tests/Integration/Frontend/node_modules
+        - tests/Integration/Frontend/node_modules (?)
 
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
 
