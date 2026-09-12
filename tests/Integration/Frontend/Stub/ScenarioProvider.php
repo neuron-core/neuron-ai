@@ -11,30 +11,53 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\ProviderResponse;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use PDO;
 
+use function array_filter;
+use function array_key_exists;
 use function array_map;
-use function array_reverse;
-use function is_string;
+use function array_merge;
+use function array_slice;
+use function count;
+use function in_array;
 use function json_encode;
 
 /**
- * Deterministic provider: the reply is chosen from the inference input itself,
- * never from a request counter, and every invocation is persisted so tests can
- * detect extra or replayed inference across HTTP requests.
+ * Deterministic provider driven by a per-scenario plan of tool-call batches.
+ * The reply is chosen from the inference input itself, never from a request
+ * counter: the first batch whose results are missing is requested, and once
+ * every batch is answered the final message echoes what the model received.
+ * Every invocation is persisted so tests can detect extra or replayed inference.
  */
 class ScenarioProvider implements AIProviderInterface
 {
     use HandleWithTools;
 
-    public const DEFERRED_TITLE = 'deferred-title';
+    /** @var array<string, list<list<array{string, string, array<string, mixed>}>>> scenario => batches of [tool, callId, inputs] */
+    public const PLANS = [
+        'deferred-title' => [[['read_title', 'call_read_title_1', []]]],
+        'approval-title' => [[['read_title', 'call_read_title_1', []]]],
+        'mixed' => [[['server_clock', 'call_clock_1', []], ['read_title', 'call_read_title_1', []]]],
+        'same-name' => [[['read_text', 'call_text_1', ['selector' => '#first']], ['read_text', 'call_text_2', ['selector' => '#second']]]],
+        'structured' => [[
+            ['probe', 'call_object', ['kind' => 'object']],
+            ['probe', 'call_array', ['kind' => 'array']],
+            ['probe', 'call_false', ['kind' => 'false']],
+            ['probe', 'call_zero', ['kind' => 'zero']],
+            ['probe', 'call_null', ['kind' => 'null']],
+        ]],
+        'handler-error' => [[['probe', 'call_throw', ['kind' => 'throw']]]],
+        'backend-error' => [[['server_fail', 'call_fail_1', []]]],
+        'two-steps' => [[['read_title', 'call_read_title_1', []]], [['read_text', 'call_text_1', ['selector' => '#first']]]],
+    ];
 
     public function __construct(
         protected PDO $pdo,
@@ -91,42 +114,96 @@ class ScenarioProvider implements AIProviderInterface
     /** @param Message[] $messages */
     protected function respond(string $method, array $messages): Message
     {
-        $response = match ($this->scenario) {
-            self::DEFERRED_TITLE => $this->deferredTitle($messages),
-            default => throw new ProviderException("Unknown scenario '{$this->scenario}'."),
-        };
+        $plan = $this->turnPlan($messages);
+        $results = $this->receivedResults($this->currentTurn($messages));
+        $planned = array_merge(...array_map(fn (array $batch): array => array_map(fn (array $call): string => $call[1], $batch), $plan));
+        foreach ($results as $callId => $result) {
+            if (!in_array($callId, $planned, true)) {
+                throw new ProviderException("Scenario '{$this->scenario}' received a result for unplanned call '{$callId}'.");
+            }
+        }
+
+        foreach ($plan as $batch) {
+            $pending = array_filter($batch, fn (array $call): bool => !array_key_exists($call[1], $results));
+            if ($pending !== []) {
+                $response = new ToolCallMessage(null, array_map(
+                    fn (array $call) => $this->newToolCall($call[0], $call[1], $call[2]),
+                    $batch,
+                ));
+                $this->record($method, $messages, $response);
+                return $response;
+            }
+        }
+
+        $response = new AssistantMessage('Done: ' . json_encode($results, JSON_THROW_ON_ERROR));
         $this->record($method, $messages, $response);
         return $response;
     }
 
     /**
-     * Phase 1: ask the frontend for the page title, then answer with it.
+     * The plan replays on every user turn; later turns get distinct call ids so
+     * identity never depends on the turn a call belongs to.
      * @param Message[] $messages
+     * @return list<list<array{string, string, array<string, mixed>}>>
      */
-    protected function deferredTitle(array $messages): Message
+    protected function turnPlan(array $messages): array
     {
-        $title = $this->latestResult($messages, 'read_title');
-        if ($title === null) {
-            return new ToolCallMessage(null, [$this->newToolCall('read_title', 'call_read_title_1', [])]);
+        $plan = self::PLANS[$this->scenario] ?? throw new ProviderException("Unknown scenario '{$this->scenario}'.");
+        $turn = count(array_filter($messages, $this->isUserTurn(...)));
+        if ($turn <= 1) {
+            return $plan;
         }
-        return new AssistantMessage("The page title is: {$title}");
+        return array_map(
+            fn (array $batch): array => array_map(fn (array $call): array => [$call[0], "{$call[1]}_t{$turn}", $call[2]], $batch),
+            $plan,
+        );
     }
 
-    /** @param Message[] $messages */
-    protected function latestResult(array $messages, string $toolName): ?string
+    /**
+     * Messages after the latest user message: the only ones this turn answers.
+     * @param Message[] $messages
+     * @return Message[]
+     */
+    protected function currentTurn(array $messages): array
     {
-        foreach (array_reverse($messages) as $message) {
+        $start = 0;
+        foreach ($messages as $index => $message) {
+            if ($this->isUserTurn($message)) {
+                $start = $index;
+            }
+        }
+        return array_slice($messages, $start);
+    }
+
+    /** Tool results travel with the user role too; only a real user message opens a turn. */
+    protected function isUserTurn(Message $message): bool
+    {
+        return $message instanceof UserMessage && !$message instanceof ToolResultMessage;
+    }
+
+    /**
+     * Results by call id, in the order the model received them.
+     * @param Message[] $messages
+     * @return array<string, mixed>
+     */
+    protected function receivedResults(array $messages): array
+    {
+        $results = [];
+        foreach ($messages as $message) {
             if (!$message instanceof ToolResultMessage) {
                 continue;
             }
             foreach ($message->getToolCalls() as $call) {
-                if ($call->getName() === $toolName && $call->hasResult()) {
-                    $result = $call->getResult();
-                    return is_string($result) ? $result : json_encode($result, JSON_THROW_ON_ERROR);
+                if (!$call->hasResult()) {
+                    continue;
                 }
+                $result = $call->getResult();
+                $results[(string) $call->getCallId()] = $result instanceof ToolOutput
+                    ? ($result->isError() ? ['error' => $result->getText()] : $result->getText())
+                    : $result;
             }
         }
-        return null;
+        return $results;
     }
 
     /** @param Message[] $messages */

@@ -274,3 +274,4 @@ Set complete → approved tool runs, rejected tool's template becomes its result
 - **Stale suspensions / deadlines**: event waits, due timers, addressed `ResumeInput`, and continuation fences — see the **neuron-workflow** skill.
 - **Declaring tool risk** when creating tools: the **neuron-tool** skill.
 - **Agent setup** (providers, history backends, persistence): the **neuron-agent** skill.
+- **Approvals coming from a frontend library** (Vercel `addToolApprovalResponse`, AG-UI `resume`, CopilotKit `useInterrupt`): the **neuron-frontend-integration** skill.

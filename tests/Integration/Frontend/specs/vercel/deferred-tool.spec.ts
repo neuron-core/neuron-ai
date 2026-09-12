@@ -9,7 +9,7 @@ test("one deferred tool: the useChat handler runs in the browser and its result 
   await page.getByRole("button", { name: "Send" }).click();
 
   const reply = page.locator('[data-role="assistant"] [data-part="text"]');
-  await expect(reply).toHaveText("The page title is: Neuron Fixture");
+  await expect(reply).toHaveText('Done: {"call_read_title_1":"Neuron Fixture"}');
   await expect(page.getByTestId("status")).toHaveText("ready");
   await expect(page.getByTestId("error")).toHaveText("");
 

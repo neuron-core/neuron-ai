@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type { APIRequestContext } from "@playwright/test";
 
 export const BACKEND = "http://127.0.0.1:8787";
@@ -14,6 +16,7 @@ export interface ProviderInvocation {
 export interface ThreadAudit {
   run: { runId: string; status: string; executionAttempt: number; interrupts: string[] } | null;
   invocations: ProviderInvocation[];
+  executions: Array<{ call_id: string; tool: string }>;
   history: Array<{ role: string; content: unknown; meta: Record<string, any> | null }>;
 }
 
@@ -39,4 +42,19 @@ export function toolResultsSentToProvider(invocation: ProviderInvocation): Recor
     for (const call of message.tools) results[call.callId] = call.result;
   }
   return results;
+}
+
+/** Start an independent PHP process on the same database, as a restarted backend would. */
+export async function startBackend(port: number): Promise<{ url: string; stop: () => void }> {
+  const cwd = fileURLToPath(new URL("..", import.meta.url));
+  const child = spawn("php", ["-S", `127.0.0.1:${port}`, "backend/router.php"], { cwd, env: process.env, stdio: "ignore" });
+  const url = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      if ((await fetch(`${url}/_test/health`)).ok) return { url, stop: () => child.kill() };
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  child.kill();
+  throw new Error(`Backend on port ${port} did not start`);
 }

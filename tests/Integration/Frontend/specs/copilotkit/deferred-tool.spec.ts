@@ -9,13 +9,13 @@ test("one deferred tool: the useFrontendTool handler runs in the browser and its
   await input.fill("What is the title?");
   await input.press("Enter");
 
-  const reply = page.locator(".copilot-assistant-message");
-  await expect(reply.last()).toContainText("The page title is: Neuron Fixture");
-  expect(await page.evaluate(() => window.handlerRuns)).toEqual({ read_title: 1 });
+  const reply = page.getByTestId("copilot-assistant-message");
+  await expect(reply.last()).toContainText('Done: {"call_read_title_1":"Neuron Fixture"}');
+  expect(await page.evaluate(() => window.handlerRuns)).toEqual({ call_read_title_1: 1 });
 
   const audit = await observe(request, threadId);
   expect(audit.invocations).toHaveLength(2);
-  expect(audit.invocations.map((invocation) => invocation.tools)).toEqual([["read_title"], ["read_title"]]);
+  expect(audit.invocations.map((invocation) => invocation.tools)).toEqual([["read_title", "read_text", "probe"], ["read_title", "read_text", "probe"]]);
   expect(toolResultsSentToProvider(audit.invocations[0])).toEqual({});
   expect(Object.values(toolResultsSentToProvider(audit.invocations[1]))).toEqual(["Neuron Fixture"]);
   expect(audit.run).toBeNull();

@@ -11,7 +11,7 @@ const PORT = Number(process.env.PORT ?? 4000);
 const handler = createCopilotNodeHandler(
   createCopilotRuntimeHandler({
     runtime: new CopilotRuntime({ agents: { default: new HttpAgent({ url: `${BACKEND}/agui` }) } }),
-    basePath: "/copilotkit",
+    basePath: "/runtime",
   }),
 );
 

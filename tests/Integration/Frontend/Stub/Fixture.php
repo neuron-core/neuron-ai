@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Integration\Frontend\Stub;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Tools\DeferredTool;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
@@ -13,6 +14,7 @@ use PDO;
 use RuntimeException;
 
 use function array_map;
+use function in_array;
 use function json_decode;
 
 /**
@@ -23,6 +25,12 @@ use function json_decode;
 class Fixture
 {
     protected PDO $pdo;
+
+    /** Backend-owned tool names; client declarations may not shadow them. */
+    protected const STABLE_TOOLS = ['server_clock', 'server_fail'];
+
+    /** Scenarios whose frontend tools are approval-gated. */
+    protected const APPROVAL_REQUIRED = ['approval-title' => ['read_title']];
 
     public function __construct(string $databasePath)
     {
@@ -44,6 +52,8 @@ class Fixture
         $this->pdo->exec('CREATE TABLE IF NOT EXISTS provider_invocations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, method TEXT NOT NULL,
             messages TEXT NOT NULL, tools TEXT NOT NULL, response TEXT NOT NULL)');
+        $this->pdo->exec('CREATE TABLE IF NOT EXISTS tool_executions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, call_id TEXT NOT NULL, tool TEXT NOT NULL)');
     }
 
     public function registerThread(string $threadId, string $scenario): void
@@ -51,30 +61,81 @@ class Fixture
         $this->pdo->prepare('INSERT INTO threads (thread_id, scenario) VALUES (?, ?)')->execute([$threadId, $scenario]);
     }
 
-    public function agent(string $threadId): Agent
+    /**
+     * The frontend tool catalog the application itself declares (Vercel has no
+     * client-supplied catalog). AG-UI clients declare the same tools themselves.
+     * @return list<DeferredTool>
+     */
+    public function frontendTools(): array
     {
-        $scenario = $this->pdo->prepare('SELECT scenario FROM threads WHERE thread_id = ?');
-        $scenario->execute([$threadId]);
-        $name = $scenario->fetchColumn();
-        if ($name === false) {
-            throw new RuntimeException("Thread '{$threadId}' was not registered with a scenario.");
-        }
+        return [
+            new DeferredTool('read_title', 'Read the title of the page the user is looking at.'),
+            new DeferredTool('read_text', 'Read the text of an element on the page.', [
+                'type' => 'object',
+                'properties' => ['selector' => ['type' => 'string', 'description' => 'CSS selector']],
+                'required' => ['selector'],
+            ]),
+            new DeferredTool('probe', 'Return a probe value of the requested kind.', [
+                'type' => 'object',
+                'properties' => ['kind' => ['type' => 'string', 'enum' => ['object', 'array', 'false', 'zero', 'null', 'throw']]],
+                'required' => ['kind'],
+            ]),
+        ];
+    }
+
+    /**
+     * Reconstruct the agent for a thread: persisted state, history, the scenario's
+     * provider and backend tools, then the frontend catalog under the application's
+     * tool policy (no shadowing of backend tools, approval where the scenario says so).
+     * @param list<DeferredTool> $frontendTools
+     */
+    public function agent(string $threadId, array $frontendTools = []): Agent
+    {
+        $scenario = $this->scenario($threadId);
 
         $agent = Agent::make();
         $agent->setChatHistory(new SQLChatHistory($this->pdo, $threadId));
         $agent->setPersistence(new DatabasePersistence($this->pdo));
-        $agent->setAiProvider(new ScenarioProvider($this->pdo, $threadId, (string) $name));
+        $agent->setAiProvider(new ScenarioProvider($this->pdo, $threadId, $scenario));
+        if ($scenario === 'mixed') {
+            $agent->addTool(new ServerClockTool($this->pdo, $threadId));
+        }
+        if ($scenario === 'backend-error') {
+            $agent->addTool(new ServerFailingTool());
+        }
+
+        foreach ($frontendTools as $tool) {
+            if (in_array($tool->getName(), self::STABLE_TOOLS, true)) {
+                throw new RuntimeException("Frontend tool '{$tool->getName()}' collides with a backend tool.");
+            }
+            if (in_array($tool->getName(), self::APPROVAL_REQUIRED[$scenario] ?? [], true)) {
+                $tool->requireApproval();
+            }
+            $agent->addTool($tool);
+        }
         return $agent;
+    }
+
+    protected function scenario(string $threadId): string
+    {
+        $statement = $this->pdo->prepare('SELECT scenario FROM threads WHERE thread_id = ?');
+        $statement->execute([$threadId]);
+        $scenario = $statement->fetchColumn();
+        if ($scenario === false) {
+            throw new RuntimeException("Thread '{$threadId}' was not registered with a scenario.");
+        }
+        return (string) $scenario;
     }
 
     /** @return array<string, mixed> */
     public function observe(string $threadId): array
     {
-        $agent = $this->agent($threadId);
-        $run = (new WorkflowExecutor())->inspect($agent);
+        $run = (new WorkflowExecutor())->inspect($this->agent($threadId));
 
         $invocations = $this->pdo->prepare('SELECT method, messages, tools, response FROM provider_invocations WHERE thread_id = ? ORDER BY id');
         $invocations->execute([$threadId]);
+        $executions = $this->pdo->prepare('SELECT call_id, tool FROM tool_executions WHERE thread_id = ? ORDER BY id');
+        $executions->execute([$threadId]);
         $history = $this->pdo->prepare('SELECT role, content, meta FROM chat_messages WHERE thread_id = ? ORDER BY id');
         $history->execute([$threadId]);
 
@@ -91,6 +152,7 @@ class Fixture
                 'tools' => json_decode($row['tools'], true),
                 'response' => json_decode($row['response'], true),
             ], $invocations->fetchAll(PDO::FETCH_ASSOC)),
+            'executions' => $executions->fetchAll(PDO::FETCH_ASSOC),
             'history' => array_map(fn (array $row): array => [
                 'role' => $row['role'],
                 'content' => json_decode((string) $row['content'], true),

@@ -254,3 +254,4 @@ See the **neuron-test** skill for the provider fake and assertion helpers.
 - **Agent setup** (providers, history, persistence) and the `stream()` / `chat()` entry points: the **neuron-agent** skill.
 - **Writing nodes, memoization, and durable resume**: the **neuron-workflow** skill.
 - **Approval round trip** (rendering the pending approval, translating client decisions, continuing the run): the **neuron-tool-approval** skill.
+- **Frontend tools executed in the browser** (deferred tools, the endpoint, Vercel `useChat`, the AG-UI client, CopilotKit): the **neuron-frontend-integration** skill.

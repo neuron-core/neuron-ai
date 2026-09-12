@@ -17,7 +17,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Integration\Frontend\Stub\Fixture;
-use NeuronAI\Tools\DeferredTool;
 use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
@@ -65,9 +64,8 @@ function agui(Fixture $fixture, array $payload): void
     $messages = $payload['messages'] ?? [];
     $last = $messages === [] ? null : $messages[array_key_last($messages)];
 
-    $agent = $fixture->agent($threadId);
     $translator = new AGUIInputTranslator();
-    $agent->addTool($translator->tools($payload));
+    $agent = $fixture->agent($threadId, $translator->tools($payload));
     $adapter = new AGUIAdapter($threadId, $payload['runId'] ?? null, $messages, $payload['state'] ?? []);
     $agent->setStreamAdapter($adapter);
 
@@ -89,8 +87,7 @@ function vercel(Fixture $fixture, array $payload): void
     $messages = $payload['messages'] ?? [];
     $last = $messages === [] ? null : $messages[array_key_last($messages)];
 
-    $agent = $fixture->agent($threadId);
-    $agent->addTool(new DeferredTool('read_title', 'Read the title of the page the user is looking at.'));
+    $agent = $fixture->agent($threadId, $fixture->frontendTools());
 
     if (($last['role'] ?? null) === 'assistant') {
         $adapter = new VercelAIAdapter($last['id'], $last['parts'] ?? []);

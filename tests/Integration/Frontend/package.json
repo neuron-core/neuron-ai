@@ -6,22 +6,22 @@
     "test": "playwright test"
   },
   "dependencies": {
-    "@ag-ui/client": "0.0.59",
-    "@ag-ui/core": "0.0.59",
-    "@ai-sdk/react": "4.0.101",
-    "@copilotkit/react-core": "1.71.0",
-    "@copilotkit/runtime": "1.71.0",
-    "ai": "7.0.98",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "zod": "4.6.2"
+    "@ag-ui/client": "~0.0.59",
+    "@ag-ui/core": "~0.0.59",
+    "@ai-sdk/react": "^4.0.101",
+    "@copilotkit/react-core": "^1.71.0",
+    "@copilotkit/runtime": "^1.71.0",
+    "ai": "^7.0.98",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "6.1.1",
-    "typescript": "7.0.2",
-    "vite": "8.3.0"
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
   }
 }

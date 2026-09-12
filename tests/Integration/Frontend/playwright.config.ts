@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const fixtureDatabase = join(tmpdir(), `neuron-frontend-${process.pid}.sqlite`);
+// Shared with worker processes through the environment so tests can start a
+// second backend on the same database.
+process.env.NEURON_FIXTURE_DB ??= join(tmpdir(), `neuron-frontend-${process.pid}.sqlite`);
+const fixtureDatabase = process.env.NEURON_FIXTURE_DB;
 
 export default defineConfig({
   testDir: "specs",

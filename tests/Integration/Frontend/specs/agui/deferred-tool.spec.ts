@@ -31,7 +31,7 @@ test("one deferred tool: the official client receives the call, returns its resu
   const second = await agent.runAgent({ tools: [readTitle] });
 
   const reply = second.newMessages.find((message) => message.role === "assistant");
-  expect(reply?.content).toBe("The page title is: Neuron Fixture");
+  expect(reply?.content).toBe('Done: {"call_read_title_1":"Neuron Fixture"}');
   expect(agent.messages.map((message) => message.role)).toEqual(["user", "assistant", "tool", "assistant"]);
 
   const audit = await observe(request, threadId);
