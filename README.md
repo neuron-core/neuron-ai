@@ -30,7 +30,6 @@ In the PHP ecosystem, this set of foundations exists in one place. Each one is a
 [Streaming & UI protocols](https://docs.neuron-ai.dev/agent/streaming#stream-adapters),
 [MCP](#mcp-connector),
 [Async](https://docs.neuron-ai.dev/agent/async).
-You can compare it with any other option available to a PHP developer, and the comparison is the answer.
 
 There is also no second framework waiting for you when the project grows. The same Workflow that runs your first agent in the getting started guide runs a multi-agent system with state, loops, and human approvals in production. What you learn on day one is what you ship in future projects.
 
@@ -50,9 +49,7 @@ For a software house, this is a place to be recognized as a specialist rather th
 
 ## How To
 
-- [Install](#install)
-- [Create an Agent](#create)
-- [Talk to the Agent](#talk)
+- [Getting Started](#start)
 - [Monitoring](#monitoring)
 - [AI Providers](#providers)
 - [Tools & Toolkits](#tools)
@@ -64,23 +61,21 @@ For a software house, this is a place to be recognized as a specialist rather th
 - [Security Vulnerabilities](#security)
 - [Official Documentation](#documentation)
 
-<a name="install">
+<a name="start">
 
-## Install
+## Getting Started in 3 Steps
 
-Install the latest version via composer:
+### 1) Install
 
 ```
 composer require neuron-core/neuron-ai
 ```
 
-<a name="create">
-
-## Create an Agent
+### 2) Create an Agent
 
 Neuron provides you with the Agent class you can extend to inherit the main features of the framework
 and create fully functional agents. This class automatically manages some advanced mechanisms for you, such as memory,
-tools, and function calls, up to RAG (Retrieval Augmented Generation). You can go deeper into these aspects in the [documentation](https://docs.neuron-ai.dev).
+tools, up to RAG (Retrieval Augmented Generation). You can go deeper into these aspects below.
 
 Let's create an Agent with the command below:
 
@@ -110,21 +105,12 @@ class DataAnalystAgent extends Agent
 
     protected function instructions(): string
     {
-        return (string) new SystemPrompt(
-            background: [
-                "You are a data analyst expert in creating reports from SQL databases."
-            ]
-        );
+        return "You are a data analyst expert in creating reports from SQL databases.";
     }
 }
 ```
 
-The `SystemPrompt` class is designed to take your base instructions and build a consistent prompt for the underlying model
-reducing the effort for prompt engineering.
-
-<a name="talk">
-
-## Talk to the Agent
+### 3) Talk to the Agent
 
 Send a message to the agent to get a response from the underlying LLM:
 
@@ -153,17 +139,9 @@ As you can see in the example above, the Agent has memory of the ongoing convers
 
 ## Monitoring & Debugging
 
-Integrating AI Agents into your application, you’re not working only with functions and deterministic code,
-you program your agent influencing probability distributions. Same input ≠ output.
-That means reproducibility, versioning, and debugging become real problems.
-
 Many of the Agents you build with Neuron will contain multiple steps with multiple invocations of LLM calls,
 tool usage, access to external memories, etc. As these applications get more and more complex, it becomes crucial
 to be able to inspect what exactly your agent is doing and why.
-
-Why is the model taking certain decisions? What data is the model reacting to? Prompting is not programming
-in the common sense. No static types, small changes break output, long prompts cost latency,
-and no two models behave exactly the same with the same prompt.
 
 The best way to take your AI application under control is with [Inspector](https://inspector.dev). After you sign up,
 make sure to set the `INSPECTOR_INGESTION_KEY` variable in the application environment file to start monitoring:

@@ -108,6 +108,10 @@ class DelimiterTextSplitter extends AbstractSplitter
                 $calculatedOverlap = min($this->wordOverlap, count($currentChunk) - 1);
                 $overlapWords = $calculatedOverlap > 0 ? array_slice($currentChunk, -$calculatedOverlap) : [];
 
+                while ($overlapWords !== [] && $this->calculateChunkLength([...$overlapWords, $word]) > $this->maxLength) {
+                    $overlapWords = array_slice($overlapWords, 1);
+                }
+
                 $currentChunk = [...$overlapWords, $word];
                 $currentChunkLength = $this->calculateChunkLength($currentChunk);
             }

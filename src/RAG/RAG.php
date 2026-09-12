@@ -107,9 +107,7 @@ class RAG extends Agent
         foreach ($documents as $document) {
             $key = $document->sourceType . ':' . $document->sourceName;
 
-            if (!isset($grouped[$key])) {
-                $grouped[$key] = [];
-            }
+            $grouped[$key] ??= [];
 
             $grouped[$key][] = $document;
         }

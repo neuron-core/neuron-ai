@@ -179,18 +179,16 @@ class MySQLSchemaTool extends Tool
         foreach ($results as $row) {
             $tableName = $row['TABLE_NAME'];
 
-            if (!isset($tables[$tableName])) {
-                $tables[$tableName] = [
-                    'name' => $tableName,
-                    'engine' => $row['ENGINE'],
-                    'estimated_rows' => $row['TABLE_ROWS'],
-                    'comment' => $row['TABLE_COMMENT'],
-                    'columns' => [],
-                    'primary_key' => [],
-                    'unique_keys' => [],
-                    'indexes' => [],
-                ];
-            }
+            $tables[$tableName] ??= [
+                'name' => $tableName,
+                'engine' => $row['ENGINE'],
+                'estimated_rows' => $row['TABLE_ROWS'],
+                'comment' => $row['TABLE_COMMENT'],
+                'columns' => [],
+                'primary_key' => [],
+                'unique_keys' => [],
+                'indexes' => [],
+            ];
 
             if ($row['COLUMN_NAME']) {
                 $column = [
@@ -284,15 +282,13 @@ class MySQLSchemaTool extends Tool
         $indexes = [];
         foreach ($results as $row) {
             $key = $row['TABLE_NAME'] . '.' . $row['INDEX_NAME'];
-            if (!isset($indexes[$key])) {
-                $indexes[$key] = [
-                    'table' => $row['TABLE_NAME'],
-                    'name' => $row['INDEX_NAME'],
-                    'unique' => $row['NON_UNIQUE'] == 0,
-                    'type' => $row['INDEX_TYPE'],
-                    'columns' => [],
-                ];
-            }
+            $indexes[$key] ??= [
+                'table' => $row['TABLE_NAME'],
+                'name' => $row['INDEX_NAME'],
+                'unique' => $row['NON_UNIQUE'] == 0,
+                'type' => $row['INDEX_TYPE'],
+                'columns' => [],
+            ];
             $indexes[$key]['columns'][] = $row['COLUMN_NAME'];
         }
 

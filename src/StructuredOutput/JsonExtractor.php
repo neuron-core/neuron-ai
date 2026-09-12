@@ -24,6 +24,12 @@ use const JSON_THROW_ON_ERROR;
  */
 class JsonExtractor
 {
+    /**
+     * Each extractor receives the raw text and returns one or more JSON candidates.
+     * Extractors run in order; the first candidate that parses wins.
+     *
+     * @var array<callable(string): (array|string|null)>
+     */
     protected array $extractors;
 
     public function __construct()
@@ -34,6 +40,28 @@ class JsonExtractor
             $this->findByBrackets(...),
             $this->findJSONLikeStrings(...),
         ];
+    }
+
+    /**
+     * Can be a function or an invokable class.
+     *
+     * @param callable(string): (array|string|null) $extractor
+     */
+    public function addExtractor(callable $extractor): self
+    {
+        $this->extractors[] = $extractor;
+        return $this;
+    }
+
+    /**
+     * A list of functions or an invokable classes.
+     *
+     * @param array<callable(string): (array|string|null)> $extractors
+     */
+    public function setExtractors(array $extractors): self
+    {
+        $this->extractors = $extractors;
+        return $this;
     }
 
     /**

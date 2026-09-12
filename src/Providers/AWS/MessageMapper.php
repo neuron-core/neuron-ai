@@ -22,7 +22,8 @@ use NeuronAI\Providers\MessageMapperInterface;
 use stdClass;
 
 use function array_map;
-use function array_merge;
+use function array_splice;
+use function ksort;
 use function array_filter;
 use function array_values;
 use function base64_decode;
@@ -94,15 +95,41 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => array_merge($this->mapBlocks($message->getContentBlocks()), $toolCallContents),
+            'content' => $this->mapMessageContent($message, $toolCallContents),
         ];
+    }
+
+    protected function mapMessageContent(Message $message, array $toolContents = []): array
+    {
+        $contents = $this->mapBlocks($message->getContentBlocks());
+        $insertions = [];
+        foreach ($message->getMetadata('aws_redacted_reasoning') ?? [] as $index => $data) {
+            $insertions[$index] = ['reasoningContent' => ['redactedContent' => base64_decode($data)]];
+        }
+
+        $toolPositions = $message->getMetadata('aws_tool_positions') ?? [];
+        foreach ($toolContents as $index => $toolContent) {
+            if (isset($toolPositions[$index])) {
+                $insertions[$toolPositions[$index]] = $toolContent;
+            } else {
+                $contents[] = $toolContent;
+            }
+        }
+
+        // Positions refer to the original response, including redacted blocks and tool calls.
+        ksort($insertions);
+        foreach ($insertions as $index => $content) {
+            array_splice($contents, $index, 0, [$content]);
+        }
+
+        return $contents;
     }
 
     protected function mapMessage(Message $message): array
     {
         return [
             'role' => $message->getRole(),
-            'content' => $this->mapBlocks($message->getContentBlocks()),
+            'content' => $this->mapMessageContent($message),
         ];
     }
 
@@ -117,7 +144,14 @@ class MessageMapper implements MessageMapperInterface
     protected function mapContentBlock(ContentBlockInterface $block): ?array
     {
         return match ($block::class) {
-            ReasoningContent::class => ['text' => $block->content, 'signature' => $block->id],
+            ReasoningContent::class => [
+                'reasoningContent' => [
+                    'reasoningText' => [
+                        'text' => $block->content,
+                        ...($block->id === null ? [] : ['signature' => $block->id]),
+                    ],
+                ],
+            ],
             TextContent::class => ['text' => $block->content],
             ImageContent::class => $this->mapImageBlock($block),
             FileContent::class => $this->mapFileBlock($block),

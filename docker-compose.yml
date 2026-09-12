@@ -113,7 +113,7 @@ services:
       NEO4J_AUTH: none
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION:-8.17.0}
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION:-9.5.0}
     ports:
       - 9200:9200
     environment:

@@ -32,10 +32,6 @@ class AgentState extends WorkflowState
         return $this;
     }
 
-    /**
-     * @param string $toolName The tool name for regular tools, or a custom run key
-     *                         when the tool implements HasRunKey.
-     */
     public function incrementToolRun(string $toolName): void
     {
         $attempts = $this->get('__tool_runs', []);
@@ -43,13 +39,14 @@ class AgentState extends WorkflowState
         $this->set('__tool_runs', $attempts);
     }
 
-    /**
-     * @param string $toolName The tool name for regular tools, or a custom run key
-     *                         when the tool implements HasRunKey.
-     */
-    public function getToolRuns(string $toolName): int
+    public function getToolRuns(?string $toolName = null): int
     {
         $attempts = $this->get('__tool_runs', []);
+
+        if ($toolName === null) {
+            return $attempts;
+        }
+
         return $attempts[$toolName] ?? 0;
     }
 

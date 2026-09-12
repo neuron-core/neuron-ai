@@ -22,7 +22,6 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-
 use Generator;
 
 class AgentTest extends TestCase
@@ -128,6 +127,30 @@ class AgentTest extends TestCase
         $provider->assertMethodCallCount('structured', 1);
     }
 
+    public function test_structured_output_retries_when_the_response_has_no_text(): void
+    {
+        // A completion without text blocks (content filtered, max_tokens spent on
+        // reasoning, reasoning-only answer) makes getContent() return null: it must
+        // go through the retry loop like any other extraction failure instead of
+        // escaping it as a TypeError from JsonExtractor::getJson().
+        $provider = new FakeAIProvider(
+            new AssistantMessage([]),
+            new AssistantMessage('{"name": "Alice"}'),
+        );
+
+        $agent = Agent::make();
+        $agent->setAiProvider($provider);
+
+        $user = $agent->structured(
+            new UserMessage('Generate a user'),
+            User::class
+        );
+
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertSame('Alice', $user->name);
+        $provider->assertMethodCallCount('structured', 2);
+    }
+
     public function test_failed_chat_does_not_persist_inbound_message(): void
     {
         $history = new InMemoryChatHistory();
@@ -183,7 +206,7 @@ class AgentTest extends TestCase
 
         // A provider whose stream yields a chunk and then fails mid-flight,
         // modelling a dropped connection or a mid-stream API error.
-        $provider = new class extends FakeAIProvider {
+        $provider = new class () extends FakeAIProvider {
             public function stream(Message ...$messages): Generator
             {
                 yield new TextChunk('fake_msg', 'Hello');

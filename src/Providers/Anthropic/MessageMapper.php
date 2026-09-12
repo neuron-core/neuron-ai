@@ -23,6 +23,8 @@ use stdClass;
 
 use function array_filter;
 use function array_map;
+use function array_splice;
+use function ksort;
 use function array_values;
 
 class MessageMapper implements MessageMapperInterface
@@ -45,11 +47,37 @@ class MessageMapper implements MessageMapperInterface
         return $mapping;
     }
 
+    protected function mapMessageContent(Message $message, array $toolContents = []): array
+    {
+        $contents = $this->mapBlocks($message->getContentBlocks());
+        $insertions = [];
+        foreach ($message->getMetadata('anthropic_redacted_thinking') ?? [] as $index => $data) {
+            $insertions[$index] = ['type' => 'redacted_thinking', 'data' => $data];
+        }
+
+        $toolPositions = $message->getMetadata('anthropic_tool_positions') ?? [];
+        foreach ($toolContents as $index => $toolContent) {
+            if (isset($toolPositions[$index])) {
+                $insertions[$toolPositions[$index]] = $toolContent;
+            } else {
+                $contents[] = $toolContent;
+            }
+        }
+
+        // Positions refer to the original response, including redacted blocks and tool calls.
+        ksort($insertions);
+        foreach ($insertions as $index => $content) {
+            array_splice($contents, $index, 0, [$content]);
+        }
+
+        return $contents;
+    }
+
     protected function mapMessage(Message $message): array
     {
         return [
             'role' => $message->getRole(),
-            'content' => $this->mapBlocks($message->getContentBlocks()),
+            'content' => $this->mapMessageContent($message),
         ];
     }
 
@@ -135,13 +163,6 @@ class MessageMapper implements MessageMapperInterface
     protected function mapToolCall(ToolCallMessage $message): array
     {
         $parts = [];
-
-        // Add text content if present
-        if ($contentBlocks = $message->getContentBlocks()) {
-            $parts = array_map($this->mapSingleBlock(...), $contentBlocks);
-        }
-
-        // Add tool call blocks from the tool array
         foreach ($message->getTools() as $tool) {
             $parts[] = [
                 'type' => 'tool_use',
@@ -153,7 +174,7 @@ class MessageMapper implements MessageMapperInterface
 
         return [
             'role' => MessageRole::ASSISTANT,
-            'content' => $parts,
+            'content' => $this->mapMessageContent($message, $parts),
         ];
     }
 
