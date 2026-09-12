@@ -122,7 +122,7 @@ class AGUIInputTranslator extends ToolInputTranslator
                 throw new InputTranslationException('A cancelled resume must omit payload.');
             }
             $request = $targets[$id];
-            if ($request instanceof WaitForEventRequest && $request->getExpiresAt() !== null
+            if ($request instanceof WaitForEventRequest && $request->getExpiresAt() instanceof \DateTimeImmutable
                 && $request->getExpiresAt()->getTimestamp() <= time()) {
                 throw new InputTranslationException("Interrupt '{$id}' has expired.");
             }
