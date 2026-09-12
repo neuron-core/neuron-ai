@@ -2,8 +2,7 @@
 
 Executable evidence that Neuron's frontend-tool flow works with real clients:
 the official AG-UI client, Vercel AI SDK `useChat`, and CopilotKit's hooks through
-its runtime bridge. The design is in `frontend-protocol-integration-testing.md`
-at the repository root.
+its runtime bridge.
 
 ## Layout
 
