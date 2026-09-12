@@ -160,8 +160,8 @@ class FrontendToolAdapterTest extends TestCase
     public function test_success_closes_parts_and_is_terminal_for_both_adapters(): void
     {
         foreach ([new AGUIAdapter('thread', 'run'), new VercelAIAdapter()] as $adapter) {
-            iterator_to_array($adapter->start());
-            iterator_to_array($adapter->transform(new ReasoningChunk('message', 'Thinking')));
+            $this->decode($adapter->start());
+            $this->decode($adapter->transform(new ReasoningChunk('message', 'Thinking')));
             $events = $this->decode($adapter->end());
             $this->assertNotEmpty($events);
             $this->assertSame([], $this->decode($adapter->end()));
