@@ -15,7 +15,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
@@ -43,7 +43,7 @@ class AgentInputSubmissionTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setChatHistory($this->history)->setPersistence($this->persistence)->setAiProvider($this->provider);
-        $tool = new DeferredTool('browser');
+        $tool = new FrontendTool('browser');
         if ($approval) {
             $tool->requireApproval();
         }

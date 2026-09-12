@@ -8,7 +8,7 @@ use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Exceptions\InputTranslationException;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
@@ -63,7 +63,7 @@ class AGUIInputTranslator extends ToolInputTranslator
      * Build the client catalog without attaching it to an agent.
      *
      * @param array<string, mixed> $payload
-     * @return list<DeferredTool>
+     * @return list<FrontendTool>
      */
     public function tools(array $payload): array
     {
@@ -77,7 +77,7 @@ class AGUIInputTranslator extends ToolInputTranslator
             if (isset($tools[$name])) {
                 throw new InputTranslationException("Duplicate frontend tool '{$name}'.");
             }
-            $tools[$name] = new DeferredTool($name, $definition['description'], $definition['parameters']);
+            $tools[$name] = new FrontendTool($name, $definition['description'], $definition['parameters']);
         }
         return array_values($tools);
     }

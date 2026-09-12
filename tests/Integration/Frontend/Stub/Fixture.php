@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Integration\Frontend\Stub;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\SQLChatHistory;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -75,18 +75,18 @@ class Fixture
     /**
      * The frontend tool catalog the application itself declares (Vercel has no
      * client-supplied catalog). AG-UI clients declare the same tools themselves.
-     * @return list<DeferredTool>
+     * @return list<FrontendTool>
      */
     public function frontendTools(): array
     {
         return [
-            new DeferredTool('read_title', 'Read the title of the page the user is looking at.'),
-            new DeferredTool('read_text', 'Read the text of an element on the page.', [
+            new FrontendTool('read_title', 'Read the title of the page the user is looking at.'),
+            new FrontendTool('read_text', 'Read the text of an element on the page.', [
                 'type' => 'object',
                 'properties' => ['selector' => ['type' => 'string', 'description' => 'CSS selector']],
                 'required' => ['selector'],
             ]),
-            new DeferredTool('probe', 'Return a probe value of the requested kind.', [
+            new FrontendTool('probe', 'Return a probe value of the requested kind.', [
                 'type' => 'object',
                 'properties' => ['kind' => ['type' => 'string', 'enum' => ['object', 'array', 'false', 'zero', 'null', 'throw']]],
                 'required' => ['kind'],
@@ -98,7 +98,7 @@ class Fixture
      * Reconstruct the agent for a thread: persisted state, history, the scenario's
      * provider and backend tools, then the frontend catalog under the application's
      * tool policy (no shadowing of backend tools, approval where the scenario says so).
-     * @param list<DeferredTool> $frontendTools
+     * @param list<FrontendTool> $frontendTools
      */
     public function agent(string $threadId, array $frontendTools = []): Agent
     {

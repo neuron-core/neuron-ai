@@ -43,7 +43,7 @@ Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the sy
 
 ## Deferred tools
 
-`DeferredToolInterface` marks tools whose execution belongs outside the backend. Construct `DeferredTool` from a name, optional description and optional input JSON Schema, without an `__invoke()` implementation:
+`DeferredToolInterface` marks tools whose execution belongs outside the backend. Construct `FrontendTool` from a name, optional description and optional input JSON Schema, without an `__invoke()` implementation:
 
 ```php
 $tool = new DeferredTool(
@@ -59,7 +59,7 @@ The factory supports the existing property model, not arbitrary JSON Schema: `$r
 
 The original schema is retained for provider serialization, preserving additional keywords such as string/numeric constraints and `additionalProperties` that the property classes do not expose. `addProperty()` rejects additions when an explicit schema was provided. Without a schema, the usual property builder and subclass `properties()` hook remain available. Approval remains independent of execution location: suppressing approval does not make a deferred tool locally executable.
 
-`ToolInterface::getInputSchema()` is the provider-neutral schema boundary. `Tool` builds it from its properties; `DeferredTool` returns its supplied schema when present. Provider mappers consume that schema and retain their provider-specific adaptations (including Gemini's nullable-type conversion). Schema preservation does not perform input validation or guarantee that a provider supports every JSON Schema keyword.
+`ToolInterface::getInputSchema()` is the provider-neutral schema boundary. `Tool` builds it from its properties; `FrontendTool` returns its supplied schema when present. Provider mappers consume that schema and retain their provider-specific adaptations (including Gemini's nullable-type conversion). Schema preservation does not perform input validation or guarantee that a provider supports every JSON Schema keyword.
 
 `DeferredTool::execute()` is final and throws `ToolException`. Callers must identify the capability through `DeferredToolInterface` and arrange external execution instead. The default agent tool node finishes approvals and local execution, then hands outstanding external calls to `AwaitToolResultsNode`. Submit their results through `Agent::submitInputs($results, new ToolResultsTranslator())`; see `src/Agent/AGENTS.md` for the durable continuation contract. Protocol payload parsing remains an integration concern.
 

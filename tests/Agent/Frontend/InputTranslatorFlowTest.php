@@ -16,7 +16,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
@@ -41,7 +41,7 @@ class InputTranslatorFlowTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setPersistence($this->persistence)->setChatHistory($this->history)
-            ->setAiProvider($this->provider)->addTool((new DeferredTool('browser'))->requireApproval());
+            ->setAiProvider($this->provider)->addTool((new FrontendTool('browser'))->requireApproval());
         return $agent;
     }
 

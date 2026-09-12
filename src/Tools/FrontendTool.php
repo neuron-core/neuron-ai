@@ -10,7 +10,7 @@ use NeuronAI\Exceptions\ToolException;
 /**
  * A tool declaration whose execution belongs outside the backend.
  */
-class DeferredTool extends Tool implements DeferredToolInterface
+class FrontendTool extends Tool implements DeferredToolInterface
 {
     /**
      * @param array<string, mixed>|null $inputSchema

@@ -17,7 +17,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -63,7 +63,7 @@ class FrontendProtocolFlowTest extends TestCase
         $factory = static function () use ($history, $persistence, $provider): Agent {
             $agent = Agent::make();
             $agent->setChatHistory($history)->setPersistence($persistence)->setAiProvider($provider);
-            $agent->addTool((new DeferredTool('browser'))->requireApproval());
+            $agent->addTool((new FrontendTool('browser'))->requireApproval());
             return $agent;
         };
         $messages = [['id' => 'user', 'role' => 'user', 'content' => 'Read the page']];

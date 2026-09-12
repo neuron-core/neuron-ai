@@ -20,7 +20,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\CountingTool;
 use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Support\WorkflowTestStore;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\NodeContext;
@@ -62,7 +62,7 @@ class ToolRunLimitTest extends TestCase
             new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true)]),
             new ToolCallMessage(null, [new ToolCall('browser', 'b', deferred: true)]),
         );
-        $tools = [new DeferredTool('browser')];
+        $tools = [new FrontendTool('browser')];
         $state = $this->agent($tools)->chat(new UserMessage('Go'));
         $this->assertSame(1, $state->getToolRuns('browser'));
         $this->expectException(ToolRunsExceededException::class);
@@ -75,7 +75,7 @@ class ToolRunLimitTest extends TestCase
             new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true), new ToolCall('browser', 'b', deferred: true)]),
             new AssistantMessage('Done'),
         );
-        $tools = [new DeferredTool('browser')];
+        $tools = [new FrontendTool('browser')];
         $this->agent($tools, 2)->chat(new UserMessage('Go'));
         $state = $this->agent([], 2)->submitInputs(['a' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertTrue($state->isInterrupted());
@@ -98,7 +98,7 @@ class ToolRunLimitTest extends TestCase
             new ToolCallMessage(null, [new ToolCall('lookup', 'next', ['query' => 'Rust'])]),
         );
         $limit = $parallel ? 2 : 1;
-        $tools = [new CountingTool(), new DeferredTool('browser')];
+        $tools = [new CountingTool(), new FrontendTool('browser')];
         $this->agent($tools, $limit, $parallel)->chat(new UserMessage('Go'));
         $this->expectException(ToolRunsExceededException::class);
         $this->agent($tools, $limit, $parallel)->submitInputs(['external' => ['result' => 'ok']], new ToolResultsTranslator())->run();
@@ -194,7 +194,7 @@ class ToolRunLimitTest extends TestCase
         $event = new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true)]));
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $state = new AgentState();
-            $state->request = new InferenceRequest('Test', [new DeferredTool('browser')]);
+            $state->request = new InferenceRequest('Test', [new FrontendTool('browser')]);
             try {
                 $this->runNode($state, $event, 'denied', $attempt === 0 ? 0 : 10);
                 $this->fail('The recorded limit must still reject the call on replay.');

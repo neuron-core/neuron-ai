@@ -6,9 +6,9 @@ namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Providers\OpenAI\ToolMapper;
-use NeuronAI\Tests\Tools\Stub\DeferredToolStub;
+use NeuronAI\Tests\Tools\Stub\FrontendToolStub;
 use NeuronAI\Tests\Tools\Stub\InvokableDeferredTool;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\DeferredToolInterface;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -27,7 +27,7 @@ class DeferredToolTest extends TestCase
             'required' => ['query'],
             'additionalProperties' => false,
         ];
-        $tool = new DeferredTool('external_lookup', 'Search the application.', $schema);
+        $tool = new FrontendTool('external_lookup', 'Search the application.', $schema);
 
         $this->assertInstanceOf(DeferredToolInterface::class, $tool);
         $this->assertSame('external_lookup', $tool->getName());
@@ -46,7 +46,7 @@ class DeferredToolTest extends TestCase
 
     public function test_constructs_nested_properties_from_the_input_schema(): void
     {
-        $tool = new DeferredTool('select', inputSchema: [
+        $tool = new FrontendTool('select', inputSchema: [
             'type' => 'object',
             'properties' => ['selection' => [
                 'type' => 'object',
@@ -70,14 +70,14 @@ class DeferredToolTest extends TestCase
 
     public function test_explicit_empty_schema_exposes_no_properties(): void
     {
-        $tool = new DeferredToolStub(inputSchema: ['type' => 'object']);
+        $tool = new FrontendToolStub(inputSchema: ['type' => 'object']);
         $this->assertSame([], $tool->getProperties());
         $this->assertSame([], $tool->getRequiredProperties());
     }
 
     public function test_concrete_tool_can_use_the_existing_property_builder(): void
     {
-        $tool = DeferredTool::make('external_lookup');
+        $tool = FrontendTool::make('external_lookup');
         $tool->addProperty(new ToolProperty('query', PropertyType::STRING, required: true));
 
         $this->assertNull($tool->getDescription());
@@ -90,7 +90,7 @@ class DeferredToolTest extends TestCase
 
     public function test_explicit_schema_rejects_property_additions(): void
     {
-        $tool = new DeferredTool('external_lookup', inputSchema: ['type' => 'object']);
+        $tool = new FrontendTool('external_lookup', inputSchema: ['type' => 'object']);
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('already has an explicit input schema');
@@ -100,7 +100,7 @@ class DeferredToolTest extends TestCase
 
     public function test_schema_only_tool_maps_to_a_provider_definition(): void
     {
-        $tool = DeferredToolStub::make();
+        $tool = FrontendToolStub::make();
 
         $this->assertInstanceOf(DeferredToolInterface::class, $tool);
         $this->assertSame([
@@ -126,7 +126,7 @@ class DeferredToolTest extends TestCase
 
     public function test_deferred_tool_keeps_the_existing_approval_contract(): void
     {
-        $tool = new DeferredToolStub();
+        $tool = new FrontendToolStub();
         $tool->withApprovalPolicy(
             fn (ToolInterface $tool): bool|string => $tool->getInput('query') === 'sensitive'
                 ? 'Approve access to sensitive information.'
@@ -143,7 +143,7 @@ class DeferredToolTest extends TestCase
 
     public function test_schema_only_tool_rejects_backend_execution(): void
     {
-        $tool = DeferredToolStub::make()->setInputs(['query' => 'weather']);
+        $tool = FrontendToolStub::make()->setInputs(['query' => 'weather']);
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage(

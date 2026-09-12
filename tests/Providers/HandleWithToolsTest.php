@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Providers;
 
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\TestCase;
 
@@ -16,7 +16,7 @@ class HandleWithToolsTest extends TestCase
         $provider = new FakeAIProvider();
         $provider->setTools([
             new ToolStub('local'),
-            new DeferredTool('browser', 'Read the page title'),
+            new FrontendTool('browser', 'Read the page title'),
         ]);
 
         $local = $provider->newToolCall('local', 'local-call', []);

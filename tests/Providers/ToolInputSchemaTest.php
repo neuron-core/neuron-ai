@@ -12,7 +12,7 @@ use NeuronAI\Providers\OpenAI\Responses\ToolMapper as ResponsesToolMapper;
 use NeuronAI\Providers\OpenAI\ToolMapper as OpenAIToolMapper;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolInterface;
@@ -57,7 +57,7 @@ class ToolInputSchemaTest extends TestCase
             'required' => ['locations'],
             'additionalProperties' => false,
         ];
-        $tool = new DeferredTool('get_locations', 'Read locations from the application.', $schema);
+        $tool = new FrontendTool('get_locations', 'Read locations from the application.', $schema);
 
         $this->assertCount(2, $tool->getProperties());
         $this->assertSame($schema, $this->mappedSchema($mapper, $tool, $path));
@@ -93,7 +93,7 @@ class ToolInputSchemaTest extends TestCase
     {
         $this->assertSame(
             '{"type":"object","properties":{},"required":[]}',
-            json_encode($this->mappedSchema($mapper, new DeferredTool('get_location'), $path)),
+            json_encode($this->mappedSchema($mapper, new FrontendTool('get_location'), $path)),
         );
     }
 
@@ -105,7 +105,7 @@ class ToolInputSchemaTest extends TestCase
                 'location' => ['type' => ['string', 'null']],
             ],
         ];
-        $tool = new DeferredTool('lookup', inputSchema: $schema);
+        $tool = new FrontendTool('lookup', inputSchema: $schema);
         $expected = $schema;
         $expected['properties']['location']['type'] = 'string';
 

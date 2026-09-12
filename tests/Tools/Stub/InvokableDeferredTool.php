@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Stub;
 
-class InvokableDeferredTool extends DeferredToolStub
+class InvokableDeferredTool extends FrontendToolStub
 {
     public bool $invoked = false;
 

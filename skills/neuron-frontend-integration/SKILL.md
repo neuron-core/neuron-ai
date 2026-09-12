@@ -30,17 +30,17 @@ Two rules decide correctness:
 
 ### Declaring frontend tools
 
-A `DeferredTool` is a declaration only: name, description and an optional JSON schema. Executing it on the backend throws.
+A `FrontendTool` is a declaration only: name, description and an optional JSON schema. Executing it on the backend throws.
 
 ```php
-use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\FrontendTool;
 
-new DeferredTool(
+new FrontendTool(
     name: 'read_title',
     description: 'Read the title of the page the user is looking at.'
 );
 
-new DeferredTool(
+new FrontendTool(
     name: 'read_text',
     description: 'Read the text of an element on the page.',
     inputSchema: [
