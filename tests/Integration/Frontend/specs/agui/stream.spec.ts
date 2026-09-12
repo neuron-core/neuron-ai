@@ -1,24 +1,16 @@
 import { test, expect } from "@playwright/test";
 import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread } from "../../support/backend";
-import { answer, run, setPageTitle } from "../../support/agui";
+import { BACKEND, observe } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
+import { LONG_TITLE } from "../../fixtures/shared";
 
 test("fragmented delivery: a long multi-byte result survives the SSE boundary intact", async ({ request }) => {
-  const threadId = await registerThread(request, "deferred-title");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "What is the title?" });
+  const { agent } = await openThread(request, "deferred-title", "What is the title?");
   const first = await run(agent);
-
-  const title = "Nëurón ✓ 🚀 ".repeat(4000);
-  setPageTitle(title);
-  try {
-    answer(agent, first.calls);
-  } finally {
-    setPageTitle("Neuron Fixture");
-  }
+  answer(agent, first.calls, { read_title: LONG_TITLE });
   const second = await run(agent);
   expect(second.reply?.startsWith("Done: ")).toBe(true);
-  expect(JSON.parse(second.reply!.slice("Done: ".length))).toEqual({ call_read_title_1: title });
+  expect(JSON.parse(second.reply!.slice("Done: ".length))).toEqual({ call_read_title_1: LONG_TITLE });
 });
 
 test("an error before streaming starts is an HTTP failure the client surfaces as a rejected run", async () => {
@@ -28,9 +20,7 @@ test("an error before streaming starts is an HTTP failure the client surfaces as
 });
 
 test("an error after streaming started arrives as RUN_ERROR and the run is failed", async ({ request }) => {
-  const threadId = await registerThread(request, "broken");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Break." });
+  const { threadId, agent } = await openThread(request, "broken", "Break.");
 
   // The official client resolves the run and reports RUN_ERROR through the subscriber.
   const failed = await run(agent);
@@ -39,5 +29,4 @@ test("an error after streaming started arrives as RUN_ERROR and the run is faile
 
   const audit = await observe(request, threadId);
   expect(audit.invocations).toHaveLength(0);
-  console.log("run record after a failed run:", JSON.stringify(audit.run));
 });

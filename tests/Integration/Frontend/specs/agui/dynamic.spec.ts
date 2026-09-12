@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
 import type { Tool } from "@ag-ui/client";
-import { BACKEND, observe, registerThread } from "../../support/backend";
-import { FRONTEND_TOOLS, answer, run } from "../../support/agui";
+import { observe } from "../../support/backend";
+import { FRONTEND_TOOLS, answer, openThread, run } from "../../support/agui";
 
 /** A declaration shaped the way frontend libraries generate them from typed schemas. */
 const inspect: Tool = {
@@ -28,9 +27,7 @@ const inspect: Tool = {
 };
 
 test("client-declared schemas with nested objects, arrays and nullable values are accepted and exposed to the model", async ({ request }) => {
-  const threadId = await registerThread(request, "deferred-title");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "What is the title?" });
+  const { threadId, agent } = await openThread(request, "deferred-title", "What is the title?");
 
   const first = await run(agent, undefined, [...FRONTEND_TOOLS, inspect]);
   answer(agent, first.calls);
@@ -42,9 +39,7 @@ test("client-declared schemas with nested objects, arrays and nullable values ar
 });
 
 test("a tool the client no longer declares is not exposed, and the model asking for it fails the run", async ({ request }) => {
-  const threadId = await registerThread(request, "deferred-title");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "What is the title?" });
+  const { threadId, agent } = await openThread(request, "deferred-title", "What is the title?");
 
   const withoutReadTitle = FRONTEND_TOOLS.filter((tool) => tool.name !== "read_title");
   const failed = await run(agent, undefined, withoutReadTitle);
@@ -56,9 +51,7 @@ test("a tool the client no longer declares is not exposed, and the model asking 
 });
 
 test("a client declaration that shadows a backend tool is rejected by the application", async ({ request }) => {
-  const threadId = await registerThread(request, "mixed");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Time and title?" });
+  const { agent } = await openThread(request, "mixed", "Time and title?");
   const shadow: Tool = { name: "server_clock", description: "Pretend clock", parameters: { type: "object", properties: {} } };
   await expect(run(agent, undefined, [...FRONTEND_TOOLS, shadow])).rejects.toThrow(/HTTP 500.*collides/);
 });

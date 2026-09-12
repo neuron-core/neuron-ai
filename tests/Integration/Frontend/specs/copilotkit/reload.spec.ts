@@ -11,7 +11,6 @@ test("browser reload: the runtime bridge restores the thread and the open interr
   await page.reload();
   await expect(page.getByTestId("copilot-user-message").or(page.locator(".copilot-user-message")).first()).toBeVisible();
   const restored = page.getByTestId("interrupt");
-  console.log("interrupt visible after reload:", await restored.count());
   await expect(restored).toHaveAttribute("data-reason", "confirmation");
 
   await restored.getByRole("button", { name: "Approve" }).click();

@@ -1,5 +1,8 @@
 import { HttpAgent } from "@ag-ui/client";
 import type { Interrupt, ResumeEntry, Tool } from "@ag-ui/client";
+import type { APIRequestContext } from "@playwright/test";
+import { BACKEND, registerThread } from "./backend";
+import { probe } from "../fixtures/shared";
 
 /** The catalog a frontend declares; mirrors the fixture's own declarations for Vercel. */
 export const FRONTEND_TOOLS: Tool[] = [
@@ -31,6 +34,14 @@ export interface RunObservation {
   reply?: string;
 }
 
+/** Bind a fresh thread to a scenario and open an official client on it with the user's first message. */
+export async function openThread(request: APIRequestContext, scenario: string, prompt: string) {
+  const threadId = await registerThread(request, scenario);
+  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
+  agent.addMessage({ id: "user-1", role: "user", content: prompt });
+  return { threadId, agent };
+}
+
 /** Run the official client once and observe what it surfaced to the application. */
 export async function run(agent: HttpAgent, resume?: ResumeEntry[], tools: Tool[] = FRONTEND_TOOLS): Promise<RunObservation> {
   const observation: RunObservation = { calls: [], interrupts: [], resultFrames: {} };
@@ -53,28 +64,15 @@ export async function run(agent: HttpAgent, resume?: ResumeEntry[], tools: Tool[
   return observation;
 }
 
-export let pageTitle = "Neuron Fixture";
-
-export function setPageTitle(title: string): void {
-  pageTitle = title;
-}
-
 /** What the browser side would have produced for a call, executed here in Node. */
 export function execute(call: ObservedCall): unknown {
   switch (call.name) {
     case "read_title":
-      return pageTitle;
+      return "Neuron Fixture";
     case "read_text":
       return { "#first": "Alpha", "#second": "Beta" }[call.args.selector as string];
     case "probe":
-      switch (call.args.kind) {
-        case "object": return { a: 1 };
-        case "array": return [1, 2];
-        case "false": return false;
-        case "zero": return 0;
-        case "null": return null;
-        default: throw new Error("probe failed");
-      }
+      return probe(call.args.kind as string);
   }
   throw new Error(`No frontend handler for ${call.name}`);
 }
@@ -89,12 +87,15 @@ export function pending(agent: HttpAgent, calls: ObservedCall[]): ObservedCall[]
   return calls.filter((call) => owned.has(call.name) && !answered.has(call.id));
 }
 
-/** Hand results back the way an AG-UI frontend does: one tool message per executed call, content as text. */
-export function answer(agent: HttpAgent, calls: ObservedCall[]): ObservedCall[] {
+/**
+ * Hand results back the way an AG-UI frontend does: one tool message per executed
+ * call, content as text. `outputs` replaces the handler value for the named tools.
+ */
+export function answer(agent: HttpAgent, calls: ObservedCall[], outputs: Record<string, unknown> = {}): ObservedCall[] {
   const executed = pending(agent, calls);
   for (const call of executed) {
     try {
-      const value = execute(call);
+      const value = call.name in outputs ? outputs[call.name] : execute(call);
       agent.addMessage({ id: `result-${call.id}`, role: "tool", toolCallId: call.id, content: typeof value === "string" ? value : JSON.stringify(value) });
     } catch (error) {
       agent.addMessage({ id: `result-${call.id}`, role: "tool", toolCallId: call.id, content: "", error: (error as Error).message });

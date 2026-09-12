@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
 import type { UIMessage } from "ai";
+import { probe, titleFromParams } from "../shared";
 
 declare global {
   interface Window {
@@ -14,8 +15,7 @@ declare global {
 // Test controls arrive through the page URL, never through the chat request.
 const params = new URLSearchParams(window.location.search);
 const threadId = params.get("thread") ?? "unregistered";
-// A long multi-byte title exercises fragmented delivery without overflowing the page URL.
-document.title = params.get("title") === "__long__" ? "Nëurón ✓ 🚀 ".repeat(4000) : params.get("title") ?? "Neuron Fixture";
+document.title = titleFromParams(params);
 // "eager" submits as soon as any tool has an output (partial batches); "slow" holds one
 // selector's handler until the test calls window.releaseSlow().
 const eagerSubmission = params.get("submit") === "eager";
@@ -32,17 +32,6 @@ function restoreMessages(): UIMessage[] {
     return JSON.parse(sessionStorage.getItem(storageKey) ?? "[]");
   } catch {
     return [];
-  }
-}
-
-function probe(kind: string): unknown {
-  switch (kind) {
-    case "object": return { a: 1 };
-    case "array": return [1, 2];
-    case "false": return false;
-    case "zero": return 0;
-    case "null": return null;
-    default: throw new Error("probe failed");
   }
 }
 

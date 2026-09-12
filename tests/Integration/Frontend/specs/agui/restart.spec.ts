@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, startBackend, toolResultsSentToProvider } from "../../support/backend";
-import { answer, run } from "../../support/agui";
+import { observe, startBackend, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
 
 test("backend restart: a fresh process continues the persisted wait and completed backend work is not rerun", async ({ request }) => {
-  const threadId = await registerThread(request, "mixed");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Time and title?" });
+  const { threadId, agent } = await openThread(request, "mixed", "Time and title?");
   const first = await run(agent);
   expect(answer(agent, first.calls).map((call) => call.id)).toEqual(["call_read_title_1"]);
 

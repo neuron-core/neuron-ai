@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { LONG_TITLE } from "../../fixtures/shared";
 import { openChat, send } from "../../support/vercel";
 
 test("fragmented delivery: a long multi-byte result survives the UI message stream intact", async ({ page, request }) => {
   // document.title strips surrounding whitespace, so the browser reports the trimmed value.
-  const title = "Nëurón ✓ 🚀 ".repeat(4000).trim();
+  const title = LONG_TITLE.trim();
   await openChat(page, request, "deferred-title", { title: "__long__" });
   await send(page, "What is the title?");
 

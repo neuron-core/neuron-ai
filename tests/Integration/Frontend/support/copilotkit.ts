@@ -1,5 +1,6 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { FRONTEND, registerThread } from "./backend";
+export { handlerRuns } from "./backend";
 
 /** Open the CopilotKit fixture on a fresh thread and count every agent run the client starts. */
 export async function openChat(page: Page, request: APIRequestContext, scenario: string, options: Record<string, string> = {}) {
@@ -21,8 +22,4 @@ export async function send(page: Page, text: string): Promise<void> {
 
 export async function expectReply(page: Page, text: string): Promise<void> {
   await expect(page.getByTestId("copilot-assistant-message").last()).toContainText(text);
-}
-
-export function handlerRuns(page: Page): Promise<Record<string, number>> {
-  return page.evaluate(() => window.handlerRuns);
 }

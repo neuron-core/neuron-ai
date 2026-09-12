@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 export const BACKEND = "http://127.0.0.1:8787";
 export const FRONTEND = "http://127.0.0.1:5173";
@@ -42,6 +42,11 @@ export function toolResultsSentToProvider(invocation: ProviderInvocation): Recor
     for (const call of message.tools) results[call.callId] = call.result;
   }
   return results;
+}
+
+/** How many times each browser handler ran, by call id, as counted by the fixture page. */
+export function handlerRuns(page: Page): Promise<Record<string, number>> {
+  return page.evaluate(() => window.handlerRuns);
 }
 
 /** Start an independent PHP process on the same database, as a restarted backend would. */

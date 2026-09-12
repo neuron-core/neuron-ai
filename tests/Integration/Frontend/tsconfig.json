@@ -6,8 +6,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
+    "noEmit": true
   },
   "include": ["specs", "support", "fixtures", "playwright.config.ts", "vite.config.ts"]
 }

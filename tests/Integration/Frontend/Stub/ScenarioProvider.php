@@ -24,10 +24,8 @@ use PDO;
 use function array_filter;
 use function array_key_exists;
 use function array_map;
-use function array_merge;
 use function array_slice;
 use function count;
-use function in_array;
 use function json_encode;
 
 /**
@@ -114,18 +112,11 @@ class ScenarioProvider implements AIProviderInterface
     /** @param Message[] $messages */
     protected function respond(string $method, array $messages): Message
     {
-        $plan = $this->turnPlan($messages);
         $results = $this->receivedResults($this->currentTurn($messages));
-        $planned = array_merge(...array_map(fn (array $batch): array => array_map(fn (array $call): string => $call[1], $batch), $plan));
-        foreach ($results as $callId => $result) {
-            if (!in_array($callId, $planned, true)) {
-                throw new ProviderException("Scenario '{$this->scenario}' received a result for unplanned call '{$callId}'.");
-            }
-        }
 
-        foreach ($plan as $batch) {
-            $pending = array_filter($batch, fn (array $call): bool => !array_key_exists($call[1], $results));
-            if ($pending !== []) {
+        foreach ($this->turnPlan($messages) as $batch) {
+            $unanswered = array_filter($batch, fn (array $call): bool => !array_key_exists($call[1], $results));
+            if ($unanswered !== []) {
                 $response = new ToolCallMessage(null, array_map(
                     fn (array $call) => $this->newToolCall($call[0], $call[1], $call[2]),
                     $batch,

@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { answer, run } from "../../support/agui";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
 
 test("continued conversation: a second inference step dispatches only its new call and completed work is not repeated", async ({ request }) => {
-  const threadId = await registerThread(request, "two-steps");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Title, then first paragraph." });
+  const { threadId, agent } = await openThread(request, "two-steps", "Title, then first paragraph.");
 
   const first = await run(agent);
   expect(first.calls.map((call) => call.id)).toEqual(["call_read_title_1"]);

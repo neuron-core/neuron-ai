@@ -34,6 +34,11 @@ function respondJson(int $status, array $body): void
     echo json_encode($body, JSON_THROW_ON_ERROR);
 }
 
+function badRequest(string $reason): never
+{
+    throw new InputTranslationException($reason);
+}
+
 /**
  * Send the protocol headers, then relay frames as they are produced. A failure
  * after this point is already on the wire as the adapter's own error frame.
@@ -52,31 +57,32 @@ function streamFrames(Generator $frames, SSEAdapter $adapter): void
     }
 }
 
-function badRequest(string $reason): never
+/**
+ * @param array<string, mixed> $payload
+ * @return array<string, mixed> the message the request ends with, or [] when there is none
+ */
+function lastMessage(array $payload): array
 {
-    throw new InputTranslationException($reason);
+    $messages = $payload['messages'] ?? [];
+    return $messages === [] ? [] : $messages[array_key_last($messages)];
 }
 
 /** @param array<string, mixed> $payload */
 function agui(Fixture $fixture, array $payload): void
 {
     $threadId = $payload['threadId'] ?? badRequest('AG-UI input requires threadId.');
-    $messages = $payload['messages'] ?? [];
-    $last = $messages === [] ? null : $messages[array_key_last($messages)];
-
+    $last = lastMessage($payload);
     $translator = new AGUIInputTranslator();
     $agent = $fixture->agent($threadId, $translator->tools($payload));
-    $adapter = new AGUIAdapter($threadId, $payload['runId'] ?? null, $messages, $payload['state'] ?? []);
+    $adapter = new AGUIAdapter($threadId, $payload['runId'] ?? null, $payload['messages'] ?? [], $payload['state'] ?? []);
     $agent->setStreamAdapter($adapter);
 
     $continuation = ($payload['resume'] ?? []) !== [] || ($last['role'] ?? null) === 'tool';
-    if ($continuation) {
-        $frames = $agent->submitInputs($payload, $translator)->events();
-    } elseif (($last['role'] ?? null) === 'user') {
-        $frames = $agent->stream(new UserMessage((string) $last['content']));
-    } else {
-        badRequest('AG-UI input must end with a user message or carry a continuation.');
-    }
+    $frames = match (true) {
+        $continuation => $agent->submitInputs($payload, $translator)->events(),
+        ($last['role'] ?? null) === 'user' => $agent->stream(new UserMessage((string) $last['content'])),
+        default => badRequest('AG-UI input must end with a user message or carry a continuation.'),
+    };
     streamFrames($frames, $adapter);
 }
 
@@ -84,26 +90,21 @@ function agui(Fixture $fixture, array $payload): void
 function vercel(Fixture $fixture, array $payload): void
 {
     $threadId = $payload['id'] ?? badRequest('Vercel chat requests require the chat id.');
-    $messages = $payload['messages'] ?? [];
-    $last = $messages === [] ? null : $messages[array_key_last($messages)];
-
+    $last = lastMessage($payload);
     $agent = $fixture->agent($threadId, $fixture->frontendTools());
+    $adapter = match ($last['role'] ?? null) {
+        'assistant' => new VercelAIAdapter($last['id'], $last['parts'] ?? []),
+        'user' => new VercelAIAdapter(),
+        default => badRequest('Vercel chat requests must end with a user or assistant message.'),
+    };
+    $agent->setStreamAdapter($adapter);
 
-    if (($last['role'] ?? null) === 'assistant') {
-        $adapter = new VercelAIAdapter($last['id'], $last['parts'] ?? []);
-        $agent->setStreamAdapter($adapter);
-        $frames = $agent->submitInputs($payload, new VercelAIInputTranslator())->events();
-    } elseif (($last['role'] ?? null) === 'user') {
-        $adapter = new VercelAIAdapter();
-        $agent->setStreamAdapter($adapter);
-        $text = implode('', array_map(
+    $frames = $last['role'] === 'assistant'
+        ? $agent->submitInputs($payload, new VercelAIInputTranslator())->events()
+        : $agent->stream(new UserMessage(implode('', array_map(
             fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '',
             $last['parts'] ?? [],
-        ));
-        $frames = $agent->stream(new UserMessage($text));
-    } else {
-        badRequest('Vercel chat requests must end with a user or assistant message.');
-    }
+        ))));
     streamFrames($frames, $adapter);
 }
 

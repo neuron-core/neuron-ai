@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { answer, run } from "../../support/agui";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
 
 test("mixed local and deferred tools: local work runs once on the backend and only the deferred call reaches the client", async ({ request }) => {
-  const threadId = await registerThread(request, "mixed");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Time and title?" });
+  const { threadId, agent } = await openThread(request, "mixed", "Time and title?");
 
   const first = await run(agent);
   expect(first.calls.map((call) => call.name)).toEqual(["server_clock", "read_title"]);

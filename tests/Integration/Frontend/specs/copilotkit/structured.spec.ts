@@ -11,7 +11,6 @@ test("structured results: CopilotKit serializes handler values to text before th
 
   const audit = await observe(request, threadId);
   const results = toolResultsSentToProvider(audit.invocations[1]);
-  console.log("structured results as received by the provider:", JSON.stringify(results));
   // CopilotKit's documented normalization: objects and arrays as JSON, false and 0 as
   // their text, and null/undefined as an empty string.
   expect(results).toEqual({ call_object: '{"a":1}', call_array: "[1,2]", call_false: "false", call_zero: "0", call_null: "" });

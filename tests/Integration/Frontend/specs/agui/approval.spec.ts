@@ -1,12 +1,9 @@
-import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { answer, pending, run } from "../../support/agui";
+import { test, expect, type APIRequestContext } from "@playwright/test";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, pending, run } from "../../support/agui";
 
-async function requestApproval(request: Parameters<typeof registerThread>[0]) {
-  const threadId = await registerThread(request, "approval-title");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "What is the title?" });
+async function requestApproval(request: APIRequestContext) {
+  const { threadId, agent } = await openThread(request, "approval-title", "What is the title?");
   const first = await run(agent);
   expect(first.calls).toEqual([]);
   expect(first.interrupts).toHaveLength(1);

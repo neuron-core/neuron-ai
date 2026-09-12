@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { answer, run } from "../../support/agui";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
 
 test("two calls with the same tool name stay distinct by call id", async ({ request }) => {
-  const threadId = await registerThread(request, "same-name");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Read both." });
+  const { threadId, agent } = await openThread(request, "same-name", "Read both.");
 
   const first = await run(agent);
   expect(first.calls).toEqual([

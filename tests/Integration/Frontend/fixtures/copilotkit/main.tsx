@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { CopilotKit, CopilotChat, useFrontendTool, useInterrupt } from "@copilotkit/react-core/v2";
 import { z } from "zod";
+import { probe, titleFromParams } from "../shared";
 import "@copilotkit/react-core/v2/styles.css";
 
 declare global {
@@ -13,25 +14,13 @@ declare global {
 // Test controls arrive through the page URL, never through the protocol request.
 const params = new URLSearchParams(window.location.search);
 const threadId = params.get("thread") ?? "unregistered";
-// A long multi-byte title exercises fragmented delivery without overflowing the page URL.
-document.title = params.get("title") === "__long__" ? "Nëurón ✓ 🚀 ".repeat(4000) : params.get("title") ?? "Neuron Fixture";
+document.title = titleFromParams(params);
 // Which tool components are mounted; registration follows the component lifecycle.
 const mounted = new Set((params.get("tools") ?? "read_title,read_text,probe").split(","));
 window.handlerRuns = {};
 
 function count(callId: string): void {
   window.handlerRuns[callId] = (window.handlerRuns[callId] ?? 0) + 1;
-}
-
-function probe(kind: string): unknown {
-  switch (kind) {
-    case "object": return { a: 1 };
-    case "array": return [1, 2];
-    case "false": return false;
-    case "zero": return 0;
-    case "null": return null;
-    default: throw new Error("probe failed");
-  }
 }
 
 function ReadTitleTool() {

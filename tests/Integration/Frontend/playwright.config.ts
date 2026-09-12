@@ -9,7 +9,6 @@ const fixtureDatabase = process.env.NEURON_FIXTURE_DB;
 
 export default defineConfig({
   testDir: "specs",
-  fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
   use: { trace: "retain-on-failure" },

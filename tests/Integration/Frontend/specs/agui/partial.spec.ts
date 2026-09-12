@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { answer, pending, run } from "../../support/agui";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { answer, openThread, pending, run } from "../../support/agui";
 
 test("partial and out-of-order results: an accepted result is kept, pending work stays visible, nothing repeats", async ({ request }) => {
-  const threadId = await registerThread(request, "same-name");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Read both." });
+  const { threadId, agent } = await openThread(request, "same-name", "Read both.");
 
   const first = await run(agent);
   expect(first.calls.map((call) => call.id)).toEqual(["call_text_1", "call_text_2"]);

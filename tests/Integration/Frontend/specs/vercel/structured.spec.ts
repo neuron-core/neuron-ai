@@ -13,7 +13,6 @@ test("structured results: objects, arrays, false, 0 and null survive the Vercel 
   expect(Object.keys(await handlerRuns(page))).toHaveLength(5);
 
   const audit = await observe(request, threadId);
-  console.log("structured results as received by the provider:", JSON.stringify(toolResultsSentToProvider(audit.invocations[1])));
   expect(toolResultsSentToProvider(audit.invocations[1])).toEqual({
     call_object: '{"a":1}',
     call_array: "[1,2]",

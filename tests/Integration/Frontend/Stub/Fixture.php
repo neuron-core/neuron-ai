@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Integration\Frontend\Stub;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Tools\DeferredTool;
+use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
@@ -31,6 +32,16 @@ class Fixture
 
     /** Scenarios whose frontend tools are approval-gated. */
     protected const APPROVAL_REQUIRED = ['approval-title' => ['read_title']];
+
+    /** @return list<Tool> the backend-executed tools a scenario needs */
+    protected function backendTools(string $scenario, string $threadId): array
+    {
+        return match ($scenario) {
+            'mixed' => [new ServerClockTool($this->pdo, $threadId)],
+            'backend-error' => [new ServerFailingTool()],
+            default => [],
+        };
+    }
 
     public function __construct(string $databasePath)
     {
@@ -97,12 +108,7 @@ class Fixture
         $agent->setChatHistory(new SQLChatHistory($this->pdo, $threadId));
         $agent->setPersistence(new DatabasePersistence($this->pdo));
         $agent->setAiProvider(new ScenarioProvider($this->pdo, $threadId, $scenario));
-        if ($scenario === 'mixed') {
-            $agent->addTool(new ServerClockTool($this->pdo, $threadId));
-        }
-        if ($scenario === 'backend-error') {
-            $agent->addTool(new ServerFailingTool());
-        }
+        $agent->addTool($this->backendTools($scenario, $threadId));
 
         foreach ($frontendTools as $tool) {
             if (in_array($tool->getName(), self::STABLE_TOOLS, true)) {

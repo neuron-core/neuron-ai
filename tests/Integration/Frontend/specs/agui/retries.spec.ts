@@ -1,15 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import { HttpAgent } from "@ag-ui/client";
 import type { Message } from "@ag-ui/client";
-import { BACKEND, observe, registerThread } from "../../support/backend";
-import { answer, run } from "../../support/agui";
+import { BACKEND, observe } from "../../support/backend";
+import { answer, openThread, run } from "../../support/agui";
 
-async function firstStep(request: Parameters<typeof registerThread>[0], scenario: string, prompt: string) {
-  const threadId = await registerThread(request, scenario);
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: prompt });
-  const first = await run(agent);
-  return { threadId, agent, calls: first.calls };
+async function firstStep(request: APIRequestContext, scenario: string, prompt: string) {
+  const { threadId, agent } = await openThread(request, scenario, prompt);
+  return { threadId, agent, calls: (await run(agent)).calls };
 }
 
 function replay(threadId: string, messages: Message[]): HttpAgent {

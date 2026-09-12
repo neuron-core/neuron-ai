@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { HttpAgent } from "@ag-ui/client";
-import { BACKEND, observe, registerThread, toolResultsSentToProvider } from "../../support/backend";
-import { run } from "../../support/agui";
+import { observe, toolResultsSentToProvider } from "../../support/backend";
+import { openThread, run } from "../../support/agui";
 
 test("AG-UI error representation: a backend tool failure is marked on the wire but the official client keeps only its content", async ({ request }) => {
-  const threadId = await registerThread(request, "backend-error");
-  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId });
-  agent.addMessage({ id: "user-1", role: "user", content: "Fail on purpose." });
+  const { threadId, agent } = await openThread(request, "backend-error", "Fail on purpose.");
 
   const first = await run(agent);
   expect(first.calls.map((call) => call.id)).toEqual(["call_fail_1"]);

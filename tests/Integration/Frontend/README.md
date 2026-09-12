@@ -14,7 +14,8 @@ its runtime bridge.
 | `fixtures/vercel/` | React app on `useChat` with a browser-side `read_title` handler |
 | `fixtures/copilotkit/` | React app on `useFrontendTool` + `CopilotChat`, and `server.mjs`, the CopilotKit runtime bridge that drives `/agui` through `HttpAgent` |
 | `specs/<client>/` | Playwright specs, one project per client |
-| `support/backend.ts` | Thread registration and audit observation helpers |
+| `support/` | Thread registration and audit observation (`backend.ts`), plus one helper module per client |
+| `fixtures/shared.ts` | Handler behaviour shared by the browser fixtures and the Node AG-UI client |
 
 Each Playwright run gets its own SQLite file; each test registers a unique thread
 bound to a scenario through `POST /_test/threads`. Protocol requests carry only
@@ -34,7 +35,7 @@ npx playwright test --project=agui  # SDK contract tests, no browser needed
 ```
 
 Playwright starts the PHP server (8787), the CopilotKit runtime bridge (4000), and
-the Vite dev server (5173) itself; Vite proxies `/api/*` to PHP and `/copilotkit` to
+the Vite dev server (5173) itself; Vite proxies `/api/*` to PHP and `/runtime` to
 the bridge so the browser fixtures stay same-origin.
 
 ## Version compatibility
@@ -63,7 +64,8 @@ differ from the fixture's.
 
 Each thread is bound to one scenario of the provider's plan (`Stub/ScenarioProvider.php`).
 The final answer echoes every result the model received, so the UI text and the
-audit can both be checked. All scenarios run through all three clients.
+audit can both be checked. Every scenario runs through all three clients; the specs
+beyond the scenario table exercise whichever client can express the behaviour.
 
 | Scenario | Proves |
 |---|---|
@@ -130,11 +132,3 @@ multi-byte delivery, and errors before and after the response headers.
   and nothing is left waiting.
 - **Long multi-byte results.** Survive fragmented SSE on all three clients; the only
   change observed is `document.title` trimming surrounding whitespace.
-
-## Status
-
-Phases 1 to 3 of the design are implemented and passing through all three clients
-(`composer test:frontend` from the repository root).
-
-Every test uses one shared database per Playwright run with a unique thread per test;
-a database per test is deferred until a scenario needs it.
