@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\FileSystem;
 
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 use function file_get_contents;
@@ -20,7 +20,7 @@ use function preg_last_error_msg;
 
 use const PREG_OFFSET_CAPTURE;
 
-class GrepFileContentTool extends Tool
+class GrepFileContentTool extends FileSystemTool
 {
     protected string $name = 'grep_file_content';
     protected ?string $description = 'Search for a regex pattern in a file.';
@@ -41,19 +41,24 @@ class GrepFileContentTool extends Tool
         ];
     }
 
-    public function __invoke(string $file_path, string $pattern): string
+    public function __invoke(string $file_path, string $pattern): string|ToolOutput
     {
-        if (!is_file($file_path)) {
-            return "Error: File '{$file_path}' does not exist.";
+        $path = $this->resolve($file_path);
+        if ($path instanceof ToolOutput) {
+            return $path;
         }
 
-        if (!is_readable($file_path)) {
-            return "Error: File '{$file_path}' is not readable.";
+        if (!is_file($path)) {
+            return ToolOutput::error("File '{$file_path}' does not exist.");
         }
 
-        $content = file_get_contents($file_path);
+        if (!is_readable($path)) {
+            return ToolOutput::error("File '{$file_path}' is not readable.");
+        }
+
+        $content = file_get_contents($path);
         if ($content === false) {
-            return "Error: Unable to read file '{$file_path}'.";
+            return ToolOutput::error("Unable to read file '{$file_path}'.");
         }
 
         $matches = [];
@@ -61,7 +66,7 @@ class GrepFileContentTool extends Tool
 
         if ($result === false) {
             $error = preg_last_error_msg();
-            return "Error: Invalid regex pattern '{$pattern}'. {$error}";
+            return ToolOutput::error("Invalid regex pattern '{$pattern}'. {$error}");
         }
 
         if ($result === 0) {

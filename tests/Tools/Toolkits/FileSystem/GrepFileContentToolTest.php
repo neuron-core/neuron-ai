@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\GrepFileContentTool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -17,6 +19,8 @@ use function str_repeat;
 
 class GrepFileContentToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private GrepFileContentTool $tool;
 
     protected function setUp(): void
@@ -26,9 +30,7 @@ class GrepFileContentToolTest extends TestCase
 
     public function test_grep_non_existent_file(): void
     {
-        $result = ($this->tool)('/non/existent/file.txt', 'pattern');
-
-        $this->assertStringStartsWith("Error: File '/non/existent/file.txt' does not exist.", $result);
+        $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt', 'pattern'));
     }
 
     public function test_grep_no_matches(): void
@@ -124,8 +126,9 @@ class GrepFileContentToolTest extends TestCase
         $result = ($this->tool)($tempFile, '/[invalid(');
         unlink($tempFile);
 
-        $this->assertStringStartsWith('Error:', $result);
-        $this->assertStringContainsString("Invalid regex pattern '/[invalid('", $result);
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertStringContainsString("Invalid regex pattern '/[invalid('", $result->getText());
     }
 
     public function test_grep_with_special_characters(): void

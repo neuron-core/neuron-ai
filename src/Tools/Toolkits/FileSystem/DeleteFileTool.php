@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\FileSystem;
 
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 use function file_exists;
@@ -15,7 +15,7 @@ use function unlink;
 /**
  * Delete a file from the filesystem.
  */
-class DeleteFileTool extends Tool
+class DeleteFileTool extends FileSystemTool
 {
     protected string $name = 'delete_file';
     protected ?string $description = 'Delete a file from the filesystem. This action is irreversible.';
@@ -32,33 +32,23 @@ class DeleteFileTool extends Tool
         ];
     }
 
-    public function __invoke(string $file_path): array
+    public function __invoke(string $file_path): array|ToolOutput
     {
-        if (!file_exists($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'delete_file',
-                'file_path' => $file_path,
-                'message' => "File '{$file_path}' does not exist.",
-            ];
+        $path = $this->resolve($file_path);
+        if ($path instanceof ToolOutput) {
+            return $path;
         }
 
-        if (!is_file($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'delete_file',
-                'file_path' => $file_path,
-                'message' => "'{$file_path}' is not a file. Directories cannot be deleted with this tool.",
-            ];
+        if (!file_exists($path)) {
+            return ToolOutput::error("File '{$file_path}' does not exist.");
         }
 
-        if (!unlink($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'delete_file',
-                'file_path' => $file_path,
-                'message' => "Failed to delete file '{$file_path}'.",
-            ];
+        if (!is_file($path)) {
+            return ToolOutput::error("'{$file_path}' is not a file. Directories cannot be deleted with this tool.");
+        }
+
+        if (!unlink($path)) {
+            return ToolOutput::error("Failed to delete file '{$file_path}'.");
         }
 
         return [

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\DeleteFileTool;
 use PHPUnit\Framework\TestCase;
 
@@ -15,6 +16,8 @@ use function unlink;
 
 class DeleteFileToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private string $tempFile;
 
     protected function setUp(): void
@@ -43,18 +46,15 @@ class DeleteFileToolTest extends TestCase
 
     public function test_returns_error_when_file_does_not_exist(): void
     {
-        $tool = new DeleteFileTool();
-        $result = ($tool)('/non/existent/file.txt');
-
-        $this->assertSame('error', $result['status']);
+        $this->assertToolError("File '/non/existent/file.txt' does not exist.", (new DeleteFileTool())('/non/existent/file.txt'));
     }
 
     public function test_returns_error_when_path_is_directory(): void
     {
-        $tool = new DeleteFileTool();
-        $result = ($tool)(sys_get_temp_dir());
-
-        $this->assertSame('error', $result['status']);
+        $this->assertToolError(
+            "'" . sys_get_temp_dir() . "' is not a file. Directories cannot be deleted with this tool.",
+            (new DeleteFileTool())(sys_get_temp_dir())
+        );
     }
 
     public function test_tool_name(): void

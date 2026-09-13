@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\EditFileTool;
 use PHPUnit\Framework\TestCase;
 
@@ -16,6 +17,8 @@ use function unlink;
 
 class EditFileToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private string $tempFile;
 
     protected function setUp(): void
@@ -44,20 +47,20 @@ class EditFileToolTest extends TestCase
 
     public function test_returns_error_when_file_does_not_exist(): void
     {
-        $tool = new EditFileTool();
-        $result = ($tool)('/non/existent/file.txt', 'search', 'replace');
-
-        $this->assertSame('error', $result['status']);
+        $this->assertToolError(
+            "File '/non/existent/file.txt' does not exist.",
+            (new EditFileTool())('/non/existent/file.txt', 'search', 'replace')
+        );
     }
 
     public function test_returns_error_when_search_not_found(): void
     {
         file_put_contents($this->tempFile, 'content');
 
-        $tool = new EditFileTool();
-        $result = ($tool)($this->tempFile, 'not present', 'replace');
-
-        $this->assertSame('error', $result['status']);
+        $this->assertToolError(
+            "Search string not found in '{$this->tempFile}'. Ensure the text matches exactly.",
+            (new EditFileTool())($this->tempFile, 'not present', 'replace')
+        );
     }
 
     public function test_tool_name(): void

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\FileSystem;
 
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 use function file_get_contents;
@@ -19,7 +19,7 @@ use function str_replace;
 /**
  * Edit a file by applying a search-and-replace operation.
  */
-class EditFileTool extends Tool
+class EditFileTool extends FileSystemTool
 {
     protected string $name = 'edit_file';
     protected ?string $description = 'Edit a file by replacing an exact string or block of text with new content. The search string must match exactly (including whitespace and indentation). Use write_file if you need to replace the entire file.';
@@ -48,64 +48,39 @@ class EditFileTool extends Tool
         ];
     }
 
-    public function __invoke(string $file_path, string $search, string $replace): array
+    public function __invoke(string $file_path, string $search, string $replace): array|ToolOutput
     {
-        if (!is_file($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "File '{$file_path}' does not exist.",
-            ];
+        $path = $this->resolve($file_path);
+        if ($path instanceof ToolOutput) {
+            return $path;
         }
 
-        if (!is_readable($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "File '{$file_path}' is not readable.",
-            ];
+        if (!is_file($path)) {
+            return ToolOutput::error("File '{$file_path}' does not exist.");
         }
 
-        $current = file_get_contents($file_path);
+        if (!is_readable($path)) {
+            return ToolOutput::error("File '{$file_path}' is not readable.");
+        }
+
+        $current = file_get_contents($path);
         if ($current === false) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "Failed to read file '{$file_path}'.",
-            ];
+            return ToolOutput::error("Failed to read file '{$file_path}'.");
         }
 
         if (!str_contains($current, $search)) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "Search string not found in '{$file_path}'. Ensure the text matches exactly.",
-            ];
+            return ToolOutput::error("Search string not found in '{$file_path}'. Ensure the text matches exactly.");
         }
 
-        if (!is_writable($file_path)) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "File '{$file_path}' is not writable.",
-            ];
+        if (!is_writable($path)) {
+            return ToolOutput::error("File '{$file_path}' is not writable.");
         }
 
         $updated = str_replace($search, $replace, $current);
-        $result = file_put_contents($file_path, $updated);
+        $result = file_put_contents($path, $updated);
 
         if ($result === false) {
-            return [
-                'status' => 'error',
-                'operation' => 'edit_file',
-                'file_path' => $file_path,
-                'message' => "Failed to write changes to '{$file_path}'.",
-            ];
+            return ToolOutput::error("Failed to write changes to '{$file_path}'.");
         }
 
         return [

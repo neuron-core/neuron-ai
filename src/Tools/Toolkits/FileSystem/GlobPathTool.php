@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\FileSystem;
 
 use NeuronAI\Tools\PropertyType;
-use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
+use function array_filter;
 use function is_dir;
+use function is_string;
 use function natsort;
 use function str_replace;
 use function str_starts_with;
@@ -20,7 +22,7 @@ use function scandir;
 
 use const DIRECTORY_SEPARATOR;
 
-class GlobPathTool extends Tool
+class GlobPathTool extends FileSystemTool
 {
     protected string $name = 'glob_path';
     protected ?string $description = 'Find files matching a glob pattern in a directory.';
@@ -41,10 +43,15 @@ class GlobPathTool extends Tool
         ];
     }
 
-    public function __invoke(string $directory, string $pattern): string
+    public function __invoke(string $directory, string $pattern): string|ToolOutput
     {
-        if (!is_dir($directory)) {
-            return "Error: Directory '{$directory}' does not exist.";
+        $root = $this->resolve($directory);
+        if ($root instanceof ToolOutput) {
+            return $root;
+        }
+
+        if (!is_dir($root)) {
+            return ToolOutput::error("Directory '{$directory}' does not exist.");
         }
 
         $useRecursive = str_starts_with($pattern, '**/');
@@ -52,7 +59,12 @@ class GlobPathTool extends Tool
             $pattern = str_replace('**/', '', $pattern);
         }
 
-        $matches = $this->globRecursive($directory, $pattern, $useRecursive);
+        // A pattern can spell `..` as `[.][.]` and the walk follows symlinked
+        // directories, so the scope is enforced on the matches themselves.
+        $matches = array_filter(
+            $this->globRecursive($root, $pattern, $useRecursive),
+            fn (string $match): bool => is_string($this->resolve($match))
+        );
 
         if ($matches === []) {
             return "No matches found for pattern '{$pattern}' in directory '{$directory}'.";
@@ -63,7 +75,7 @@ class GlobPathTool extends Tool
 
         $output = "Found " . count($matches) . " match(es) for pattern '{$pattern}' in directory '{$directory}':\n\n";
         foreach ($matches as $match) {
-            $relativePath = str_replace($directory . DIRECTORY_SEPARATOR, '', $match);
+            $relativePath = str_replace($root . DIRECTORY_SEPARATOR, '', $match);
             $output .= "  - {$relativePath}\n";
         }
 

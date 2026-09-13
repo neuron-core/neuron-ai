@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\ReadFileTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +18,8 @@ use function str_repeat;
 
 class ReadFileToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private ReadFileTool $tool;
 
     protected function setUp(): void
@@ -26,9 +29,7 @@ class ReadFileToolTest extends TestCase
 
     public function test_read_non_existent_file(): void
     {
-        $result = ($this->tool)('/non/existent/file.txt');
-
-        $this->assertStringStartsWith("Error: File '/non/existent/file.txt' does not exist.", $result);
+        $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt'));
     }
 
     public function test_read_empty_file(): void

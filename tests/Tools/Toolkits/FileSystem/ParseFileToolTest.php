@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\ParseFileTool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -17,6 +19,8 @@ use function rename;
 
 class ParseFileToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private ParseFileTool $tool;
 
     protected function setUp(): void
@@ -26,9 +30,7 @@ class ParseFileToolTest extends TestCase
 
     public function test_parse_non_existent_file(): void
     {
-        $result = ($this->tool)('/non/existent/file.txt');
-
-        $this->assertStringStartsWith("Error: File '/non/existent/file.txt' does not exist.", $result);
+        $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt'));
     }
 
     public function test_parse_pdf_file(): void
@@ -149,8 +151,8 @@ class ParseFileToolTest extends TestCase
         $result = ($this->tool)($xyzFile);
         unlink($xyzFile);
 
-        $this->assertStringStartsWith('Error: Unsupported file format', $result);
-        $this->assertStringContainsString("'xyz'", $result);
+        $this->assertUnsupportedFormat($result);
+        $this->assertStringContainsString("'xyz'", $result->getText());
     }
 
     public function test_parse_txt_extension_returns_error(): void
@@ -165,7 +167,7 @@ class ParseFileToolTest extends TestCase
         unlink($txtFile);
 
         // TXT is not a supported format for parse_file (only PDF, HTML)
-        $this->assertStringStartsWith('Error: Unsupported file format', $result);
+        $this->assertUnsupportedFormat($result);
     }
 
     public function test_parse_php_extension_returns_error(): void
@@ -179,7 +181,7 @@ class ParseFileToolTest extends TestCase
         $result = ($this->tool)($phpFile);
         unlink($phpFile);
 
-        $this->assertStringStartsWith('Error: Unsupported file format', $result);
+        $this->assertUnsupportedFormat($result);
     }
 
     public function test_tool_properties(): void
@@ -192,5 +194,12 @@ class ParseFileToolTest extends TestCase
 
         $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
         $this->assertContains('file_path', $propertyNames);
+    }
+
+    private function assertUnsupportedFormat(mixed $result): void
+    {
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertStringStartsWith('Unsupported file format', $result->getText());
     }
 }

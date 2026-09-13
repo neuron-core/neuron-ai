@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
 use NeuronAI\Tools\Toolkits\FileSystem\WriteFileTool;
+use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 
 use function file_exists;
@@ -62,7 +63,8 @@ class WriteFileToolTest extends TestCase
         $tool = new WriteFileTool();
         $result = ($tool)('/root/cannot_write_here.txt', 'content');
 
-        $this->assertSame('error', $result['status']);
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
     }
 
     public function test_tool_name(): void

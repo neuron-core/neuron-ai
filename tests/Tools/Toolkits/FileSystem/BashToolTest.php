@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
+use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 
 use function getcwd;
 use function is_dir;
 use function mkdir;
+use function realpath;
 use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
 
 class BashToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private string $tempDir;
 
     protected function setUp(): void
@@ -44,21 +49,17 @@ class BashToolTest extends TestCase
 
     public function test_invoke_failing_command_returns_error(): void
     {
-        $tool = new BashTool();
-        $result = ($tool)('exit 1');
-
-        $this->assertSame('error', $result['status']);
-        $this->assertSame(1, $result['exit_code']);
+        $this->assertToolError('Command exited with code 1.', (new BashTool())('exit 1'));
     }
 
     public function test_invoke_non_zero_exit_code_is_reported(): void
     {
-        $tool = new BashTool();
-        $result = ($tool)('exit 42');
+        $result = (new BashTool())('echo boom && exit 42');
 
-        $this->assertSame('error', $result['status']);
-        $this->assertSame(42, $result['exit_code']);
-        $this->assertStringContainsString('42', $result['message']);
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertStringContainsString('Command exited with code 42.', $result->getText());
+        $this->assertStringContainsString('boom', $result->getText());
     }
 
     public function test_invoke_captures_stdout(): void
@@ -107,11 +108,23 @@ class BashToolTest extends TestCase
 
     public function test_invoke_returns_error_for_non_existent_working_directory(): void
     {
-        $tool = new BashTool();
-        $result = ($tool)('echo hello', '/non/existent/directory');
+        $this->assertToolError(
+            "Working directory '/non/existent/directory' does not exist.",
+            (new BashTool())('echo hello', '/non/existent/directory')
+        );
+    }
 
-        $this->assertSame('error', $result['status']);
-        $this->assertStringContainsString('does not exist', $result['message']);
+    public function test_working_directory_is_required_under_a_scope(): void
+    {
+        $this->assertContains('working_directory', (new BashTool($this->tempDir))->getRequiredProperties());
+    }
+
+    public function test_working_directory_defaults_to_the_scope(): void
+    {
+        $result = (new BashTool($this->tempDir))('echo hello');
+
+        $this->assertSame('success', $result['status']);
+        $this->assertSame(realpath($this->tempDir), $result['working_directory']);
     }
 
     public function test_invoke_includes_message_on_success(): void

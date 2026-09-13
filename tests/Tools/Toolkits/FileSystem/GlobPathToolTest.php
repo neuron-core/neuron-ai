@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\GlobPathTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
@@ -22,6 +23,8 @@ use const DIRECTORY_SEPARATOR;
 
 class GlobPathToolTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     private GlobPathTool $tool;
 
     private string $tempDir;
@@ -71,9 +74,7 @@ class GlobPathToolTest extends TestCase
 
     public function test_glob_non_existent_directory(): void
     {
-        $result = ($this->tool)('/non/existent/directory', '*.txt');
-
-        $this->assertStringStartsWith("Error: Directory '/non/existent/directory' does not exist.", $result);
+        $this->assertToolError("Directory '/non/existent/directory' does not exist.", ($this->tool)('/non/existent/directory', '*.txt'));
     }
 
     public function test_glob_no_matches(): void
