@@ -21,7 +21,9 @@ use Throwable;
  */
 interface StreamingChannelInterface
 {
-    /** A protocol event produced by the stream adapter, in stream order. */
+    /**
+     * A protocol event produced by the stream adapter, in stream order.
+     */
     public function send(ProtocolEvent $event): void;
 
     /**
