@@ -145,7 +145,7 @@ class FileSystemToolTest extends TestCase
     {
         $this->expectException(ToolException::class);
 
-        ReadFileTool::make($this->base . '/missing');
+        new ReadFileTool($this->base . '/missing');
     }
 
     public function test_without_scope_paths_are_untouched(): void
