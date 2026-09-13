@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use LogicException;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkAdapter;
@@ -24,6 +26,7 @@ use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
@@ -263,5 +266,32 @@ class ChannelForwardingTest extends TestCase
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $errors);
         $this->assertSame('terminal transport down', $errors[0]->exception->getMessage());
+    }
+
+    public function test_a_failing_channel_error_listener_never_fails_the_run(): void
+    {
+        $channel = new FakeChannel();
+        $channel->throwOnSend = new RuntimeException('transport down');
+        $listenerFailure = new LogicException('error reporter down');
+
+        $reported = [];
+        $workflow = Workflow::make()
+            ->addNodes([new ChunkStreamingNode(2)])
+            ->setStreamAdapter(new ChunkAdapter())
+            ->setChannel($channel)
+            ->subscribe(ChannelError::class, function () use ($listenerFailure): void {
+                throw $listenerFailure;
+            })
+            ->subscribe(AgentError::class, function (AgentError $error) use (&$reported): void {
+                $reported[] = $error->exception;
+            });
+
+        $state = $workflow->run();
+
+        // Reporting follows the executor's policy: the listener failure is
+        // itself reported, once per delivery, and the run still completes.
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+        $this->assertSame([$listenerFailure, $listenerFailure], $reported);
+        $this->assertCount(1, $channel->completions);
     }
 }
