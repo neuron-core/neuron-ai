@@ -46,6 +46,29 @@ class OpenAIImageTest extends TestCase
         $this->assertSame('FINAL_BASE64', $blocks[0]->content);
     }
 
+    public function test_chat_without_usage_in_response(): void
+    {
+        $body = '{"data":[{"b64_json":"FINAL_BASE64"}]}';
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $body),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+
+        $provider = new OpenAIImage(
+            key: 'test-key',
+            model: 'gpt-image-1',
+            httpClient: new GuzzleHttpClient(handler: $stack),
+        );
+
+        $message = $provider->chat(new UserMessage('A cat'));
+
+        $this->assertNull($message->getUsage());
+        $block = $message->getContentBlocks()[0];
+        $this->assertInstanceOf(ImageContent::class, $block);
+        $this->assertSame('FINAL_BASE64', $block->content);
+    }
+
     public function test_stream_yields_partials_and_uses_completed_event_for_final_image(): void
     {
         // Mock OpenAI Images streaming response:

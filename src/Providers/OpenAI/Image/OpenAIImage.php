@@ -103,11 +103,11 @@ class OpenAIImage implements AIProviderInterface
             )
         );
 
-        if ($response['usage']) {
+        if (isset($response['usage'])) {
             $result->setUsage(
                 new Usage(
-                    $response['usage']['input_tokens'],
-                    $response['usage']['output_tokens']
+                    $response['usage']['input_tokens'] ?? 0,
+                    $response['usage']['output_tokens'] ?? 0
                 )
             );
         }

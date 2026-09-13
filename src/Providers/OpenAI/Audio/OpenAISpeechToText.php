@@ -85,12 +85,16 @@ class OpenAISpeechToText implements AIProviderInterface
         )->json();
 
         $message = new AssistantMessage($response['text']);
-        $message->setUsage(
-            new Usage(
-                $response['usage']['input_tokens'],
-                $response['usage']['output_tokens']
-            )
-        );
+
+        if (isset($response['usage'])) {
+            $message->setUsage(
+                new Usage(
+                    $response['usage']['input_tokens'] ?? 0,
+                    $response['usage']['output_tokens'] ?? 0
+                )
+            );
+        }
+
         return $message;
     }
 
