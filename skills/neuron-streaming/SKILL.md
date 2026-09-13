@@ -1,6 +1,6 @@
 ---
 name: neuron-streaming
-description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, CallbackChannel, FakeChannel, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
+description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, CallbackChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
 ---
 
 # Neuron AI Streaming
@@ -9,15 +9,16 @@ This skill covers how output leaves a running agent or workflow and reaches a co
 
 ## The Mental Model
 
-A Workflow segment produces a sequence of live objects while it runs. Three independent concerns decide what happens to them:
+A Workflow segment produces a sequence of live objects while it runs. Four independent concerns decide what happens to them:
 
 | Concern | Question it answers | Component |
 |---|---|---|
 | **Source** | What is emitted? | Provider chunks and events yielded by nodes |
 | **Shape** | What does the wire format look like? | `StreamAdapterInterface` via `setStreamAdapter()` |
 | **Destination** | Where does it go? | Pull iteration over the generator, and/or `StreamingChannelInterface` via `setChannel()` |
+| **Encoding** | How does it become bytes? | `SSEEncoder` on the HTTP edge; a channel encodes for its own transport |
 
-Adapter and channel compose. The adapter decides the shape, the channel the destination. The Workflow converts each item once and hands the same result to both the pull consumer and the channel.
+Adapter and channel compose. The adapter decides the shape, the channel the destination. The Workflow converts each item once into a `ProtocolEvent` and hands the same object to both the pull consumer and the channel. It never frames bytes: the edge that owns the transport encodes it.
 
 Live output is **ephemeral**. Nothing yielded during a segment is stored in persistence or replayed when a completed step is restored. Chat history is the record the UI reconciles from. Never make correctness depend on a client receiving a streamed item.
 
@@ -90,20 +91,21 @@ Names and IDs cannot be empty. Because yielded output is never replayed, wrap th
 
 ## Stream Adapters: Shaping Output for a UI Protocol
 
-An adapter turns each live object into zero or more protocol strings. Attach it with `setStreamAdapter()` and the generator yields strings instead of objects.
+An adapter turns each live object into zero or more `ProtocolEvent`s: small value objects carrying the event `type` and a JSON-serializable `data` payload (`jsonSerialize()` places the type first). Attach it with `setStreamAdapter()` and the generator yields protocol events instead of native objects.
 
 **Built-in adapters** in `NeuronAI\Agent\Adapters`:
 
 - `VercelAIAdapter(?messageId, parts)` for the Vercel AI SDK data stream (`useChat`, `useCompletion`). Pass the latest assistant message ID and parts on a continuation so pending tool parts are not redispatched.
 - `AGUIAdapter(threadId, ?runId, messages, state)` for the AG-UI protocol (CopilotKit). `messages` and `state` seed the frontend snapshot.
 
-Both extend `SSEAdapter`, which provides `getHeaders()` for the HTTP response.
+Both expose `getHeaders()` with the HTTP response headers their protocol requires. Framing is not the adapter's job: `SSEEncoder::encode($generator)` turns the events into `data:` lines on the HTTP edge and forwards the generator's return value, so the final state is still reachable after streaming. `SSEEncoder::frame($event)` frames a single event.
 
 **Laravel endpoint:**
 
 ```php
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 Route::post('/chat', function (Request $request) {
     $adapter = new VercelAIAdapter();
@@ -113,7 +115,7 @@ Route::post('/chat', function (Request $request) {
         ->stream(new UserMessage($request->input('message')));
 
     return response()->stream(function () use ($stream) {
-        foreach ($stream as $line) {
+        foreach (SSEEncoder::encode($stream) as $line) {
             echo $line;
             ob_flush();
             flush();
@@ -167,7 +169,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Custom adapters
 
-Implement `StreamAdapterInterface` (`start()`, `transform(object)`, `end()`, `suspended(array)`, `error(Throwable)`), each returning an iterable of strings. Extend `SSEAdapter` to reuse SSE framing and headers. Return an empty iterable from `suspended()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
+Implement `StreamAdapterInterface` (`start()`, `transform(object)`, `end()`, `suspended(array)`, `error(Throwable)`), each returning an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `suspended()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
 
 ## Streaming Channels: Push Delivery
 
@@ -184,40 +186,52 @@ namespace NeuronAI\Workflow\Streaming\Channel;
 
 interface StreamingChannelInterface
 {
-    public function send(object $item): void;                            // native object, no adapter
-    public function sendLine(string $line): void;                        // protocol line, adapter attached
+    public function send(ProtocolEvent $event): void;                    // the adapter's events, in stream order
     public function suspended(WorkflowState $state): void;
     public function completed(WorkflowState $state, string $workflowId): void;
     public function failed(Throwable $exception, string $workflowId): void;
 }
 ```
 
-Which port receives output depends on the adapter:
+A channel speaks the adapter's protocol, so content delivery needs an adapter:
 
 | Adapter attached? | Pull consumer receives | Channel receives |
 |---|---|---|
-| No | native objects | `send($object)` |
-| Yes | protocol strings | `sendLine($string)`, identical to the pulled lines |
+| No | native objects | only the lifecycle methods |
+| Yes | `ProtocolEvent`s | the same instances through `send()` |
+
+The channel encodes for its own transport. Native objects never reach it: a push destination is another system and needs a wire vocabulary, which is exactly what the adapter provides.
 
 The lifecycle methods fire once per segment after the adapter's terminal frames. `suspended()` receives a clone of the state so the channel can inspect the pending interrupts. The channel receives lifecycle calls even when nothing was streamed, so a zero-item run still reports completion.
 
 ### CallbackChannel
 
-`CallbackChannel` wraps up to five closures, one per method. Unset hooks are silent no-ops, so a transport usually needs a single closure:
+`CallbackChannel` wraps up to four closures, one per method. Unset hooks are silent no-ops, so a transport usually needs a single closure:
 
 ```php
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 
 // Inside a queued job: the HTTP request already returned.
 $agent = MyAgent::make(threadId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new CallbackChannel(
-        onSendLine: fn (string $line) => $redis->publish("chat:{$threadId}", $line),
+        onSend: fn (ProtocolEvent $event) => $redis->publish("chat:{$threadId}", json_encode($event)),
         onCompleted: fn ($state, string $workflowId) => $redis->publish("chat:{$threadId}", '[DONE]'),
     ));
 
-$agent->chat(new UserMessage($message));
+foreach ($agent->stream(new UserMessage($message)) as $ignored) {
+}
+```
+
+Drain `stream()` rather than calling `chat()`: the buffered path never yields provider chunks, so the channel would only see the terminal frames. With Laravel Broadcast the event type is the broadcast name and `data` the payload, sent synchronously because a queued broadcast with several workers loses ordering:
+
+```php
+onSend: fn (ProtocolEvent $event) => Broadcast::private("chat.{$threadId}")
+    ->as($event->type)
+    ->with($event->data)
+    ->sendNow(),
 ```
 
 For a dedicated transport implement `StreamingChannelInterface` directly, or declare it once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter.
@@ -228,7 +242,7 @@ A channel error never fails the run. The Workflow catches it, dispatches a `Chan
 
 ## Testing Streamed Output
 
-`FakeAIProvider::setStreamChunkSize()` makes chunking deterministic. `FakeChannel` records every delivery in public arrays: `sent`, `lines`, `suspendedStates`, `completions`, `failures`. Set `throwOnSend` to exercise the failure policy.
+`FakeAIProvider::setStreamChunkSize()` makes chunking deterministic. `FakeChannel` records every delivery in public arrays: `sent`, `suspendedStates`, `completions`, `failures`. Set `throwOnSend` to exercise the failure policy.
 
 ```php
 use NeuronAI\Testing\FakeAIProvider;
@@ -243,7 +257,7 @@ $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world')))-
 
 $pulled = iterator_to_array($agent->stream(new UserMessage('Hi')), false);
 
-$this->assertSame($pulled, $channel->lines);
+$this->assertSame($pulled, $channel->sent);
 $this->assertCount(1, $channel->completions);
 ```
 

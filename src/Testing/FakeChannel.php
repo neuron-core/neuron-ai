@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace NeuronAI\Testing;
 
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 /**
  * Records every channel call for assertions. Set $throwOnSend to exercise
- * the framework's channel failure policy (catch, report, mute-after-N).
+ * the framework's channel failure policy (catch, report, continue).
  */
 final class FakeChannel implements StreamingChannelInterface
 {
-    /** @var object[] */
+    /** @var ProtocolEvent[] */
     public array $sent = [];
-
-    /** @var string[] */
-    public array $lines = [];
 
     /** @var WorkflowState[] */
     public array $suspendedStates = [];
@@ -31,18 +29,13 @@ final class FakeChannel implements StreamingChannelInterface
 
     public ?Throwable $throwOnSend = null;
 
-    public function send(object $item): void
+    public function send(ProtocolEvent $event): void
     {
         if ($this->throwOnSend instanceof Throwable) {
             throw $this->throwOnSend;
         }
 
-        $this->sent[] = $item;
-    }
-
-    public function sendLine(string $line): void
-    {
-        $this->lines[] = $line;
+        $this->sent[] = $event;
     }
 
     public function suspended(WorkflowState $state): void

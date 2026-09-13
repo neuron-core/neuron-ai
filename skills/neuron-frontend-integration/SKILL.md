@@ -131,14 +131,16 @@ if (($last['role'] ?? null) === 'assistant') {
 }
 ```
 
-**Streaming and errors.** This is the outbound half described in the **neuron-streaming** skill: send the adapter's headers (`getHeaders()` includes `x-vercel-ai-ui-message-stream: v1` for Vercel), then relay frames and flush after each one. Progress events yielded by nodes and pushed delivery through a channel work unchanged behind these endpoints. `submitInputs()` validates eagerly, before the first frame, so translation failures become normal HTTP errors. A failure after the first frame is already on the wire as the adapter's own error frame (`RUN_ERROR` or an `error` part); catch it and stop.
+**Streaming and errors.** This is the outbound half described in the **neuron-streaming** skill: send the adapter's headers (`getHeaders()` includes `x-vercel-ai-ui-message-stream: v1` for Vercel), then frame each `ProtocolEvent` with `SSEEncoder` and flush after each line. Progress events yielded by nodes and pushed delivery through a channel work unchanged behind these endpoints. `submitInputs()` validates eagerly, before the first frame, so translation failures become normal HTTP errors. A failure after the first frame is already on the wire as the adapter's own error frame (`RUN_ERROR` or an `error` part); catch it and stop.
 
 ```php
+use NeuronAI\Workflow\Streaming\SSEEncoder;
+
 foreach ($adapter->getHeaders() as $name => $value) {
     header("{$name}: {$value}");
 }
 try {
-    foreach ($frames as $frame) {
+    foreach (SSEEncoder::encode($frames) as $frame) {
         echo $frame;
         flush();
     }

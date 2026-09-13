@@ -16,14 +16,14 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use function array_column;
 use function array_map;
 use function count;
-use function implode;
 use function iterator_to_array;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class PushAdapterDeliveryTest extends TestCase
 {
@@ -40,8 +40,8 @@ class PushAdapterDeliveryTest extends TestCase
             $pulled[] = $line;
         }
 
-        // Push: the same Workflow-owned adapter path also delivers each line
-        // to the channel's sendLine port.
+        // Push: the same Workflow-owned adapter path also delivers each event
+        // to the channel's send port.
         $sink = [];
         $pushAgent = Agent::make();
         $pushAgent->setAiProvider(
@@ -49,8 +49,8 @@ class PushAdapterDeliveryTest extends TestCase
         );
         $pushAgent->setStreamAdapter(new ParityAdapter());
         $pushAgent->setChannel(new CallbackChannel(
-            onSendLine: function (string $line) use (&$sink): void {
-                $sink[] = $line;
+            onSend: function (ProtocolEvent $event) use (&$sink): void {
+                $sink[] = $event;
             },
         ));
 
@@ -58,8 +58,8 @@ class PushAdapterDeliveryTest extends TestCase
         // pull-side output is discarded — only the channel sink is asserted.
         iterator_to_array($pushAgent->stream(new UserMessage('Hi')));
 
-        $this->assertGreaterThan(2, count($sink), 'The stream should carry protocol lines beyond start/end');
-        $this->assertSame(implode('', $pulled), implode('', $sink));
+        $this->assertGreaterThan(2, count($sink), 'The stream should carry protocol events beyond start/end');
+        $this->assertEquals($pulled, $sink);
     }
 
     public function test_zero_item_run_still_emits_start_and_end_matching_pull(): void
@@ -67,7 +67,7 @@ class PushAdapterDeliveryTest extends TestCase
         // A zero-item stream (empty content → no TextChunks) still frames the
         // run with the protocol start/end sequences; so must the push path,
         // whose finishDelivery() emits start+end on completion even though no
-        // item was ever delivered to sendLine().
+        // item was ever delivered to send().
         $pullAgent = Agent::make()->setStreamAdapter(new ParityAdapter());
         $pullAgent->setAiProvider(new FakeAIProvider(new AssistantMessage('')));
 
@@ -83,15 +83,15 @@ class PushAdapterDeliveryTest extends TestCase
         );
         $pushAgent->setStreamAdapter(new ParityAdapter());
         $pushAgent->setChannel(new CallbackChannel(
-            onSendLine: function (string $line) use (&$sink): void {
-                $sink[] = $line;
+            onSend: function (ProtocolEvent $event) use (&$sink): void {
+                $sink[] = $event;
             },
         ));
 
         $pushAgent->chat(new UserMessage('Hi'));
 
-        $this->assertSame(["start\n", "end\n"], $pulled);
-        $this->assertSame($pulled, $sink);
+        $this->assertSame(['start', 'end'], array_map(static fn (ProtocolEvent $event): string => $event->type, $pulled));
+        $this->assertEquals($pulled, $sink);
     }
 
     public function test_suspended_stream_frames_are_identical_between_pull_and_push(): void
@@ -127,12 +127,12 @@ class PushAdapterDeliveryTest extends TestCase
         $state = $generator->getReturn();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->lines);
+        $this->assertSame($pulled, $channel->sent);
         $this->assertCount(1, $channel->suspendedStates);
         $this->assertSame([], $channel->completions);
 
         // Approval proposals stay in interrupt metadata, off the executable tool channel.
-        $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
         $this->assertSame(
             ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),

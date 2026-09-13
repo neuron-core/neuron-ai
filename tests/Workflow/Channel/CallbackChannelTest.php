@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Channel;
 
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use stdClass;
+
 use Throwable;
 
 class CallbackChannelTest extends TestCase
@@ -17,12 +18,12 @@ class CallbackChannelTest extends TestCase
     {
         $received = [];
         $channel = new CallbackChannel(
-            onSend: function (object $item) use (&$received): void {
+            onSend: function (ProtocolEvent $item) use (&$received): void {
                 $received[] = $item;
             },
         );
 
-        $item = new stdClass();
+        $item = new ProtocolEvent('item');
         $channel->send($item);
 
         // The other three hooks are unset: calling them must be a silent no-op.
@@ -37,7 +38,7 @@ class CallbackChannelTest extends TestCase
     {
         $calls = [];
         $channel = new CallbackChannel(
-            onSend: function (object $item) use (&$calls): void {
+            onSend: function (ProtocolEvent $item) use (&$calls): void {
                 $calls[] = ['send', $item];
             },
             onSuspended: function (WorkflowState $state) use (&$calls): void {
@@ -51,7 +52,7 @@ class CallbackChannelTest extends TestCase
             },
         );
 
-        $item = new stdClass();
+        $item = new ProtocolEvent('item');
         $state = new WorkflowState();
         $exception = new RuntimeException('boom');
 
@@ -66,24 +67,5 @@ class CallbackChannelTest extends TestCase
             ['completed', $state, 'run_1'],
             ['failed', $exception, 'run_1'],
         ], $calls);
-    }
-
-    public function test_send_line_receives_each_line_and_is_silent_when_unset(): void
-    {
-        // Unset onSendLine: a silent no-op (same shape as the other hooks).
-        (new CallbackChannel())->sendLine('dropped');
-
-        // Set: each adapted protocol line reaches the closure, in order.
-        $received = [];
-        $channel = new CallbackChannel(
-            onSendLine: function (string $line) use (&$received): void {
-                $received[] = $line;
-            },
-        );
-
-        $channel->sendLine("start\n");
-        $channel->sendLine('text:hello');
-
-        $this->assertSame(["start\n", 'text:hello'], $received);
     }
 }

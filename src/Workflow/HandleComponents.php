@@ -38,7 +38,7 @@ trait HandleComponents
 
     protected ?StreamingChannelInterface $channel = null;
 
-    /** Optional transform from native stream objects to protocol lines. */
+    /** Optional transform from native stream objects to protocol events. */
     protected ?StreamAdapterInterface $streamAdapter = null;
 
     protected ExporterInterface $exporter;
@@ -99,8 +99,9 @@ trait HandleComponents
     }
 
     /**
-     * Where in-flight output is delivered (a websocket, SSE sink, ...).
-     * Null means no channel is attached and delivery is skipped entirely.
+     * Where in-flight output is delivered (a websocket, a broadcast, ...).
+     * Content needs a stream adapter: without one the channel receives only
+     * the segment lifecycle. Null means no channel is attached.
      */
     public function setChannel(?StreamingChannelInterface $channel): static
     {

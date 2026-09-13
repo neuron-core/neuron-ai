@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Streaming\Channel;
 
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 /**
  * Delivery seam: where in-flight output goes, decoupled from who holds the
- * generator. Two ports — send(object) for native chunks (no stream adapter
- * attached) and sendLine(string) for adapted protocol lines (adapter
- * attached); a channel never receives both shapes in the same segment.
+ * generator. A channel speaks the attached stream adapter's protocol: it
+ * receives the adapter's ProtocolEvents, framing included, plus the segment
+ * lifecycle. Without an adapter only the lifecycle methods are called.
  *
  * A channel instance is segment-scoped (one events() consumption), so it may
  * hold per-segment state without cross-run leakage. Channels should not
@@ -20,17 +21,8 @@ use Throwable;
  */
 interface StreamingChannelInterface
 {
-    /**
-     * A yielded stream item. Never an InterruptEvent — terminals are the
-     * explicit methods below.
-     */
-    public function send(object $item): void;
-
-    /**
-     * An adapted protocol line — a stream adapter's transform() output or
-     * one of its start()/end()/suspended()/error() framing lines.
-     */
-    public function sendLine(string $line): void;
+    /** A protocol event produced by the stream adapter, in stream order. */
+    public function send(ProtocolEvent $event): void;
 
     /**
      * Run segment ended with one or more active interrupt requests.

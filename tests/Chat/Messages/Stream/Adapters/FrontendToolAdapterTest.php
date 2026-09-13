@@ -19,21 +19,20 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 class FrontendToolAdapterTest extends TestCase
 {
-    /** @param iterable<string> $frames
+    /** @param iterable<ProtocolEvent> $frames
      * @return list<array<string, mixed>>
      */
     protected function decode(iterable $frames): array
     {
         $events = [];
         foreach ($frames as $frame) {
-            if ($frame !== "data: [DONE]\n\n") {
-                $events[] = json_decode(substr($frame, 6), true, flags: JSON_THROW_ON_ERROR);
-            }
+            $events[] = json_decode(json_encode($frame), true, flags: JSON_THROW_ON_ERROR);
         }
         return $events;
     }
@@ -62,7 +61,7 @@ class FrontendToolAdapterTest extends TestCase
         $frames = iterator_to_array($adapter->suspended([(new ToolResultsRequest([$call]))->withId(1)]));
         $events = $this->decode($frames);
         $this->assertSame(['tool-input-available', 'finish'], array_column($events, 'type'));
-        $this->assertStringContainsString('"input":{}', $frames[0]);
+        $this->assertSame('{}', json_encode($frames[0]->data['input']));
         $this->assertSame('a', $events[0]['toolCallId']);
     }
 

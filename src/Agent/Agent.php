@@ -421,8 +421,8 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param Generator<int, object|string, mixed, AgentState> $generator
-     * @return Generator<int, object|string, mixed, AgentState>
+     * @param Generator<int, object, mixed, AgentState> $generator
+     * @return Generator<int, object, mixed, AgentState>
      */
     protected function forwardEvents(Generator $generator): Generator
     {
@@ -467,11 +467,11 @@ class Agent extends Workflow implements AgentInterface
     /**
      * The pull-stream verb: yields Neuron chunks, and
      * {@see Generator::getReturn()} is the final {@see AgentState}. A stream
-     * adapter configured on the Workflow transforms the yielded output and,
-     * when a channel is attached, the same lines are delivered there.
+     * adapter configured on the Workflow transforms the yielded output into protocol events and,
+     * when a channel is attached, the same events are delivered there.
      *
      * @param Message|Message[] $messages
-     * @return Generator<int, object|string, mixed, AgentState>
+     * @return Generator<int, object, mixed, AgentState>
      * @throws AgentException
      * @throws Throwable
      * @throws WorkflowException

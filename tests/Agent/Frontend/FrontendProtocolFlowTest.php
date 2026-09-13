@@ -21,6 +21,7 @@ use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -36,16 +37,14 @@ class FrontendProtocolFlowTest extends TestCase
         yield 'Vercel rejection' => [false, false];
     }
 
-    /** @param iterable<string> $frames
+    /** @param iterable<ProtocolEvent> $frames
      * @return list<array<string, mixed>>
      */
     protected function decode(iterable $frames): array
     {
         $events = [];
         foreach ($frames as $frame) {
-            if ($frame !== "data: [DONE]\n\n") {
-                $events[] = json_decode(substr($frame, 6), true, flags: JSON_THROW_ON_ERROR);
-            }
+            $events[] = json_decode(json_encode($frame), true, flags: JSON_THROW_ON_ERROR);
         }
         return $events;
     }

@@ -17,7 +17,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Integration\Frontend\Stub\Fixture;
-use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
+use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
 
@@ -40,16 +40,18 @@ function badRequest(string $reason): never
 }
 
 /**
- * Send the protocol headers, then relay frames as they are produced. A failure
- * after this point is already on the wire as the adapter's own error frame.
+ * Send the protocol headers, then frame events as SSE as they are produced. A
+ * failure after this point is already on the wire as the adapter's own error frame.
+ *
+ * @param array<string, string> $headers
  */
-function streamFrames(Generator $frames, SSEAdapter $adapter): void
+function streamFrames(Generator $events, array $headers): void
 {
-    foreach ($adapter->getHeaders() as $name => $value) {
+    foreach ($headers as $name => $value) {
         header("{$name}: {$value}");
     }
     try {
-        foreach ($frames as $frame) {
+        foreach (SSEEncoder::encode($events) as $frame) {
             echo $frame;
             flush();
         }
@@ -83,7 +85,7 @@ function agui(Fixture $fixture, array $payload): void
         ($last['role'] ?? null) === 'user' => $agent->stream(new UserMessage((string) $last['content'])),
         default => badRequest('AG-UI input must end with a user message or carry a continuation.'),
     };
-    streamFrames($frames, $adapter);
+    streamFrames($frames, $adapter->getHeaders());
 }
 
 /** @param array<string, mixed> $payload */
@@ -105,7 +107,7 @@ function vercel(Fixture $fixture, array $payload): void
             fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '',
             $last['parts'] ?? [],
         ))));
-    streamFrames($frames, $adapter);
+    streamFrames($frames, $adapter->getHeaders());
 }
 
 try {

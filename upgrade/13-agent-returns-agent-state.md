@@ -131,7 +131,7 @@ foreach ($agent->stream(new UserMessage($input)) as $line) {
 ```
 
 When a live channel is also attached, Workflow delivers these same adapted
-protocol lines to its `sendLine()` port. The adapter and channel compose
+protocol events to its `send()` port. The adapter and channel compose
 independently.
 
 ### Case 4: Continuing a suspended run (tool approval, etc.)

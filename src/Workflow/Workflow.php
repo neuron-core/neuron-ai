@@ -19,6 +19,7 @@ use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 use function array_merge;
 use function is_array;
@@ -469,7 +470,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * Stream the staged operation, or start/recover a failed run by default.
      *
-     * @return Generator<int, object|string, mixed, TState>
+     * @return Generator<int, object, mixed, TState>
      * @throws Throwable
      */
     public function events(): Generator
@@ -499,7 +500,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @return Generator<int, object|string, mixed, TState>
+     * @return Generator<int, object, mixed, TState>
      * @throws Throwable
      */
     protected function forwardEvents(Generator $generator): Generator
@@ -544,36 +545,35 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * An InterruptEvent is the suspension terminal, never stream content: an
-     * adapter encodes it through suspended() and a channel is notified
-     * through suspended(), so only native pull consumers see the event itself.
+     * Native output stays on the pull path: a channel carries only the
+     * adapter's protocol events. An InterruptEvent is the suspension
+     * terminal, never stream content: an adapter encodes it through
+     * suspended() and a channel is notified through suspended(), so only
+     * native pull consumers see the event itself.
      *
-     * @return Generator<int, object|string>
+     * @return Generator<int, object>
      */
     protected function streamOutput(object $item): Generator
     {
         $adapter = $this->getStreamAdapter();
-        if ($adapter instanceof StreamAdapterInterface) {
-            if ($item instanceof InterruptEvent) {
-                return;
-            }
-
-            foreach ($adapter->transform($item) as $line) {
-                $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
-                yield $line;
-            }
+        if (!$adapter instanceof StreamAdapterInterface) {
+            yield $item;
             return;
         }
 
-        if (!$item instanceof InterruptEvent) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($item));
+        if ($item instanceof InterruptEvent) {
+            return;
         }
-        yield $item;
+
+        foreach ($adapter->transform($item) as $event) {
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($event));
+            yield $event;
+        }
     }
 
     /**
-     * @param Closure(StreamAdapterInterface): iterable<string> $callback
-     * @return Generator<int, string>
+     * @param Closure(StreamAdapterInterface): iterable<ProtocolEvent> $callback
+     * @return Generator<int, ProtocolEvent>
      */
     protected function adapterOutput(Closure $callback): Generator
     {
@@ -582,9 +582,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             return;
         }
 
-        foreach ($callback($adapter) as $line) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->sendLine($line));
-            yield $line;
+        foreach ($callback($adapter) as $event) {
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($event));
+            yield $event;
         }
     }
 
@@ -613,7 +613,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     /**
      * The traversal body is lazy — it does not execute until iterated.
      *
-     * @param Generator<int, object|string, mixed, TState> $generator
+     * @param Generator<int, object, mixed, TState> $generator
      * @return TState
      */
     protected function consume(Generator $generator): WorkflowState

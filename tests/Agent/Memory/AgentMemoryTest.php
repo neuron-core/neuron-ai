@@ -52,8 +52,7 @@ use function array_values;
 use function get_object_vars;
 use function iterator_to_array;
 use function json_decode;
-use function str_starts_with;
-use function substr;
+use function json_encode;
 
 class AgentMemoryTest extends TestCase
 {
@@ -377,15 +376,10 @@ class AgentMemoryTest extends TestCase
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer.')))
             ->setMemory($memory);
 
-        $lines = iterator_to_array($agent->stream(new UserMessage('Question.')));
         $events = [];
 
-        foreach ($lines as $line) {
-            if (!str_starts_with($line, 'data: {')) {
-                continue;
-            }
-
-            $event = json_decode(substr($line, 6, -2), true);
+        foreach ($agent->stream(new UserMessage('Question.')) as $frame) {
+            $event = json_decode(json_encode($frame), true);
             $this->assertIsArray($event);
             $events[] = $event;
         }

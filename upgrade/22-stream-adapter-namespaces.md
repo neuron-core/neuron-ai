@@ -6,14 +6,14 @@ In 3.x every stream adapter class lived under `NeuronAI\Chat\Messages\Stream\Ada
 The namespace is gone. The classes are split by ownership:
 
 - **Protocol-neutral contracts** now belong to the Workflow, because it is the Workflow
-  that converts streamed output into protocol lines (see `setStreamAdapter()` in guide 13).
+  that converts streamed output into protocol events (see `setStreamAdapter()` in guide 13).
 - **Agent-facing adapters** (AG-UI, Vercel AI SDK) now belong to the Agent, because they
   encode Agent concepts such as tool calls and approvals.
 
 | 3.x class | 4.x class |
 |---|---|
 | `NeuronAI\Chat\Messages\Stream\Adapters\StreamAdapterInterface` | `NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface` |
-| `NeuronAI\Chat\Messages\Stream\Adapters\SSEAdapter` | `NeuronAI\Workflow\Streaming\Adapter\SSEAdapter` |
+| `NeuronAI\Chat\Messages\Stream\Adapters\SSEAdapter` | removed: adapters emit `ProtocolEvent`s and SSE framing moved to the edge (guide 23) |
 | `NeuronAI\Chat\Messages\Stream\Adapters\AGUIAdapter` | `NeuronAI\Agent\Adapters\AGUIAdapter` |
 | `NeuronAI\Chat\Messages\Stream\Adapters\VercelAIAdapter` | `NeuronAI\Agent\Adapters\VercelAIAdapter` |
 
@@ -78,16 +78,16 @@ final class MyRawAdapter implements StreamAdapterInterface { /* ... */ }
 After:
 
 ```php
-use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 
-final class MyProtocolAdapter extends SSEAdapter { /* ... */ }
+final class MyProtocolAdapter implements StreamAdapterInterface { /* ... */ }
 final class MyRawAdapter implements StreamAdapterInterface { /* ... */ }
 ```
 
-Custom adapters must also satisfy the enlarged 4.x contract (`suspended()` and `error()`),
-covered by guide 21. Fix the namespace first so the class loads, then apply guide 21 if it
-has not been applied yet.
+`SSEAdapter` has no 4.x counterpart, so an adapter that extended it cannot load until its
+body is rewritten too: treat guides 22 and 23 as one step for those files. Custom adapters
+must also satisfy the enlarged 4.x contract (`suspended()` and `error()`), covered by
+guide 21.
 
 ### Case 3: Type hints and `::class` references
 

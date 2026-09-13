@@ -18,11 +18,12 @@ use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\IndexingProgress;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\SuppressedProgress;
 use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\UnsupportedStreamEvent;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use function array_column;
 use function iterator_to_array;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class StreamEventAdapterTest extends TestCase
 {
@@ -147,7 +148,7 @@ class StreamEventAdapterTest extends TestCase
     }
 
     /**
-     * @param iterable<string> $frames
+     * @param iterable<ProtocolEvent> $frames
      * @return list<array<string, mixed>>
      */
     protected function decode(iterable $frames): array
@@ -155,7 +156,7 @@ class StreamEventAdapterTest extends TestCase
         $events = [];
 
         foreach ($frames as $frame) {
-            $decoded = json_decode(substr($frame, 6, -2), true);
+            $decoded = json_decode(json_encode($frame), true);
             $this->assertIsArray($decoded);
             $events[] = $decoded;
         }

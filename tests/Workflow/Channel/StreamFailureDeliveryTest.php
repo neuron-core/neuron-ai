@@ -10,6 +10,7 @@ use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\FailingStreamNode;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -18,9 +19,8 @@ use Throwable;
 use function array_column;
 use function array_key_last;
 use function array_map;
-use function array_pop;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class StreamFailureDeliveryTest extends TestCase
 {
@@ -51,17 +51,13 @@ class StreamFailureDeliveryTest extends TestCase
         }
 
         $this->assertSame($error, $caught);
-        $this->assertSame($pulled, $channel->lines);
-        $this->assertSame([], $channel->sent);
+        $this->assertSame($pulled, $channel->sent);
         $this->assertCount(1, $channel->failures);
         $this->assertSame($error, $channel->failures[0]['exception']);
         $this->assertSame([], $channel->completions);
         $this->assertSame([], $channel->suspendedStates);
 
-        if ($adapter instanceof VercelAIAdapter) {
-            $this->assertSame("data: [DONE]\n\n", array_pop($pulled));
-        }
-        $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
         $this->assertSame($expectedTypes, array_column($events, 'type'));
         $this->assertSame(
             $adapter instanceof AGUIAdapter
@@ -89,7 +85,8 @@ class StreamFailureDeliveryTest extends TestCase
         $error = new Error('Node failed');
         $adapter = $this->createMock(StreamAdapterInterface::class);
         $adapter->expects($this->once())->method('start')->willReturn([]);
-        $adapter->expects($this->once())->method('error')->with($this->identicalTo($error))->willReturn(['failed']);
+        $failed = new ProtocolEvent('failed');
+        $adapter->expects($this->once())->method('error')->with($this->identicalTo($error))->willReturn([$failed]);
         $adapter->expects($this->never())->method('end');
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -105,7 +102,7 @@ class StreamFailureDeliveryTest extends TestCase
         }
 
         $this->assertSame($error, $caught);
-        $this->assertSame(['failed'], $channel->lines);
+        $this->assertSame([$failed], $channel->sent);
         $this->assertCount(1, $channel->failures);
         $this->assertSame($error, $channel->failures[0]['exception']);
         $this->assertSame([], $channel->completions);

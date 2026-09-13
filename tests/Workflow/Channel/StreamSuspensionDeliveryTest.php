@@ -13,6 +13,7 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 use function array_column;
@@ -20,7 +21,7 @@ use function array_key_last;
 use function array_map;
 use function count;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class StreamSuspensionDeliveryTest extends TestCase
 {
@@ -43,12 +44,11 @@ class StreamSuspensionDeliveryTest extends TestCase
         $state = $generator->getReturn();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->lines);
-        $this->assertSame([], $channel->sent);
+        $this->assertSame($pulled, $channel->sent);
         $this->assertCount(1, $channel->suspendedStates);
         $this->assertSame([], $channel->completions);
 
-        $events = array_map(static fn (string $line): array => json_decode(substr($line, 6, -2), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
         $this->assertSame(
             ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),
@@ -65,6 +65,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         $request = new ApprovalRequest('needs a human');
         $channel = new FakeChannel();
 
+        $pauseFrame = new ProtocolEvent('paused');
         $paused = $this->createMock(StreamAdapterInterface::class);
         $paused->expects($this->once())->method('start')->willReturn([]);
         // The InterruptEvent is the suspension terminal, never stream content.
@@ -75,7 +76,7 @@ class StreamSuspensionDeliveryTest extends TestCase
                     && $requests[1] instanceof ApprovalRequest
                     && $requests[1]->getId() === 1,
             ))
-            ->willReturn(['paused']);
+            ->willReturn([$pauseFrame]);
         $paused->expects($this->never())->method('end');
 
         $workflow = Workflow::make()
@@ -86,21 +87,22 @@ class StreamSuspensionDeliveryTest extends TestCase
         $state = $workflow->run();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame(['paused'], $channel->lines);
+        $this->assertSame([$pauseFrame], $channel->sent);
         $this->assertCount(1, $channel->suspendedStates);
 
         // The continuation completes: a fresh adapter for the segment ends normally.
+        $doneFrame = new ProtocolEvent('done');
         $completed = $this->createMock(StreamAdapterInterface::class);
         $completed->expects($this->once())->method('start')->willReturn([]);
         $completed->expects($this->never())->method('suspended');
-        $completed->expects($this->once())->method('end')->willReturn(['done']);
+        $completed->expects($this->once())->method('end')->willReturn([$doneFrame]);
 
         $state = $workflow
             ->setStreamAdapter($completed)
             ->resume([ResumeInput::event($state->getInterruptRequest(), [])])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame(['paused', 'done'], $channel->lines);
+        $this->assertSame([$pauseFrame, $doneFrame], $channel->sent);
         $this->assertCount(1, $channel->completions);
     }
 }

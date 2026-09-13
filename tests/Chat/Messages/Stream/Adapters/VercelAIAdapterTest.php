@@ -14,13 +14,13 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use function array_column;
-use function array_pop;
 use function iterator_to_array;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class VercelAIAdapterTest extends TestCase
 {
@@ -46,28 +46,24 @@ class VercelAIAdapterTest extends TestCase
         $this->assertEmpty($this->adapter->start());
     }
 
-    public function test_end_returns_finish_and_done_messages(): void
+    public function test_end_returns_finish(): void
     {
         $result = iterator_to_array($this->adapter->end());
 
-        $this->assertCount(2, $result);
-        $this->assertStringContainsString('"type":"finish"', $result[0]);
-        $this->assertStringContainsString('[DONE]', $result[1]);
+        $this->assertCount(1, $result);
+        $this->assertSame('finish', $result[0]->type);
     }
 
-    public function test_error_emits_error_text_and_done(): void
+    public function test_error_emits_error_text(): void
     {
         $message = "Provider failed: \"unavailable\"\nPlease retry.";
         $result = iterator_to_array($this->adapter->error(new RuntimeException($message, 503)), false);
 
-        $this->assertCount(2, $result);
-        $this->assertStringStartsWith('data: ', $result[0]);
-        $this->assertStringEndsWith("\n\n", $result[0]);
+        $this->assertCount(1, $result);
         $this->assertSame([
             'type' => 'error',
             'errorText' => $message,
-        ], json_decode(substr($result[0], 6, -2), true));
-        $this->assertSame("data: [DONE]\n\n", $result[1]);
+        ], json_decode(json_encode($result[0]), true));
     }
 
     public function test_error_is_terminal_after_streaming(): void
@@ -123,8 +119,8 @@ class VercelAIAdapterTest extends TestCase
         $result = iterator_to_array($this->adapter->transform($chunk), false);
 
         $this->assertCount(1, $result);
-        $this->assertStringContainsString('"type":"tool-output-available"', $result[0]);
-        $this->assertStringContainsString('"output":"42"', $result[0]);
+        $this->assertSame('tool-output-available', $result[0]->type);
+        $this->assertSame('42', $result[0]->data['output']);
     }
 
     public function test_transform_tool_argument_chunks_stream_input_deltas(): void
@@ -136,13 +132,13 @@ class VercelAIAdapterTest extends TestCase
             new ToolArgumentChunk('msg_123', 'calculator', '{"operation":', 'call_1')
         ), false);
 
-        $this->assertStringContainsString('"type":"text-end"', array_shift($first));
+        $this->assertSame('text-end', array_shift($first)?->type);
         $this->assertCount(2, $first);
-        $this->assertStringContainsString('"type":"tool-input-start"', $first[0]);
-        $this->assertStringContainsString('"toolCallId":"call_1"', $first[0]);
-        $this->assertStringContainsString('"toolName":"calculator"', $first[0]);
-        $this->assertStringContainsString('"type":"tool-input-delta"', $first[1]);
-        $this->assertStringContainsString('"inputTextDelta":"{\"operation\":"', $first[1]);
+        $this->assertSame('tool-input-start', $first[0]->type);
+        $this->assertSame('call_1', $first[0]->data['toolCallId']);
+        $this->assertSame('calculator', $first[0]->data['toolName']);
+        $this->assertSame('tool-input-delta', $first[1]->type);
+        $this->assertSame('{"operation":', $first[1]->data['inputTextDelta']);
 
         $second = iterator_to_array($this->adapter->transform(
             new ToolArgumentChunk('msg_123', 'calculator', '"add"}', 'call_1')
@@ -150,8 +146,8 @@ class VercelAIAdapterTest extends TestCase
 
         // Subsequent fragments only emit deltas
         $this->assertCount(1, $second);
-        $this->assertStringContainsString('"type":"tool-input-delta"', $second[0]);
-        $this->assertStringContainsString('"toolCallId":"call_1"', $second[0]);
+        $this->assertSame('tool-input-delta', $second[0]->type);
+        $this->assertSame('call_1', $second[0]->data['toolCallId']);
     }
 
     public function test_tool_call_chunk_reuses_streamed_call_id(): void
@@ -168,7 +164,7 @@ class VercelAIAdapterTest extends TestCase
     {
         $first = $this->decode($this->adapter->transform(new TextChunk('msg_123', 'Hello')));
         $second = $this->decode($this->adapter->transform(new TextChunk('msg_123', ' world')));
-        $end = $this->decode(array_slice(iterator_to_array($this->adapter->end(), false), 0, -1));
+        $end = $this->decode($this->adapter->end());
         $this->assertSame('msg_123', $first[0]['messageId']);
         $this->assertSame(['text-delta'], array_column($second, 'type'));
         $this->assertSame($first[1]['id'], $second[0]['id']);
@@ -176,24 +172,14 @@ class VercelAIAdapterTest extends TestCase
         $this->assertSame($first[1]['id'], $end[0]['id']);
     }
 
-    public function test_sse_format_is_correct(): void
+    public function test_transform_yields_protocol_events(): void
     {
         $chunk = new TextChunk('msg_123', 'Test');
         $result = iterator_to_array($this->adapter->transform($chunk), false);
 
         // Start, part start, and delta must all survive collection.
         $this->assertCount(3, $result);
-
-        foreach ($result as $line) {
-            $this->assertStringStartsWith('data: ', $line);
-            $this->assertStringEndsWith("\n\n", $line);
-
-            // Extract JSON and validate
-            $json = substr($line, 6, -2); // Remove "data: " and "\n\n"
-            $decoded = json_decode($json, true);
-            $this->assertNotNull($decoded);
-            $this->assertArrayHasKey('type', $decoded);
-        }
+        $this->assertContainsOnlyInstancesOf(ProtocolEvent::class, $result);
     }
 
     public function test_suspended_requests_approval_without_dispatching_the_tool(): void
@@ -203,7 +189,7 @@ class VercelAIAdapterTest extends TestCase
             new Action('call_1', 'delete_file', reason: 'Consent required', inputs: ['path' => '/tmp/x']),
         ]))->withId(1);
         $frames = iterator_to_array($this->adapter->suspended([$request]), false);
-        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+
         $events = $this->decode($frames);
         $this->assertSame(['tool-approval-request', 'finish'], array_column($events, 'type'));
         $this->assertSame('call_1', $events[0]['approvalId']);
@@ -218,7 +204,7 @@ class VercelAIAdapterTest extends TestCase
 
         $frames = iterator_to_array($this->adapter->suspended([1 => $request]), false);
 
-        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+
         $events = $this->decode($frames);
         $this->assertSame(['start', 'tool-input-start', 'tool-input-delta', 'tool-approval-request', 'finish'], array_column($events, 'type'));
         // Without a per-action reason the request message is the prompt.
@@ -231,7 +217,7 @@ class VercelAIAdapterTest extends TestCase
 
         $frames = iterator_to_array($this->adapter->suspended([3 => $request]), false);
 
-        $this->assertSame("data: [DONE]\n\n", array_pop($frames));
+
         $this->assertSame([
             [
                 'type' => 'data-workflow-interrupt',
@@ -256,14 +242,14 @@ class VercelAIAdapterTest extends TestCase
     }
 
     /**
-     * @param iterable<string> $frames
+     * @param iterable<ProtocolEvent> $frames
      * @return list<array<string, mixed>>
      */
     protected function decode(iterable $frames): array
     {
         $events = [];
         foreach ($frames as $frame) {
-            $events[] = json_decode(substr($frame, 6, -2), true);
+            $events[] = json_decode(json_encode($frame), true);
         }
 
         return $events;

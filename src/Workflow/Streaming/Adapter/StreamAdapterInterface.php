@@ -5,29 +5,30 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Streaming\Adapter;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 
 interface StreamAdapterInterface
 {
     /**
-     * Transform a Neuron chunk into protocol-specific output.
+     * Transform a Neuron chunk into protocol events.
      *
      * @param object $chunk Neuron chunk (TextChunk, ToolCallChunk, etc.) or custom objects
-     * @return iterable<string> One or more output lines/messages
+     * @return iterable<ProtocolEvent> Zero or more events
      */
     public function transform(object $chunk): iterable;
 
     /**
      * Protocol initialization sequence (optional).
      *
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     public function start(): iterable;
 
     /**
      * Protocol termination sequence (optional).
      *
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     public function end(): iterable;
 
@@ -40,7 +41,7 @@ interface StreamAdapterInterface
      * iterable if the protocol cannot express a pause.
      *
      * @param array<int, InterruptRequest> $requests The active requests, keyed by interrupt ID.
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     public function suspended(array $requests): iterable;
 
@@ -50,7 +51,7 @@ interface StreamAdapterInterface
      * Adapters encode the original error for their protocol, including any
      * termination frames. Return an empty iterable if no failure output is needed.
      *
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     public function error(Throwable $error): iterable;
 }

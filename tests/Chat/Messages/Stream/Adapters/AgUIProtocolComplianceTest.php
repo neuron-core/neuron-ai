@@ -17,15 +17,14 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use function array_column;
 use function array_key_last;
 use function iterator_to_array;
 use function json_decode;
+use function json_encode;
 use function sprintf;
-use function str_ends_with;
-use function str_starts_with;
-use function substr;
 
 /**
  * Validates that {@see AGUIAdapter} emits an event stream compliant with the
@@ -238,7 +237,7 @@ class AgUIProtocolComplianceTest extends TestCase
     /**
      * Parse SSE frames into decoded event payloads.
      *
-     * @param iterable<string> ...$streams
+     * @param iterable<ProtocolEvent> ...$streams
      * @return list<array<string, mixed>>
      */
     private function collect(iterable ...$streams): array
@@ -246,11 +245,10 @@ class AgUIProtocolComplianceTest extends TestCase
         $events = [];
         foreach ($streams as $stream) {
             foreach ($stream as $frame) {
-                $this->assertTrue(str_starts_with($frame, 'data: '), "SSE frame must start with 'data: '");
-                $this->assertTrue(str_ends_with($frame, "\n\n"), 'SSE frame must end with a blank line');
+                $this->assertInstanceOf(ProtocolEvent::class, $frame, 'Every adapter output must be a protocol event');
 
-                $decoded = json_decode(substr($frame, 6, -2), true);
-                $this->assertIsArray($decoded, 'SSE payload must be valid JSON object');
+                $decoded = json_decode(json_encode($frame), true);
+                $this->assertIsArray($decoded, 'Event payload must be a JSON object');
                 $this->assertArrayHasKey('type', $decoded, 'Every event must carry a type');
 
                 $events[] = $decoded;

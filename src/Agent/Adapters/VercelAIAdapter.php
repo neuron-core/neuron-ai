@@ -21,10 +21,11 @@ use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
+use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
-use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 
 /**
@@ -32,7 +33,7 @@ use Throwable;
  *
  * @see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
  */
-class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterface
+class VercelAIAdapter implements CustomizableStreamAdapterInterface
 {
     use MapsStreamEvents;
 
@@ -83,8 +84,8 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
     {
         if (!$this->started) {
             $this->started = true;
-            $this->messageId ??= $messageId ?? $this->generateId('msg');
-            yield $this->sse(['type' => 'start', 'messageId' => $this->messageId]);
+            $this->messageId ??= $messageId ?? UniqueIdGenerator::generateId('msg_');
+            yield new ProtocolEvent('start', ['messageId' => $this->messageId]);
         }
     }
 
@@ -145,8 +146,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
                 'finished',
                 $event->metadata,
             ),
-            $event instanceof ActivityStreamEvent => [$this->sse([
-                'type' => 'data-workflow-activity',
+            $event instanceof ActivityStreamEvent => [new ProtocolEvent('data-workflow-activity', [
                 'data' => [
                     'id' => $event->id,
                     'type' => $event->type,
@@ -154,8 +154,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
                 ],
                 'transient' => true,
             ])],
-            $event instanceof CustomStreamEvent => [$this->sse([
-                'type' => 'data-' . $event->name,
+            $event instanceof CustomStreamEvent => [new ProtocolEvent('data-' . $event->name, [
                 'data' => $event->value,
                 'transient' => true,
             ])],
@@ -181,8 +180,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             $data['metadata'] = $metadata;
         }
 
-        yield $this->sse([
-            'type' => 'data-workflow-step',
+        yield new ProtocolEvent('data-workflow-step', [
             'data' => $data,
             'transient' => true,
         ]);
@@ -202,11 +200,11 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             }
         }
         if ($this->textPartId === null) {
-            $this->textPartId = $this->generateId('text');
+            $this->textPartId = UniqueIdGenerator::generateId('text_');
             $this->partSourceId = $chunk->messageId;
-            yield $this->sse(['type' => 'text-start', 'id' => $this->textPartId]);
+            yield new ProtocolEvent('text-start', ['id' => $this->textPartId]);
         }
-        yield $this->sse(['type' => 'text-delta', 'id' => $this->textPartId, 'delta' => $chunk->content]);
+        yield new ProtocolEvent('text-delta', ['id' => $this->textPartId, 'delta' => $chunk->content]);
     }
 
     protected function handleReasoning(ReasoningChunk $chunk): iterable
@@ -223,11 +221,11 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             }
         }
         if ($this->reasoningPartId === null) {
-            $this->reasoningPartId = $this->generateId('reasoning');
+            $this->reasoningPartId = UniqueIdGenerator::generateId('reasoning_');
             $this->partSourceId = $chunk->messageId;
-            yield $this->sse(['type' => 'reasoning-start', 'id' => $this->reasoningPartId]);
+            yield new ProtocolEvent('reasoning-start', ['id' => $this->reasoningPartId]);
         }
-        yield $this->sse(['type' => 'reasoning-delta', 'id' => $this->reasoningPartId, 'delta' => $chunk->content]);
+        yield new ProtocolEvent('reasoning-delta', ['id' => $this->reasoningPartId, 'delta' => $chunk->content]);
     }
 
     protected function beginInferenceStep(): iterable
@@ -240,20 +238,20 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             yield $frame;
         }
         if ($this->stepStarted) {
-            yield $this->sse(['type' => 'finish-step']);
+            yield new ProtocolEvent('finish-step');
         }
         $this->stepStarted = true;
-        yield $this->sse(['type' => 'start-step']);
+        yield new ProtocolEvent('start-step');
     }
 
     protected function closeParts(): iterable
     {
         if ($this->textPartId !== null) {
-            yield $this->sse(['type' => 'text-end', 'id' => $this->textPartId]);
+            yield new ProtocolEvent('text-end', ['id' => $this->textPartId]);
             $this->textPartId = null;
         }
         if ($this->reasoningPartId !== null) {
-            yield $this->sse(['type' => 'reasoning-end', 'id' => $this->reasoningPartId]);
+            yield new ProtocolEvent('reasoning-end', ['id' => $this->reasoningPartId]);
             $this->reasoningPartId = null;
         }
         $this->partSourceId = null;
@@ -276,21 +274,19 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
         }
         $callId = $chunk->toolCallId
             ?? $this->toolCallIds[$chunk->toolName]
-            ?? $this->generateId('call');
+            ?? UniqueIdGenerator::generateId('call_');
         $this->toolCallIds[$chunk->toolName] = $callId;
 
         if (!isset($this->toolInputStarted[$callId])) {
             $this->toolInputStarted[$callId] = true;
 
-            yield $this->sse([
-                'type' => 'tool-input-start',
+            yield new ProtocolEvent('tool-input-start', [
                 'toolCallId' => $callId,
                 'toolName' => $chunk->toolName,
             ]);
         }
 
-        yield $this->sse([
-            'type' => 'tool-input-delta',
+        yield new ProtocolEvent('tool-input-delta', [
             'toolCallId' => $callId,
             'inputTextDelta' => $chunk->delta,
         ]);
@@ -307,7 +303,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
 
     protected function resolveToolCallId(ToolCall $call): string
     {
-        $id = $call->getCallId() ?? $this->toolCallIds[$call->getName()] ?? $this->generateId('call');
+        $id = $call->getCallId() ?? $this->toolCallIds[$call->getName()] ?? UniqueIdGenerator::generateId('call_');
         $this->toolCallIds[$call->getName()] = $id;
         return $id;
     }
@@ -342,13 +338,13 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
         }
         $result = $chunk->tool->getResult();
         if ($chunk->tool->getApprovalState() === ApprovalState::Rejected) {
-            $event = ['type' => 'tool-output-denied', 'toolCallId' => $callId];
+            $event = new ProtocolEvent('tool-output-denied', ['toolCallId' => $callId]);
         } elseif ($result instanceof ToolOutput && $result->isError()) {
-            $event = ['type' => 'tool-output-error', 'toolCallId' => $callId, 'errorText' => $result->getText()];
+            $event = new ProtocolEvent('tool-output-error', ['toolCallId' => $callId, 'errorText' => $result->getText()]);
         } else {
-            $event = ['type' => 'tool-output-available', 'toolCallId' => $callId, 'output' => (string) $result];
+            $event = new ProtocolEvent('tool-output-available', ['toolCallId' => $callId, 'output' => (string) $result]);
         }
-        yield $this->sse($event);
+        yield $event;
         $this->knownOutputs[$callId] = true;
     }
 
@@ -387,8 +383,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
                     foreach ($this->previewTool($call) as $frame) {
                         yield $frame;
                     }
-                    yield $this->sse([
-                        'type' => 'tool-input-available',
+                    yield new ProtocolEvent('tool-input-available', [
                         'toolCallId' => $this->resolveToolCallId($call),
                         'toolName' => $call->getName(),
                         'input' => (object) $call->getInputs(),
@@ -399,15 +394,13 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
                     foreach ($this->previewTool(new ToolCall($action->name, $action->id, $action->inputs)) as $frame) {
                         yield $frame;
                     }
-                    yield $this->sse([
-                        'type' => 'tool-approval-request',
+                    yield new ProtocolEvent('tool-approval-request', [
                         'toolCallId' => $action->id,
                         'approvalId' => $action->id,
                         'reason' => $action->reason ?? $request->getMessage(),
                     ]);
                     if (!$action->isPending()) {
-                        yield $this->sse([
-                            'type' => 'tool-approval-response',
+                        yield new ProtocolEvent('tool-approval-response', [
                             'approvalId' => $action->id,
                             'approved' => $action->isApproved(),
                             ...($action->feedback === null ? [] : ['reason' => $action->feedback]),
@@ -415,8 +408,7 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
                     }
                 }
             } else {
-                yield $this->sse([
-                    'type' => 'data-workflow-interrupt',
+                yield new ProtocolEvent('data-workflow-interrupt', [
                     'data' => $request->jsonSerialize(),
                     'transient' => true,
                 ]);
@@ -438,11 +430,9 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             yield $frame;
         }
 
-        yield $this->sse([
-            'type' => 'error',
+        yield new ProtocolEvent('error', [
             'errorText' => $error->getMessage(),
         ]);
-        yield "data: [DONE]\n\n";
     }
 
     public function end(): iterable
@@ -456,9 +446,8 @@ class VercelAIAdapter extends SSEAdapter implements CustomizableStreamAdapterInt
             yield $frame;
         }
         if ($this->stepStarted) {
-            yield $this->sse(['type' => 'finish-step']);
+            yield new ProtocolEvent('finish-step');
         }
-        yield $this->sse(['type' => 'finish']);
-        yield "data: [DONE]\n\n";
+        yield new ProtocolEvent('finish');
     }
 }

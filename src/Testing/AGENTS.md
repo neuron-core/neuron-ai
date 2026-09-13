@@ -15,7 +15,7 @@ $provider->assertCallCount(1);
 $provider->assertSent(fn (RequestRecord $request): bool => $request->messages[0]->getContent() === 'Hi');
 ```
 
-`FakeMcpTransport` applies the same shape at the JSON-RPC level: queue responses, then `assertMethodSent('initialize')`, `assertToolCalled('search')`, and so on. `FakeChannel` records deliveries (`sent`, `lines`, suspended/completed/failed states) and its `throwOnSend` exercises the workflow's failure policy.
+`FakeMcpTransport` applies the same shape at the JSON-RPC level: queue responses, then `assertMethodSent('initialize')`, `assertToolCalled('search')`, and so on. `FakeChannel` records deliveries (`sent`, suspended/completed/failed states) and its `throwOnSend` exercises the workflow's failure policy.
 
 ## Generator gotcha
 

@@ -10,7 +10,6 @@ use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
@@ -19,11 +18,13 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
+use NeuronAI\Tests\Agent\Stub\ParityAdapter;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use function array_filter;
@@ -97,6 +98,7 @@ class AgentResumeTest extends TestCase
         // is bound by the framework before the history is touched.
         $agent2->setChatHistory(new SQLChatHistory($pdo));
         $agent2->setChannel($channel);
+        $agent2->setStreamAdapter(new ParityAdapter());
 
         // The approval wrapper hides the signal name; events() selects streaming.
         $handler2 = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
@@ -109,13 +111,9 @@ class AgentResumeTest extends TestCase
         $this->assertSame('thread-1', $agent2->getChatHistory()->getThreadId());
 
         // Stream intent survived suspend → resume through both pull and push delivery.
-        $this->assertNotEmpty(
-            array_filter($chunks, fn (object $item): bool => $item instanceof TextChunk)
-        );
-
-        $this->assertNotEmpty(
-            array_filter($channel->sent, fn (object $item): bool => $item instanceof TextChunk)
-        );
+        $isText = static fn (ProtocolEvent $event): bool => $event->type === 'text';
+        $this->assertNotEmpty(array_filter($chunks, $isText));
+        $this->assertNotEmpty(array_filter($channel->sent, $isText));
         $this->assertCount(1, $channel->completions);
 
         // The final message landed in the thread's history.

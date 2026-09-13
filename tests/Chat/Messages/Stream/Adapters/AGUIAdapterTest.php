@@ -17,13 +17,14 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use function array_column;
 use function array_key_last;
 use function iterator_to_array;
 use function json_decode;
-use function substr;
+use function json_encode;
 
 class AGUIAdapterTest extends TestCase
 {
@@ -42,9 +43,7 @@ class AGUIAdapterTest extends TestCase
             }
 
             $this->assertCount(1, $events);
-            $this->assertStringStartsWith('data: ', $events[0]);
-            $this->assertStringEndsWith("\n\n", $events[0]);
-            $this->assertSame($expected, json_decode(substr($events[0], 6, -2), true));
+            $this->assertSame($expected, json_decode(json_encode($events[0]), true));
         }
     }
 
@@ -53,7 +52,7 @@ class AGUIAdapterTest extends TestCase
         $adapter = new AGUIAdapter('thread_test');
         iterator_to_array($adapter->start(), false);
         $text = iterator_to_array($adapter->transform(new TextChunk('msg_test', 'Hello')), false);
-        $messageId = json_decode(substr($text[0], 6, -2), true)['messageId'];
+        $messageId = $text[0]->data['messageId'];
 
         $events = iterator_to_array($adapter->error(new RuntimeException('Failed')), false);
 
@@ -61,8 +60,8 @@ class AGUIAdapterTest extends TestCase
         $this->assertSame([
             'type' => 'TEXT_MESSAGE_END',
             'messageId' => $messageId,
-        ], json_decode(substr($events[0], 6, -2), true));
-        $this->assertStringContainsString('"type":"RUN_ERROR"', $events[1]);
+        ], json_decode(json_encode($events[0]), true));
+        $this->assertSame('RUN_ERROR', $events[1]->type);
         $this->assertSame([], iterator_to_array($adapter->end(), false));
     }
 
@@ -78,12 +77,12 @@ class AGUIAdapterTest extends TestCase
         $this->assertSame([
             'type' => 'REASONING_MESSAGE_END',
             'messageId' => 'reasoning_msg_test',
-        ], json_decode(substr($events[0], 6, -2), true));
+        ], json_decode(json_encode($events[0]), true));
         $this->assertSame([
             'type' => 'REASONING_END',
             'messageId' => 'reasoning_msg_test',
-        ], json_decode(substr($events[1], 6, -2), true));
-        $this->assertStringContainsString('"type":"RUN_ERROR"', $events[2]);
+        ], json_decode(json_encode($events[1]), true));
+        $this->assertSame('RUN_ERROR', $events[2]->type);
         $this->assertSame([], iterator_to_array($adapter->end(), false));
     }
 
@@ -222,14 +221,14 @@ class AGUIAdapterTest extends TestCase
     }
 
     /**
-     * @param iterable<string> $frames
+     * @param iterable<ProtocolEvent> $frames
      * @return list<array<string, mixed>>
      */
     private function decode(iterable $frames): array
     {
         $events = [];
         foreach ($frames as $frame) {
-            $events[] = json_decode(substr($frame, 6, -2), true);
+            $events[] = json_decode(json_encode($frame), true);
         }
 
         return $events;

@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Workflow\Channel;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Tests\Workflow\Channel\Stub\ChunkAdapter;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\PostStreamNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\PreStreamNode;
@@ -20,6 +21,7 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -39,12 +41,13 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new ChunkStreamingNode(3)])
+            ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
 
         $workflow->run();
 
         $payloads = array_map(
-            static fn (object $item): string => $item instanceof ChunkEvent ? $item->payload : $item::class,
+            static fn (ProtocolEvent $event): string => $event->data['payload'],
             $channel->sent,
         );
 
@@ -60,6 +63,7 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new ChunkStreamingNode(2)])
+            ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
 
         $pulled = [];
@@ -80,6 +84,7 @@ class ChannelForwardingTest extends TestCase
         $errors = [];
         $workflow = Workflow::make()
             ->addNodes([new ChunkStreamingNode(5)])
+            ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
         $workflow->subscribe(ChannelError::class, function (ChannelError $error) use (&$errors): void {
             $errors[] = $error;
@@ -96,6 +101,25 @@ class ChannelForwardingTest extends TestCase
             $this->assertSame($channel->throwOnSend, $error->exception);
         }
         // The terminal is still delivered — failures never lose the run.
+        $this->assertCount(1, $channel->completions);
+    }
+
+    public function test_channel_without_adapter_receives_only_the_lifecycle(): void
+    {
+        $channel = new FakeChannel();
+        $workflow = Workflow::make()
+            ->addNodes([new ChunkStreamingNode(3)])
+            ->setChannel($channel);
+
+        $pulled = [];
+        foreach ($workflow->events() as $item) {
+            $pulled[] = $item;
+        }
+
+        // Native output stays on the pull path: a channel speaks the adapter's protocol.
+        $this->assertCount(3, $pulled);
+        $this->assertContainsOnlyInstancesOf(ChunkEvent::class, $pulled);
+        $this->assertSame([], $channel->sent);
         $this->assertCount(1, $channel->completions);
     }
 
@@ -196,13 +220,13 @@ class ChannelForwardingTest extends TestCase
         $firstSegment = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new PreStreamNode(), new InterruptableNode(), new PostStreamNode()])
+            ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($firstSegment);
 
         $workflow->run();
 
         $this->assertCount(1, $firstSegment->sent);
-        $this->assertInstanceOf(ChunkEvent::class, $firstSegment->sent[0]);
-        $this->assertSame('pre', $firstSegment->sent[0]->payload);
+        $this->assertSame('pre', $firstSegment->sent[0]->data['payload']);
         $this->assertCount(1, $firstSegment->suspendedStates);
 
         // Crash-replayed / cached steps yield nothing, so the resume segment's
@@ -213,8 +237,7 @@ class ChannelForwardingTest extends TestCase
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->sent);
-        $this->assertInstanceOf(ChunkEvent::class, $resumeSegment->sent[0]);
-        $this->assertSame('post', $resumeSegment->sent[0]->payload);
+        $this->assertSame('post', $resumeSegment->sent[0]->data['payload']);
         $this->assertCount(1, $resumeSegment->completions);
         $this->assertSame([], $resumeSegment->suspendedStates);
     }

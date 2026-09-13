@@ -6,40 +6,42 @@ namespace NeuronAI\Tests\Agent\Stub;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
+
 use function count;
 
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
  * ids, so two independent instances produce identical output for the same
- * item sequence — which is what byte-parity needs.
+ * item sequence — which is what parity needs.
  */
 class ParityAdapter implements StreamAdapterInterface
 {
     public function start(): iterable
     {
-        yield "start\n";
+        yield new ProtocolEvent('start');
     }
 
     public function transform(object $chunk): iterable
     {
         if ($chunk instanceof TextChunk) {
-            yield 'text:' . $chunk->content . "\n";
+            yield new ProtocolEvent('text', ['content' => $chunk->content]);
         }
     }
 
     public function error(Throwable $error): iterable
     {
-        yield 'error:' . $error->getMessage() . "\n";
+        yield new ProtocolEvent('error', ['message' => $error->getMessage()]);
     }
 
     public function suspended(array $requests): iterable
     {
-        yield 'suspended:' . count($requests) . "\n";
+        yield new ProtocolEvent('suspended', ['requests' => count($requests)]);
     }
 
     public function end(): iterable
     {
-        yield "end\n";
+        yield new ProtocolEvent('end');
     }
 }

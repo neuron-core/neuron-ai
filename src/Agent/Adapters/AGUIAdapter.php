@@ -21,11 +21,12 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
+use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
-use NeuronAI\Workflow\Streaming\Adapter\SSEAdapter;
+use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 use function json_encode;
 
@@ -35,7 +36,7 @@ use function json_encode;
  * @see https://docs.ag-ui.com/concepts/events
  * @see https://docs.ag-ui.com/concepts/interrupts
  */
-class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterface
+class AGUIAdapter implements CustomizableStreamAdapterInterface
 {
     use MapsStreamEvents;
 
@@ -145,15 +146,13 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
                 $event->name,
                 $event->metadata,
             ),
-            $event instanceof ActivityStreamEvent => [$this->sse([
-                'type' => 'ACTIVITY_SNAPSHOT',
+            $event instanceof ActivityStreamEvent => [new ProtocolEvent('ACTIVITY_SNAPSHOT', [
                 'messageId' => $event->id,
                 'activityType' => $event->type,
                 'content' => (object) $event->data,
                 'replace' => true,
             ])],
-            $event instanceof CustomStreamEvent => [$this->sse([
-                'type' => 'CUSTOM',
+            $event instanceof CustomStreamEvent => [new ProtocolEvent('CUSTOM', [
                 'name' => $event->name,
                 'value' => $event->value,
             ])],
@@ -170,16 +169,13 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
      */
     protected function handleStepEvent(string $type, string $name, array $metadata): iterable
     {
-        $payload = [
-            'type' => $type,
-            'stepName' => $name,
-        ];
+        $data = ['stepName' => $name];
 
         if ($metadata !== []) {
-            $payload['metadata'] = $metadata;
+            $data['metadata'] = $metadata;
         }
 
-        yield $this->sse($payload);
+        yield new ProtocolEvent($type, $data);
     }
 
     protected function handleText(TextChunk $chunk): iterable
@@ -199,11 +195,10 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         }
 
         if (! $this->messageStarted) {
-            $this->currentMessageId = $chunk->messageId ?? $this->generateId('msg');
+            $this->currentMessageId = $chunk->messageId ?? UniqueIdGenerator::generateId('msg_');
             $this->messageStarted = true;
 
-            yield $this->sse([
-                'type' => 'TEXT_MESSAGE_START',
+            yield new ProtocolEvent('TEXT_MESSAGE_START', [
                 'messageId' => $this->currentMessageId,
                 'role' => 'assistant',
             ]);
@@ -213,8 +208,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $this->messages[$id] ??= ['id' => $id, 'role' => 'assistant', 'content' => ''];
         $this->messages[$id]['content'] .= $chunk->content;
 
-        yield $this->sse([
-            'type' => 'TEXT_MESSAGE_CONTENT',
+        yield new ProtocolEvent('TEXT_MESSAGE_CONTENT', [
             'messageId' => $this->currentMessageId,
             'delta' => $chunk->content,
         ]);
@@ -240,13 +234,11 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             $this->reasoningStarted = true;
             $this->reasoningMessageId = $reasoningId;
 
-            yield $this->sse([
-                'type' => 'REASONING_START',
+            yield new ProtocolEvent('REASONING_START', [
                 'messageId' => $this->reasoningMessageId,
             ]);
 
-            yield $this->sse([
-                'type' => 'REASONING_MESSAGE_START',
+            yield new ProtocolEvent('REASONING_MESSAGE_START', [
                 'messageId' => $this->reasoningMessageId,
                 'role' => 'reasoning',
             ]);
@@ -255,8 +247,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $this->messages[$reasoningId] ??= ['id' => $reasoningId, 'role' => 'reasoning', 'content' => ''];
         $this->messages[$reasoningId]['content'] .= $chunk->content;
 
-        yield $this->sse([
-            'type' => 'REASONING_MESSAGE_CONTENT',
+        yield new ProtocolEvent('REASONING_MESSAGE_CONTENT', [
             'messageId' => $this->reasoningMessageId,
             'delta' => $chunk->content,
         ]);
@@ -266,7 +257,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     {
         // AG-UI clients may execute unanswered calls when the run finishes.
         // Keep proposals off the executable tool channel until dispatch commits.
-        $id = $chunk->toolCallId ?? $this->toolCallIds[$chunk->toolName] ?? $this->generateId('call');
+        $id = $chunk->toolCallId ?? $this->toolCallIds[$chunk->toolName] ?? UniqueIdGenerator::generateId('call_');
         $this->toolCallIds[$chunk->toolName] = $id;
         $this->argumentDeltas[$id][] = $chunk->delta;
         return [];
@@ -284,7 +275,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         if (isset($this->toolCallStarted[$toolCallId])) {
             return;
         }
-        $parentMessageId = $this->currentMessageId ?? $this->generateId('msg');
+        $parentMessageId = $this->currentMessageId ?? UniqueIdGenerator::generateId('msg_');
         foreach ($this->endReasoning() as $frame) {
             yield $frame;
         }
@@ -296,7 +287,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         }
         $arguments = json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR);
         foreach ($this->argumentDeltas[$toolCallId] ?? [$arguments] as $delta) {
-            yield $this->sse(['type' => 'TOOL_CALL_ARGS', 'toolCallId' => $toolCallId, 'delta' => $delta]);
+            yield new ProtocolEvent('TOOL_CALL_ARGS', ['toolCallId' => $toolCallId, 'delta' => $delta]);
         }
         unset($this->argumentDeltas[$toolCallId]);
         foreach ($this->endToolCall($toolCallId) as $frame) {
@@ -320,7 +311,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             yield $frame;
         }
         $result = $chunk->tool->getResult();
-        $id = $this->generateId('msg');
+        $id = UniqueIdGenerator::generateId('msg_');
         $message = [
             'id' => $id, 'role' => 'tool', 'toolCallId' => $toolCallId, 'content' => (string) $result,
         ];
@@ -330,7 +321,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $this->messages[$id] = $message;
         $this->knownResults[$toolCallId] = true;
         unset($message['id']);
-        yield $this->sse(['type' => 'TOOL_CALL_RESULT', 'messageId' => $id, ...$message]);
+        yield new ProtocolEvent('TOOL_CALL_RESULT', ['messageId' => $id, ...$message]);
     }
 
     protected function resolveToolCallId(ToolCallChunk|ToolResultChunk $chunk): string
@@ -338,14 +329,14 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $toolName = $chunk->tool->getName();
         $toolCallId = $chunk->tool->getCallId()
             ?? $this->toolCallIds[$toolName]
-            ?? $this->generateId('call');
+            ?? UniqueIdGenerator::generateId('call_');
         $this->toolCallIds[$toolName] = $toolCallId;
 
         return $toolCallId;
     }
 
     /**
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     protected function startToolCall(string $toolCallId, string $toolName, ?string $parentMessageId): iterable
     {
@@ -356,21 +347,20 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         $this->toolCallStarted[$toolCallId] = true;
         $this->openToolCalls[$toolCallId] = true;
 
-        $event = [
-            'type' => 'TOOL_CALL_START',
+        $data = [
             'toolCallId' => $toolCallId,
             'toolCallName' => $toolName,
         ];
 
         if ($parentMessageId !== null) {
-            $event['parentMessageId'] = $parentMessageId;
+            $data['parentMessageId'] = $parentMessageId;
         }
 
-        yield $this->sse($event);
+        yield new ProtocolEvent('TOOL_CALL_START', $data);
     }
 
     /**
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     protected function endToolCall(string $toolCallId): iterable
     {
@@ -380,10 +370,19 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
 
         unset($this->openToolCalls[$toolCallId]);
 
-        yield $this->sse([
-            'type' => 'TOOL_CALL_END',
+        yield new ProtocolEvent('TOOL_CALL_END', [
             'toolCallId' => $toolCallId,
         ]);
+    }
+
+    public function getHeaders(): array
+    {
+        return [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ];
     }
 
     public function start(): iterable
@@ -392,10 +391,9 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             return;
         }
 
-        $this->runId ??= $this->generateId('run');
+        $this->runId ??= UniqueIdGenerator::generateId('run_');
 
-        yield $this->sse([
-            'type' => 'RUN_STARTED',
+        yield new ProtocolEvent('RUN_STARTED', [
             'runId' => $this->runId,
             'threadId' => $this->threadId,
         ]);
@@ -448,10 +446,9 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             return;
         }
         $this->finished = true;
-        yield $this->sse(['type' => 'STATE_SNAPSHOT', 'snapshot' => (object) $this->state]);
-        yield $this->sse(['type' => 'MESSAGES_SNAPSHOT', 'messages' => array_values($this->messages)]);
-        yield $this->sse([
-            'type' => 'RUN_FINISHED',
+        yield new ProtocolEvent('STATE_SNAPSHOT', ['snapshot' => (object) $this->state]);
+        yield new ProtocolEvent('MESSAGES_SNAPSHOT', ['messages' => array_values($this->messages)]);
+        yield new ProtocolEvent('RUN_FINISHED', [
             'threadId' => $this->threadId,
             'runId' => $this->runId,
             'outcome' => ['type' => 'interrupt', 'interrupts' => $interrupts],
@@ -485,7 +482,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     }
 
     /**
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     protected function endReasoning(): iterable
     {
@@ -493,13 +490,11 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             return;
         }
 
-        yield $this->sse([
-            'type' => 'REASONING_MESSAGE_END',
+        yield new ProtocolEvent('REASONING_MESSAGE_END', [
             'messageId' => $this->reasoningMessageId,
         ]);
 
-        yield $this->sse([
-            'type' => 'REASONING_END',
+        yield new ProtocolEvent('REASONING_END', [
             'messageId' => $this->reasoningMessageId,
         ]);
 
@@ -508,7 +503,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     }
 
     /**
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     protected function endText(): iterable
     {
@@ -516,8 +511,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             return;
         }
 
-        yield $this->sse([
-            'type' => 'TEXT_MESSAGE_END',
+        yield new ProtocolEvent('TEXT_MESSAGE_END', [
             'messageId' => $this->currentMessageId,
         ]);
 
@@ -528,7 +522,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
     /**
      * Terminate a failed run instead of calling end().
      *
-     * @return iterable<string>
+     * @return iterable<ProtocolEvent>
      */
     public function error(Throwable $error): iterable
     {
@@ -545,16 +539,13 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
             yield $frame;
         }
 
-        $event = [
-            'type' => 'RUN_ERROR',
-            'message' => $error->getMessage(),
-        ];
+        $data = ['message' => $error->getMessage()];
 
         if ($error->getCode() !== 0) {
-            $event['code'] = (string) $error->getCode();
+            $data['code'] = (string) $error->getCode();
         }
 
-        yield $this->sse($event);
+        yield new ProtocolEvent('RUN_ERROR', $data);
     }
 
     public function end(): iterable
@@ -572,8 +563,7 @@ class AGUIAdapter extends SSEAdapter implements CustomizableStreamAdapterInterfa
         }
 
         if ($this->runId !== null) {
-            yield $this->sse([
-                'type' => 'RUN_FINISHED',
+            yield new ProtocolEvent('RUN_FINISHED', [
                 'threadId' => $this->threadId,
                 'runId' => $this->runId,
             ]);

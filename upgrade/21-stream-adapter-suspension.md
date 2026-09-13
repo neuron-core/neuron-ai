@@ -7,7 +7,7 @@ Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; impo
 1. **`StreamAdapterInterface` gained `suspended(array $requests): iterable`.** The Workflow
    calls it *instead of* `end()` when a segment ends with active interrupts (a tool approval,
    `awaitEvent()`, `sleepUntil()`), passing the active `InterruptRequest`s keyed by interrupt
-   ID. Both pull consumers and an attached channel (`sendLine()`) receive its lines. Custom
+   ID. Both pull consumers and an attached channel (`send()`) receive its events. Custom
    adapters must implement it.
 2. **An `InterruptEvent` no longer passes through `transform()`.** A
    `mapEvent(InterruptEvent::class, ...)` mapping is never invoked anymore; the pause is
