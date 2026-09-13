@@ -53,7 +53,7 @@ class OpenAISpeechToTextTest extends TestCase
     {
         $provider = $this->makeProvider('{"text":"Hello world","usage":{"type":"tokens","input_tokens":10,"output_tokens":20,"total_tokens":30}}');
 
-        $message = $provider->chat($this->audioMessage());
+        $message = $provider->chat($this->audioMessage())->message();
 
         $this->assertSame('Hello world', $message->getContent());
         $this->assertSame(10, $message->getUsage()->inputTokens);
@@ -64,7 +64,7 @@ class OpenAISpeechToTextTest extends TestCase
     {
         $provider = $this->makeProvider('{"text":"Hello world"}');
 
-        $message = $provider->chat($this->audioMessage());
+        $message = $provider->chat($this->audioMessage())->message();
 
         $this->assertSame('Hello world', $message->getContent());
         $this->assertNull($message->getUsage());
