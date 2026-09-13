@@ -110,7 +110,7 @@ class OpenAIImage implements AIProviderInterface
             )
         );
 
-        if ($response['usage']) {
+        if (isset($response['usage'])) {
             $result->setUsage(
                 new Usage(
                     $response['usage']['input_tokens'],
