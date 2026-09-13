@@ -134,7 +134,7 @@ The Workflow selects the terminal from the segment's outcome, so application cod
 |---|---|---|
 | Completed | `end()` | The run finished |
 | Suspended | `suspended($requests)` | The active `InterruptRequest`s, keyed by interrupt ID |
-| Failed | `error($e)` | The failure, then the exception is rethrown to the caller |
+| Failed | `error($e)` | A neutral failure text (override the adapter's protected `errorMessage()` to expose more), then the exception is rethrown to the caller |
 
 With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists the pending interrupts; with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. The inbound half of that round trip is covered by the **neuron-tool-approval** skill.
 

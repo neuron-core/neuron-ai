@@ -71,8 +71,8 @@ class StreamFailureDeliveryTest extends TestCase
         $this->assertSame($expectedTypes, array_column($events, 'type'));
         $this->assertSame(
             $adapter instanceof AGUIAdapter
-                ? ['type' => 'RUN_ERROR', 'message' => $error->getMessage(), 'code' => '503']
-                : ['type' => 'error', 'errorText' => $error->getMessage()],
+                ? ['type' => 'RUN_ERROR', 'message' => 'The run failed.', 'code' => '503']
+                : ['type' => 'error', 'errorText' => 'The run failed.'],
             $events[array_key_last($events)],
         );
     }

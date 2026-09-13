@@ -23,10 +23,12 @@ test("an error after streaming started arrives as RUN_ERROR and the run is faile
   const { threadId, agent } = await openThread(request, "broken", "Break.");
 
   // The official client resolves the run and reports RUN_ERROR through the subscriber.
+  // The wire carries the adapter's neutral text; the reason stays server-side.
   const failed = await run(agent);
-  expect(failed.runError).toContain("Unknown scenario 'broken'");
+  expect(failed.runError).toBe("The run failed.");
   expect(failed.reply).toBeUndefined();
 
   const audit = await observe(request, threadId);
+  expect(audit.run?.status).toBe("failed");
   expect(audit.invocations).toHaveLength(0);
 });

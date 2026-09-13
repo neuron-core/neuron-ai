@@ -431,8 +431,19 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
         }
 
         yield new ProtocolEvent('error', [
-            'errorText' => $error->getMessage(),
+            'errorText' => $this->errorMessage($error),
         ]);
+    }
+
+    /**
+     * The failure text a client may see. Exception messages carry internals
+     * (provider URLs and response bodies, file paths, run identifiers), so
+     * the wire gets a neutral text; override to expose what your clients may
+     * know.
+     */
+    protected function errorMessage(Throwable $error): string
+    {
+        return 'The run failed.';
     }
 
     public function end(): iterable

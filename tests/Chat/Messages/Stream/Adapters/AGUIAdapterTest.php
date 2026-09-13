@@ -20,6 +20,7 @@ use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Throwable;
 use function array_column;
 use function array_key_last;
 use function iterator_to_array;
@@ -37,7 +38,7 @@ class AGUIAdapterTest extends TestCase
             $message = "Provider failed: \"unavailable\"\nPlease retry.";
             $events = iterator_to_array($adapter->error(new RuntimeException($message, $code)), false);
 
-            $expected = ['type' => 'RUN_ERROR', 'message' => $message];
+            $expected = ['type' => 'RUN_ERROR', 'message' => 'The run failed.'];
             if ($code !== 0) {
                 $expected['code'] = (string) $code;
             }
@@ -45,6 +46,21 @@ class AGUIAdapterTest extends TestCase
             $this->assertCount(1, $events);
             $this->assertSame($expected, json_decode(json_encode($events[0]), true));
         }
+    }
+
+    public function test_error_message_hook_decides_the_wire_text(): void
+    {
+        $adapter = new class ('thread_test') extends AGUIAdapter {
+            protected function errorMessage(Throwable $error): string
+            {
+                return 'Visible: ' . $error->getMessage();
+            }
+        };
+        iterator_to_array($adapter->start(), false);
+
+        $events = iterator_to_array($adapter->error(new RuntimeException('provider down')), false);
+
+        $this->assertSame('Visible: provider down', $events[0]->data['message']);
     }
 
     public function test_error_closes_active_text_before_run_error(): void
