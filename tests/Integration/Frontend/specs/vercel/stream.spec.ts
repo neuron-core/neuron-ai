@@ -25,5 +25,5 @@ test("an error after streaming started surfaces as a chat error with the protoco
   await openChat(page, request, "broken");
   await send(page, "Break.");
   await expect(page.getByTestId("status")).toHaveText("error");
-  await expect(page.getByTestId("error")).toContainText("Unknown scenario 'broken'");
+  await expect(page.getByTestId("error")).toContainText("The run failed.");
 });

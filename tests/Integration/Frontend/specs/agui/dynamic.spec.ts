@@ -43,10 +43,11 @@ test("a tool the client no longer declares is not exposed, and the model asking 
 
   const withoutReadTitle = FRONTEND_TOOLS.filter((tool) => tool.name !== "read_title");
   const failed = await run(agent, undefined, withoutReadTitle);
-  expect(failed.runError).toContain("read_title");
+  expect(failed.runError).toBe("The run failed.");
   expect(failed.reply).toBeUndefined();
 
   const audit = await observe(request, threadId);
+  expect(audit.run?.status).toBe("failed");
   expect(audit.invocations).toHaveLength(0);
 });
 
