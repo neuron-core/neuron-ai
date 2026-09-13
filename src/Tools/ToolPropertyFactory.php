@@ -55,7 +55,7 @@ class ToolPropertyFactory
         $type = $schema['type'] ?? PropertyType::STRING->value;
         $nullable = is_array($type) && in_array('null', $type, true);
         if (is_array($type)) {
-            $types = array_values((array)array_diff($type, ['null']));
+            $types = array_values(array_diff($type, ['null']));
             if (count($types) !== 1) {
                 throw new ToolException("Property '{$name}' must declare one non-null type.");
             }

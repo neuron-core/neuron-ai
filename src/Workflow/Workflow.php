@@ -429,7 +429,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         $this->assertNoStagedOperation();
 
         $run = $this->getExecutor()->inspect($this);
-        if ($run === null) {
+        if (!$run instanceof WorkflowRunSnapshot) {
             throw new InputTranslationException('There is no persisted run to continue.');
         }
 

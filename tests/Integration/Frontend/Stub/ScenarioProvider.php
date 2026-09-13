@@ -118,7 +118,7 @@ class ScenarioProvider implements AIProviderInterface
             $unanswered = array_filter($batch, fn (array $call): bool => !array_key_exists($call[1], $results));
             if ($unanswered !== []) {
                 $response = new ToolCallMessage(null, array_map(
-                    fn (array $call) => $this->newToolCall($call[0], $call[1], $call[2]),
+                    fn (array $call): \NeuronAI\Tools\ToolCall => $this->newToolCall($call[0], $call[1], $call[2]),
                     $batch,
                 ));
                 $this->record($method, $messages, $response);

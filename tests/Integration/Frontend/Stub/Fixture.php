@@ -146,12 +146,12 @@ class Fixture
         $history->execute([$threadId]);
 
         return [
-            'run' => $run === null ? null : [
+            'run' => $run instanceof \NeuronAI\Workflow\WorkflowRunSnapshot ? [
                 'runId' => $run->runId,
                 'status' => $run->status->value,
                 'executionAttempt' => $run->executionAttempt,
                 'interrupts' => array_map(fn (InterruptRequest $request): string => $request::class, $run->interrupts),
-            ],
+            ] : null,
             'invocations' => array_map(fn (array $row): array => [
                 'method' => $row['method'],
                 'messages' => json_decode($row['messages'], true),

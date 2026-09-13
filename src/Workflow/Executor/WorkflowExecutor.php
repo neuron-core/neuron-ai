@@ -76,12 +76,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->resolveWorkflowId($workflow, continuing: true),
         );
         $control = $store->loadControl();
-        return $control === null ? null : new WorkflowRunSnapshot(
+        return $control instanceof \NeuronAI\Workflow\Executor\WorkflowControl ? new WorkflowRunSnapshot(
             $control->runId,
             $control->status,
             $control->executionAttempt,
             $control->interruptRequests(),
-        );
+        ) : null;
     }
 
     /**
