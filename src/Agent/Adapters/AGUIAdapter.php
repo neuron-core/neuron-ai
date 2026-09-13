@@ -93,6 +93,24 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
     }
 
     /**
+     * Kept across segments: the thread and run identity, the seeded snapshot,
+     * and the calls and results already published, so a continuation neither
+     * re-emits nor forgets them.
+     */
+    public function reset(): void
+    {
+        $this->currentMessageId = null;
+        $this->messageStarted = false;
+        $this->runFailed = false;
+        $this->finished = false;
+        $this->toolCallIds = [];
+        $this->openToolCalls = [];
+        $this->argumentDeltas = [];
+        $this->reasoningStarted = false;
+        $this->reasoningMessageId = null;
+    }
+
+    /**
      * @throws StreamAdapterException
      */
     public function transform(object $chunk): iterable

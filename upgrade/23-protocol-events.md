@@ -23,6 +23,7 @@ In 4.x the chain is split in two:
 |---|---|
 | `SSEAdapter` base class (`sse()`, `generateId()`, `getHeaders()`) | Removed. Adapters implement `StreamAdapterInterface` directly, build `new ProtocolEvent($type, $data)`, generate ids with `UniqueIdGenerator::generateId('msg_')` and declare `getHeaders()` themselves |
 | `transform()`, `start()`, `end()`, `suspended()`, `error()` return `iterable<string>` | They return `iterable<ProtocolEvent>` |
+| A new adapter instance per segment is the only option | Adapters also implement `reset()`, called by the Workflow before every segment, so one instance can serve a suspension and its continuation |
 | `Agent::stream()` yields SSE strings when an adapter is attached | It yields `ProtocolEvent` objects; an SSE endpoint wraps the generator with `SSEEncoder::encode()` |
 | `VercelAIAdapter` ends every stream with `data: [DONE]` | No sentinel: the stream ends with the `finish` (or `error`) event and the response closing. The AI SDK client discards `[DONE]`, and non-SSE transports never carried it |
 | `getHeaders()` inherited from `SSEAdapter` | Unchanged for the built-in adapters: still declared on `AGUIAdapter` and `VercelAIAdapter` |

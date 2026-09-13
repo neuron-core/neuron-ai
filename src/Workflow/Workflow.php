@@ -505,6 +505,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     protected function forwardEvents(Generator $generator): Generator
     {
+        $this->getStreamAdapter()?->reset();
+
         foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->start()) as $output) {
             yield $output;
         }

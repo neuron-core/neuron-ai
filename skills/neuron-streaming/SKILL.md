@@ -124,7 +124,7 @@ Route::post('/chat', function (Request $request) {
 });
 ```
 
-An adapter is stateful for one stream. Create a new instance per request and never share one between concurrent streams.
+An adapter is stateful for one stream. Create a new instance per request and never share one between concurrent streams. The Workflow calls `reset()` before every segment, so the same instance can also serve a suspension and its continuation in one process, as a queue worker does.
 
 ### Terminal frames
 
@@ -169,7 +169,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Custom adapters
 
-Implement `StreamAdapterInterface` (`start()`, `transform(object)`, `end()`, `suspended(array)`, `error(Throwable)`), each returning an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `suspended()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
+Implement `StreamAdapterInterface`: `reset()` opens a segment by dropping the previous segment's stream state, and `start()`, `transform(object)`, `end()`, `suspended(array)`, `error(Throwable)` each return an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `suspended()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
 
 ## Streaming Channels: Push Delivery
 
