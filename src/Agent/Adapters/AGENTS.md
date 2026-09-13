@@ -15,7 +15,7 @@ An adapter is stateful for one stream; never share an instance between concurren
 
 ## Contract
 
-`start()` (optional framing), `transform(object $chunk)` (one object → zero or more `ProtocolEvent`s), and one terminal per segment, selected by the Workflow from the segment's outcome: `end()` on completion, `suspended(array $requests)` on suspension (the active `InterruptRequest`s keyed by interrupt ID, encoded so the client learns what the run waits for; return `[]` when the protocol cannot express a pause) and `error(Throwable $error)` on failure (return `[]` when the protocol has no failure frames). The Workflow calls `error()` itself for failures during streamed execution or chunk transformation; the channel still receives `failed()` and the exception is rethrown to the caller. After `error()` an adapter emits no further frames. An `InterruptEvent` never reaches `transform()`.
+`start()` (optional framing), `transform(object $chunk)` (one object → zero or more `ProtocolEvent`s), and one terminal per segment, selected by the Workflow from the segment's outcome: `end()` on completion, `suspended(array $requests)` on suspension (the active `InterruptRequest`s keyed by interrupt ID, encoded so the client learns what the run waits for; return `[]` when the protocol cannot express a pause) and `error(Throwable $error)` on failure (return `[]` when the protocol has no failure frames). The Workflow calls `error()` itself for failures during streamed execution or chunk transformation; the run is settled as failed exactly as for a failing node, the channel still receives `failed()` and the exception is rethrown to the caller. After `error()` an adapter emits no further frames. An `InterruptEvent` never reaches `transform()`.
 
 ## Portable stream events
 

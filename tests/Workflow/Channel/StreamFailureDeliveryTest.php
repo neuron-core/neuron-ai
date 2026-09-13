@@ -7,11 +7,21 @@ namespace NeuronAI\Tests\Workflow\Channel;
 use Error;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\FailingStreamNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageFirstForkNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\StreamingImageProcessNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
+use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -106,5 +116,73 @@ class StreamFailureDeliveryTest extends TestCase
         $this->assertCount(1, $channel->failures);
         $this->assertSame($error, $channel->failures[0]['exception']);
         $this->assertSame([], $channel->completions);
+    }
+
+    public function test_a_failure_raised_by_the_adapter_settles_the_run_as_failed(): void
+    {
+        $error = new RuntimeException('adapter cannot encode');
+        $persistence = new InMemoryPersistence();
+        $observed = [];
+        $workflow = Workflow::make(workflowId: 'adapter-failure')
+            ->setPersistence($persistence)
+            ->addNodes([new ChunkStreamingNode(2)])
+            ->setStreamAdapter($this->adapterFailingWith($error))
+            ->subscribe(AgentError::class, function (AgentError $event) use (&$observed): void {
+                $observed[] = $event->exception;
+            });
+
+        $caught = null;
+        try {
+            $workflow->run();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        // The failure was raised outside the executor generator, yet the run
+        // settles exactly as for a failing node: the generation is marked
+        // failed, observed, and the next ignition supersedes it.
+        $this->assertSame($error, $caught);
+        $this->assertSame([$error], $observed);
+        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
+
+        $state = Workflow::make(workflowId: 'adapter-failure')
+            ->setPersistence($persistence)
+            ->addNodes([new ChunkStreamingNode(1)])
+            ->run();
+
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+    }
+
+    public function test_a_failure_raised_by_the_adapter_settles_a_parallel_run_as_failed(): void
+    {
+        $error = new RuntimeException('adapter cannot encode');
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make(workflowId: 'parallel-adapter-failure')
+            ->setPersistence($persistence)
+            ->setExecutor(new AsyncExecutor())
+            ->addNodes([new ImageFirstForkNode(), new StreamingImageProcessNode(), new TextProcessNode(), new MergeNode()])
+            ->setStreamAdapter($this->adapterFailingWith($error));
+
+        $caught = null;
+        try {
+            $workflow->run();
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        // The async executor drains the sibling branch before it surfaces the
+        // injected failure, so the run still ends up failed, not running.
+        $this->assertSame($error, $caught);
+        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
+    }
+
+    protected function adapterFailingWith(Throwable $error): StreamAdapterInterface
+    {
+        $adapter = $this->createMock(StreamAdapterInterface::class);
+        $adapter->method('start')->willReturn([]);
+        $adapter->method('transform')->willThrowException($error);
+        $adapter->method('error')->willReturn([]);
+
+        return $adapter;
     }
 }

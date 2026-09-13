@@ -516,6 +516,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
                 }
             }
         } catch (Throwable $e) {
+            $this->abortExecution($generator, $e);
             foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->error($e)) as $output) {
                 yield $output;
             }
@@ -542,6 +543,31 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         }
 
         return $state;
+    }
+
+    /**
+     * A failure raised on this side of the executor boundary (an adapter, the
+     * channel error reporting) would only destroy the suspended executor
+     * generator, and destruction runs finally blocks but never catch blocks:
+     * the run would stay marked running under its lease. Throwing the failure
+     * into the generator lets the executor settle the run as failed first,
+     * exactly as it does for a failing node. An executor may keep yielding
+     * while it settles concurrent branches, so the generator is drained.
+     */
+    protected function abortExecution(Generator $generator, Throwable $e): void
+    {
+        if (!$generator->valid()) {
+            return;
+        }
+
+        try {
+            $generator->throw($e);
+            while ($generator->valid()) {
+                $generator->next();
+            }
+        } catch (Throwable) {
+            // The executor rethrows the failure once the run is marked failed.
+        }
     }
 
     /**
