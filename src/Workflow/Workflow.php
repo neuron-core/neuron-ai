@@ -8,6 +8,7 @@ use Closure;
 use Generator;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Observability\ListenerRegistry;
 use NeuronAI\Workflow\Events\Event;
@@ -630,9 +631,32 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         try {
             $callback($this->getChannel());
         } catch (Throwable $e) {
-            $event = new ChannelError($e);
-            $event->source = $this;
+            $this->reportChannelError($e);
+        }
+    }
+
+    /**
+     * Reporting follows the executor's observability policy: a listener that
+     * fails is itself reported as an AgentError, and a failure of that report
+     * is dropped, so monitoring can never turn a delivered stream into a
+     * failed run.
+     */
+    protected function reportChannelError(Throwable $e): void
+    {
+        $event = new ChannelError($e);
+        $event->source = $this;
+
+        try {
             $this->getEventDispatcher()->dispatch($event);
+        } catch (Throwable $listenerFailure) {
+            $error = new AgentError($listenerFailure, false);
+            $error->source = $this;
+
+            try {
+                $this->getEventDispatcher()->dispatch($error);
+            } catch (Throwable) {
+                // Monitoring failures must not change Workflow execution.
+            }
         }
     }
 
