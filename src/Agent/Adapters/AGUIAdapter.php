@@ -539,13 +539,24 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             yield $frame;
         }
 
-        $data = ['message' => $error->getMessage()];
+        $data = ['message' => $this->errorMessage($error)];
 
         if ($error->getCode() !== 0) {
             $data['code'] = (string) $error->getCode();
         }
 
         yield new ProtocolEvent('RUN_ERROR', $data);
+    }
+
+    /**
+     * The failure text a client may see. Exception messages carry internals
+     * (provider URLs and response bodies, file paths, run identifiers), so
+     * the wire gets a neutral text; override to expose what your clients may
+     * know.
+     */
+    protected function errorMessage(Throwable $error): string
+    {
+        return 'The run failed.';
     }
 
     public function end(): iterable

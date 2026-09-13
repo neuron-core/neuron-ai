@@ -17,6 +17,7 @@ use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Throwable;
 use function array_column;
 use function iterator_to_array;
 use function json_decode;
@@ -62,8 +63,22 @@ class VercelAIAdapterTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertSame([
             'type' => 'error',
-            'errorText' => $message,
+            'errorText' => 'The run failed.',
         ], json_decode(json_encode($result[0]), true));
+    }
+
+    public function test_error_message_hook_decides_the_wire_text(): void
+    {
+        $adapter = new class () extends VercelAIAdapter {
+            protected function errorMessage(Throwable $error): string
+            {
+                return 'Visible: ' . $error->getMessage();
+            }
+        };
+
+        $result = iterator_to_array($adapter->error(new RuntimeException('provider down')), false);
+
+        $this->assertSame('Visible: provider down', $result[0]->data['errorText']);
     }
 
     public function test_error_is_terminal_after_streaming(): void
