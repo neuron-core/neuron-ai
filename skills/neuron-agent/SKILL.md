@@ -162,51 +162,11 @@ $person = $agent->structured(
 );
 ```
 
-## Providers Configuration
+## Providers
 
-### Anthropic
-```php
-use NeuronAI\Providers\Anthropic\Anthropic;
+`provider()` returns any `AIProviderInterface`; `setAiProvider()` on an instance takes precedence over the hook. Key-based vendors share the shape `new OpenAI(key: $_ENV['OPENAI_API_KEY'], model: $_ENV['OPENAI_MODEL'])` under their own class; Ollama takes a `url` instead of a key. Shipped: Anthropic, OpenAI (Chat Completions and Responses API), Azure OpenAI, Gemini, Anthropic and Gemini on Vertex AI, AWS Bedrock, Mistral, Ollama, Cohere, Deepseek, Grok, HuggingFace, ZAI, Alibaba DashScope, any OpenAI-compatible endpoint through `OpenAILike`, and speech-to-text, text-to-speech, and image providers behind the same interface.
 
-new Anthropic(
-    key: $_ENV['ANTHROPIC_API_KEY'],
-    model: $_ENV['ANTHROPIC_MODEL'],
-);
-```
-
-### OpenAI
-```php
-use NeuronAI\Providers\OpenAI\OpenAI;
-
-new OpenAI(
-    key: $_ENV['OPENAI_API_KEY'],
-    model: $_ENV['OPENAI_MODEL'],
-);
-```
-
-### Ollama (Local);
-```php
-use NeuronAI\Providers\Ollama\Ollama;
-
-new Ollama(
-    url: 'http://localhost:11434/api',
-    model: $_ENV['OLLAMA_MODEL'],
-);
-```
-
-### Other Providers
-- `Gemini` - Google AI models
-- `GeminiVertex` / `AnthropicVertex` - Gemini and Anthropic on Vertex AI
-- `Mistral` - Mistral AI models
-- `HuggingFace` - Open models via HuggingFace
-- `Deepseek` - DeepSeek models
-- `Grok` - XAI models
-- `NeuronAI\Providers\AWS\BedrockRuntime` - AWS Bedrock inference platform
-- `Cohere` - Cohere models
-- `AzureOpenAI` - Use OpenAI models on the Azure platform
-- `ZAI` - ZAI for GLM models
-- `DashScopeOpenAI` - Alibaba DashScope
-- `NeuronAI\Providers\OpenAI\Responses\OpenAIResponses` - OpenAI Responses API
+Read [references/providers.md](references/providers.md) when the user names a vendor other than Anthropic or OpenAI, needs vendor request parameters (thinking, temperature, response options), a self-hosted or OpenAI-compatible endpoint, cloud-platform credentials, a custom HTTP client, or a speech or image provider. It lists every class with its namespace and constructor arguments.
 
 ## Tools Integration
 

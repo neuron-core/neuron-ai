@@ -157,7 +157,7 @@ class AgentOutputTest extends TestCase
             $this->assertContains([$node, 'AgentOutputEvent'], $edges);
             $this->assertNotContains([$node, 'StopEvent'], $edges);
         }
-        $this->assertContains(['AgentOutputEvent', 'EndNode'], $edges);
-        $this->assertContains(['EndNode', 'StopEvent'], $edges);
+        $this->assertContains(['AgentOutputEvent', 'AgentEndNode'], $edges);
+        $this->assertContains(['AgentEndNode', 'StopEvent'], $edges);
     }
 }
