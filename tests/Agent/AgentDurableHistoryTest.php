@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\SQLChatHistory;
@@ -18,7 +17,6 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -165,7 +163,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $state2 = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run();
+        $state2 = $agent2->resume([1 => ['call_1' => 'approve']])->run();
 
         $steps2 = $state2->getSteps();
         $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
@@ -253,7 +251,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
-        $message = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()->getMessage();
+        $message = $agent2->resume([1 => ['call_1' => 'approve']])->run()->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
 

@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Interrupt;
 
 use NeuronAI\Exceptions\InputTranslationException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 
 abstract class ToolInputTranslator implements InputTranslatorInterface
 {
     /**
      * @param InterruptRequest[] $requests
      * @return array<array-key, ApprovalRequest|ToolResultsRequest>
+     * @throws InputTranslationException
      */
     protected function toolRequests(array $requests): array
     {
@@ -48,7 +49,9 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
      * @param array<array-key, mixed> $payload
      * @param InterruptRequest[] $requests
      * @param class-string<ApprovalRequest|ToolResultsRequest> $requestClass
-     * @return list<ResumeInput>
+     * @return array<int, array<string, mixed>>
+     * @throws InputTranslationException
+     * @throws WorkflowException
      */
     protected function translateCalls(array $payload, array $requests, string $requestClass): array
     {
@@ -69,6 +72,7 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
     /**
      * @param array<string, mixed> $payload
      * @return list<array<string, mixed>>
+     * @throws InputTranslationException
      */
     protected function entries(array $payload, string $key): array
     {
@@ -84,7 +88,10 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
         return $entries;
     }
 
-    /** @return 'approve'|'reject'|array{string, string} */
+    /**
+     * @return 'approve'|'reject'|array{string, string}
+     * @throws InputTranslationException
+     */
     protected function approval(mixed $payload): string|array
     {
         if (!is_array($payload) || !is_bool($payload['approved'] ?? null)) {
@@ -101,6 +108,8 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
 
     /**
      * @param array<int, array<string, mixed>> $answers
+     * @throws InputTranslationException
+     * @throws WorkflowException
      */
     protected function answer(array &$answers, InterruptRequest $request, string $callId, mixed $value): void
     {
@@ -114,31 +123,19 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
     /**
      * @param InterruptRequest[] $requests
      * @param array<int, array<string, mixed>> $answers
-     * @return list<ResumeInput>
+     * @return array<int, array<string, mixed>>
+     * @throws WorkflowException
      */
     protected function inputs(array $requests, array $answers): array
     {
-        $inputs = [];
         foreach ($requests as $request) {
             if (!array_key_exists($request->getId(), $answers)) {
                 continue;
             }
-            $payload = $answers[$request->getId()];
-            if ($request instanceof ApprovalRequest) {
-                // ToolNode replays the approval gate with cumulative decisions.
-                // Preserve decisions in the latest snapshot when only new ones arrive.
-                foreach ($request->getActions() as $action) {
-                    if (!$action->isPending()) {
-                        $decision = $action->isApproved() ? 'approve'
-                            : ($action->feedback === null ? 'reject' : ['reject', $action->feedback]);
-                        $payload[$action->id] ??= $decision;
-                    }
-                }
+            if ($request instanceof ToolResultsRequest) {
+                $request->validateResults($answers[$request->getId()]);
             }
-            $input = ResumeInput::event($request, $payload);
-            $request->validate($input);
-            $inputs[] = $input;
         }
-        return $inputs;
+        return $answers;
     }
 }

@@ -10,18 +10,17 @@ policy and its overrides live on the tool instance, not in a middleware config m
    attach: the gate runs on every tool call and asks each tool whether it requires approval.
 2. **Config-map entries become per-tool overrides at attach time.** Fluent helpers on `Tool`:
    `requireApproval(bool $require = true)`, `suppressApproval()`, `withApprovalPolicy(callable)`.
-3. **The subclass hook renamed: `requiresApproval()` → protected `approvalPolicy()`.**
-   `requiresApproval(array $inputs)` still exists on `ToolInterface`, but on the `Tool` base
-   class it is now the *resolution point* (override → declaration) — subclasses declare their
-   intrinsic risk in `approvalPolicy()` instead of overriding `requiresApproval()`.
-4. **Declarations are live by default.** A tool whose policy answers `true` is gated even
-   though no middleware was ever attached — the previous "declaration does nothing until
-   `ToolApproval` is attached" no-op is gone. Waive per tool with `suppressApproval()`.
-5. **`ToolCallMessage::isSameToolCall()` is removed.** It existed only for the middleware/node
-   writer dedup, which is replaced by a single memoized write inside `ToolNode`.
+   A direct `ToolInterface` implementor expresses the same answer in its own `requiresApproval()`.
+3. **Conditional callbacks receive the tool, not its inputs.** A `fn (array $inputs): bool`
+   config entry becomes a `withApprovalPolicy()` callback with a `ToolInterface $tool`
+   parameter. It reads the inputs through the tool, and may return a string: that counts as
+   `true` and is the reason shown to the approver.
+4. **An empty config no longer gates every tool.** `new ToolApproval()` required approval for
+   all tools. Now a tool is gated only when its own `approvalPolicy()` (guide 5) answers `true`
+   or it is attached with `requireApproval()`.
 
 Unchanged: the resume payload shape (`['<callId>' => 'approve' | 'reject' | ['reject', $reason]]`),
-the cumulative-payload contract (silence is never consent, incomplete sets re-suspend), the
+the incremental-decision contract (silence is never consent, incomplete sets re-suspend), the
 runId stamping/adoption via chat history, the append-only history behavior, and reading pending
 approvals from the thread tail.
 
@@ -29,13 +28,14 @@ approvals from the thread tail.
 
 ```
 grep -rn "ToolApproval" --include="*.php" .
-grep -rn "isSameToolCall" --include="*.php" .
-grep -rn "function requiresApproval" --include="*.php" .
 ```
+
+Matches come from `addMiddleware()` calls and from `middleware()` hooks. Follow each one into
+its config array: string entries and callback entries migrate differently (cases 2 and 3).
 
 ## How to Refactor
 
-### Case 1: Zero-config attachment ("each tool decides")
+### Case 1: Zero-config attachment (every tool required approval)
 
 Before:
 
@@ -43,11 +43,18 @@ Before:
 $agent->addMiddleware(ToolNode::class, new ToolApproval());
 ```
 
-After — delete the line (and the `ToolApproval` / `ToolNode` imports it needed). Tools that
-declare a policy are gated automatically:
+After — delete the line (and the `ToolApproval` / `ToolNode` imports it needed). The empty
+config gated every tool, so keep that behavior explicitly by requiring approval on each tool
+where you attach it (or declare `approvalPolicy()` once in a base class your tools extend):
 
 ```php
-// nothing to attach
+protected function tools(): array
+{
+    return [
+        DeleteFile::make()->requireApproval(),
+        SendEmail::make()->requireApproval(),
+    ];
+}
 ```
 
 ### Case 2: Forcing approval on specific tools
@@ -75,95 +82,42 @@ protected function tools(): array
 
 ### Case 3: Conditional callback config
 
-Before:
+Before (the callback received the raw input array):
 
 ```php
 $agent->addMiddleware(ToolNode::class, new ToolApproval([
-    MoneyTransfer::class => fn (ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100
-        ? 'Transfers above $100 require a human sign-off'
-        : false,
+    MoneyTransfer::class => fn (array $inputs): bool => ($inputs['amount'] ?? 0) > 100,
 ]));
 ```
 
-After — the same callback (identical signature and string-reason semantics), installed on the
-tool:
+After — install the callback on the tool. It receives the `ToolInterface` instance: read the
+inputs with `$tool->getInputs()` or `$tool->getInput('amount')`. Returning `bool` still works;
+returning a string counts as `true` and is shown to the approver as the reason:
 
 ```php
+use NeuronAI\Tools\ToolInterface;
+
 MoneyTransfer::make()->withApprovalPolicy(
-    fn (ToolInterface $tool) => ($tool->getInputs()['amount'] ?? 0) > 100
+    fn (ToolInterface $tool): bool|string => ($tool->getInputs()['amount'] ?? 0) > 100
         ? 'Transfers above $100 require a human sign-off'
         : false
 );
 ```
 
-### Case 4: Waiving a tool that declares its own risk
+### Case 4: Waiving a declared policy
 
-Before (a callable returning `false` waived the declaration):
-
-```php
-$agent->addMiddleware(ToolNode::class, new ToolApproval([
-    DeleteFile::class => fn (ToolInterface $tool): bool => false,
-]));
-```
-
-After:
+A callback that returned `false` only skipped the gate for that call, and a tool the config did
+not name was never gated, so such entries are simply dropped. What needs waiving now is a tool
+that declares its own risk in `approvalPolicy()` (guide 5): it is gated with nothing attached,
+so waive it where you attach it:
 
 ```php
 DeleteFile::make()->suppressApproval();
 ```
 
-### Case 5: Tool subclasses declaring their own risk
-
-Before:
-
-```php
-class TransferMoneyTool extends Tool
-{
-    public function requiresApproval(array $inputs): bool|string
-    {
-        return ($inputs['amount'] ?? 0) > 100
-            ? 'Transfers above $100 require a human sign-off'
-            : false;
-    }
-}
-```
-
-After — rename to the protected hook (same return semantics: a string counts as `true` and is
-the approval reason shown to the approver):
-
-```php
-class TransferMoneyTool extends Tool
-{
-    protected function approvalPolicy(array $inputs): bool|string
-    {
-        return ($inputs['amount'] ?? 0) > 100
-            ? 'Transfers above $100 require a human sign-off'
-            : false;
-    }
-}
-```
-
-Direct `ToolInterface` implementors (not extending `Tool`) keep implementing
-`requiresApproval(array $inputs): bool|string` — for them it IS the effective answer.
-
-### Case 6: Tools that declared risk you were ignoring
-
-Any tool whose `approvalPolicy()` (previously `requiresApproval()`) answers `true` now suspends
-the agent even though you never attached the middleware. If that gating is unwanted, waive it
-explicitly where you attach the tool:
-
-```php
-RiskyThirdPartyTool::make()->suppressApproval();
-```
-
-The failure mode without action is a fail-safe pause (the agent asks first), not a crash:
-`chat()` returns a suspended handler resumable with the decision payload.
-
-### Case 7: Direct callers of `isSameToolCall()`
-
-The method is gone. If application code compared tool-call messages, compare the ordered
-`getCallId()` lists of `getToolCalls()` yourself (renamed in upgrade 12). (Inside the framework the dedup it powered no
-longer exists — `ToolNode` writes the message exactly once via a durable memo.)
+The last configured override wins: `suppressApproval()` clears an earlier
+`withApprovalPolicy()` callback and vice versa. The failure mode without action is a
+fail-safe pause (the agent asks first), not a crash.
 
 ## Resume endpoints are unchanged
 
@@ -180,11 +134,11 @@ $agent->chat(payload: ['call_123' => 'approve', 'call_456' => ['reject', 'too ex
 ## Verification Checklist
 
 - [ ] No `use NeuronAI\Agent\Middleware\ToolApproval;` imports remain
-- [ ] No `addMiddleware(ToolNode::class, ...)` registrations for approval remain
+- [ ] No `addMiddleware(ToolNode::class, ...)` registrations or `middleware()` hook entries for
+      approval remain
 - [ ] Every former config-map entry is expressed on the tool instance
       (`requireApproval()` / `suppressApproval()` / `withApprovalPolicy()`)
-- [ ] Every `Tool` subclass overriding `requiresApproval()` now overrides
-      `protected function approvalPolicy(array $inputs): bool|string`
+- [ ] Every former conditional callback takes `ToolInterface $tool` and reads inputs through it
+- [ ] Tools that were gated only by an empty `new ToolApproval()` are now `requireApproval()`-ed
 - [ ] Tools that declare risk and must NOT gate are explicitly `suppressApproval()`-ed
-- [ ] No caller references `ToolCallMessage::isSameToolCall()`
 - [ ] The approval test-path of your app still suspends and resumes with the same payloads

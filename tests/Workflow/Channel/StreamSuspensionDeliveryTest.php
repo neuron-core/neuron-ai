@@ -12,7 +12,6 @@ use NeuronAI\Tests\Workflow\Channel\Stub\SharedRequestInterruptNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
@@ -104,7 +103,7 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $state = $workflow
             ->setStreamAdapter($completed)
-            ->resume([ResumeInput::event($state->getInterruptRequest(), [])])->run();
+            ->resume([$state->getInterruptRequest()->getId() => []])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame([$pauseFrame, $doneFrame], $channel->sent);
@@ -138,7 +137,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         // The instance is reset at the segment boundary, so the continuation
         // is framed again instead of being silently suppressed.
         $delivered = count($channel->sent);
-        $state = $workflow->resume([ResumeInput::event($state->getInterruptRequest(), [])])->run();
+        $state = $workflow->resume([$state->getInterruptRequest()->getId() => []])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($continuation, $this->types(array_slice($channel->sent, $delivered)));

@@ -20,7 +20,6 @@ use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -164,7 +163,7 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()->getMessage();
+        $message = $agent2->resume([1 => ['call_1' => 'approve']])->run()->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
@@ -230,9 +229,9 @@ class AgentDurabilityTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [
+        $message = $agent2->resume([1 => [
             'call_1' => ['reject', 'Do not search the web.'],
-        ])])->run()->getMessage();
+        ]])->run()->getMessage();
 
         $this->assertSame(
             'I see the search was rejected. Is there anything else I can help with?',

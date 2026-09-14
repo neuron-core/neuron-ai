@@ -23,7 +23,6 @@ use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -86,11 +85,7 @@ class WorkflowIdentityTest extends TestCase
         $duplicate = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
             ->setPersistence($persistence)
-            ->resume([ResumeInput::fromArray([
-                'interruptId' => 99,
-                'kind' => 'event',
-                'payload' => [],
-            ])])->run();
+            ->resume([99 => []])->run();
 
         $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
         $this->assertSame(ResumeInputStatus::Stale, $duplicate->getInputResults()[0]->status);
@@ -118,11 +113,7 @@ class WorkflowIdentityTest extends TestCase
         $result = Workflow::make('failed-run')
             ->setPersistence($persistence)
             ->addNode(new NodeOne())
-            ->resume([ResumeInput::fromArray([
-                'interruptId' => 99,
-                'kind' => 'event',
-                'payload' => [],
-            ])])->run();
+            ->resume([99 => []])->run();
 
         $this->assertSame(WorkflowStatus::Failed, $result->getStatus());
         $this->assertSame(ResumeInputStatus::Stale, $result->getInputResults()[0]->status);

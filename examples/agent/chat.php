@@ -13,7 +13,7 @@ $result = \NeuronAI\Agent\Agent::make()
     ->setAiProvider(
         new Anthropic(
             '',
-            'claude-3-7-sonnet-latest'
+            'claude-sonnet-5'
         )
     )
     ->addTool(

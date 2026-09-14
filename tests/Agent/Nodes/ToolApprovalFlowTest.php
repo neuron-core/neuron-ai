@@ -32,7 +32,7 @@ use function iterator_to_array;
 /**
  * The tool approval flow owned by ToolNode: the node gates by asking
  * the LIVE registry tool, writes the annotated ToolCallMessage once
- * (memoized), and settles the cumulative decision set through interrupt().
+ * (memoized), and accumulates decisions across interrupt() deliveries.
  */
 class ToolApprovalFlowTest extends TestCase
 {
@@ -345,7 +345,7 @@ class ToolApprovalFlowTest extends TestCase
         $this->runNode($node, $this->createToolCallEvent([ToolCall::make('ghost', 'call_a')]), new AgentState());
     }
 
-    public function test_cumulative_resume_partial_re_suspends_with_progress(): void
+    public function test_partial_resume_re_suspends_with_progress(): void
     {
         $store = $this->stepStore();
         $memoizer = WorkflowTestStore::memoizer($store, 'approval_flow_test', 'ToolNode-1');
@@ -382,7 +382,7 @@ class ToolApprovalFlowTest extends TestCase
         }
     }
 
-    public function test_partial_decisions_are_not_remembered_across_resumes(): void
+    public function test_partial_decisions_are_remembered_across_resumes(): void
     {
         $store = $this->stepStore();
         $memoizer = WorkflowTestStore::memoizer($store, 'approval_flow_test', 'ToolNode-1');
@@ -405,20 +405,19 @@ class ToolApprovalFlowTest extends TestCase
             memoizer: $memoizer
         );
 
-        // The second resume restates only b: a's earlier approval is NOT remembered —
-        // the payload is cumulative and accumulation lives with the caller.
-        $request = $this->assertSuspends(
+        // The second resume only needs b; a is restored from the durable memo.
+        $this->assertExecutes(
             $node,
             $this->createToolCallEvent([ToolCall::make('a', 'call_a'), ToolCall::make('b', 'call_b')]),
             $state,
             payload: ['call_b' => 'approve'],
             memoizer: $memoizer,
-            message: 'A payload omitting a prior decision must re-suspend'
+            message: 'Previously delivered decisions must survive a replay'
         );
 
-        $byId = $this->actionsById($request);
-        $this->assertEquals(ActionDecision::Pending, $byId['call_a']->decision, 'call_a reverted to pending — not restated');
-        $this->assertEquals(ActionDecision::Approved, $byId['call_b']->decision);
+        $message = $state->request->messages[0];
+        $this->assertInstanceOf(ToolResultMessage::class, $message);
+        $this->assertCount(2, $message->getToolCalls());
     }
 
     public function test_stale_approval_does_not_survive_on_reused_call_instances(): void
@@ -437,9 +436,8 @@ class ToolApprovalFlowTest extends TestCase
 
         $this->assertSuspends($node, $this->createToolCallEvent([$a, $b]), $state, memoizer: $memoizer);
 
-        // Approve a only — the set is incomplete, so it re-suspends.
-        $this->assertSuspends($node, $this->createToolCallEvent([$a, $b]), $state, payload: ['call_a' => 'approve'], memoizer: $memoizer);
-        $this->assertEquals(ApprovalState::Approved, $a->getApprovalState(), 'call_a approved on this pass');
+        // Object state alone is not a delivered decision.
+        $a->setApprovalState(ApprovalState::Approved);
 
         // Restate only b. a's earlier approval must NOT survive on the reused instance.
         $request = $this->assertSuspends(
@@ -469,9 +467,8 @@ class ToolApprovalFlowTest extends TestCase
 
         $this->assertSuspends($node, $this->createToolCallEvent([$a, $b]), $state, memoizer: $memoizer);
 
-        // Reject a only — incomplete, so it re-suspends.
-        $this->assertSuspends($node, $this->createToolCallEvent([$a, $b]), $state, payload: ['call_a' => ['reject', 'not now']], memoizer: $memoizer);
-        $this->assertEquals(ApprovalState::Rejected, $a->getApprovalState());
+        // Object state alone is not a delivered decision.
+        $a->setApprovalState(ApprovalState::Rejected, 'not now');
 
         // A payload omitting a must not leave the stale rejection (or its reason) behind.
         $this->assertSuspends($node, $this->createToolCallEvent([$a, $b]), $state, payload: ['call_b' => 'approve'], memoizer: $memoizer);

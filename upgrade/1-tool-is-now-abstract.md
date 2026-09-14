@@ -17,6 +17,8 @@ grep -rn "Tool::make(" --include="*.php" .
 grep -rn "new Tool(" --include="*.php" .
 ```
 
+A `Tool::make(...)` that only builds a message entry — a test fixture stamped with `setCallId()` / `setInputs()` and never executed — is not a registry tool. Leave it for guide 12, which replaces such entries with `ToolCall`.
+
 2. **Inline closures with `->setCallable()`** — the old fluent pattern chained `setCallable()` onto a `Tool::make(...)` call. This pattern is gone:
 
 ```

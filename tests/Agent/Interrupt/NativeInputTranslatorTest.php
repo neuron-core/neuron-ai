@@ -17,18 +17,18 @@ use PHPUnit\Framework\TestCase;
 
 class NativeInputTranslatorTest extends TestCase
 {
-    public function test_approval_inputs_are_addressed_per_request_and_keep_partial_decisions(): void
+    public function test_approval_inputs_are_addressed_per_request_without_repeating_previous_decisions(): void
     {
         $requests = [
             (new ApprovalRequest('First', [new Action('a', 'one', decision: ActionDecision::Approved), new Action('b', 'two')]))->withId(4),
             (new ApprovalRequest('Second', [new Action('123', 'three')]))->withId(8),
         ];
         $inputs = (new ApprovalTranslator())->translate(['b' => ['reject', 'Too expensive'], 123 => 'approve'], $requests);
-        $this->assertSame([4, 8], array_column($inputs, 'interruptId'));
-        $this->assertSame(['b' => ['reject', 'Too expensive'], 'a' => 'approve'], $inputs[0]->payload);
-        $this->assertSame([123 => 'approve'], $inputs[1]->payload);
+        $this->assertSame([4, 8], array_keys($inputs));
+        $this->assertSame(['b' => ['reject', 'Too expensive']], $inputs[4]);
+        $this->assertSame([123 => 'approve'], $inputs[8]);
         $updated = (new ApprovalTranslator())->translate(['a' => 'reject'], $requests);
-        $this->assertSame(['a' => 'reject'], $updated[0]->payload);
+        $this->assertSame(['a' => 'reject'], $updated[4]);
     }
 
     public function test_results_are_partitioned_without_answering_other_requests(): void
@@ -39,9 +39,9 @@ class NativeInputTranslatorTest extends TestCase
             (new ApprovalRequest('Other', [new Action('c', 'other')]))->withId(12),
         ];
         $inputs = (new ToolResultsTranslator())->translate(['a' => ['result' => false], 'b' => ['result' => null]], $requests);
-        $this->assertSame([4, 8], array_column($inputs, 'interruptId'));
-        $this->assertSame(['a' => ['result' => false]], $inputs[0]->payload);
-        $this->assertSame(['b' => ['result' => null]], $inputs[1]->payload);
+        $this->assertSame([4, 8], array_keys($inputs));
+        $this->assertSame(['a' => ['result' => false]], $inputs[4]);
+        $this->assertSame(['b' => ['result' => null]], $inputs[8]);
     }
 
     public function test_execution_results_cannot_answer_an_approval_request(): void

@@ -14,6 +14,7 @@ use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
 
+/** @internal Executor representation of an event, timer wake, or expiry. */
 final class ResumeInput implements JsonSerializable
 {
     /**

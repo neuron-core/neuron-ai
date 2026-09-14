@@ -8,7 +8,6 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -50,7 +49,7 @@ class WorkflowInputSubmissionTest extends TestCase
                 $this->assertInstanceOf(WaitForEventRequest::class, $request);
                 $this->assertSame('user.signup', $request->getEventName());
                 $this->assertSame($requestId, $request->getId());
-                return [ResumeInput::event($request, ['registered' => $payload['email']])];
+                return [$request->getId() => ['registered' => $payload['email']]];
             },
         );
 
@@ -70,6 +69,35 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(['registered' => 'user@example.com'], $completed->get('received_payload'));
         $this->assertSame($state->getRunId(), $completed->getRunId());
+    }
+
+    /** @return iterable<string, array{array}> */
+    public static function invalidInputs(): iterable
+    {
+        yield 'unaddressed payload' => [['registered' => true]];
+        yield 'zero ID' => [[0 => []]];
+        yield 'negative ID' => [[-1 => []]];
+        yield 'missing payload' => [[1 => null]];
+        yield 'scalar payload' => [[1 => 'answer']];
+        yield 'malformed batch' => [[1 => ['registered' => true], 2 => null]];
+        yield 'non-JSON payload' => [[1 => ['value' => NAN]]];
+    }
+
+    #[DataProvider('invalidInputs')]
+    public function test_invalid_addressed_payloads_leave_persistence_unchanged(array $inputs): void
+    {
+        $persistence = new InMemoryPersistence();
+        $this->workflow($persistence)->run();
+        $before = serialize($persistence);
+        $workflow = $this->workflow($persistence);
+        $this->assertSame($workflow, $workflow->resume($inputs));
+        $this->assertSame($before, serialize($persistence));
+        try {
+            $workflow->run();
+            $this->fail('Invalid addressed payloads must fail before acceptance.');
+        } catch (\NeuronAI\Exceptions\WorkflowException) {
+            $this->assertSame($before, serialize($persistence));
+        }
     }
 
     protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): WorkflowInterface

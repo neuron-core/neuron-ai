@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -22,6 +23,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
@@ -512,4 +514,12 @@ class Agent extends Workflow implements AgentInterface
         throw new AgentException('You need to set a structured output class.');
     }
 
+    /**
+     * @throws InputTranslationException
+     * @throws WorkflowException
+     */
+    public function submitApprovalDecisions(array $decisions): static
+    {
+        return $this->submitInputs($decisions, new ApprovalTranslator());
+    }
 }

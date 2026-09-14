@@ -1,6 +1,6 @@
 # Upgrade: Workflow signals and unified execution
 
-Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
 
 ## Summary
 
@@ -31,8 +31,8 @@ events(): Generator
 Agent approval hides the internal signal name:
 
 ```php
-$agent->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())->run();
-$agent->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())->events();
+$agent->submitApprovalDecisions(['call_123' => 'approve'])->run();
+$agent->submitApprovalDecisions(['call_123' => 'approve'])->events();
 ```
 
 Durable platform SDKs stage an addressed continuation before invoking either terminal:
@@ -66,7 +66,7 @@ domain payload keys:
 
 ```php
 $state = $agent
-    ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
+    ->submitApprovalDecisions(['call_123' => 'approve'])
     ->run();
 ```
 
@@ -78,7 +78,7 @@ delivered by an external platform:
 
 ```php
 $state = $workflow->resume(
-    [ResumeInput::event($request, ['approved' => true])],
+    [$request->getId() => ['approved' => true]],
     expectedRunId: $runId,
 )->run();
 ```
@@ -140,8 +140,8 @@ $state = $workflow->resume(
 Workflow evaluates the clock and resolves every currently due `sleepUntil()` or
 expiring `awaitEvent()` request. Future deadlines remain suspended.
 
-`ResumeInput::expired()` and `ResumeInput::timer()` remain available to advanced
-infrastructure integrations, but ordinary timer jobs do not need interrupt IDs.
+Timer and expiry inputs are internal to the executor. Public continuations do not
+accept input kinds, and timer jobs do not need interruption IDs.
 
 ## Continue multiple interrupts in one segment
 
@@ -151,9 +151,8 @@ branches without making the caller choose an execution order:
 ```php
 $state = $workflow->resume(
     [
-        ResumeInput::event($approvalRequest, ['approved' => true]),
-        ResumeInput::event($documentRequest, ['documentId' => 'doc-7']),
-        ResumeInput::timer($delayRequest),
+        $approvalRequest->getId() => ['approved' => true],
+        $documentRequest->getId() => ['documentId' => 'doc-7'],
     ],
     expectedRunId: $runId,
 )->run();
@@ -173,10 +172,10 @@ $workflow->resume()->run();
 ```
 
 It evaluates due deadlines and continues the current run without inventing an
-external input. Do not manufacture a `ResumeInput` or reuse an interrupt ID for
+external input. Do not manufacture an answer or reuse an interrupt ID for
 ordinary timer delivery or crash replay. A real empty application event payload
 uses `signal('event.name')`; an exact platform delivery uses
-`ResumeInput::event($request, [])`.
+`resume([$request->getId() => []])->run()`.
 
 ```php
 $state = $workflow->resume()->run();
@@ -274,66 +273,28 @@ permanent core history mechanism.
 
 ## Cloud SDK wire protocol
 
-Transport values remain JSON-compatible. The SDK validates this envelope and maps
-each `inputs` entry to a `ResumeInput`; decoded arrays are not passed directly to
-Workflow core.
+Transport values remain JSON-compatible. The platform owns its delivery envelope;
+Workflow accepts a decoded map of interruption IDs to payload arrays:
 
-```json
-{
-  "type": "wake",
-  "fnId": "shipment",
-  "workflowId": "order-42",
-  "runId": "run-abc",
-  "inputs": [
-    {
-      "interruptId": 4,
-      "kind": "event",
-      "payload": {"approved": true}
-    },
-    {
-      "interruptId": 5,
-      "kind": "expired"
-    },
-    {
-      "interruptId": 6,
-      "kind": "timer"
-    }
-  ]
-}
+```php
+$workflow->resume(
+    [4 => ['approved' => true], 7 => ['documentId' => 'doc-7']],
+    expectedRunId: $runId,
+)->run();
 ```
 
-Wire rules:
+Each key is a positive run-scoped interruption ID. Each value is an array payload;
+`[]` is a valid empty answer. Platform job IDs, factory IDs, and delivery IDs
+remain outside these payloads unless they are part of the application's data.
+No `kind` field or framework input object is required.
 
-- `type` is `wake`.
-- `workflowId`, `runId`, and a non-empty `inputs` list are required.
-- `interruptId` is a positive, run-scoped integer and is unique in the batch.
-- `kind` is exactly `event`, `expired`, or `timer`.
-- `event` requires a JSON object `payload`; `{}` is valid and `null` is invalid.
-- `expired` and `timer` omit `payload`.
-- `fnId` is owned by the Cloud SDK/platform factory and is not passed to
-  `ResumeInput`.
-- Platform job and delivery IDs remain platform metadata and are not core inputs.
-- The SDK passes the envelope's `runId` as `expectedRunId`; it never uses the
-  optional current-run behavior.
+The platform stores a projection containing workflow/run identity, interruption
+ID, event name or deadline, and its own job metadata. When accepting a named
+event, resolve and store its matching interruption IDs once. Every retry reuses
+that set and the expected run ID instead of matching the signal name again.
 
-The platform does not serialize or later resubmit PHP `InterruptRequest`
-objects. It stores a JSON projection containing the workflow/run identity,
-interrupt ID, request type, event name or deadline, and its own job metadata.
-When accepting a named external event, it resolves and stores the complete
-matching interrupt-ID set once. Every retry reuses that exact set instead of
-matching the signal name again, so a delayed retry cannot satisfy a newer wait.
-
-Ordinary timer jobs store the workflow/run identity and earliest deadline, then
-invoke `resume(expectedRunId: $runId)->run()`. They do not construct the
-addressed timer entries shown above.
-
-Constructor mapping:
-
-| Wire entry | Core value |
-|---|---|
-| `{"interruptId": 4, "kind": "event", "payload": {...}}` | `ResumeInput::fromArray($entry)` |
-| `{"interruptId": 5, "kind": "expired"}` | `ResumeInput::fromArray($entry)` |
-| `{"interruptId": 6, "kind": "timer"}` | `ResumeInput::fromArray($entry)` |
+Timer jobs store the workflow/run identity and earliest deadline, then invoke
+`resume(expectedRunId: $runId)->run()`. The executor evaluates deadlines internally.
 
 The response contains the complete current interrupt request set so the platform can
 reconcile its registrations after duplicate delivery or a lost response:
@@ -373,7 +334,7 @@ Search application code, packages, and tests for:
 
 - Workflow `->resume(` calls whose array contains raw application payload
   values; migrate them to `signal($name, $payload)`.
-- Agent approval endpoints that retain an interrupt request; migrate them to `submitInputs($decisions, new ApprovalTranslator())` followed by `run()` or `events()`.
+- Agent approval endpoints that retain an interrupt request; migrate them to `submitApprovalDecisions($decisions)` followed by `run()` or `events()`.
 - `timedOut:` and positional timeout booleans.
 - `expectedRunId:` passed as the third argument.
 - bare `->resume()` calls; finish the staged continuation with `->run()` or `->events()`.
@@ -394,8 +355,8 @@ A plain terminal automatically recovers a persisted failed execution. Agent new-
 - [ ] Every exact platform event input supplies the interrupt ID it resolves.
 - [ ] Ordinary timer delivery calls `resume()->run()`; Workflow evaluates
       which deadlines are due.
-- [ ] Advanced addressed event, expiry, and timer delivery uses the matching
-      named `ResumeInput` constructor.
+- [ ] Addressed delivery supplies payload arrays keyed by interruption ID;
+      timer and expiry processing uses inputless continuation.
 - [ ] Multiple inputs for one segment contain no duplicate interrupt IDs.
 - [ ] No old `$timedOut` or nullable-payload resume calls remain.
 - [ ] Crash recovery uses `resume()->run()`, without manufacturing an input.

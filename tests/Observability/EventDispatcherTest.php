@@ -19,7 +19,6 @@ use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -207,7 +206,7 @@ class EventDispatcherTest extends TestCase
         $this->assertSame([], $errors);
 
         // Resuming to completion fires no further interruption event.
-        $state = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['approved' => true])])->run();
+        $state = $workflow->resume([1 => ['approved' => true]])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $interrupted);

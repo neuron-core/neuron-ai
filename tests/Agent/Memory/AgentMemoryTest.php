@@ -12,7 +12,6 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
@@ -38,7 +37,6 @@ use NeuronAI\Tests\Agent\Memory\Stub\RedactingStoreMemoryMiddleware;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -471,7 +469,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setPersistence($persistence);
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
-        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])])->run();
+        $resumed = $resumingAgent->resume([1 => ['call-1' => 'approve']])->run();
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run the approved lookup.'], $memory->recalls);
@@ -507,7 +505,7 @@ class AgentMemoryTest extends TestCase
         $resumingAgent->setMemory($memory);
         $resumingAgent->addTool($tool);
 
-        $resumed = $resumingAgent->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call-1' => 'approve'])])->run();
+        $resumed = $resumingAgent->resume([1 => ['call-1' => 'approve']])->run();
 
         $this->assertFalse($resumed->isInterrupted());
         $this->assertSame(['Run without remembering.'], $memory->recalls);

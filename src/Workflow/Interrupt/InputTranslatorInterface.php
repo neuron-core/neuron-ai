@@ -12,7 +12,7 @@ interface InputTranslatorInterface
      *
      * @param array<array-key, mixed> $payload
      * @param InterruptRequest[] $requests
-     * @return list<ResumeInput>
+     * @return array<int, array<string, mixed>>
      */
     public function translate(array $payload, array $requests): array;
 }

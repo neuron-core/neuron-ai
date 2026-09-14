@@ -22,7 +22,6 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use PHPUnit\Framework\TestCase;
 use function json_encode;
 
@@ -256,9 +255,8 @@ class ConversationTest extends TestCase
         $agent->expects($this->exactly(2))
             ->method('resume')
             ->willReturnCallback(function (array $inputs) use (&$resumedInterrupts, $agent): AgentInterface {
-                $input = $inputs[0] ?? null;
-                $this->assertInstanceOf(ResumeInput::class, $input);
-                $resumedInterrupts[] = $input->interruptId;
+                $this->assertCount(1, $inputs);
+                $resumedInterrupts[] = array_key_first($inputs);
                 return $agent;
             });
         $agent->expects($this->exactly(2))->method('run')->willReturn($second, $completed);

@@ -9,7 +9,6 @@ use NeuronAI\Workflow\Executor\ActiveInterrupt;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptType;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
@@ -61,9 +60,9 @@ trait ExecutorTestHelpers
     }
 
     /**
-     * Continue a run through the typed public API. This compatibility helper
+     * Continue a run through the public API. This helper
      * keeps existing test fixtures concise by addressing the run's first
-     * active interrupt; tests of batching construct ResumeInput explicitly.
+     * active interrupt; tests of batching supply addressed payloads.
      *
      * @param array<string, mixed>|null $payload
      */
@@ -85,11 +84,7 @@ trait ExecutorTestHelpers
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
         if (!$control instanceof WorkflowControl || $control->interrupts === []) {
-            return $workflow->resume([ResumeInput::fromArray([
-                'interruptId' => 1,
-                'kind' => 'event',
-                'payload' => $payload,
-            ])], $expectedRunId)->run();
+            return $workflow->resume([1 => $payload], $expectedRunId)->run();
         }
 
         $active = array_values($control->interrupts)[0];
@@ -97,13 +92,11 @@ trait ExecutorTestHelpers
             throw new LogicException('The test helper found an invalid active interrupt.');
         }
 
-        $input = match (true) {
-            $timedOut => ResumeInput::expired($active->request),
-            $active->request->type() === InterruptType::SleepUntil => ResumeInput::timer($active->request),
-            default => ResumeInput::event($active->request, $payload),
-        };
+        $inputs = $timedOut || $active->request->type() === InterruptType::SleepUntil
+            ? []
+            : [$active->request->getId() => $payload];
 
-        return $workflow->resume([$input], $expectedRunId)->run();
+        return $workflow->resume($inputs, $expectedRunId)->run();
     }
 
     /**

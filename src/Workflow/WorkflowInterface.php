@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow;
 
 use Generator;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -28,9 +27,9 @@ interface WorkflowInterface
     public function run(): WorkflowState;
 
     /**
-     * Stage a continuation; empty inputs recover or process due timers.
+     * Stage payloads keyed by interruption ID; empty inputs recover or process due timers.
      *
-     * @param list<ResumeInput> $inputs
+     * @param array<int, array<string, mixed>> $inputs
      */
     public function resume(
         array $inputs = [],
@@ -46,7 +45,7 @@ interface WorkflowInterface
     public function submitInputs(array $payload, InputTranslatorInterface $translator): static;
 
     /** @param array<string, mixed> $payload */
-    public function signal(string $name, array $payload = []): static;
+    public function signal(string $event, array $payload = []): static;
 
     /** Conditionally purge a retained completed generation. */
     public function acknowledgeCompletion(string $expectedRunId): void;

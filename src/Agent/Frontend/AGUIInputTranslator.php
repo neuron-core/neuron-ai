@@ -85,7 +85,7 @@ class AGUIInputTranslator extends ToolInputTranslator
     /**
      * @param array<string, mixed> $payload
      * @param InterruptRequest[] $requests
-     * @return list<\NeuronAI\Workflow\Interrupt\ResumeInput>
+     * @return array<int, array<string, mixed>>
      */
     protected function translateResume(array $payload, array $requests): array
     {

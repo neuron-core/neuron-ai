@@ -1,61 +1,49 @@
 # Upgrade: Tool approval remodel — chat history as system of record
 
-> **Forward note:** guide 11 removes the `ToolApproval` middleware entirely (approval becomes
-> Tool-centric, owned by `ToolNode`) and renames the subclass hook `requiresApproval()` →
-> `approvalPolicy()`. The concepts this guide introduces (self-declaration, approval state in
-> chat history, string reasons) all survive — only the middleware attachment does not. If you
-> are upgrading in one sitting, apply sections 1 and 3–5 here and fold section 2 into step 11.
-
 ## Summary
 
 Tool approval was reworked so that **chat history is the system of record** for approval
 state and **tools declare their own approval default**. This is a
 breaking change to four areas:
 
-1. **`ToolInterface` gained six approval methods** — direct implementors must add them.
-2. **`ToolApproval` empty-config semantics changed** — `new ToolApproval()` now means
-   "each tool decides" (was: "all tools require approval").
-3. **Resume payloads are cumulative** — every resume restates the entire decision set
-   (an earlier incremental contract never shipped).
+1. **`ToolInterface` gained `requiresApproval()`** — direct implementors must add it.
+2. **Tools declare their own approval default** — a `Tool` subclass overrides
+   `approvalPolicy()`; a string return doubles as the approval reason.
+3. **Resume payloads are incremental** — ToolNode durably preserves earlier decisions.
 4. **`ApprovalRequest`/`Action` lost their round-trip mutators** — `fromArray()`,
    `generatePayload()`, and the `Action` mutators are removed.
 5. **A new user turn on a thread with a pending tool call is rejected** at the chat history
    level (the application must keep the thread locked until decisions are delivered).
 
-## 1. `ToolInterface` gained six approval methods
+## 1. `ToolInterface` gained `requiresApproval()`
 
 If a class `implements ToolInterface` directly (instead of extending `Tool`), add:
 
 ```php
 public function requiresApproval(array $inputs): bool|string { return false; }
-public function getApprovalReason(): ?string { return null; }
-public function setApprovalReason(?string $reason): ToolInterface { return $this; }
-public function getApprovalState(): ?ApprovalState { return null; }
-public function setApprovalState(ApprovalState $state, ?string $reason = null): ToolInterface { return $this; }
-public function getRejectReason(): ?string { return null; }
 ```
 
-Two distinct reasons exist — don't conflate them:
+Two distinct reasons exist on the tool entry in chat history — don't conflate them:
 
 - **`approvalReason`** (outbound): why the tool is *asking* for approval — declared by the
-  tool or the middleware config, shown to the approver.
-- **`rejectReason`** (inbound): the approver's feedback recorded with a rejection — set via
-  `setApprovalState(ApprovalState::Rejected, $reason)`.
+  tool's approval policy, shown to the approver.
+- **`rejectReason`** (inbound): the approver's feedback delivered with a rejection (section 3),
+  recorded on the entry and shown to the model.
 
-Anything extending `Tool` (including `ToolDefinition` and every built-in toolkit tool) is
-covered automatically.
+Anything extending `Tool`, including every built-in toolkit tool, is covered automatically.
 
-## 2. `new ToolApproval()` now means "each tool decides"
+## 2. Tools declare their own approval default
 
-A tool may override `requiresApproval(array $inputs): bool|string` (default `false`) to
-declare intrinsic risk. Returning a **string counts as `true`** and doubles as the approval
+A `Tool` subclass declares its intrinsic risk by overriding the protected `approvalPolicy()`
+hook (default `false`). Returning a **string counts as `true`** and doubles as the approval
 reason shown to the approver (persisted on the tool entry in chat history as
-`approvalReason`):
+`approvalReason`). A direct `ToolInterface` implementor answers through `requiresApproval()`
+itself (section 1):
 
 ```php
 class TransferMoneyTool extends Tool
 {
-    public function requiresApproval(array $inputs): bool|string
+    protected function approvalPolicy(array $inputs): bool|string
     {
         return ($inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
@@ -64,38 +52,25 @@ class TransferMoneyTool extends Tool
 }
 ```
 
-The declaration does nothing until the `ToolApproval` middleware is attached. Middleware
-config overrides it in **both** directions, with the same `bool|string` semantics:
+## 3. Resume payloads are incremental
 
-```php
-new ToolApproval([                              // empty = each tool decides (NEW default)
-    DeleteFile::class,                          // force approval, even if it declares false
-    'transfer_money' => fn (Tool $t): bool|string => false,  // waive a tool that declares true
-]);
-```
-
-**Migration:** if you relied on `new ToolApproval()` meaning "approve ALL tools", switch to
-listing the tools explicitly, or have each tool declare `requiresApproval() => true`.
-
-## 3. Resume payloads are cumulative
-
-The payload is the **entire decision set**, keyed by the tool callId, restated on every
-resume. Accumulation lives with the caller: gather decisions app-side and resume
-with the full set. An incomplete set re-suspends; undelivered partial decisions are
-deliberately persisted nowhere.
+The payload contains decisions keyed by tool call ID. ToolNode durably accumulates
+delivered decisions, so each resume may contain only newly decided actions. An
+incomplete set re-suspends. This behavior is shared by named signals, addressed
+payloads, and translated frontend inputs.
 
 ```php
 // The full decision set in one resume.
-$agent->chat(payload: [
+$agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
-]);
+])->run();
 ```
 
 A tool runs **iff** explicitly approved; silence is never consent. Decisions are revisable
 (the latest delivered payload wins) until the set completes.
 
-**Migration:** accumulate the decision set client-side and send it whole. Remove any use of
+**Migration:** submit decisions as arrays; client-side accumulation is optional. Remove any use of
 `ApprovalRequest::generatePayload()`.
 
 ## 4. `ApprovalRequest` and `Action` are outbound-only

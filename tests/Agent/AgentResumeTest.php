@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\History\SQLChatHistory;
@@ -22,7 +21,6 @@ use NeuronAI\Tests\Agent\Stub\ParityAdapter;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PDO;
@@ -195,15 +193,12 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_a' => 'approve'])])->run();
+        $partial = $agent1->resume([1 => ['call_a' => 'approve']])->run();
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
-        // The full, restated decision set completes the run.
-        $complete = $agent1->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(2), [
-            'call_a' => 'approve',
-            'call_b' => 'approve',
-        ])])->run();
+        // Only the remaining decision is needed to complete the run.
+        $complete = $agent1->resume([2 => ['call_b' => 'approve']])->run();
         $this->assertSame('Both searches done.', $complete->getMessage()->getContent());
     }
 
@@ -248,7 +243,7 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()->get('structured_output');
+        $user = $rag2->resume([1 => ['call_1' => 'approve']])->run()->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);

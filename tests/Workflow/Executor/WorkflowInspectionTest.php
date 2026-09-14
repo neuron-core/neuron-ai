@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow\Executor;
 
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -41,7 +40,7 @@ class WorkflowInspectionTest extends TestCase
         $this->assertNull($reader->getRunId());
 
         $request = array_values($run->interrupts)[0];
-        $workflow->resume([ResumeInput::event($request, [])], $run->runId, $run->executionAttempt)->run();
+        $workflow->resume([$request->getId() => []], $run->runId, $run->executionAttempt)->run();
         $completed = (new WorkflowExecutor())->inspect($reader);
         $this->assertNotNull($completed);
         $this->assertSame(WorkflowStatus::Completed, $completed->status);

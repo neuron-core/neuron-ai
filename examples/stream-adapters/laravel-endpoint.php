@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 /**
- * Example: Laravel API endpoint with Vercel AI SDK adapter
+ * Example: Laravel AG-UI endpoint
  *
- * This example shows how to integrate the stream adapter
- * in a Laravel application.
+ * An AG-UI client such as CopilotKit posts a RunAgentInput body (threadId,
+ * runId, messages, state, tools). This endpoint answers the last user message
+ * and streams the run back as AG-UI events over SSE. Continuing a paused run
+ * and registering the client's tool catalog are covered in
+ * src/Agent/Frontend/README.md.
  */
 
 use Illuminate\Http\Request;
@@ -16,13 +19,21 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
+use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 // routes/api.php
-Route::post('/chat', function (Request $request) {
-    // Validate request
-    $validated = $request->validate([
-        'message' => 'required|string|max:1000',
+Route::post('/agui', function (Request $request) {
+    $input = $request->validate([
+        'threadId' => 'required|string',
+        'runId' => 'nullable|string',
+        'messages' => 'required|array|min:1',
+        'state' => 'nullable|array',
     ]);
+
+    $last = $input['messages'][\array_key_last($input['messages'])];
+    if (($last['role'] ?? null) !== 'user') {
+        abort(422, 'AG-UI input must end with a user message.');
+    }
 
     // Create agent
     $agent = Agent::make()
@@ -36,15 +47,21 @@ Route::post('/chat', function (Request $request) {
             CalculatorToolkit::make()
         );
 
-    $adapter = new AGUIAdapter($request->threadId);
+    // Seeding the adapter with the client's messages and state keeps the
+    // frontend snapshot in sync without echoing what it already holds.
+    $adapter = new AGUIAdapter(
+        threadId: $input['threadId'],
+        runId: $input['runId'] ?? null,
+        messages: $input['messages'],
+        state: $input['state'] ?? [],
+    );
 
-    // stream() returns a generator yielding the adapter's protocol lines.
-    $stream = $agent->stream(new UserMessage($validated['message']), $adapter);
+    // stream() yields AG-UI ProtocolEvents; SSE framing happens at the HTTP edge.
+    $stream = $agent->setStreamAdapter($adapter)->stream(new UserMessage((string) $last['content']));
 
-    // Return streaming response
     return response()->stream(
         function () use ($stream) {
-            foreach ($stream as $line) {
+            foreach (SSEEncoder::encode($stream) as $line) {
                 echo $line;
                 \ob_flush();
                 \flush();

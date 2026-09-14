@@ -47,11 +47,9 @@ use const JSON_PRETTY_PRINT;
 /**
  * Executes tool calls, including the human-in-the-loop approval flow.
  *
- * The gate is Tool-centric and stateless: on every pass the node asks each
- * tool whether it requires approval and applies the CUMULATIVE resume payload
- * — the full decision set, restated on every resume; accumulation lives with
- * the caller. A tool runs iff explicitly approved; an incomplete set
- * re-suspends, and partial decisions are deliberately not persisted.
+ * The gate asks each tool whether it requires approval and durably accumulates
+ * decisions across deliveries. A tool runs only when explicitly approved;
+ * an incomplete set re-suspends until every gated call has a decision.
  *
  * Gated and externally executed cycles write their ToolCallMessage once,
  * before suspension. Other cycles commit the call/result pair together
@@ -146,10 +144,6 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     protected function resolveToolApprovals(ToolCallMessage $message): bool
     {
-        // Every gated tool starts out pending on every pass: the cumulative
-        // resume payload is the sole source of truth — a decision that is not
-        // restated is not remembered, even on tool instances that survive in
-        // memory between passes.
         $gated = $this->filterToolsRequiringApproval($message->getToolCalls());
 
         if ($gated === []) {
@@ -168,9 +162,13 @@ class ToolNode extends Node implements AgentNodeInterface
         // A tool runs if explicitly approved; silence is never consent.
         // An incomplete decision set loops and re-suspends with the
         // delivered decisions reflected on the outbound request.
+        $round = 0;
         while ($this->pendingTools($gated) !== []) {
-            $payload = $this->interrupt($this->buildApprovalRequest($gated));
-            $this->applyDecisions($payload ?? [], $gated);
+            $decisions = $this->memoize(
+                'approval.' . $round++,
+                fn (): array => $this->interrupt($this->buildApprovalRequest($gated)) ?? [],
+            );
+            $this->applyDecisions($decisions, $gated);
         }
 
         foreach ($gated as $call) {
@@ -287,9 +285,8 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * The payload is the entire decision set — every resume restates all
-     * decisions, the latest delivery wins. Entries for unknown callIds or
-     * malformed decisions are ignored.
+     * Apply this delivery to the accumulated decisions; explicit updates win.
+     * Entries for unknown callIds or malformed decisions are ignored.
      *
      * @param array<array-key, mixed> $payload Decisions keyed by callId.
      * @param ToolCall[]           $gated

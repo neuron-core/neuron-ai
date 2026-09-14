@@ -130,17 +130,17 @@ distinguish a fresh execution from continuation:
 |---|---|
 | `run()` | Start or recover a failed run and return its final `TState` (`WorkflowState` by default). |
 | `resume()->run()` | Continue without external input: evaluate due waits or recover a crashed/failed attempt. |
-| `resume($inputs, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Continue eagerly with an addressed `ResumeInput[]` batch. |
+| `resume($inputs, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Continue eagerly with payloads keyed by interruption ID. |
 | `events()` | Start or recover a failed run and yield intermediate output; `getReturn()` is the final `TState`. |
 | `resume()->events()` / `resume($inputs, ...)->events()` | Stream an inputless or addressed continuation. |
 | `signal($name, $payload)->run()` | Deliver an application event, then continue eagerly. |
 | `signal($name, $payload)->events()` | Deliver an application event, then stream the continued segment. |
 | `abandonRun($expectedRunId?)` | Discard the run holding the workflow ID so a new one can ignite; `false` when nothing is in flight. Refuses a retained completion and a run under a fresh lease. |
 
-`ResumeInput` is infrastructure-facing: create values with `event($request,
-$payload)`, `expired($request)`, or `timer($request)`; reconstruct a
-serialized platform delivery with `ResumeInput::fromArray()`. Raw payload
-arrays are not valid entries in the `$inputs` list.
+`resume()` accepts plain payload arrays keyed by positive interruption IDs:
+`resume([$request->getId() => $payload])->run()`. An empty payload for one wait
+is `[$id => []]`; an empty input map requests recovery or processing due deadlines.
+The executor constructs timer and expiry inputs internally.
 
 `signal()` is the application-facing shortcut for active `awaitEvent()`
 requests. It broadcasts to every active wait with that exact name and throws
@@ -418,10 +418,8 @@ Delayed, queued, or platform delivery addresses an interrupt explicitly and
 passes the earlier run ID so a stale delivery cannot reach a newer generation:
 
 ```php
-use NeuronAI\Workflow\Interrupt\ResumeInput;
-
 $state = $workflow->resume(
-    [ResumeInput::event($request, $payload)],
+    [$request->getId() => $payload],
     expectedRunId: $suspendedState->getRunId(),
 )->run();
 ```
@@ -529,9 +527,8 @@ $state = Workflow::make(workflowId: $workflowId)
 
 When the deadline elapses, a timer worker invokes `resume()->run()`. Workflow validates
 the clock, resolves every currently due wait, and `awaitEvent()` returns `null`.
-A platform that already owns an addressed delivery may instead send
-`ResumeInput::expired($request)`. Branch on the node result rather than comparing
-clocks inside the node.
+Branch on the node result rather than comparing clocks inside the node;
+expiry is determined internally by the executor.
 
 ### Sleep until a clock time — `sleepUntil()`
 
@@ -541,9 +538,8 @@ $this->sleepUntil($wakeAt);
 ```
 
 When an external timer fires, reconstruct the workflow and call `resume()->run()`;
-Workflow checks whether the wake time is actually due. Infrastructure that
-already owns an addressed delivery can instead pass
-`ResumeInput::timer($request)` to `run()` or `events()`.
+Workflow checks whether the wake time is actually due. Timer jobs do not
+construct inputs or need interruption IDs.
 
 ### Carrying a custom payload
 
@@ -1064,7 +1060,7 @@ if ($state->isInterrupted()) {
         ->setPersistence($persistence)
         ->addNodes([...])
         ->resume([
-            ResumeInput::event($request, ['answer' => $decision]),
+            $request->getId() => ['answer' => $decision],
         ])->run();
 }
 ```

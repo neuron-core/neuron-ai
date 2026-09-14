@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -20,7 +19,6 @@ use NeuronAI\Tests\Agent\Stub\CountingTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -244,7 +242,7 @@ class DurableTurnRecoveryTest extends TestCase
 
         // Process 3: the approval is delivered from a cold start and the run completes.
         $message = $this->fileAgent($provider, $tool)
-            ->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()
+            ->resume([1 => ['call_1' => 'approve']])->run()
             ->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());

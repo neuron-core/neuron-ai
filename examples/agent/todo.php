@@ -95,7 +95,7 @@ echo "-------------------------------------------------------------------\n\n";
 // Create AI provider
 $provider = new Anthropic(
     '',
-    'claude-3-7-sonnet-latest'
+    'claude-sonnet-5'
 );
 
 // Create agent with TodoPlanning middleware attached to PrepareInferenceNode

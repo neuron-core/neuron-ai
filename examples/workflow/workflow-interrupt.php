@@ -75,7 +75,7 @@ echo "Paused: {$request->getMessage()}\n";
  * events() depending on whether it needs eager or streaming consumption.
  */
 $completed = $makeWorkflow()
-    ->signal('approval', ['delete_files' => 'approve'])
+    ->signal(ApprovalRequest::EVENT_NAME, ['delete_files' => 'approve'])
     ->run();
 
 echo 'Result: ' . $completed->get('result') . "\n";

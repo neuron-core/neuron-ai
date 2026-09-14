@@ -13,7 +13,6 @@ use NeuronAI\Tests\Workflow\Executor\Stub\RestoringStateWorkflow;
 use NeuronAI\Tests\Workflow\Executor\Stub\StatefulTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
@@ -102,7 +101,7 @@ class StateRestorationTest extends TestCase
         $this->assertContains('image:paused', $partial->restorations);
 
         $stale = $make();
-        $checkpoint = $stale->resume([ResumeInput::event($textRequest, [])])->run();
+        $checkpoint = $stale->resume([$textRequest->getId() => []])->run();
         $this->assertTrue($checkpoint->isInterrupted());
         $this->assertSame('restored', ($checkpoint->operation)());
         $this->assertSame(['main'], $stale->restorations);

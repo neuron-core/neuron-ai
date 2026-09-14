@@ -74,7 +74,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * resume() must keep its inputs until execution, along with any
      * run/attempt checks that prevent delivery to a changed run.
      *
-     * @var array{inputs: list<ResumeInput>, runId: string|null, executionAttempt: int|null}|null
+     * @var array{inputs: array<int, array<string, mixed>>, runId: string|null, executionAttempt: int|null}|null
      */
     protected ?array $stagedInputs = null;
 
@@ -387,9 +387,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Stage an addressed continuation. Empty inputs recover or process due timers.
+     * Stage payloads keyed by interruption ID. Empty inputs recover or process due timers.
      *
-     * @param list<ResumeInput> $inputs
+     * @param array<int, array<string, mixed>> $inputs
      * @throws WorkflowException
      */
     public function resume(
@@ -407,16 +407,16 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * @param array<string, mixed> $payload
      * @throws WorkflowException
      */
-    protected function assertNoStagedOperation(): void
+    public function signal(string $event, array $payload = []): static
     {
-        if ($this->stagedSignalName !== null) {
-            throw new WorkflowException("Signal '{$this->stagedSignalName}' is already staged for this workflow.");
-        }
-        if ($this->stagedInputs !== null || $this->forceNewRun) {
-            throw new WorkflowException('An execution operation is already staged for this workflow.');
-        }
+        $this->assertNoStagedOperation();
+
+        $this->stagedSignalName = $event;
+        $this->stagedSignalPayload = $payload;
+        return $this;
     }
 
     /**
@@ -446,29 +446,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @throws WorkflowException
-     */
-    public function signal(string $name, array $payload = []): static
-    {
-        $this->assertNoStagedOperation();
-
-        $this->stagedSignalName = $name;
-        $this->stagedSignalPayload = $payload;
-        return $this;
-    }
-
-    public function acknowledgeCompletion(string $expectedRunId): void
-    {
-        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
-    }
-
-    public function abandonRun(?string $expectedRunId = null): bool
-    {
-        return $this->getExecutor()->abandonRun($this, $expectedRunId);
-    }
-
-    /**
      * Stream the staged operation, or start/recover a failed run by default.
      *
      * @return Generator<int, object, mixed, TState>
@@ -479,9 +456,17 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         if ($this->stagedInputs !== null) {
             $continuation = $this->stagedInputs;
             $this->stagedInputs = null;
+            $inputs = [];
+            foreach ($continuation['inputs'] as $interruptId => $payload) {
+                $inputs[] = ResumeInput::fromArray([
+                    'interruptId' => $interruptId,
+                    'kind' => 'event',
+                    'payload' => $payload,
+                ]);
+            }
             return $this->forwardEvents($this->getExecutor()->resume(
                 $this,
-                $continuation['inputs'],
+                $inputs,
                 $continuation['runId'],
                 $continuation['executionAttempt'],
             ));
@@ -546,6 +531,29 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         }
 
         return $state;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function assertNoStagedOperation(): void
+    {
+        if ($this->stagedSignalName !== null) {
+            throw new WorkflowException("Signal '{$this->stagedSignalName}' is already staged for this workflow.");
+        }
+        if ($this->stagedInputs !== null || $this->forceNewRun) {
+            throw new WorkflowException('An execution operation is already staged for this workflow.');
+        }
+    }
+
+    public function acknowledgeCompletion(string $expectedRunId): void
+    {
+        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
+    }
+
+    public function abandonRun(?string $expectedRunId = null): bool
+    {
+        return $this->getExecutor()->abandonRun($this, $expectedRunId);
     }
 
     /**

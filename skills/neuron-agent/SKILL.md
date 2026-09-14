@@ -7,7 +7,7 @@ description: Create and configure Neuron AI agents with providers, tools, instru
 
 This skill helps you create and configure Neuron AI agents for building agentic applications in PHP.
 
-Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
 
 ## Core Agent Structure
 
@@ -48,7 +48,7 @@ Workflow uses:
 | `structured($messages, $class)` | The typed output — starts a new run and consumes it eagerly |
 | `run()` | `AgentState` — inherited eager Workflow terminal |
 | `events()` | `Generator` — inherited pull-stream Workflow terminal; `getReturn()` is the `AgentState` |
-| `submitInputs($decisions, new ApprovalTranslator())` | Stages Agent approval decisions; finish with `run()` or `events()` |
+| `submitApprovalDecisions($decisions)` | Stages tool approval decisions keyed by call ID (a shortcut for `submitInputs($decisions, new ApprovalTranslator())`); finish with `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
 Read the assistant message off it with `getMessage()`, and read an approval pause with
@@ -59,9 +59,9 @@ The inherited `run()` / `events()` terminals execute staged intent. Without a
 staged operation they start or recover a failed run. `resume($inputs, ...)` stages
 an explicit continuation. Agent new-turn methods select a fresh execution internally. `resume()->run()` is an inputless continuation for due timers
 or crash recovery (a failed turn needs neither: the next `chat()` supersedes
-it). Agent tool approval normally hides `ResumeInput` behind
-`submitInputs($decisions, new ApprovalTranslator())->run()` or
-`submitInputs($decisions, new ApprovalTranslator())->events()`.
+it). Agent tool approval accepts decisions keyed by tool call ID through
+`submitApprovalDecisions($decisions)->run()` or
+`submitApprovalDecisions($decisions)->events()`.
 
 `Agent` specializes the generic `Workflow<AgentState>` contract, so inherited
 `run()`, `events()`, `getState()`, and `setState()` retain the concrete
@@ -597,21 +597,22 @@ if ($state->isInterrupted()) {
     $state = MyAgent::make(threadId: $threadId)
         ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
-        ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
+        ->submitApprovalDecisions(['call_123' => 'approve'])
         ->run();
 }
 
 $response = $state->getMessage();
 ```
 
-The approval wrapper stages the internal `approval` signal, so application code
-needs only the thread ID and decisions keyed by tool call ID. Call `events()`
-instead of `run()` when the continued segment must stream.
+`submitApprovalDecisions()` wraps `submitInputs()` with the built-in `ApprovalTranslator`
+and stages payloads addressed to the matching approval requests, so application code needs only the thread ID
+and decisions keyed by tool call ID. Call `events()` instead of `run()` when the
+continued segment must stream.
 
 Other interruption types use the generic Workflow API: application-controlled
 event waits use `signal($name, $payload)->run()`, due timers and inputless
-recovery use `resume()->run()`, and durable platform SDKs pass addressed
-`ResumeInput[]` to `run()` or `events()`. A background, workflow-ID-first
+recovery use `resume()->run()`, and durable platform SDKs stage payloads keyed by interruption ID with
+`resume([$interruptId => $payload])->run()` or `->events()`. A background, workflow-ID-first
 continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
 
@@ -628,7 +629,7 @@ the first inference and any tool runs already committed.
 A **pending approval** does lock the thread: a `chat()` while the run is
 suspended throws `RunInFlightException`, whose message names the awaited
 `approval` event and whose `interrupts` carry the `ApprovalRequest`. Catch it
-to re-render the pending decision, and settle it with `submitInputs($decisions, new ApprovalTranslator())`
+to re-render the pending decision, and settle it with `submitApprovalDecisions($decisions)`
 (decline decisions are the cancel path).
 
 `abandonRun()` dismisses a failed turn without starting a new one and returns

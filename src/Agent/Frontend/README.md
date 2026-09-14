@@ -9,7 +9,7 @@ public function translate(array $payload, array $requests): array;
 
 The payload is decoded request JSON. Requests are authoritative `InterruptRequest`
 objects from a returned workflow state or a persisted run snapshot. The return
-value is a list of `ResumeInput` objects. Translation never executes an agent,
+value is an array of payloads keyed by interruption ID, ready for `resume()`. Translation never executes an agent,
 changes persistence, or adds messages to chat history.
 
 ## Continuing through an application endpoint
@@ -54,16 +54,17 @@ For durable delivery, use `resume($inputs, expectedRunId: $runId)->events()`.
 
 ## Native application inputs
 
-The same method replaces `toolApprovalDecisions()` and `toolResults()`:
+The same method replaces `toolApprovalDecisions()` and `toolResults()`. For native
+approval decisions, `Agent::submitApprovalDecisions($decisions)` wraps it with
+`ApprovalTranslator`:
 
 ```php
-use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 
-$state = $agent->submitInputs([
+$state = $agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'Too expensive'],
-], new ApprovalTranslator())->run();
+])->run();
 
 // When the agent subsequently waits for the approved frontend tool's result:
 $events = $agent->submitInputs([
@@ -71,9 +72,9 @@ $events = $agent->submitInputs([
 ], new ToolResultsTranslator())->events();
 ```
 
-Both native translators address requests by call ID. Approval translation fills
-omitted decisions from the persisted request, so successive submissions can carry
-only newly decided actions. Explicit changes to an already-decided action in a
+Both native translators address requests by call ID. The approval node durably
+accumulates decisions, so successive submissions can carry only newly decided
+actions through `submitApprovalDecisions()`, `resume()`, or `signal()`. Explicit changes to an already-decided action in a
 still-open batch retain the engine's latest-delivery behavior. Tool results keep
 the existing cumulative validation: identical repeated results are accepted while
 a batch is pending, conflicting results are rejected. Unknown call IDs fail;
@@ -117,8 +118,8 @@ unsupported; extend the translator to define those application-specific meanings
 Full histories may include earlier tool cycles; only IDs belonging to the active
 requests or their accepted results are considered. Conflicting duplicate answers
 and changed accepted results fail. Partial tool results use the existing engine
-accumulation. Partial Vercel approvals preserve decisions from the current request
-snapshot, producing the cumulative payload expected by ToolNode. Explicit updates
+accumulation. Partial approvals are accumulated by ToolNode using durable memos;
+translators only produce the submitted decisions keyed by interruption ID. Explicit updates
 to that still-open approval batch retain the engine's latest-delivery behavior.
 
 An approval response is never an execution result. A frontend confirmation tool

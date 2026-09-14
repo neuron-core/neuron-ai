@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -15,7 +14,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
@@ -80,7 +78,7 @@ class AgentAbandonTest extends TestCase
         $this->assertCount(2, $history->getMessages());
 
         $message = $this->makeAgent($provider, $history, $persistence, $tool)
-            ->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), ['call_1' => 'approve'])])->run()
+            ->resume([1 => ['call_1' => 'approve']])->run()
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());
     }

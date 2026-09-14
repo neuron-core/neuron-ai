@@ -18,7 +18,6 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -69,6 +68,67 @@ class AgentInputSubmissionTest extends TestCase
         $this->assertSame(2, $this->provider->getCallCount());
     }
 
+    /** @return iterable<string, array{string, string, bool}> */
+    public static function approvalDeliveries(): iterable
+    {
+        foreach (['signal', 'resume', 'translator'] as $first) {
+            foreach (['signal', 'resume', 'translator'] as $second) {
+                yield $first . '-' . $second => [$first, $second, false];
+                yield $first . '-' . $second . '-stream' => [$first, $second, true];
+            }
+        }
+    }
+
+    #[DataProvider('approvalDeliveries')]
+    public function test_partial_approvals_survive_reconstruction_and_entry_point_changes(
+        string $first,
+        string $second,
+        bool $streaming,
+    ): void {
+        $state = $this->agent(true)->chat(new UserMessage('Read the page'));
+        foreach ([[$first, ['a' => 'approve']], [$second, ['b' => ['reject', 'Cancelled']]]] as [$source, $decisions]) {
+            $agent = $this->agent(true);
+            match ($source) {
+                'signal' => $agent->signal('approval', $decisions),
+                'resume' => $agent->resume([$state->getInterruptRequest()->getId() => $decisions]),
+                'translator' => $agent->submitApprovalDecisions($decisions),
+                default => $this->fail('Unknown approval delivery source.'),
+            };
+            if ($streaming) {
+                $events = $agent->events();
+                iterator_to_array($events);
+                $state = $events->getReturn();
+            } else {
+                $state = $agent->run();
+            }
+        }
+
+        $request = $state->getInterruptRequest();
+        $this->assertInstanceOf(\NeuronAI\Agent\Interrupt\ToolResultsRequest::class, $request);
+        $this->assertSame(['a'], array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()));
+        $state = $this->agent()->signal('tool_results', ['a' => ['result' => 'Title']])->run();
+        $this->assertSame('Finished', $state->getMessage()->getContent());
+        $this->assertSame(2, $this->provider->getCallCount());
+    }
+
+    public function test_explicit_updates_replace_previous_partial_approval_decisions(): void
+    {
+        $this->agent(true)->chat(new UserMessage('Read the page'));
+        $this->agent(true)->signal('approval', ['a' => 'approve'])->run();
+        $state = $this->agent(true)->submitApprovalDecisions(['a' => ['reject', 'Changed my mind']])->run();
+        $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
+        $this->assertTrue($state->getInterruptRequest()->getActions()[0]->isRejected());
+
+        $state = $this->agent(true)->resume([
+            $state->getInterruptRequest()->getId() => ['b' => 'approve'],
+        ])->run();
+        $request = $state->getInterruptRequest();
+        $this->assertInstanceOf(\NeuronAI\Agent\Interrupt\ToolResultsRequest::class, $request);
+        $this->assertSame(['b'], array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()));
+        $state = $this->agent()->signal('tool_results', ['b' => ['result' => 'Title']])->run();
+        $this->assertSame('Finished', $state->getMessage()->getContent());
+    }
+
     public function test_empty_or_unmatched_payload_does_not_stage_an_inputless_continuation(): void
     {
         $this->agent()->chat(new UserMessage('Read the page'));
@@ -107,9 +167,9 @@ class AgentInputSubmissionTest extends TestCase
             function (array $payload, array $requests): array {
                 $this->assertSame(['custom' => 'Title'], $payload);
                 $this->assertCount(1, $requests);
-                return [ResumeInput::event(array_values($requests)[0], [
+                return [array_values($requests)[0]->getId() => [
                     'a' => ['result' => $payload['custom']], 'b' => ['error' => 'Cancelled'],
-                ])];
+                ]];
             },
         );
         $stream = $this->agent()->submitInputs(['custom' => 'Title'], $translator)->events();

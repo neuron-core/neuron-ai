@@ -22,7 +22,6 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeInputResult;
 use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
@@ -57,14 +56,14 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame(1, $first->getExecutionAttempt());
         $this->assertSame([1, 2], array_keys($first->getInterruptRequests()));
 
-        $partial = $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
+        $partial = $workflow->resume([1 => []])->run();
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
         $this->assertSame([2], array_keys($partial->getInterruptRequests()));
 
         $completed = $workflow->resume([
-            ResumeInput::event((new ApprovalRequest('test'))->withId(1), []),
-            ResumeInput::event((new ApprovalRequest('test'))->withId(2), []),
+            1 => [],
+            2 => [],
         ])->run();
 
         $this->assertFalse($completed->isInterrupted());
@@ -143,7 +142,7 @@ class ParallelInterruptTest extends TestCase
             }
 
             $workflow->run();
-            $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
+            $workflow->resume([1 => []])->run();
 
             $this->assertSame(3, $counter->runs);
         }

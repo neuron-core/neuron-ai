@@ -44,6 +44,7 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `run()` / `events()` | Execute staged intent; otherwise start or automatically recover a failed execution |
 | `resume($inputs = [], ...)` | Stage a durable continuation |
 | `submitInputs($payload, $translator)` | Translates against persisted interruptions and stages addressed inputs for the following `run()` or `events()` |
+| `submitApprovalDecisions($decisions)` | Shortcut for `submitInputs($decisions, new ApprovalTranslator())`: stages tool approval decisions keyed by call ID |
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
@@ -111,16 +112,16 @@ protected function tools(): array
 }
 ```
 
-When a gated tool is requested, `chat()` returns suspended. A continuation submits decisions keyed by call ID through `NeuronAI\Agent\Interrupt\ApprovalTranslator`:
+When a gated tool is requested, `chat()` returns suspended. A continuation submits decisions keyed by call ID with `submitApprovalDecisions()`, which wraps `submitInputs()` with the built-in `NeuronAI\Agent\Interrupt\ApprovalTranslator`:
 
 ```php
-$agent->submitInputs([
+$agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
-], new ApprovalTranslator())->run();
+])->run();
 ```
 
-A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and the translator fills omitted decisions from the persisted interruption snapshot (explicit updates to the still-open batch win). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
+A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and ToolNode durably accumulates delivered decisions through step memos, regardless of the continuation entry point (explicit updates to the still-open batch win). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
 
 `submitInputs()` is inherited from Workflow and accepts any `InputTranslatorInterface`, including AG-UI, Vercel and custom formats. It reads the persisted run, rejects empty translations, and keeps its run/attempt fences until `run()` or `events()` consumes the inputs. A concurrent continuation invalidates that snapshot. No protocol-specific branching lives in Agent; see `Frontend/README.md`.
 
@@ -177,12 +178,12 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
 SupportAgent::make(threadId: $threadId)
-    ->submitInputs(['call_123' => 'approve'], new ApprovalTranslator())
+    ->submitApprovalDecisions(['call_123' => 'approve'])
     ->run();
 
 // WorkflowId-first resume (background wake): the ignition record supplies the thread.
 SupportAgent::make(workflowId: $ticket->workflowId)
-    ->resume([ResumeInput::fromArray($ticket->input)], expectedRunId: $ticket->runId)->run();
+    ->resume([$ticket->interruptId => $ticket->payload], expectedRunId: $ticket->runId)->run();
 ```
 
 Identity is **always a developer statement; the framework never generates one**. It resolves from `make(threadId:)`, from adoption of a pre-bound history passed to `setChatHistory()` (which selects that conversation), or from the ignition record on a workflowId-first resume. Disagreeing non-null claims throw `AgentException`: a record contradicting an explicit claim is a misidentified continuation. Once resolved, the Agent binds the identity into an unbound history (`setThreadId()`, itself assign-once). A run without identity lives under an engine-generated workflow ID and is simply not findable by its thread; a hook-provided history that self-keys materializes after the ignition record is written, so it does not make a run thread-findable either.

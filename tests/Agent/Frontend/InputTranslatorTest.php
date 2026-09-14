@@ -36,11 +36,11 @@ class InputTranslatorTest extends TestCase
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => '{"title":"Page"}'],
         ]], [$request]);
         $this->assertCount(1, $inputs);
-        $this->assertSame(4, $inputs[0]->interruptId);
+        $this->assertSame(4, array_key_first($inputs));
         $this->assertSame([
             'b' => ['error' => 'Permission denied'],
             'a' => ['result' => '{"title":"Page"}'],
-        ], $inputs[0]->payload);
+        ], $inputs[4]);
     }
 
     public function test_vercel_parts_preserve_json_values_and_ignore_prior_approval(): void
@@ -59,8 +59,8 @@ class InputTranslatorTest extends TestCase
             ],
         ]]], $requests);
         $this->assertCount(2, $inputs);
-        $this->assertSame(['a' => ['result' => null]], $inputs[0]->payload);
-        $this->assertSame(['b' => ['result' => ['visible' => false]]], $inputs[1]->payload);
+        $this->assertSame(['a' => ['result' => null]], $inputs[4]);
+        $this->assertSame(['b' => ['result' => ['visible' => false]]], $inputs[5]);
     }
 
     public function test_vercel_error_part_becomes_an_error_result(): void
@@ -71,7 +71,7 @@ class InputTranslatorTest extends TestCase
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'output-error', 'errorText' => 'GPS unavailable',
             ]],
         ]]], [$request]);
-        $this->assertSame(['a' => ['error' => 'GPS unavailable']], $inputs[0]->payload);
+        $this->assertSame(['a' => ['error' => 'GPS unavailable']], $inputs[1]);
     }
 
     public function test_agui_folds_all_approval_responses_into_one_engine_input(): void
@@ -82,11 +82,11 @@ class InputTranslatorTest extends TestCase
             ['interruptId' => 'b', 'status' => 'cancelled'],
         ], 'messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'approved']]], [$request]);
         $this->assertCount(1, $inputs);
-        $this->assertSame(7, $inputs[0]->interruptId);
-        $this->assertSame(['a' => 'approve', 'b' => 'reject'], $inputs[0]->payload);
+        $this->assertSame(7, array_key_first($inputs));
+        $this->assertSame(['a' => 'approve', 'b' => 'reject'], $inputs[7]);
     }
 
-    public function test_vercel_partial_approval_keeps_previous_decisions(): void
+    public function test_vercel_partial_approval_only_translates_submitted_decisions(): void
     {
         $request = (new ApprovalRequest('Approve', [
             new Action('a', 'browser', decision: ActionDecision::Approved),
@@ -98,7 +98,7 @@ class InputTranslatorTest extends TestCase
                 'approval' => ['id' => 'b', 'approved' => false, 'reason' => 'No thanks'],
             ]],
         ]]], [$request]);
-        $this->assertSame(['b' => ['reject', 'No thanks'], 'a' => 'approve'], $inputs[0]->payload);
+        $this->assertSame(['b' => ['reject', 'No thanks']], $inputs[8]);
     }
 
     public function test_agui_cancelling_a_deferred_interrupt_settles_every_pending_call(): void
@@ -112,7 +112,7 @@ class InputTranslatorTest extends TestCase
         $this->assertSame([
             'a' => ['error' => 'Frontend tool execution cancelled.'],
             'b' => ['error' => 'Frontend tool execution cancelled.'],
-        ], $inputs[0]->payload);
+        ], $inputs[9]);
     }
 
     public function test_agui_generic_event_resume_uses_the_same_interface(): void
@@ -121,8 +121,8 @@ class InputTranslatorTest extends TestCase
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [
             ['interruptId' => '12', 'status' => 'resolved', 'payload' => ['value' => 42]],
         ]], [$request]);
-        $this->assertSame(12, $inputs[0]->interruptId);
-        $this->assertSame(['value' => 42], $inputs[0]->payload);
+        $this->assertSame(12, array_key_first($inputs));
+        $this->assertSame(['value' => 42], $inputs[12]);
     }
 
     public function test_agui_catalog_creates_schema_tools_without_attaching_them(): void
@@ -199,7 +199,7 @@ class InputTranslatorTest extends TestCase
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
         ]], [$request]);
-        $this->assertSame(['a' => ['result' => 'original'], 'b' => ['result' => 'new']], $inputs[0]->payload);
+        $this->assertSame(['a' => ['result' => 'original'], 'b' => ['result' => 'new']], $inputs[4]);
     }
 
     public function test_expired_agui_resume_is_rejected(): void
@@ -215,7 +215,7 @@ class InputTranslatorTest extends TestCase
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [[
             'interruptId' => '3', 'status' => 'resolved', 'payload' => ['a' => ['result' => false]],
         ]]], [$request]);
-        $this->assertSame(['a' => ['result' => false]], $inputs[0]->payload);
+        $this->assertSame(['a' => ['result' => false]], $inputs[3]);
     }
 
     public function test_duplicate_catalog_names_are_rejected(): void
@@ -255,7 +255,7 @@ class InputTranslatorTest extends TestCase
                 'approval' => ['id' => 'a', 'approved' => false],
             ]],
         ]]], [$request]);
-        $this->assertSame(['a' => 'reject'], $inputs[0]->payload);
+        $this->assertSame(['a' => 'reject'], $inputs[8]);
     }
 
 }

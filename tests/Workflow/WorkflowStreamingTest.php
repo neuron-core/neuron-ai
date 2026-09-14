@@ -17,7 +17,6 @@ use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -166,7 +165,7 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
             ->setPersistence($persistence)
-            ->resume([ResumeInput::event($first->getInterruptRequest(), [])])->events();
+            ->resume([$first->getInterruptRequest()->getId() => []])->events();
 
         iterator_to_array($generator);
 

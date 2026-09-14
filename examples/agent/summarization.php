@@ -20,13 +20,13 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 // Initialize providers
 $mainProvider = new Anthropic(
     '',
-    'claude-5-sonnet',
+    'claude-sonnet-5'
 );
 
 // Use a faster/cheaper model for summarization
 $summarizationProvider = new Anthropic(
     '',
-    'claude-5-haiku',
+    'claude-sonnet-5'
 );
 
 // Create the agent with summarization middleware

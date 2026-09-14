@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Interrupt;
 
 use NeuronAI\Exceptions\InputTranslationException;
+use NeuronAI\Exceptions\WorkflowException;
 
 /** Translates native decisions keyed by tool call ID. */
 class ApprovalTranslator extends ToolInputTranslator
 {
+    /**
+     * @throws InputTranslationException
+     * @throws WorkflowException
+     */
     public function translate(array $payload, array $requests): array
     {
         foreach ($payload as $decision) {

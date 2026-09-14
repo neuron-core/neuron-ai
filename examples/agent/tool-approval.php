@@ -54,7 +54,7 @@ $makeAgent = function () use ($storage, $threadId, $apiKey): Agent {
     $agent = Agent::make(threadId: $threadId);
     $agent->setPersistence(new FilePersistence($storage . \DIRECTORY_SEPARATOR . 'workflow'));
     $agent->setChatHistory(new FileChatHistory($storage . \DIRECTORY_SEPARATOR . 'chat'));
-    $agent->setAiProvider(new Anthropic($apiKey, 'claude-3-7-sonnet-latest'));
+    $agent->setAiProvider(new Anthropic($apiKey, 'claude-sonnet-5'));
     $agent->setInstructions('You are a helpful assistant. Be concise.');
     $agent->addTool(new FileDeleteTool());
 
@@ -112,7 +112,7 @@ while ($state->isInterrupted()) {
      */
     echo "\nContinuing Agent...\n\n";
     $agent = $makeAgent();
-    $state = $agent->submitInputs($decisions, new ApprovalTranslator())->run();
+    $state = $agent->submitApprovalDecisions($decisions)->run();
 }
 
 echo 'Agent: ' . $state->getMessage()->getContent() . "\n";

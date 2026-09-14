@@ -188,7 +188,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage("incompatible with interrupt 1");
 
-        $workflow->resume([ResumeInput::event((new ApprovalRequest('test'))->withId(1), [])])->run();
+        $workflow->resume([1 => []])->run();
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void
@@ -292,7 +292,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage('arrived before its wake time');
 
-        $workflow->resume([ResumeInput::timer($request)])->run();
+        $request->validate(ResumeInput::timer($request));
     }
 
     public function test_inputless_resume_expires_due_event_wait(): void
@@ -329,7 +329,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage('arrived before its deadline');
 
-        $workflow->resume([ResumeInput::expired($request)])->run();
+        $request->validate(ResumeInput::expired($request));
     }
 
     public function test_wait_for_event_request_carries_deadline(): void

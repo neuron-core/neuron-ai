@@ -7,6 +7,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
+use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -22,9 +23,14 @@ $agent = Agent::make()
         CalculatorToolkit::make()
     );
 
-// Stream the response through the Vercel AI SDK adapter. stream() returns a
-// generator yielding protocol-formatted lines; pass the adapter as the 2nd arg.
-foreach ($agent->stream(new UserMessage('What is the square root of 144?'), new VercelAIAdapter()) as $line) {
+// The adapter turns Neuron's native chunks into Vercel AI SDK data stream
+// events, so stream() yields one ProtocolEvent per wire event.
+$stream = $agent
+    ->setStreamAdapter(new VercelAIAdapter())
+    ->stream(new UserMessage('What is the square root of 144?'));
+
+// SSE framing belongs to the HTTP edge: the encoder turns each event into a "data:" line.
+foreach (SSEEncoder::encode($stream) as $line) {
     echo $line;
     \flush();
 }

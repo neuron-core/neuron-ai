@@ -1,6 +1,6 @@
 # Upgrade: Stream adapters see a suspended run
 
-Native approval examples use `NeuronAI\Agent\Interrupt\ApprovalTranslator`; import it alongside the Agent.
+Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
 
 ## What Changed
 
@@ -78,7 +78,7 @@ final class MyAdapter implements StreamAdapterInterface
 
 An AG-UI client checks `event.outcome?.type === 'interrupt'` on `RUN_FINISHED` and reads
 `event.outcome.interrupts`; each `tool_call` interrupt's `toolCallId` is the key of the
-decision map to deliver with `submitInputs($decisions, new ApprovalTranslator())`. A Vercel AI SDK client receives the
+decision map to deliver with `submitApprovalDecisions($decisions)`. A Vercel AI SDK client receives the
 standard `tool-approval-request` part and answers it through the SDK's approval response.
 
 ## Verification Checklist
