@@ -50,14 +50,14 @@ class ChannelForwardingTest extends TestCase
 
         $payloads = array_map(
             static fn (ProtocolEvent $event): string => $event->data['payload'],
-            $channel->sent,
+            $channel->getSent(),
         );
 
         $this->assertSame(['chunk-1', 'chunk-2', 'chunk-3'], $payloads);
-        $this->assertCount(1, $channel->completions);
-        $this->assertSame($workflow->getWorkflowId(), $channel->completions[0]['workflowId']);
-        $this->assertSame([], $channel->suspendedStates);
-        $this->assertSame([], $channel->failures);
+        $this->assertCount(1, $channel->getCompletions());
+        $this->assertSame($workflow->getWorkflowId(), $channel->getCompletions()[0]->workflowId);
+        $this->assertSame([], $channel->getSuspensions());
+        $this->assertSame([], $channel->getFailures());
     }
 
     public function test_wired_channel_receives_items_via_caller_held_generator(): void
@@ -74,14 +74,14 @@ class ChannelForwardingTest extends TestCase
         }
 
         // Push and pull consumers see the same items — same instances, same order.
-        $this->assertSame($pulled, $channel->sent);
-        $this->assertCount(1, $channel->completions);
+        $this->assertSame($pulled, $channel->getSent());
+        $this->assertCount(1, $channel->getCompletions());
     }
 
     public function test_channel_send_failures_never_fail_the_run_and_every_failure_is_dispatched(): void
     {
-        $channel = new FakeChannel();
-        $channel->throwOnSend = new RuntimeException('transport down');
+        $failure = new RuntimeException('transport down');
+        $channel = FakeChannel::make()->setThrowOnSend($failure);
 
         $errors = [];
         $workflow = Workflow::make()
@@ -100,10 +100,10 @@ class ChannelForwardingTest extends TestCase
         // circuit-breaking the channel implementation's.
         $this->assertCount(5, $errors);
         foreach ($errors as $error) {
-            $this->assertSame($channel->throwOnSend, $error->exception);
+            $this->assertSame($failure, $error->exception);
         }
         // The terminal is still delivered — failures never lose the run.
-        $this->assertCount(1, $channel->completions);
+        $this->assertCount(1, $channel->getCompletions());
     }
 
     public function test_channel_without_adapter_receives_only_the_lifecycle(): void
@@ -121,8 +121,8 @@ class ChannelForwardingTest extends TestCase
         // Native output stays on the pull path: a channel speaks the adapter's protocol.
         $this->assertCount(3, $pulled);
         $this->assertContainsOnlyInstancesOf(ChunkEvent::class, $pulled);
-        $this->assertSame([], $channel->sent);
-        $this->assertCount(1, $channel->completions);
+        $this->assertSame([], $channel->getSent());
+        $this->assertCount(1, $channel->getCompletions());
     }
 
     // ------------------------------------------------------------------
@@ -147,15 +147,15 @@ class ChannelForwardingTest extends TestCase
         $this->assertTrue($state->isInterrupted());
 
         // The channel receives one state-level snapshot with the ID-bound request.
-        $this->assertCount(1, $channel->suspendedStates);
-        $delivered = $channel->suspendedStates[0];
+        $this->assertCount(1, $channel->getSuspensions());
+        $delivered = $channel->getSuspensions()[0]->state;
         $this->assertSame($workflow->getWorkflowId(), $delivered->getWorkflowId());
         $this->assertSame('needs a human', $delivered->getInterruptRequest()->getMessage());
         $this->assertSame(1, $delivered->getInterruptRequest()->getId());
 
         // …and never the InterruptEvent — nor does a suspended segment complete.
-        $this->assertSame([], $channel->sent);
-        $this->assertSame([], $channel->completions);
+        $this->assertSame([], $channel->getSent());
+        $this->assertSame([], $channel->getCompletions());
 
         // Pull consumers still receive the InterruptEvent terminal, unchanged.
         $this->assertInstanceOf(InterruptEvent::class, $pulled[count($pulled) - 1]);
@@ -172,24 +172,24 @@ class ChannelForwardingTest extends TestCase
         // An incomplete payload interrupts again with a new active request.
         $workflow->resume(['partial' => true])->run();
 
-        $this->assertCount(2, $channel->suspendedStates);
-        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[0]->getInterruptRequest());
-        $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[1]->getInterruptRequest());
-        $this->assertSame('stage one', $channel->suspendedStates[0]->getInterruptRequest()->getMessage());
-        $this->assertSame('stage two', $channel->suspendedStates[1]->getInterruptRequest()->getMessage());
+        $this->assertCount(2, $channel->getSuspensions());
+        $this->assertInstanceOf(ApprovalRequest::class, $channel->getSuspensions()[0]->state->getInterruptRequest());
+        $this->assertInstanceOf(ApprovalRequest::class, $channel->getSuspensions()[1]->state->getInterruptRequest());
+        $this->assertSame('stage one', $channel->getSuspensions()[0]->state->getInterruptRequest()->getMessage());
+        $this->assertSame('stage two', $channel->getSuspensions()[1]->state->getInterruptRequest()->getMessage());
         $this->assertSame(
-            $channel->suspendedStates[0]->getWorkflowId(),
-            $channel->suspendedStates[1]->getWorkflowId(),
+            $channel->getSuspensions()[0]->state->getWorkflowId(),
+            $channel->getSuspensions()[1]->state->getWorkflowId(),
         );
-        $this->assertCount(0, $channel->completions);
+        $this->assertCount(0, $channel->getCompletions());
 
         $state = $workflow->resume(['complete' => true])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertCount(2, $channel->suspendedStates);
-        $this->assertCount(1, $channel->completions);
-        $this->assertSame($workflow->getWorkflowId(), $channel->completions[0]['workflowId']);
-        $this->assertSame($state, $channel->completions[0]['state']);
+        $this->assertCount(2, $channel->getSuspensions());
+        $this->assertCount(1, $channel->getCompletions());
+        $this->assertSame($workflow->getWorkflowId(), $channel->getCompletions()[0]->workflowId);
+        $this->assertSame($state, $channel->getCompletions()[0]->state);
     }
 
     public function test_node_failure_fires_failed_with_the_exception_and_still_propagates(): void
@@ -210,11 +210,11 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame('node exploded', $caught->getMessage());
 
         // failed() is notification only — the same exception reached the caller.
-        $this->assertCount(1, $channel->failures);
-        $this->assertSame($caught, $channel->failures[0]['exception']);
-        $this->assertSame($workflow->getWorkflowId(), $channel->failures[0]['workflowId']);
-        $this->assertSame([], $channel->completions);
-        $this->assertSame([], $channel->suspendedStates);
+        $this->assertCount(1, $channel->getFailures());
+        $this->assertSame($caught, $channel->getFailures()[0]->exception);
+        $this->assertSame($workflow->getWorkflowId(), $channel->getFailures()[0]->workflowId);
+        $this->assertSame([], $channel->getCompletions());
+        $this->assertSame([], $channel->getSuspensions());
     }
 
     public function test_resume_segment_receives_only_post_resume_items(): void
@@ -227,9 +227,9 @@ class ChannelForwardingTest extends TestCase
 
         $workflow->run();
 
-        $this->assertCount(1, $firstSegment->sent);
-        $this->assertSame('pre', $firstSegment->sent[0]->data['payload']);
-        $this->assertCount(1, $firstSegment->suspendedStates);
+        $this->assertCount(1, $firstSegment->getSent());
+        $this->assertSame('pre', $firstSegment->getSent()[0]->data['payload']);
+        $this->assertCount(1, $firstSegment->getSuspensions());
 
         // Crash-replayed / cached steps yield nothing, so the resume segment's
         // channel never re-broadcasts the pre-suspension stream.
@@ -238,10 +238,10 @@ class ChannelForwardingTest extends TestCase
         $state = $workflow->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertCount(1, $resumeSegment->sent);
-        $this->assertSame('post', $resumeSegment->sent[0]->data['payload']);
-        $this->assertCount(1, $resumeSegment->completions);
-        $this->assertSame([], $resumeSegment->suspendedStates);
+        $this->assertCount(1, $resumeSegment->getSent());
+        $this->assertSame('post', $resumeSegment->getSent()[0]->data['payload']);
+        $this->assertCount(1, $resumeSegment->getCompletions());
+        $this->assertSame([], $resumeSegment->getSuspensions());
     }
 
     public function test_terminal_failure_is_caught_and_reported_never_thrown(): void
@@ -269,8 +269,7 @@ class ChannelForwardingTest extends TestCase
 
     public function test_a_failing_channel_error_listener_never_fails_the_run(): void
     {
-        $channel = new FakeChannel();
-        $channel->throwOnSend = new RuntimeException('transport down');
+        $channel = FakeChannel::make()->setThrowOnSend(new RuntimeException('transport down'));
         $listenerFailure = new LogicException('error reporter down');
 
         $reported = [];
@@ -291,6 +290,6 @@ class ChannelForwardingTest extends TestCase
         // itself reported, once per delivery, and the run still completes.
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertSame([$listenerFailure, $listenerFailure], $reported);
-        $this->assertCount(1, $channel->completions);
+        $this->assertCount(1, $channel->getCompletions());
     }
 }

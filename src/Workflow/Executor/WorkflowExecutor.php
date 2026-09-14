@@ -170,15 +170,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             $workflow->adoptIdentity($this->workflowId, $this->runId);
             $workflow->bootstrap();
+            $workflow->getState()->markAsRunning();
+            $this->stampState($workflow->getState());
 
             $this->dispatchEvent(
                 $workflow->getEventDispatcher(),
                 new WorkflowStart($workflow->getEventNodeMap()),
                 $workflow,
             );
-
-            $workflow->getState()->markAsRunning();
-            $this->stampState($workflow->getState());
 
             $terminal = yield from $this->traverse(
                 $workflow,

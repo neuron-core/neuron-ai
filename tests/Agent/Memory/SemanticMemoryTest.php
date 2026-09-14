@@ -13,6 +13,8 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
+use function implode;
+
 class SemanticMemoryTest extends TestCase
 {
     public function test_remember_recall_and_forget_are_scoped_by_thread_without_a_custom_schema(): void
@@ -150,9 +152,12 @@ class SemanticMemoryTest extends TestCase
 
         $memories = $memory->recall('What do you know about me?');
 
+        // Fake embeddings carry no meaning, so the recall order is arbitrary.
         $this->assertCount(2, $memories);
-        $this->assertStringContainsString('Neuron', $memories[0]);
-        $this->assertStringContainsString('PHP', $memories[1]);
+        $recalled = implode("\n", $memories);
+        $this->assertStringContainsString('Neuron', $recalled);
+        $this->assertStringContainsString('PHP', $recalled);
+        $this->assertStringNotContainsString('another framework', $recalled);
 
         $memory->forget('thread-1');
 

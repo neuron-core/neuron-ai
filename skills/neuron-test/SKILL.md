@@ -41,6 +41,7 @@ $provider = FakeAIProvider::make(
 **Key Features:**
 - Responses are returned sequentially from queue
 - Supports `chat()`, `stream()`, and `structured()` methods
+- `stream()` derives its chunks from the queued message like a real provider: `ReasoningChunk` for reasoning blocks, `TextChunk` for text, then a `ToolArgumentChunk` sequence with each tool call's JSON inputs
 - Records all requests for assertion
 
 ### 2. FakeVectorStore
@@ -63,6 +64,8 @@ $vectorStore->setSearchResults([
     new Document('Relevant document content')
 ]);
 ```
+
+Preset results are returned as they are, trimmed to the request's `topK`. Documents stored through `addDocument()` and `addDocuments()` must carry an embedding, exactly like a real store: let the RAG or a `FakeEmbeddingsProvider` embed them first.
 
 ### 3. FakeEmbeddingsProvider
 
@@ -121,6 +124,27 @@ $middleware->setBeforeHandler(function ($node, $event, $state): void {
 $middleware->setThrowOnBefore(new \Exception('Test exception'));
 ```
 
+### 6. FakeChannel
+
+For testing streaming channels: where a run's output goes when the consumer is not the caller (queue workers, websockets, resumed runs).
+
+```php
+use NeuronAI\Testing\FakeChannel;
+
+$channel = FakeChannel::make();
+
+$agent = Agent::make()
+    ->setStreamAdapter(new VercelAIAdapter())
+    ->setChannel($channel);
+
+// Simulate a broken transport: the framework reports the error and keeps the run alive
+$channel->setThrowOnSend(new \RuntimeException('transport down'));
+```
+
+**Key Features:**
+- Records every `ProtocolEvent` delivered through `send()` and the segment lifecycle (`suspended`, `completed`, `failed`) as `ChannelRecord`s
+- `getSent()` returns the protocol events in stream order; `getSuspensions()`, `getCompletions()`, `getFailures()` the lifecycle records
+
 ## Test Patterns by Component
 
 ### Testing Agent Chat
@@ -168,28 +192,42 @@ class MyAgentTest extends TestCase
 
 ```php
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 
+class SearchTool extends Tool
+{
+    protected string $name = 'search';
+
+    protected ?string $description = 'Search the web';
+
+    protected function properties(): array
+    {
+        return [new ToolProperty('query', PropertyType::STRING, 'Search query', true)];
+    }
+
+    public function __invoke(string $query): string
+    {
+        return "Results for: {$query}";
+    }
+}
+
 public function test_agent_executes_tool_and_returns_result(): void
 {
-    $searchTool = Tool::make('search', 'Search the web')
-        ->addProperty(new ToolProperty('query', PropertyType::STRING, 'Search query', true))
-        ->setCallable(fn (string $query): string => "Results for: {$query}");
-
-    // First response: model calls the tool
-    // Second response: model uses tool result to answer
+    // First response: the model calls the tool (a ToolCall record: name, call id, inputs)
+    // Second response: the model uses the tool result to answer
     $provider = new FakeAIProvider(
         new ToolCallMessage(null, [
-            (clone $searchTool)->setCallId('call_1')->setInputs(['query' => 'PHP frameworks']),
+            ToolCall::make('search', 'call_1', ['query' => 'PHP frameworks']),
         ]),
         new AssistantMessage('Based on my search, here are the top PHP frameworks...')
     );
 
     $agent = Agent::make();
     $agent->setAiProvider($provider);
-    $agent->addTool($searchTool);
+    $agent->addTool(new SearchTool());
 
     $message = $agent->chat(new UserMessage('What are the best PHP frameworks?'))->getMessage();
 
@@ -227,6 +265,8 @@ public function test_agent_streams_response(): void
     $this->assertSame('Hello world', $state->getMessage()->getContent());
 }
 ```
+
+A queued message with reasoning content blocks streams `ReasoningChunk`s first, and a queued `ToolCallMessage` streams a `ToolArgumentChunk` sequence for each call, so stream adapters attached to the agent produce the same protocol events they would with a real provider.
 
 ### Testing Structured Output
 
@@ -417,7 +457,6 @@ class MyMiddlewareTest extends TestCase
 ### Testing Workflow Interruption
 
 ```php
-use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 
 class MyInterruptTest extends TestCase
@@ -427,26 +466,21 @@ class MyInterruptTest extends TestCase
         $workflow = Workflow::make(workflowId: 'test-workflow')
             ->setPersistence(new InMemoryPersistence())
             ->addNodes([
-            new NodeOne(),
-            new InterruptableNode(),
-            new NodeThree(),
-        ]);
+                new NodeOne(),
+                new InterruptableNode(),
+                new NodeThree(),
+            ]);
 
-        // First run should interrupt
-        $interrupt = null;
-        try {
-            $workflow->run();
-            $this->fail('Expected WorkflowInterrupt exception');
-        } catch (WorkflowInterrupt $e) {
-            $interrupt = $e;
-        }
+        // The first run stops at the interruption and returns the suspended state
+        $state = $workflow->run();
 
-        $this->assertNotNull($interrupt);
-        $this->assertEquals('human input needed', $interrupt->getRequest()->getMessage());
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame('human input needed', $state->getInterruptRequest()->getMessage());
 
-        // Resume with human feedback
-        $finalState = $workflow->init($interrupt->getRequest())->run();
+        // Resume with the human answer
+        $finalState = $workflow->resume(['approved' => true])->run();
 
+        $this->assertFalse($finalState->isInterrupted());
         $this->assertTrue($finalState->get('interruptable_node_executed'));
     }
 }
@@ -547,6 +581,10 @@ $vectorStore->assertHasDocumentWithContent('Expected content');
 
 // Verify store is empty
 $vectorStore->assertNothingStored();
+
+// Verify the filters used by a search or a delete
+$vectorStore->assertSearchedWithFilters(Filter::eq('tenant', 'acme'));
+$vectorStore->assertDeletedWithFilters(Filter::eq('sourceName', 'old.txt'));
 ```
 
 ### FakeEmbeddingsProvider Assertions
@@ -597,7 +635,6 @@ $transport->assertNothingReceived();
 
 // Verify specific MCP methods
 $transport->assertMethodSent('initialize', 1);
-$transport->assertMethodReceived('initialize', 1);
 
 // Convenience assertions for common MCP patterns
 $transport->assertInitialized();          // initialize + notifications/initialized
@@ -609,6 +646,19 @@ $transport->assertSent(function (array $data): bool {
     return ($data['method'] ?? null) === 'tools/call'
         && ($data['params']['name'] ?? null) === 'search';
 });
+```
+
+### FakeChannel Assertions
+
+```php
+// Custom assertion on the delivered protocol events
+$channel->assertSent(fn (ProtocolEvent $event): bool => $event->type === 'text-delta');
+$channel->assertNothingSent();
+
+// Verify how the run segment ended
+$channel->assertSuspended();
+$channel->assertCompleted();
+$channel->assertFailed();
 ```
 
 ## Testing Multiple Turns
@@ -641,7 +691,7 @@ public function test_conversation_remembers_context(): void
 foreach ($provider->getRecorded() as $record) {
     $record->method;          // 'chat', 'stream', or 'structured'
     $record->messages;        // Message[] passed to provider
-    $record->systemPrompt;    // ?string system prompt
+    $record->systemPrompt;    // ?SystemMessage system prompt
     $record->tools;           // ToolInterface[] configured tools
     $record->structuredClass; // ?string output class (structured only)
     $record->structuredSchema;// array schema (structured only)
@@ -655,7 +705,30 @@ foreach ($middleware->getRecorded() as $record) {
     $record->method;  // 'before' or 'after'
     $record->node;    // NodeInterface being executed
     $record->event;   // Event passed/returned
-    $record->state;   // WorkflowState at call time
+    $record->state;   // the live WorkflowState object, not a snapshot
+}
+```
+
+### VectorStoreRecord Properties
+
+```php
+foreach ($vectorStore->getRecorded() as $record) {
+    $record->method;    // 'addDocument', 'addDocuments', 'delete' or 'search'
+    $record->documents; // Document[] stored (add methods only)
+    $record->filters;   // ?FilterExpression (delete only)
+    $record->request;   // ?SearchRequest (search only)
+}
+```
+
+### ChannelRecord Properties
+
+```php
+foreach ($channel->getRecorded() as $record) {
+    $record->method;     // 'send', 'suspended', 'completed' or 'failed'
+    $record->event;      // ?ProtocolEvent (send only)
+    $record->state;      // ?WorkflowState (suspended and completed)
+    $record->workflowId; // ?string (completed and failed)
+    $record->exception;  // ?Throwable (failed only)
 }
 ```
 
@@ -719,9 +792,7 @@ $provider->chat(new UserMessage('Hi'));
 
 ```php
 // Hidden tools are executable but not sent to AI
-$hiddenTool = Tool::make('secret', 'Secret tool')
-    ->setCallable(fn ($input) => "Result: {$input}")
-    ->visible(false);
+$agent->addTool((new SecretTool())->visible(false));
 
 // This will NOT include 'secret' in tools configured
 $provider->assertToolsConfigured(['search']); // Only visible tools

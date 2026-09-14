@@ -61,11 +61,11 @@ class StreamFailureDeliveryTest extends TestCase
         }
 
         $this->assertSame($error, $caught);
-        $this->assertSame($pulled, $channel->sent);
-        $this->assertCount(1, $channel->failures);
-        $this->assertSame($error, $channel->failures[0]['exception']);
-        $this->assertSame([], $channel->completions);
-        $this->assertSame([], $channel->suspendedStates);
+        $this->assertSame($pulled, $channel->getSent());
+        $this->assertCount(1, $channel->getFailures());
+        $this->assertSame($error, $channel->getFailures()[0]->exception);
+        $this->assertSame([], $channel->getCompletions());
+        $this->assertSame([], $channel->getSuspensions());
 
         $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
         $this->assertSame($expectedTypes, array_column($events, 'type'));
@@ -112,10 +112,10 @@ class StreamFailureDeliveryTest extends TestCase
         }
 
         $this->assertSame($error, $caught);
-        $this->assertSame([$failed], $channel->sent);
-        $this->assertCount(1, $channel->failures);
-        $this->assertSame($error, $channel->failures[0]['exception']);
-        $this->assertSame([], $channel->completions);
+        $this->assertSame([$failed], $channel->getSent());
+        $this->assertCount(1, $channel->getFailures());
+        $this->assertSame($error, $channel->getFailures()[0]->exception);
+        $this->assertSame([], $channel->getCompletions());
     }
 
     public function test_a_failure_raised_by_the_adapter_settles_the_run_as_failed(): void

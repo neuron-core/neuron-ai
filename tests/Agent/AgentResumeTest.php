@@ -111,8 +111,8 @@ class AgentResumeTest extends TestCase
         // Stream intent survived suspend → resume through both pull and push delivery.
         $isText = static fn (ProtocolEvent $event): bool => $event->type === 'text';
         $this->assertNotEmpty(array_filter($chunks, $isText));
-        $this->assertNotEmpty(array_filter($channel->sent, $isText));
-        $this->assertCount(1, $channel->completions);
+        $this->assertNotEmpty(array_filter($channel->getSent(), $isText));
+        $this->assertCount(1, $channel->getCompletions());
 
         // The final message landed in the thread's history.
         $this->assertSame(

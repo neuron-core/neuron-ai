@@ -59,11 +59,11 @@ class PortableStreamEventDeliveryTest extends TestCase
         $state = $workflow->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertCount(1, $channel->completions);
-        $this->assertCount(2, $channel->sent);
+        $this->assertCount(1, $channel->getCompletions());
+        $this->assertCount(2, $channel->getSent());
 
-        $custom = json_decode(json_encode($channel->sent[0]), true);
-        $finish = json_decode(json_encode($channel->sent[1]), true);
+        $custom = json_decode(json_encode($channel->getSent()[0]), true);
+        $finish = json_decode(json_encode($channel->getSent()[1]), true);
 
         $this->assertSame([
             'type' => 'data-workflow-progress',

@@ -6,7 +6,13 @@ namespace NeuronAI\Tests\Testing;
 
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
@@ -14,9 +20,16 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
+
+use function array_column;
+use function array_map;
+use function array_slice;
+use function implode;
+use function iterator_to_array;
 
 class FakeAIProviderTest extends TestCase
 {
@@ -144,6 +157,64 @@ class FakeAIProviderTest extends TestCase
 
         $finalMessage = $generator->getReturn()->message();
         $this->assertInstanceOf(AssistantMessage::class, $finalMessage);
+    }
+
+    public function test_stream_yields_reasoning_chunks_before_text(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage([
+            new ReasoningContent('Thinking hard'),
+            new TextContent('Answer'),
+        ]));
+        $provider->setStreamChunkSize(8);
+
+        $chunks = iterator_to_array($provider->stream(new UserMessage('Hi')), false);
+
+        $this->assertSame(
+            [
+                [ReasoningChunk::class, 'Thinking'],
+                [ReasoningChunk::class, ' hard'],
+                [TextChunk::class, 'Answer'],
+            ],
+            array_map(static fn (StreamChunk $chunk): array => [$chunk::class, $chunk->toArray()['content']], $chunks)
+        );
+        $this->assertSame($chunks[0]->messageId, $chunks[2]->messageId);
+    }
+
+    public function test_stream_skips_empty_reasoning_blocks(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage([
+            new ReasoningContent('', 'signature'),
+            new TextContent('Answer'),
+        ]));
+        $provider->setStreamChunkSize(10);
+
+        $chunks = iterator_to_array($provider->stream(new UserMessage('Hi')), false);
+
+        $this->assertCount(1, $chunks);
+        $this->assertInstanceOf(TextChunk::class, $chunks[0]);
+        $this->assertSame('Answer', $chunks[0]->content);
+    }
+
+    public function test_stream_yields_tool_argument_chunks_for_tool_calls(): void
+    {
+        $message = new ToolCallMessage('Let me check', [
+            ToolCall::make('search', 'call_1', ['query' => 'php']),
+        ]);
+        $provider = (new FakeAIProvider($message))->setStreamChunkSize(6);
+
+        $generator = $provider->stream(new UserMessage('Hi'));
+        $chunks = iterator_to_array($generator, false);
+
+        $this->assertSame(
+            [TextChunk::class, TextChunk::class, ToolArgumentChunk::class, ToolArgumentChunk::class, ToolArgumentChunk::class],
+            array_map(static fn (StreamChunk $chunk): string => $chunk::class, $chunks)
+        );
+
+        $arguments = array_map(static fn (StreamChunk $chunk): array => $chunk->toArray(), array_slice($chunks, 2));
+        $this->assertSame('search', $arguments[0]['toolName']);
+        $this->assertSame('call_1', $arguments[0]['toolCallId']);
+        $this->assertSame('{"query":"php"}', implode('', array_column($arguments, 'delta')));
+        $this->assertSame($message, $generator->getReturn()->message());
     }
 
     public function test_structured_records_class_and_schema(): void

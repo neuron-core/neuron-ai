@@ -12,6 +12,7 @@ use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Observability\Events\WorkflowInterrupted;
+use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\LogListener;
 use NeuronAI\Observability\LogObserver;
 use NeuronAI\Observability\ObservabilityEvent;
@@ -23,6 +24,8 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Stringable;
@@ -121,12 +124,46 @@ class LogListenerTest extends TestCase
     public function test_interruption_logs_the_current_request(): void
     {
         $state = new WorkflowState();
+        $state->setExecutionMetadata('thread', 'run', 2);
         $state->markAsSuspended((new ApprovalRequest('first'))->withId(1));
 
         $logger = $this->recordingLogger();
         (new LogListener($logger))(new WorkflowInterrupted($state));
 
         $this->assertSame(1, $logger->records[0]['context']['interrupt']['interruptId']);
+        $this->assertSame('thread', $logger->records[0]['context']['workflowId']);
+        $this->assertSame('run', $logger->records[0]['context']['runId']);
+        $this->assertSame(2, $logger->records[0]['context']['executionAttempt']);
+        $this->assertSame('suspended', $logger->records[0]['context']['status']);
+    }
+
+    #[TestWith([WorkflowStatus::Suspended, false])]
+    #[TestWith([WorkflowStatus::Completed, false])]
+    #[TestWith([WorkflowStatus::Failed, false])]
+    #[TestWith([WorkflowStatus::Suspended, true])]
+    public function test_terminal_logs_identify_the_run_attempt_and_outcome(WorkflowStatus $status, bool $legacy): void
+    {
+        $state = new WorkflowState(['value' => 42]);
+        $state->setExecutionMetadata('thread', 'run', 3);
+        match ($status) {
+            WorkflowStatus::Suspended => $state->markAsSuspended((new ApprovalRequest('approval'))->withId(2)),
+            WorkflowStatus::Completed => $state->clearInterrupt(),
+            default => $state->markAsFailed(),
+        };
+        $logger = $this->recordingLogger();
+        $event = new WorkflowEnd($state);
+        if ($legacy) {
+            (new LogObserver($logger))->onEvent($event->name(), $this, $event);
+        } else {
+            (new LogListener($logger))($event);
+        }
+        $this->assertSame([
+            'workflowId' => 'thread',
+            'runId' => 'run',
+            'executionAttempt' => 3,
+            'status' => $status->value,
+            'state' => ['value' => 42],
+        ], $logger->records[0]['context']);
     }
 
     public function test_retrieving_logs_filter_structure_without_values(): void

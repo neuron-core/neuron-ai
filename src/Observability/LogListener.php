@@ -40,6 +40,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowState;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
@@ -136,6 +137,7 @@ class LogListener
     protected function serializeWorkflowInterrupted(WorkflowInterrupted $data): array
     {
         return [
+            ...$this->serializeWorkflowMetadata($data->state),
             'interrupt' => $data->state->getInterruptRequest()?->jsonSerialize(),
         ];
     }
@@ -345,6 +347,17 @@ class LogListener
         return ['class' => $data->middleware::class];
     }
 
+    /** @return array<string, mixed> */
+    protected function serializeWorkflowMetadata(WorkflowState $state): array
+    {
+        return [
+            'workflowId' => $state->getWorkflowId(),
+            'runId' => $state->getRunId(),
+            'executionAttempt' => $state->getExecutionAttempt(),
+            'status' => $state->getStatus()->value,
+        ];
+    }
+
     /** @return list<array<string, class-string<NodeInterface>>> */
     protected function serializeWorkflowStart(WorkflowStart $data): array
     {
@@ -358,6 +371,9 @@ class LogListener
     /** @return array<string, mixed> */
     protected function serializeWorkflowEnd(WorkflowEnd $data): array
     {
-        return ['state' => $data->state->all()];
+        return [
+            ...$this->serializeWorkflowMetadata($data->state),
+            'state' => $data->state->all(),
+        ];
     }
 }

@@ -10,7 +10,8 @@ use NeuronAI\Workflow\WorkflowState;
 /**
  * Dispatched when a run suspends waiting for external input (approval,
  * awaited event, timer). Distinct from AgentError: an interruption is a
- * scheduled pause, not a failure. Carries the complete interrupted state.
+ * scheduled pause, not a failure. Carries the complete state and its single
+ * current request; deferred branch requests are reported when they become current.
  */
 class WorkflowInterrupted extends ObservabilityEvent
 {

@@ -15,6 +15,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
+use NeuronAI\Testing\VectorStoreRecord;
 use PHPUnit\Framework\TestCase;
 
 use function end;
@@ -107,10 +108,10 @@ class RetrievalFiltersTest extends TestCase
         $recorded = $store->getRecorded();
         $last = end($recorded);
 
-        $this->assertSame('search', $last['method']);
-        $this->assertInstanceOf(SearchRequest::class, $last['args'][0]);
+        $this->assertInstanceOf(VectorStoreRecord::class, $last);
+        $this->assertInstanceOf(SearchRequest::class, $last->request);
 
-        return $last['args'][0];
+        return $last->request;
     }
 
     protected function filterSchema(): DocumentSchema

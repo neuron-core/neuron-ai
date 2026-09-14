@@ -127,9 +127,9 @@ class PushAdapterDeliveryTest extends TestCase
         $state = $generator->getReturn();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->sent);
-        $this->assertCount(1, $channel->suspendedStates);
-        $this->assertSame([], $channel->completions);
+        $this->assertSame($pulled, $channel->getSent());
+        $this->assertCount(1, $channel->getSuspensions());
+        $this->assertSame([], $channel->getCompletions());
 
         // Approval proposals stay in interrupt metadata, off the executable tool channel.
         $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);

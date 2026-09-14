@@ -16,22 +16,22 @@ use PHPUnit\Framework\Assert;
 
 use function array_filter;
 use function array_merge;
+use function array_slice;
 use function array_values;
 use function count;
 
 /**
- * @method static static make(array $searchResults = [])
+ * @method static static make(array $searchResults = [], ?DocumentSchema $schema = null)
  */
 class FakeVectorStore implements VectorStoreInterface
 {
     use StaticConstructor;
     use HasDocumentSchema;
+
     /** @var Document[] */
     protected array $documents = [];
 
-    protected int $searchCount = 0;
-
-    /** @var array<array{method: string, args: array<mixed>}> */
+    /** @var VectorStoreRecord[] */
     protected array $recorded = [];
 
     /**
@@ -44,10 +44,10 @@ class FakeVectorStore implements VectorStoreInterface
 
     public function addDocument(Document $document): VectorStoreInterface
     {
-        $this->validateDocument($document, false);
+        $this->validateDocument($document);
         $this->documents[] = $document;
 
-        $this->recorded[] = ['method' => 'addDocument', 'args' => [$document]];
+        $this->recorded[] = new VectorStoreRecord('addDocument', documents: [$document]);
 
         return $this;
     }
@@ -57,10 +57,10 @@ class FakeVectorStore implements VectorStoreInterface
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
-        $this->validateDocuments($documents, false);
+        $this->validateDocuments($documents);
         $this->documents = array_merge($this->documents, $documents);
 
-        $this->recorded[] = ['method' => 'addDocuments', 'args' => $documents];
+        $this->recorded[] = new VectorStoreRecord('addDocuments', documents: $documents);
 
         return $this;
     }
@@ -75,12 +75,15 @@ class FakeVectorStore implements VectorStoreInterface
             fn (Document $doc): bool => !$evaluator->matchesDocument($filters, $doc)
         ));
 
-        $this->recorded[] = ['method' => 'delete', 'args' => [$filters]];
+        $this->recorded[] = new VectorStoreRecord('delete', filters: $filters);
 
         return $this;
     }
 
     /**
+     * The preset results are returned regardless of the embedding, trimmed to
+     * the request's topK.
+     *
      * @return Document[]
      */
     public function search(SearchRequest $request): array
@@ -88,11 +91,10 @@ class FakeVectorStore implements VectorStoreInterface
         if ($request->filters instanceof FilterExpression) {
             $this->validateFilters($request->filters);
         }
-        $this->searchCount++;
 
-        $this->recorded[] = ['method' => 'search', 'args' => [$request]];
+        $this->recorded[] = new VectorStoreRecord('search', request: $request);
 
-        return $this->searchResults;
+        return array_slice($this->searchResults, 0, $request->topK);
     }
 
     /**
@@ -115,7 +117,7 @@ class FakeVectorStore implements VectorStoreInterface
     }
 
     /**
-     * @return array<array{method: string, args: array<mixed>}>
+     * @return VectorStoreRecord[]
      */
     public function getRecorded(): array
     {
@@ -128,24 +130,21 @@ class FakeVectorStore implements VectorStoreInterface
 
     public function assertSearchCount(int $expected): void
     {
+        $searches = count($this->searchRequests());
+
         Assert::assertSame(
             $expected,
-            $this->searchCount,
-            "Expected {$expected} similarity searches, got {$this->searchCount}."
+            $searches,
+            "Expected {$expected} similarity searches, got {$searches}."
         );
     }
 
     public function assertSearchedWithFilters(FilterExpression $expected): void
     {
         $filters = [];
-        foreach ($this->recorded as $record) {
-            if ($record['method'] !== 'search' || !$record['args'][0] instanceof SearchRequest) {
-                continue;
-            }
-
-            $actual = $record['args'][0]->filters;
-            if ($actual instanceof FilterExpression) {
-                $filters[] = $actual->toArray();
+        foreach ($this->searchRequests() as $request) {
+            if ($request->filters instanceof FilterExpression) {
+                $filters[] = $request->filters->toArray();
             }
         }
 
@@ -160,8 +159,8 @@ class FakeVectorStore implements VectorStoreInterface
     {
         $filters = [];
         foreach ($this->recorded as $record) {
-            if ($record['method'] === 'delete' && $record['args'][0] instanceof FilterExpression) {
-                $filters[] = $record['args'][0]->toArray();
+            if ($record->filters instanceof FilterExpression) {
+                $filters[] = $record->filters->toArray();
             }
         }
 
@@ -201,5 +200,20 @@ class FakeVectorStore implements VectorStoreInterface
             $this->documents,
             'Expected no documents in store, but ' . count($this->documents) . ' were found.'
         );
+    }
+
+    /**
+     * @return SearchRequest[]
+     */
+    protected function searchRequests(): array
+    {
+        $requests = [];
+        foreach ($this->recorded as $record) {
+            if ($record->request instanceof SearchRequest) {
+                $requests[] = $record->request;
+            }
+        }
+
+        return $requests;
     }
 }

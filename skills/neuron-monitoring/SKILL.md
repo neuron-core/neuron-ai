@@ -127,6 +127,30 @@ protected function instructions(): string
 }
 ```
 
+### Workflow interruptions and Agent continuations
+
+A suspended execution segment emits one `WorkflowInterrupted`, carrying
+`$event->state->getInterruptRequest()`, followed by `WorkflowEnd`. Parallel branch
+requests are reported sequentially as each becomes current. Reading an unchanged
+wait without execution does not emit another interruption.
+
+`submitApprovalDecisions($decisions)` and `submitToolResults($results)` stage input;
+the following `run()` or `events()` emits the normal execution lifecycle. Use the
+status on `WorkflowEnd::state` to distinguish `suspended`, `completed` and `failed`.
+An `AgentError` may report a listener error that the workflow isolated, so count
+failed runs from their terminal status rather than from error events alone.
+
+The default interruption and end logs include `workflowId`, `runId`,
+`executionAttempt` and `status`. An interruption log has one `interrupt` object;
+end logs keep application data under `state`. Correlate these records by run and
+attempt. `WorkflowStart` listeners see the current attempt's running state.
+
+For deferred tools, `ToolCalling` marks handoff after approval and `ToolCalled`
+reports results once the waiting batch is settled. This pair may span several
+segments and includes frontend waiting time; partial result submissions do not
+redispatch completed tool calls. Execution events can repeat after a failed step
+is replayed, so they are not an exactly-once audit trail.
+
 ### Slow Agent Responses
 
 **Symptoms**: High latency, slow responses
@@ -298,9 +322,9 @@ class AgentTest extends TestCase
     public function testAgentResponseQuality(): void
     {
         // Use fake provider for deterministic testing
-        $agent = new MyAgent(new FakeAIProvider([
-            'expected_response' => 'Helpful answer here'
-        ]));
+        $agent = new MyAgent(new FakeAIProvider(
+            new AssistantMessage('Helpful answer here')
+        ));
 
         $response = $agent->chat(
             new UserMessage('Test question')

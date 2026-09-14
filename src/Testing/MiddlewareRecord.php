@@ -14,7 +14,7 @@ class MiddlewareRecord
      * @param string $method The method called: 'before' or 'after'
      * @param NodeInterface $node The node being executed
      * @param Event $event The event passed to the middleware
-     * @param WorkflowState $state The workflow state at call time
+     * @param WorkflowState $state The live workflow state object passed to the middleware, not a snapshot
      */
     public function __construct(
         public readonly string $method,

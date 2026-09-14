@@ -123,8 +123,8 @@ class SSEEncoderTest extends TestCase
 
         $this->assertInstanceOf(JsonException::class, $caught);
         $this->assertSame(['start', 'text-start', 'text-delta', 'text-end', 'error'], $types);
-        $this->assertCount(1, $channel->failures);
-        $this->assertSame($caught, $channel->failures[0]['exception']);
-        $this->assertSame([], $channel->completions);
+        $this->assertCount(1, $channel->getFailures());
+        $this->assertSame($caught, $channel->getFailures()[0]->exception);
+        $this->assertSame([], $channel->getCompletions());
     }
 }

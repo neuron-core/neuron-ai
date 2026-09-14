@@ -242,7 +242,7 @@ A channel error never fails the run. The Workflow catches it, dispatches a `Chan
 
 ## Testing Streamed Output
 
-`FakeAIProvider::setStreamChunkSize()` makes chunking deterministic. `FakeChannel` records every delivery in public arrays: `sent`, `suspendedStates`, `completions`, `failures`. Set `throwOnSend` to exercise the failure policy.
+`FakeAIProvider::setStreamChunkSize()` makes chunking deterministic. `FakeChannel` records every delivery: `getSent()` returns the protocol events in stream order, `getSuspensions()`, `getCompletions()` and `getFailures()` the segment lifecycle. `setThrowOnSend()` exercises the failure policy.
 
 ```php
 use NeuronAI\Testing\FakeAIProvider;
@@ -257,8 +257,8 @@ $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world')))-
 
 $pulled = iterator_to_array($agent->stream(new UserMessage('Hi')), false);
 
-$this->assertSame($pulled, $channel->sent);
-$this->assertCount(1, $channel->completions);
+$this->assertSame($pulled, $channel->getSent());
+$channel->assertCompleted();
 ```
 
 See the **neuron-test** skill for the provider fake and assertion helpers.

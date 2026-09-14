@@ -10,11 +10,12 @@ use NeuronAI\StaticConstructor;
 use PHPUnit\Framework\Assert;
 
 use function array_map;
-use function array_slice;
 use function count;
 use function md5;
 use function ord;
 use function str_split;
+use function strlen;
+use function substr;
 
 class FakeEmbeddingsProvider implements EmbeddingsProviderInterface
 {
@@ -102,18 +103,21 @@ class FakeEmbeddingsProvider implements EmbeddingsProviderInterface
     }
 
     /**
-     * Generate a deterministic vector from text using its MD5 hash.
+     * Generate a deterministic vector from the text: MD5 rounds over the text
+     * and a counter supply as many bytes as there are dimensions.
      *
      * @return float[]
      */
     protected function deterministicVector(string $text): array
     {
-        $hash = md5($text);
-        $bytes = str_split($hash);
+        $bytes = '';
+        for ($round = 0; strlen($bytes) < $this->dimensions; $round++) {
+            $bytes .= md5($text . $round, true);
+        }
 
         return array_map(
-            fn (string $char): float => ord($char) / 255.0,
-            array_slice($bytes, 0, $this->dimensions)
+            fn (string $byte): float => ord($byte) / 255.0,
+            str_split(substr($bytes, 0, $this->dimensions))
         );
     }
 }

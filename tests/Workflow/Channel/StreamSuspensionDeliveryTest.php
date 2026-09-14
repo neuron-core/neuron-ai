@@ -46,9 +46,9 @@ class StreamSuspensionDeliveryTest extends TestCase
         $state = $generator->getReturn();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->sent);
-        $this->assertCount(1, $channel->suspendedStates);
-        $this->assertSame([], $channel->completions);
+        $this->assertSame($pulled, $channel->getSent());
+        $this->assertCount(1, $channel->getSuspensions());
+        $this->assertSame([], $channel->getCompletions());
 
         $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
         $this->assertSame(
@@ -88,8 +88,8 @@ class StreamSuspensionDeliveryTest extends TestCase
         $state = $workflow->run();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame([$pauseFrame], $channel->sent);
-        $this->assertCount(1, $channel->suspendedStates);
+        $this->assertSame([$pauseFrame], $channel->getSent());
+        $this->assertCount(1, $channel->getSuspensions());
 
         // The continuation completes: a fresh adapter for the segment ends normally.
         $doneFrame = new ProtocolEvent('done');
@@ -104,8 +104,8 @@ class StreamSuspensionDeliveryTest extends TestCase
             ->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame([$pauseFrame, $doneFrame], $channel->sent);
-        $this->assertCount(1, $channel->completions);
+        $this->assertSame([$pauseFrame, $doneFrame], $channel->getSent());
+        $this->assertCount(1, $channel->getCompletions());
     }
 
     /**
@@ -130,16 +130,16 @@ class StreamSuspensionDeliveryTest extends TestCase
         $state = $workflow->run();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($firstSegment, $this->types($channel->sent));
+        $this->assertSame($firstSegment, $this->types($channel->getSent()));
 
         // The instance is reset at the segment boundary, so the continuation
         // is framed again instead of being silently suppressed.
-        $delivered = count($channel->sent);
+        $delivered = count($channel->getSent());
         $state = $workflow->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame($continuation, $this->types(array_slice($channel->sent, $delivered)));
-        $this->assertCount(1, $channel->completions);
+        $this->assertSame($continuation, $this->types(array_slice($channel->getSent(), $delivered)));
+        $this->assertCount(1, $channel->getCompletions());
     }
 
     /**

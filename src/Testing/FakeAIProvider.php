@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace NeuronAI\Testing;
 
 use Generator;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
@@ -25,9 +31,11 @@ use function count;
 use function implode;
 use function is_array;
 use function is_string;
-use function mb_strlen;
-use function mb_substr;
+use function json_encode;
+use function mb_str_split;
 use function uniqid;
+
+use const JSON_THROW_ON_ERROR;
 
 class FakeAIProvider implements AIProviderInterface
 {
@@ -83,7 +91,7 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * @return Generator<int, TextChunk, mixed, ProviderResponse>
+     * @return Generator<int, StreamChunk, mixed, ProviderResponse>
      * @throws ProviderException
      */
     public function stream(Message ...$messages): Generator
@@ -103,22 +111,47 @@ class FakeAIProvider implements AIProviderInterface
     }
 
     /**
-     * @return Generator<int, TextChunk, mixed, ProviderResponse>
+     * Chunks are derived from the queued message the way a real provider
+     * streams it: reasoning and text blocks in content order, then the JSON
+     * inputs of every tool call.
+     *
+     * @return Generator<int, StreamChunk, mixed, ProviderResponse>
      */
     protected function streamChunks(Message $response): Generator
     {
-        $text = $response->getContent() ?? '';
         $messageId = uniqid('fake_msg_');
-        $offset = 0;
-        $length = mb_strlen($text);
 
-        while ($offset < $length) {
-            $chunk = mb_substr($text, $offset, $this->streamChunkSize);
-            yield new TextChunk($messageId, $chunk);
-            $offset += $this->streamChunkSize;
+        foreach ($response->getContentBlocks() as $block) {
+            if (!$block instanceof TextContent) {
+                continue;
+            }
+
+            foreach ($this->split($block->content) as $piece) {
+                yield $block instanceof ReasoningContent
+                    ? new ReasoningChunk($messageId, $piece)
+                    : new TextChunk($messageId, $piece);
+            }
+        }
+
+        if ($response instanceof ToolCallMessage) {
+            foreach ($response->getToolCalls() as $call) {
+                $arguments = json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR);
+
+                foreach ($this->split($arguments) as $piece) {
+                    yield new ToolArgumentChunk($messageId, $call->getName(), $piece, $call->getCallId());
+                }
+            }
         }
 
         return new ProviderResponse(message: $response);
+    }
+
+    /**
+     * @return string[]
+     */
+    protected function split(string $text): array
+    {
+        return mb_str_split($text, $this->streamChunkSize);
     }
 
     /**

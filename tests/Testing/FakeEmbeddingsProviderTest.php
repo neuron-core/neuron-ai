@@ -9,6 +9,9 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
 
+use function array_unique;
+use function count;
+
 class FakeEmbeddingsProviderTest extends TestCase
 {
     public function test_embed_text_returns_float_array(): void
@@ -153,5 +156,16 @@ class FakeEmbeddingsProviderTest extends TestCase
         $embedding = $provider->embedText('Test');
 
         $this->assertCount(4, $embedding);
+    }
+
+    public function test_dimensions_beyond_a_single_hash(): void
+    {
+        $provider = new FakeEmbeddingsProvider(dimensions: 1536);
+
+        $embedding = $provider->embedText('Hello world');
+
+        $this->assertCount(1536, $embedding);
+        $this->assertGreaterThan(1, count(array_unique($embedding)));
+        $this->assertSame($embedding, $provider->embedText('Hello world'));
     }
 }
