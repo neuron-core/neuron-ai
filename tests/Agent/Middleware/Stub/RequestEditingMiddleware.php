@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Agent\Middleware\Stub;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Nodes\InferenceNode;
-use NeuronAI\Agent\Nodes\StartNode;
+use NeuronAI\Agent\Nodes\AgentStartNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -46,7 +46,7 @@ class RequestEditingMiddleware implements WorkflowMiddleware
 
     public function after(NodeInterface $node, Event $result, WorkflowState $state): void
     {
-        if (!$state instanceof AgentState || !$node instanceof StartNode) {
+        if (!$state instanceof AgentState || !$node instanceof AgentStartNode) {
             return;
         }
 

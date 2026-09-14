@@ -99,6 +99,7 @@ class OpenAITextToSpeech implements AIProviderInterface
             )
         );
     }
+
     /**
      * https://platform.openai.com/docs/api-reference/audio/speech-audio-delta-event
      *

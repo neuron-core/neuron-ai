@@ -9,6 +9,7 @@ use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -20,11 +21,12 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Observability\Events\MemoryStored;
 use NeuronAI\Observability\Events\MemoryStoring;
-use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Exporter\DescibeExporterTransitions;
+use NeuronAI\Workflow\Exporter\EventTransition;
 use NeuronAI\Workflow\Node;
 use function array_reverse;
 
-class StoreMemoryNode extends Node implements AgentNodeInterface
+class StoreMemoryNode extends Node implements AgentNodeInterface, DescibeExporterTransitions
 {
     use ChatHistoryHelper;
 
@@ -35,19 +37,25 @@ class StoreMemoryNode extends Node implements AgentNodeInterface
         $this->chatHistory = $chatHistory;
     }
 
+    /** @return list<EventTransition> */
+    public function describe(): array
+    {
+        return [new EventTransition(AgentOutputEvent::class)];
+    }
+
     public function __invoke(StoreMemoryEvent $event, AgentState $state): Generator
     {
         [$user, $assistant] = $this->exchange($event->messages);
 
         if (!$user instanceof UserMessage || !$assistant instanceof AssistantMessage) {
-            return new StopEvent();
+            return new AgentOutputEvent();
         }
 
         $userContent = $user->getContent();
         $assistantContent = $assistant->getContent();
 
         if ($userContent === null || $assistantContent === null) {
-            return new StopEvent();
+            return new AgentOutputEvent();
         }
 
         $threadId = $this->chatHistory->getThreadId() ?? throw new ChatHistoryException(
@@ -66,7 +74,7 @@ class StoreMemoryNode extends Node implements AgentNodeInterface
         $this->emit(new MemoryStored());
         yield new StepFinishedStreamEvent('memory.store');
 
-        return new StopEvent();
+        return new AgentOutputEvent();
     }
 
     /**

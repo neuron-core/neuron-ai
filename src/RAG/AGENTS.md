@@ -4,13 +4,13 @@ Retrieval Augmented Generation. `RAG` extends `Agent`, so it inherits the whole 
 
 ## The retrieval chain
 
-`RAG::entryNodes()` swaps the Agent's `StartNode` for a retrieval pipeline whose last node produces the inference event:
+`RAG::entryNodes()` swaps the Agent's `AgentStartNode` for a retrieval pipeline whose last node produces the inference event:
 
 ```text
 AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode] → inference
 ```
 
-- `PreProcessNode` reads the question from the start event, initializes `state->request` (the role `StartNode` plays in the Agent) and runs the pre-processors (query rewriting, expansion). Nothing is written to chat history before inference: pending messages commit only after the provider call succeeds, so a failed turn never leaves a dangling user message.
+- `PreProcessNode` reads the question from the start event, initializes `state->request` (the role `AgentStartNode` plays in the Agent) and runs the pre-processors (query rewriting, expansion). Nothing is written to chat history before inference: pending messages commit only after the provider call succeeds, so a failed turn never leaves a dangling user message.
 - `RetrievalNode` asks the retrieval strategy. `QueryPreProcessedEvent` is the **injection channel for filters**: middleware (`before()` on `RetrievalNode`) and preceding nodes call `addFilters()`, the node ANDs every mandatory scope at the root and forwards the expression. A scope may contain nested AND/OR logic but can never relax another scope, and the event is born fresh every run, so a filter cannot leak into the next one.
 - `PostProcessNode` re-ranks or filters the documents.
 - `InstructionsNode` enriches `state->request->instructions` with the retrieved documents, preserving earlier middleware changes. Messages and options stay in the state request throughout; intermediate events carry only query, filters and documents.

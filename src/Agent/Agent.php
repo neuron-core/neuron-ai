@@ -12,9 +12,10 @@ use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\AgentEndNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\RecallMemoryNode;
-use NeuronAI\Agent\Nodes\StartNode;
+use NeuronAI\Agent\Nodes\AgentStartNode;
 use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -339,7 +340,15 @@ class Agent extends Workflow implements AgentInterface
             $nodes[] = new StoreMemoryNode($memory, $chatHistory);
         }
 
-        return $nodes;
+        return [...$nodes, ...$this->exitNodes()];
+    }
+
+    /**
+     * @return Node[]
+     */
+    protected function exitNodes(): array
+    {
+        return [new AgentEndNode()];
     }
 
     /**
@@ -354,7 +363,7 @@ class Agent extends Workflow implements AgentInterface
         $tools = $this->bootstrapTools();
 
         return [
-            new StartNode(
+            new AgentStartNode(
                 $this->getInstructions(),
                 $tools,
                 $this->getMemory() instanceof MemoryInterface,

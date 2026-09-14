@@ -12,7 +12,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Agent\Nodes\StartNode;
+use NeuronAI\Agent\Nodes\AgentStartNode;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -48,7 +48,7 @@ class InferenceIntentTest extends TestCase
     public function test_start_node_initializes_a_fresh_request_on_reused_state(): void
     {
         $instructions = new SystemMessage('Base instructions');
-        $node = new StartNode($instructions, []);
+        $node = new AgentStartNode($instructions, []);
         $state = new AgentState();
         $start = new AgentStartEvent(
             [new UserMessage('Original question')],
@@ -93,7 +93,7 @@ class InferenceIntentTest extends TestCase
     {
         $start = new AgentStartEvent(options: new AgentRunOptions(outputClass: stdClass::class));
         $state = new AgentState();
-        $event = (new StartNode(new SystemMessage('Instructions'), [], true))($start, $state);
+        $event = (new AgentStartNode(new SystemMessage('Instructions'), [], true))($start, $state);
 
         $this->assertInstanceOf(RecallMemoryEvent::class, $event);
         $this->assertSame($start->options, $state->request->options);

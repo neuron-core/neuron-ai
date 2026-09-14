@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -17,7 +18,6 @@ use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\ProviderResponse;
-use NeuronAI\Workflow\Events\StopEvent;
 use Throwable;
 
 use function end;
@@ -36,7 +36,7 @@ class ChatNode extends InferenceNode
      * @throws ChatHistoryException
      * @throws Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|StopEvent|StoreMemoryEvent|ToolCallEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|AgentOutputEvent|StoreMemoryEvent|ToolCallEvent
     {
         if ($state->request->options->stream) {
             return $this->streamedInference($state);
@@ -66,7 +66,7 @@ class ChatNode extends InferenceNode
 
         return $this->memoryAvailable && $state->request->options->rememberMemory
             ? new StoreMemoryEvent([...$inbound, $message])
-            : new StopEvent();
+            : new AgentOutputEvent();
     }
 
     /**
@@ -122,7 +122,7 @@ class ChatNode extends InferenceNode
 
             return $this->memoryAvailable && $state->request->options->rememberMemory
                 ? new StoreMemoryEvent([...$inbound, $message])
-                : new StopEvent();
+                : new AgentOutputEvent();
 
         } catch (Throwable $exception) {
             $this->emit(new AgentError($exception));

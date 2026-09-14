@@ -11,6 +11,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\ToolSearchMiddleware;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\AgentEndNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -191,8 +192,9 @@ class ToolResolutionTest extends TestCase
 
         $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
-        // Simulate the crash window: ChatNode #2 (step index 3) never committed.
+        // Simulate the crash window: ChatNode #2 never committed and EndNode was not reached.
         $persistence->forgetByPrefix($workflowId, $this->stepKey($agent1, ChatNode::class . '-3'));
+        $persistence->forgetByPrefix($workflowId, $this->stepKey($agent1, AgentEndNode::class . '-4'));
 
         // Recovery: ChatNode #1 and ToolNode #1 replay from cache; ChatNode #2
         // runs live and must see the agent's tools on its inference request.

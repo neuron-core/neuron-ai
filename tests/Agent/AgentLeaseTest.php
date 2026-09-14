@@ -96,7 +96,7 @@ class AgentLeaseTest extends TestCase
                 && $control->leaseExpiresAt >= $before + 600,
         );
 
-        // One renewal per node commit: StartNode, then ChatNode.
-        $this->assertCount(2, $renewals);
+        // One renewal per node commit: StartNode, ChatNode, then EndNode.
+        $this->assertCount(3, $renewals);
     }
 }

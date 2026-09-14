@@ -10,13 +10,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
-use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -48,7 +48,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $return = $node($event, $state);
 
-        $this->assertInstanceOf(StopEvent::class, $return);
+        $this->assertInstanceOf(AgentOutputEvent::class, $return);
         $provider->assertMethodCallCount('structured', 2);
 
         $output = $state->get('structured_output');
@@ -120,7 +120,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $firstReturn = $node1($event, $state);
 
-        $this->assertInstanceOf(StopEvent::class, $firstReturn);
+        $this->assertInstanceOf(AgentOutputEvent::class, $firstReturn);
         $provider->assertMethodCallCount('structured', 2);
         $this->assertInstanceOf(User::class, $state->get('structured_output'));
 
@@ -136,7 +136,7 @@ class StructuredOutputNodeTest extends TestCase
 
         $secondReturn = $node2($event, $state2);
 
-        $this->assertInstanceOf(StopEvent::class, $secondReturn);
+        $this->assertInstanceOf(AgentOutputEvent::class, $secondReturn);
         // No additional inference: still the original two calls.
         $provider->assertMethodCallCount('structured', 2);
 

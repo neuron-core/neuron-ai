@@ -8,6 +8,7 @@ use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
@@ -15,7 +16,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
@@ -53,9 +53,9 @@ class ChatNodeStreamingTest extends TestCase
         // The inference was invoked exactly once.
         $provider->assertMethodCallCount('stream', 1);
 
-        // The final response was captured on state and the node routed to Stop.
+        // The final response was captured on state and handed off to output.
         $this->assertInstanceOf(ProviderResponse::class, $state->getResponse());
-        $this->assertInstanceOf(StopEvent::class, $return);
+        $this->assertInstanceOf(AgentOutputEvent::class, $return);
     }
 
     public function test_recovery_serves_cached_response_without_re_streaming(): void
@@ -91,7 +91,7 @@ class ChatNodeStreamingTest extends TestCase
         }
         $firstReturn = $generator1->getReturn();
 
-        $this->assertInstanceOf(StopEvent::class, $firstReturn);
+        $this->assertInstanceOf(AgentOutputEvent::class, $firstReturn);
         $provider->assertMethodCallCount('stream', 1);
         $firstResponse = $state->getResponse();
         $this->assertNotNull($firstResponse);
@@ -122,7 +122,7 @@ class ChatNodeStreamingTest extends TestCase
         $this->assertSame([], $replayedChunks);
 
         // The same terminal response drives routing.
-        $this->assertInstanceOf(StopEvent::class, $secondReturn);
+        $this->assertInstanceOf(AgentOutputEvent::class, $secondReturn);
         $this->assertSame(
             $firstResponse->message()->getContent(),
             $state2->getResponse()->message()->getContent(),

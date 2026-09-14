@@ -56,11 +56,11 @@ Default nodes are rebuilt through Workflow's `nodes()` hook at every execution s
 AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─────────────────┐
  (messages+options)                                 or StructuredInferenceEvent ─► StructuredOutputNode ├► ToolNode ⟲
                                                                                                       │ final response
-                                                                                     [StoreMemoryNode] ─► Stop
+                                                                                     [StoreMemoryNode] ─► AgentOutputEvent ─► EndNode ─► Stop
 ```
 
 - Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`, `recallMemory`, `rememberMemory`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
-- `StartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
+- `AgentStartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
 - Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
 - The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
 - The effective tool list is shared by inference and tool execution. Executable tools are excluded from request serialization (they may hold closures or connections): `Agent::restoreState()` re-seeds `bootstrapTools()` on recalled state, and tool-contributing middleware reapply their changes in `before()`. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
@@ -71,6 +71,23 @@ Middleware edits the working request directly:
 $state->request->instructions->addContent($context);
 $state->request->tools[] = $tool;
 ```
+
+### Output extension
+
+Every final response converges on `AgentOutputEvent` after optional memory storage completes or is skipped. The response remains in `AgentState`; the event carries no payload and does not terminate the workflow. Tool calls continue through the inference loop before reaching this boundary.
+
+`exitNodes()` supplies `[new EndNode()]` by default. Override it to replace the default ending with application nodes:
+
+```php
+protected function exitNodes(): array
+{
+    return [new TextToSpeechNode($this->textToSpeech())];
+}
+```
+
+The first output node handles `AgentOutputEvent` and reads `$state->getMessage()`. It returns `StopEvent` to finish, or an application event handled by the next output node. Event types determine ordering; the array only registers nodes. Do not include the parent's `AgentEndNode` alongside another handler for `AgentOutputEvent`, because a workflow allows only one handler per event class.
+
+Output nodes are ordinary durable steps: if one fails, `run()` recovers the turn without repeating committed inference or memory storage. History and memory may already contain the final text while output processing is still running or has failed. `chat()` and `stream()` retain their existing contracts; `structured()` still returns the typed object, and extra output artifacts can be read from the Agent state.
 
 ### Middleware
 
@@ -129,7 +146,7 @@ A tool runs iff explicitly approved: silence is never consent, an incomplete pay
 
 `toolMaxRuns()` bounds logical tool calls across one complete agent run, including approval pauses and external execution waits. A tool's `getMaxRuns()` overrides the agent limit, and `getRunKey()` selects which counter it consumes. Rejected approvals consume no slot; a failed execution retried during recovery remains the same logical call.
 
-`AgentState` persists `__tool_runs`. `StartNode` and RAG's `PreProcessNode` reset counters when initializing a new run; completed entry steps are skipped on resume. Custom entry nodes that replace these should reset counters when starting their new run as well.
+`AgentState` persists `__tool_runs`. `AgentStartNode` and RAG's `PreProcessNode` reset counters when initializing a new run; completed entry steps are skipped on resume. Custom entry nodes that replace these should reset counters when starting their new run as well.
 
 `ToolNode::checkToolRuns()` records each call's run key, incremented count and effective limit in a step-scoped memo. It restores the count outside the memo using the maximum of the current and recorded values, then enforces the recorded limit. This repairs an older state snapshot after an incomplete step without consuming another slot. Accounting runs independently of execution-result memos, including before `ParallelToolNode` forks, so cached results still restore their counters. A recorded call keeps its limit on recovery; current configuration applies to new calls.
 

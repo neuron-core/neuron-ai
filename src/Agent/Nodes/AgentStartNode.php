@@ -17,7 +17,7 @@ use NeuronAI\Workflow\Node;
  * then routes through recall when requested and available. RAG initializes
  * the same request in PreProcessNode before enriching it during retrieval.
  */
-class StartNode extends Node
+class AgentStartNode extends Node
 {
     public function __construct(
         protected SystemMessage $instructions,
