@@ -590,9 +590,10 @@ $mcpTools = McpConnector::make([
 $mcpTools = McpConnector::make([
     'url' => 'https://mcp.example.com',
 ])
-    ->with('delete_record', function (Tool $tool): void {
-        $tool->requireApproval();  // Human-in-the-loop on a destructive tool
-    })
+    ->with(
+        name: 'delete_record',
+        callback: fn (Tool $tool): void => $tool->requireApproval()  // Human-in-the-loop on a destructive tool
+    )
     ->tools();
 ```
 
