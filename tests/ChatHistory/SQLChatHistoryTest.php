@@ -56,7 +56,13 @@ class SQLChatHistoryTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->history->flushAll();
+        $this->deleteThread($this->threadId);
+    }
+
+    protected function deleteThread(string $threadId): void
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM chat_history WHERE thread_id = :thread_id");
+        $stmt->execute(['thread_id' => $threadId]);
     }
 
     public function test_creates_chat_history_instance(): void
@@ -150,23 +156,49 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(2, $messages2);
     }
 
-    public function test_flush_all_removes_thread_from_database(): void
+    public function test_flush_all_empties_thread_messages_in_database(): void
     {
         $this->history->addMessage(new UserMessage('Test message'));
 
-        // Verify thread exists
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM chat_history WHERE thread_id = :thread_id");
-        $stmt->execute(['thread_id' => $this->threadId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $this->assertEquals(1, $result['count']);
-
-        // Flush
         $this->history->flushAll();
 
-        // Verify thread is removed
+        // The row must survive the flush: setMessages() only issues UPDATE statements
+        $stmt = $this->pdo->prepare("SELECT messages FROM chat_history WHERE thread_id = :thread_id");
+        $stmt->execute(['thread_id' => $this->threadId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $this->assertNotFalse($row, 'Thread should still exist in database after flush');
+        $this->assertEquals('[]', $row['messages']);
+
+        // A new instance must load the flushed thread as an empty history
+        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $this->assertCount(0, $newHistory->getMessages());
+    }
+
+    public function test_persists_messages_added_after_flush_all(): void
+    {
+        $this->history->addMessage(new UserMessage('Before flush'));
+        $this->history->flushAll();
+
+        $this->history->addMessage(new UserMessage('After flush 1'));
+        $this->history->addMessage(new AssistantMessage('After flush 2'));
+
+        // Verify in database
+        $stmt = $this->pdo->prepare("SELECT messages FROM chat_history WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $this->threadId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $this->assertEquals(0, $result['count']);
+
+        $this->assertNotFalse($result);
+        $storedMessages = json_decode((string) $result['messages'], true);
+        $this->assertCount(2, $storedMessages);
+
+        // Reload and verify the messages added after the flush survived
+        $newHistory = new SQLChatHistory($this->threadId, $this->pdo);
+        $messages = $newHistory->getMessages();
+
+        $this->assertCount(2, $messages);
+        $this->assertEquals('After flush 1', $messages[0]->getContent());
+        $this->assertEquals('After flush 2', $messages[1]->getContent());
     }
 
     public function test_persists_tool_calls_and_results(): void
@@ -264,7 +296,7 @@ class SQLChatHistoryTest extends TestCase
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());
 
         // Cleanup
-        $history1->flushAll();
-        $history2->flushAll();
+        $this->deleteThread($thread1);
+        $this->deleteThread($thread2);
     }
 }
