@@ -25,10 +25,10 @@ In addition, we provide tutorials and other educational content to help you get 
 Your next application will be agentic. A growing share of new software is no longer a web application with AI features added along the way,
 but an application born agentic, where the agent is the architecture itself, driving how the system reasons, acts, and talks to the user interface.
 Building this kind of application requires a specific set of foundations: event-driven workflows with checkpointing, human-in-the-loop,
-interruption, multi-agent orchestration, streaming, and agentic UI protocols like AG-UI and the Vercel AI SDK protocol,
-MCP, and asynchronous execution.
+interruption, multi-agent orchestration, streaming, and agentic UI integration like AG-UI and the Vercel AI SDK,
+MCP connectors, and asynchronous execution.
 
-In the PHP ecosystem, this set of foundations exists in one place. Each one is a chapter of the documentation:
+Each one is a chapter of the documentation:
 [Workflow](#workflow),
 [Human in the loop](https://docs.neuron-ai.dev/workflow/human-in-the-loop),
 [Streaming & UI protocols](https://docs.neuron-ai.dev/agent/streaming#stream-adapters),
@@ -39,9 +39,16 @@ There is also no second framework waiting for you when the project grows. The sa
 
 ## A Vertical & Independent Ecosystem
 
-Neuron is also the only vertical ecosystem for agentic applications development in PHP. Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications, and a growing number of companies building on the same architecture instead of assembling their own from scattered parts.
+Neuron is also the only vertical ecosystem for agentic applications development in PHP.
+Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications,
+and a growing number of companies building on the same architecture instead of assembling their own from scattered parts.
 
-For a software house, this is a place to be recognized as a specialist rather than one more team claiming AI experience. For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose whole direction is this space, not a general-purpose library where agents are a side feature.
+For a software house or a product company this is a place to be recognized as a specialist rather than one more team claiming AI experience.
+For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose
+whole direction is this space, not a general-purpose library where AI is a side feature.
+It also means hiring becomes a solvable problem: as the community grows, so does the number of developers who already
+know how to design, test, and run agentic applications on this architecture, so the people you bring in tomorrow speak
+the same language as the system you are building today.
 
 ## Requirements
 
