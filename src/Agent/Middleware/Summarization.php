@@ -7,6 +7,7 @@ namespace NeuronAI\Agent\Middleware;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
+use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -91,8 +92,9 @@ class Summarization extends AgentMiddleware
 
     /**
      * A safe cutoff never separates a tool call message from its
-     * corresponding tool result message; the search walks backward
-     * from the target.
+     * corresponding tool result message and leaves an assistant message
+     * as the first retained one, so it can follow the UserMessage summary;
+     * the search walks backward from the target.
      *
      * @param Message[] $messages
      * @return int|null Index to cut at (exclusive), or null if no safe cutoff found
@@ -118,6 +120,9 @@ class Summarization extends AgentMiddleware
     /**
      * A cutoff is unsafe when the message at $index or the one before it is a
      * ToolCallMessage — either would separate a tool call from its result.
+     * It is also unsafe when the message at $index is not an assistant message:
+     * the summary is prepended as a UserMessage, and two consecutive user
+     * messages break the role alternation.
      *
      * @param Message[] $messages
      */
@@ -127,7 +132,11 @@ class Summarization extends AgentMiddleware
             return false;
         }
 
-        return !($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage);
+        if ($index > 0 && isset($messages[$index - 1]) && $messages[$index - 1] instanceof ToolCallMessage) {
+            return false;
+        }
+
+        return isset($messages[$index]) && $messages[$index]->getRole() === MessageRole::ASSISTANT->value;
     }
 
     /**
