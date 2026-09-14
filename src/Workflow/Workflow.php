@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -413,7 +414,6 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     public function signal(string $event, array $payload = []): static
     {
         $this->assertNoStagedOperation();
-
         $this->stagedSignalName = $event;
         $this->stagedSignalPayload = $payload;
         return $this;
@@ -460,7 +460,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             foreach ($continuation['inputs'] as $interruptId => $payload) {
                 $inputs[] = ResumeInput::fromArray([
                     'interruptId' => $interruptId,
-                    'kind' => 'event',
+                    'kind' => ResumeType::Event->value,
                     'payload' => $payload,
                 ]);
             }
