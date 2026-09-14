@@ -29,6 +29,7 @@ use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Stringable;
+
 use function array_column;
 
 class LogListenerTest extends TestCase

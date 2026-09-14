@@ -149,7 +149,7 @@ class Fixture
                 'runId' => $run->runId,
                 'status' => $run->status->value,
                 'executionAttempt' => $run->executionAttempt,
-                'interrupts' => $run->interrupt === null ? [] : [$run->interrupt::class],
+                'interrupts' => $run->interrupt instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest ? [$run->interrupt::class] : [],
             ] : null,
             'invocations' => array_map(fn (array $row): array => [
                 'method' => $row['method'],

@@ -12,6 +12,16 @@ use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use DateTimeImmutable;
+
+use function array_fill_keys;
+use function array_key_exists;
+use function array_map;
+use function array_values;
+use function count;
+use function is_array;
+use function is_string;
+use function time;
 
 class AGUIInputTranslator extends ToolInputTranslator
 {
@@ -105,7 +115,7 @@ class AGUIInputTranslator extends ToolInputTranslator
             if ($status === 'cancelled' && array_key_exists('payload', $entry)) {
                 throw new InputTranslationException('A cancelled resume must omit payload.');
             }
-            if ($request instanceof WaitForEventRequest && $request->getExpiresAt() instanceof \DateTimeImmutable
+            if ($request instanceof WaitForEventRequest && $request->getExpiresAt() instanceof DateTimeImmutable
                 && $request->getExpiresAt()->getTimestamp() <= time()) {
                 throw new InputTranslationException("Interrupt '{$id}' has expired.");
             }

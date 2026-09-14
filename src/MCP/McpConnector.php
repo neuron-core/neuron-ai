@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\MCP;
 
 use JsonException;
-use NeuronAI\Exceptions\ArrayPropertyException;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolPropertyFactory;
 use Exception;
-use ReflectionException;
 
 use function array_filter;
 use function array_key_exists;

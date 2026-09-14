@@ -41,6 +41,7 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+
 use function array_column;
 use function array_filter;
 use function array_key_last;

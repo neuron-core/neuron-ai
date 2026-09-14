@@ -77,7 +77,7 @@ trait ExecutorTestHelpers
             '__control',
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
-        if (!$control instanceof WorkflowControl || $control->interrupt === null) {
+        if (!$control instanceof WorkflowControl || !$control->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt) {
             return $workflow->resume($payload, $expectedRunId)->run();
         }
 

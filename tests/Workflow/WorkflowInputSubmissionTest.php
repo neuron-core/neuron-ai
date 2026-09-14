@@ -16,6 +16,12 @@ use NeuronAI\Workflow\WorkflowInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+use function serialize;
+
+use const INF;
+use const NAN;
+
 class WorkflowInputSubmissionTest extends TestCase
 {
     protected function workflow(InMemoryPersistence $persistence): Workflow

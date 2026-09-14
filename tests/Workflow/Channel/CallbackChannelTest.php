@@ -9,7 +9,6 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
 use Throwable;
 
 class CallbackChannelTest extends TestCase

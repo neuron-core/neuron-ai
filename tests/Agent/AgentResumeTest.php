@@ -25,6 +25,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PDO;
 use PHPUnit\Framework\TestCase;
+
 use function array_filter;
 use function iterator_to_array;
 

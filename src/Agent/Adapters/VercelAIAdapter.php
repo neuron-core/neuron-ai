@@ -28,6 +28,11 @@ use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 
+use function in_array;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Adapter for Vercel AI SDK Data Stream Protocol.
  *
@@ -337,7 +342,10 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
         $id = $this->resolveToolCallId($call);
         if (!isset($this->toolInputStarted[$id])) {
             foreach ($this->publishToolArgument(new ToolArgumentChunk(
-                $this->messageId, $call->getName(), json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR), $id,
+                $this->messageId,
+                $call->getName(),
+                json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR),
+                $id,
             )) as $frame) {
                 yield $frame;
             }

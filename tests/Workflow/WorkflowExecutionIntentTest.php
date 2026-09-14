@@ -12,6 +12,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function iterator_to_array;
+use function serialize;
+
 class WorkflowExecutionIntentTest extends TestCase
 {
     /** @return iterable<string, array{bool}> */

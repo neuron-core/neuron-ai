@@ -25,6 +25,8 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Generator;
+
 use function array_map;
 use function glob;
 use function is_dir;
@@ -33,6 +35,9 @@ use function rmdir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function in_array;
+use function iterator_to_array;
+
 use const DIRECTORY_SEPARATOR;
 
 /**
@@ -204,7 +209,7 @@ class DurableTurnRecoveryTest extends TestCase
             $arguments[] = User::class;
         }
         $result = $agent->$method(...$arguments);
-        if ($result instanceof \Generator) {
+        if ($result instanceof Generator) {
             iterator_to_array($result);
         }
         $this->assertSame(

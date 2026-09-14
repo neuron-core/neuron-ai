@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Frontend;
 
 use DateTimeImmutable;
-
 use NeuronAI\Agent\Frontend\AGUIInputTranslator;
 use NeuronAI\Agent\Frontend\VercelAIInputTranslator;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
@@ -135,7 +134,8 @@ class InputTranslatorTest extends TestCase
     public function test_conflicting_repeat_of_an_already_accepted_result_is_rejected(): void
     {
         $request = (new ToolResultsRequest(
-            [new ToolCall('browser', 'b', deferred: true)], ['a' => ['result' => 'original']],
+            [new ToolCall('browser', 'b', deferred: true)],
+            ['a' => ['result' => 'original']],
         ))->withId(4);
         $this->expectException(WorkflowException::class);
         (new AGUIInputTranslator())->translate(['messages' => [
@@ -188,7 +188,8 @@ class InputTranslatorTest extends TestCase
     public function test_identical_duplicate_and_accepted_results_are_safe_to_restate(): void
     {
         $request = (new ToolResultsRequest(
-            [new ToolCall('browser', 'b', deferred: true)], ['a' => ['result' => 'original']],
+            [new ToolCall('browser', 'b', deferred: true)],
+            ['a' => ['result' => 'original']],
         ))->withId(4);
         $inputs = (new AGUIInputTranslator())->translate(['messages' => [
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'original'],

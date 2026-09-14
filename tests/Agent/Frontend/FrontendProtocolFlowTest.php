@@ -26,6 +26,16 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_column;
+use function array_filter;
+use function array_key_last;
+use function array_values;
+use function in_array;
+use function json_decode;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
+
 class FrontendProtocolFlowTest extends TestCase
 {
     /** @return iterable<string, array{bool, bool}> */

@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+
 use function array_map;
 use function array_values;
 use function sprintf;

@@ -29,6 +29,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function iterator_to_array;
+
 class ToolRunLimitTest extends TestCase
 {
     protected InMemoryPersistence $persistence;

@@ -10,6 +10,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
+
 use function is_array;
 
 class NodeCheckpoint extends Node

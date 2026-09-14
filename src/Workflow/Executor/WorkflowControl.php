@@ -9,6 +9,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 
 use function array_merge;
 use function get_object_vars;
+use function array_slice;
 
 /**
  * The lifecycle authority of one run: the value every mutation is fenced on.
@@ -51,9 +52,9 @@ final class WorkflowControl
         return $this->with([
             'nextInterruptId' => $active->request->getId() + 1,
             'interrupt' => $this->interrupt ?? $active,
-            'pendingSteps' => $this->interrupt === null
-                ? $this->pendingSteps
-                : [...$this->pendingSteps, $active->stepId],
+            'pendingSteps' => $this->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt
+                ? [...$this->pendingSteps, $active->stepId]
+                : $this->pendingSteps,
         ]);
     }
 

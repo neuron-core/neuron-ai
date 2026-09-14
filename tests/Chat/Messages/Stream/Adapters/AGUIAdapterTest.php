@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+
 use function array_column;
 use function array_key_last;
 use function iterator_to_array;

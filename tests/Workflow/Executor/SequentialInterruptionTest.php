@@ -29,6 +29,9 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function Amp\delay;
+use function array_map;
+use function iterator_to_array;
+use function serialize;
 
 class SequentialInterruptionTest extends TestCase
 {

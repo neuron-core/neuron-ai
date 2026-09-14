@@ -27,6 +27,7 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+
 use function iterator_to_array;
 
 /**

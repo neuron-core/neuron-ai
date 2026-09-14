@@ -24,6 +24,7 @@ use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Workflow\Exporter\DescibeExporterTransitions;
 use NeuronAI\Workflow\Exporter\EventTransition;
 use NeuronAI\Workflow\Node;
+
 use function array_reverse;
 
 class StoreMemoryNode extends Node implements AgentNodeInterface, DescibeExporterTransitions

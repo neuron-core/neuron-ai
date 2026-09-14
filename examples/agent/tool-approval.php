@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\FileChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;

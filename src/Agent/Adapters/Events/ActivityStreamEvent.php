@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Adapters\Events;
 
 use NeuronAI\Exceptions\StreamAdapterException;
+
 use function trim;
 
 class ActivityStreamEvent implements StreamEventInterface

@@ -23,6 +23,10 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function iterator_to_array;
+use function serialize;
+
 class AgentInputSubmissionTest extends TestCase
 {
     protected InMemoryPersistence $persistence;

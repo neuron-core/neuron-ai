@@ -39,6 +39,8 @@ use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use DateTimeImmutable;
+
 use function hash;
 use function in_array;
 use function str_starts_with;
@@ -491,14 +493,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $this->assertInputlessContinuationAllowed();
             $input = $this->dueInput();
         }
-        if ($input !== null) {
+        if ($input instanceof \NeuronAI\Workflow\Interrupt\ResumeInput) {
             $active->request->validate($input);
             $control = $control->withInput($input);
         }
 
-        if ($control->interrupt !== null && $control->interrupt->input === null) {
+        if ($control->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt && !$control->interrupt->input instanceof \NeuronAI\Workflow\Interrupt\ResumeInput) {
             $checkpoint = $this->store->loadCheckpoint();
-            $state = $checkpoint === null ? $workflow->getState() : $workflow->restoreState($checkpoint);
+            $state = $checkpoint instanceof \NeuronAI\Workflow\WorkflowState ? $workflow->restoreState($checkpoint) : $workflow->getState();
             $workflow->setState($state);
             if ($control->status !== WorkflowStatus::Suspended) {
                 $this->store->commitCheckpoint($state, $control->claim(null)->suspended());
@@ -517,14 +519,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function dueInput(): ?ResumeInput
     {
         $active = $this->store->control()->interrupt;
-        if ($active === null || $active->input !== null) {
+        if (!$active instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt || $active->input instanceof \NeuronAI\Workflow\Interrupt\ResumeInput) {
             return null;
         }
         $request = $active->request;
         if ($request instanceof SleepUntilRequest && $request->getWakeAt()->getTimestamp() <= time()) {
             return ResumeInput::timer($request);
         }
-        if ($request instanceof WaitForEventRequest && $request->getExpiresAt() !== null
+        if ($request instanceof WaitForEventRequest && $request->getExpiresAt() instanceof DateTimeImmutable
             && $request->getExpiresAt()->getTimestamp() <= time()) {
             return ResumeInput::expired($request);
         }
@@ -535,7 +537,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected function shouldPause(): bool
     {
         $active = $this->store->control()->interrupt;
-        return $this->pauseRequested || ($active !== null && $active->input === null);
+        return $this->pauseRequested || ($active instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt && !$active->input instanceof \NeuronAI\Workflow\Interrupt\ResumeInput);
     }
 
     protected function settleInterrupt(WorkflowControl $control): WorkflowControl
@@ -744,11 +746,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
         $active = $this->store->control()->interrupt;
         $input = $cached?->getInterruptId() === $active?->request->getId() ? $active?->input : null;
-        $resuming = $input !== null;
+        $resuming = $input instanceof \NeuronAI\Workflow\Interrupt\ResumeInput;
         if ($cached?->isInterrupted() && !$resuming) {
             return $cached->withState($workflow->restoreState($cached->getState()));
         }
-        if ($active !== null && !$resuming) {
+        if ($active instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt && !$resuming) {
             return new StepResult($stepId, new BranchPausedEvent(), $state);
         }
         $payload = $input?->kind === ResumeType::Event ? $input->payload : null;
@@ -868,7 +870,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             }
         }
         // Branches deferred while routing an accepted reply can now continue.
-        if ($paused && !$this->shouldPause() && $this->store->control()->interrupt === null) {
+        if ($paused && !$this->shouldPause() && !$this->store->control()->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt) {
             return yield from $this->executeBranches($workflow, $parallelEvent, $forkStepId);
         }
 

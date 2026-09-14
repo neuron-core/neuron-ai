@@ -19,6 +19,9 @@ use NeuronAI\Tests\SpeechExperiment\Stub\FakeSpeechProvider;
 use NeuronAI\Workflow\Node;
 use RuntimeException;
 
+use function base64_decode;
+use function base64_encode;
+
 class DemoSpeechAgent extends Agent
 {
     /** @var string[] */

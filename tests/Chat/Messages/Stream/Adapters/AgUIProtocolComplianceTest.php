@@ -19,6 +19,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
+
 use function array_column;
 use function array_key_last;
 use function iterator_to_array;

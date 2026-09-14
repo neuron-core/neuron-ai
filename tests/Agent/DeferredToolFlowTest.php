@@ -29,6 +29,11 @@ use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Throwable;
+
+use function array_filter;
+use function array_map;
+use function iterator_to_array;
 
 class DeferredToolFlowTest extends TestCase
 {
@@ -206,7 +211,8 @@ class DeferredToolFlowTest extends TestCase
         $this->assertInstanceOf(ToolResultsRequest::class, $state->getInterruptRequest());
         $this->agent([], true)->submitInputs(['external' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertSame(['Results for: one', 'ok', 'Results for: two'], array_map(
-            fn (ToolCall $call): string|ToolOutput => $call->getResult(), $this->completedCalls(),
+            fn (ToolCall $call): string|ToolOutput => $call->getResult(),
+            $this->completedCalls(),
         ));
     }
 
@@ -249,7 +255,7 @@ class DeferredToolFlowTest extends TestCase
             (new FrontendTool('limited'))->setMaxRuns(0),
             new FrontendTool('browser'),
         ]);
-        $agent->toolErrorHandler(fn (\Throwable $error): ToolOutput => ToolOutput::error($error->getMessage()));
+        $agent->toolErrorHandler(fn (Throwable $error): ToolOutput => ToolOutput::error($error->getMessage()));
         $state = $agent->chat(new UserMessage('Go'));
         $this->assertSame($includePending, $state->isInterrupted());
         if ($includePending) {

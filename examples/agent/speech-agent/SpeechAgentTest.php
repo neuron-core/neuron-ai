@@ -30,6 +30,9 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function base64_decode;
+use function base64_encode;
+
 class SpeechAgentTest extends TestCase
 {
     protected function audio(string $text): AudioContent

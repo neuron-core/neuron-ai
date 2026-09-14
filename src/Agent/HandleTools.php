@@ -7,7 +7,6 @@ namespace NeuronAI\Agent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
-use NeuronAI\ContentHelper;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;

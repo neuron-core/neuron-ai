@@ -28,6 +28,8 @@ use function array_slice;
 use function count;
 use function json_encode;
 
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Deterministic provider driven by a per-scenario plan of tool-call batches.
  * The reply is chosen from the inference input itself, never from a request

@@ -11,6 +11,7 @@ use NeuronAI\Tests\Workflow\Channel\Stub\PortableProgressNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\WorkflowProgress;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+
 use function iterator_to_array;
 use function json_decode;
 use function json_encode;

@@ -12,6 +12,8 @@ use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
+use function serialize;
+
 class WorkflowInspectionTest extends TestCase
 {
     public function test_inspection_of_a_missing_run_does_not_create_one(): void
@@ -38,8 +40,6 @@ class WorkflowInspectionTest extends TestCase
         $this->assertSame(WorkflowStatus::Suspended, $run->status);
         $this->assertSame($before, serialize($persistence));
         $this->assertNull($reader->getRunId());
-
-        $request = $run->interrupt;
         $workflow->resume([], $run->runId, $run->executionAttempt)->run();
         $completed = (new WorkflowExecutor())->inspect($reader);
         $this->assertNotNull($completed);

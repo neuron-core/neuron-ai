@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI;
+namespace NeuronAI\Agent;
 
 use function preg_quote;
 use function preg_replace;

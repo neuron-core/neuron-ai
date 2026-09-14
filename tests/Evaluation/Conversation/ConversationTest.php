@@ -23,6 +23,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use PHPUnit\Framework\TestCase;
+
 use function json_encode;
 
 class ConversationTest extends TestCase

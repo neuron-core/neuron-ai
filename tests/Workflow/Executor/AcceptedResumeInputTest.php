@@ -50,7 +50,7 @@ class AcceptedResumeInputTest extends TestCase
      */
     public function test_duplicate_delivery_recovers_with_the_accepted_answer(array $payload): void
     {
-        $request = $this->failAfterAcceptingInput($payload);
+        $this->failAfterAcceptingInput($payload);
         $state = $this->workflow()->resume($payload)->run();
 
         self::assertEquals($payload, $state->get('payload'));
@@ -78,7 +78,7 @@ class AcceptedResumeInputTest extends TestCase
 
     public function test_conflicting_input_preserves_the_accepted_answer(): void
     {
-        $request = $this->failAfterAcceptingInput();
+        $this->failAfterAcceptingInput();
         $control = $this->persistence->get('accepted-input', '__control');
 
         try {

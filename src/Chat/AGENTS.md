@@ -13,7 +13,7 @@ new UserMessage([
 ]);
 ```
 
-`SystemMessage` carries `SystemContent` blocks; `->cache()` marks them for provider-side prompt caching. `ToolCallMessage` (an `AssistantMessage`) and `ToolResultMessage` (a `UserMessage`) carry the same `ToolCall[]`: pure conversation data, settled with results in the second. Executable tools never appear in messages (see `src/Tools/AGENTS.md`). Content blocks accept `string|MediaType` for the media type and normalize to string, so custom MIME types always work.
+`SystemMessage` carries `SystemContent` blocks; `->cache()` marks them for provider-side prompt caching. A cloned message owns copies of its blocks, so a copy can be edited in place without touching the original (the Agent entry nodes rely on this to isolate a run's instructions from the agent configuration). `ToolCallMessage` (an `AssistantMessage`) and `ToolResultMessage` (a `UserMessage`) carry the same `ToolCall[]`: pure conversation data, settled with results in the second. Executable tools never appear in messages (see `src/Tools/AGENTS.md`). Content blocks accept `string|MediaType` for the media type and normalize to string, so custom MIME types always work.
 
 ## Chat history
 

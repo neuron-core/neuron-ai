@@ -20,6 +20,7 @@ use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\UnsupportedStreamEvent;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
+
 use function array_column;
 use function iterator_to_array;
 use function json_decode;

@@ -14,6 +14,8 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tests\SpeechExperiment\Events\SpeechStartEvent;
 use NeuronAI\Workflow\Node;
 
+use function array_shift;
+
 class SpeechToTextNode extends Node
 {
     public function __construct(protected AIProviderInterface $provider)

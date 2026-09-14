@@ -29,6 +29,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function iterator_to_array;
+
 class AgentOutputTest extends TestCase
 {
     /** @return iterable<string, array{string, string}> */
@@ -81,7 +83,7 @@ class AgentOutputTest extends TestCase
         yield 'no user' => [[new AssistantMessage('Hello')]];
         yield 'no assistant' => [[new UserMessage('Hello')]];
         yield 'empty user' => [[new UserMessage(null), new AssistantMessage('Hello')]];
-        yield 'empty assistant' => [[new UserMessage('Hello'), new AssistantMessage(null)]];
+        yield 'empty assistant' => [[new UserMessage('Hello'), new AssistantMessage()]];
     }
 
     /** @param Message[] $messages */

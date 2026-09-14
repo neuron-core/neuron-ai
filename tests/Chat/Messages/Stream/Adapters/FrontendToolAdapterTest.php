@@ -23,6 +23,17 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_column;
+use function array_filter;
+use function array_key_last;
+use function array_values;
+use function iterator_to_array;
+use function json_decode;
+use function json_encode;
+use function str_starts_with;
+
+use const JSON_THROW_ON_ERROR;
+
 class FrontendToolAdapterTest extends TestCase
 {
     /** @param iterable<ProtocolEvent> $frames

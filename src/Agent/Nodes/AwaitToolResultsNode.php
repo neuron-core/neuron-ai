@@ -16,7 +16,6 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\Events\ToolCalled;
-use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;

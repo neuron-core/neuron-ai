@@ -33,6 +33,7 @@ use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
+
 use function end;
 use function is_array;
 use function is_string;

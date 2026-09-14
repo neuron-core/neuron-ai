@@ -21,17 +21,17 @@ use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
 
-$fixture = new Fixture(getenv('NEURON_FIXTURE_DB') ?: sys_get_temp_dir() . '/neuron-frontend-fixture.sqlite');
+$fixture = new Fixture(\getenv('NEURON_FIXTURE_DB') ?: \sys_get_temp_dir() . '/neuron-frontend-fixture.sqlite');
 
 $method = $_SERVER['REQUEST_METHOD'];
-$path = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$payload = json_decode(file_get_contents('php://input') ?: '{}', true, flags: JSON_THROW_ON_ERROR);
+$path = (string) \parse_url($_SERVER['REQUEST_URI'], \PHP_URL_PATH);
+$payload = \json_decode(\file_get_contents('php://input') ?: '{}', true, flags: \JSON_THROW_ON_ERROR);
 
 function respondJson(int $status, array $body): void
 {
-    http_response_code($status);
-    header('Content-Type: application/json');
-    echo json_encode($body, JSON_THROW_ON_ERROR);
+    \http_response_code($status);
+    \header('Content-Type: application/json');
+    echo \json_encode($body, \JSON_THROW_ON_ERROR);
 }
 
 function badRequest(string $reason): never
@@ -48,12 +48,12 @@ function badRequest(string $reason): never
 function streamFrames(Generator $events, array $headers): void
 {
     foreach ($headers as $name => $value) {
-        header("{$name}: {$value}");
+        \header("{$name}: {$value}");
     }
     try {
         foreach (SSEEncoder::encode($events) as $frame) {
             echo $frame;
-            flush();
+            \flush();
         }
     } catch (Throwable) {
     }
@@ -66,7 +66,7 @@ function streamFrames(Generator $events, array $headers): void
 function lastMessage(array $payload): array
 {
     $messages = $payload['messages'] ?? [];
-    return $messages === [] ? [] : $messages[array_key_last($messages)];
+    return $messages === [] ? [] : $messages[\array_key_last($messages)];
 }
 
 /** @param array<string, mixed> $payload */
@@ -103,7 +103,7 @@ function vercel(Fixture $fixture, array $payload): void
 
     $frames = $last['role'] === 'assistant'
         ? $agent->submitInputs($payload, new VercelAIInputTranslator())->events()
-        : $agent->stream(new UserMessage(implode('', array_map(
+        : $agent->stream(new UserMessage(\implode('', \array_map(
             fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '',
             $last['parts'] ?? [],
         ))));
@@ -116,8 +116,8 @@ try {
     } elseif ($method === 'POST' && $path === '/_test/threads') {
         $fixture->registerThread((string) $payload['threadId'], (string) $payload['scenario']);
         respondJson(201, ['threadId' => $payload['threadId']]);
-    } elseif ($method === 'GET' && str_starts_with($path, '/_test/threads/')) {
-        respondJson(200, $fixture->observe(rawurldecode(substr($path, strlen('/_test/threads/')))));
+    } elseif ($method === 'GET' && \str_starts_with($path, '/_test/threads/')) {
+        respondJson(200, $fixture->observe(\rawurldecode(\substr($path, \strlen('/_test/threads/')))));
     } elseif ($method === 'POST' && $path === '/agui') {
         agui($fixture, $payload);
     } elseif ($method === 'POST' && $path === '/vercel') {
@@ -126,7 +126,7 @@ try {
         respondJson(404, ['error' => "No route for {$method} {$path}"]);
     }
 } catch (Throwable $error) {
-    if (headers_sent()) {
+    if (\headers_sent()) {
         exit;
     }
     $status = match (true) {

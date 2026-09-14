@@ -37,6 +37,8 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
+use function iterator_to_array;
+
 class WorkflowContinuationReportingTest extends TestCase
 {
     public function test_start_reports_the_current_attempt_before_listeners_run(): void

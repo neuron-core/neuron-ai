@@ -157,7 +157,7 @@ class WorkflowStreamingTest extends TestCase
     public function test_events_streams_an_explicit_continuation(): void
     {
         $persistence = new InMemoryPersistence();
-        $first = KeyedWorkflow::make()
+        KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
             ->setPersistence($persistence)
             ->run();

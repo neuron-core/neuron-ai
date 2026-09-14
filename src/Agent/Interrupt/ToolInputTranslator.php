@@ -11,6 +11,15 @@ use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
+use function array_is_list;
+use function array_key_exists;
+use function array_keys;
+use function array_map;
+use function array_merge;
+use function is_array;
+use function is_bool;
+use function is_string;
+
 abstract class ToolInputTranslator implements InputTranslatorInterface
 {
     /**

@@ -6,6 +6,7 @@ namespace NeuronAI\Tools;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
+use ReflectionException;
 
 /**
  * A tool declaration whose execution belongs outside the backend.
@@ -16,7 +17,7 @@ class FrontendTool extends Tool implements DeferredToolInterface
      * @param array<string, mixed>|null $inputSchema
      * @throws ToolException
      * @throws ArrayPropertyException
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public function __construct(
         string $name,

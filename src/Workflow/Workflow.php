@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
+
 use function array_merge;
 use function is_array;
 
@@ -436,7 +437,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             throw new InputTranslationException('There is no persisted run to continue.');
         }
 
-        if ($run->interrupt === null) {
+        if (!$run->interrupt instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest) {
             throw new InputTranslationException('There is no current interruption to answer.');
         }
         $response = $translator->translate($payload, $run->interrupt);

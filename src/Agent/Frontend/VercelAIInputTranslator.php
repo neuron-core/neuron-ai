@@ -10,6 +10,11 @@ use NeuronAI\Agent\Interrupt\ToolInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Exceptions\InputTranslationException;
 
+use function array_key_exists;
+use function is_array;
+use function is_string;
+use function str_starts_with;
+
 class VercelAIInputTranslator extends ToolInputTranslator
 {
     public function translate(array $payload, InterruptRequest $request): array

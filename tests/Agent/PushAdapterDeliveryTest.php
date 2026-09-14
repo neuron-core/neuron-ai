@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
+
 use function array_column;
 use function array_map;
 use function count;

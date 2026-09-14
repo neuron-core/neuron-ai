@@ -28,7 +28,11 @@ use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
+
 use function json_encode;
+use function array_values;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Adapter for the AG-UI streaming protocol (agent-frontend interaction).

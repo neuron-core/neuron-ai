@@ -9,6 +9,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\ActionDecision;
 use PHPUnit\Framework\TestCase;
+
 use function json_decode;
 use function json_encode;
 

@@ -49,6 +49,16 @@ class Message implements JsonSerializable
         $this->addMetadata('__id', UniqueIdGenerator::generateId('msg_'));
     }
 
+    // A copy owns its blocks, so in-place edits (cache flags, content)
+    // never reach the message it was cloned from.
+    public function __clone(): void
+    {
+        $this->contents = array_map(
+            static fn (ContentBlockInterface $block): ContentBlockInterface => clone $block,
+            $this->contents
+        );
+    }
+
     public function getRole(): string
     {
         return $this->role->value;

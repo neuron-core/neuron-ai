@@ -16,6 +16,7 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
+
 use function Amp\async;
 
 /**
@@ -106,7 +107,7 @@ class AsyncExecutor extends WorkflowExecutor
         }
 
         // Branches deferred while routing an accepted reply can now continue.
-        if ($paused && !$this->shouldPause() && $this->store->control()->interrupt === null) {
+        if ($paused && !$this->shouldPause() && !$this->store->control()->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt) {
             return yield from $this->executeBranches($workflow, $parallelEvent, $forkStepId);
         }
 

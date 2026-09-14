@@ -19,6 +19,8 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
+use function iterator_to_array;
+
 class AwaitToolResultsNodeTest extends TestCase
 {
     public function test_expiry_settles_only_pending_calls_and_preserves_structured_routing(): void
