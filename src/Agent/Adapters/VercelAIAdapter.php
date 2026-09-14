@@ -381,8 +381,7 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
         return [];
     }
 
-    /** @param array<int, InterruptRequest> $requests */
-    public function suspended(array $requests): iterable
+    public function suspended(InterruptRequest $request): iterable
     {
         if ($this->runFailed || $this->finished) {
             return;
@@ -390,47 +389,45 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
         foreach ($this->closeParts() as $frame) {
             yield $frame;
         }
-        foreach ($requests as $request) {
-            if ($request instanceof ToolResultsRequest) {
-                foreach ($request->getToolCalls() as $call) {
-                    $id = $this->resolveToolCallId($call);
-                    if (isset($this->dispatchedTools[$id]) || isset($this->knownOutputs[$id])) {
-                        continue;
-                    }
-                    $this->dispatchedTools[$id] = true;
-                    foreach ($this->previewTool($call) as $frame) {
-                        yield $frame;
-                    }
-                    yield new ProtocolEvent('tool-input-available', [
-                        'toolCallId' => $this->resolveToolCallId($call),
-                        'toolName' => $call->getName(),
-                        'input' => (object) $call->getInputs(),
-                    ]);
+        if ($request instanceof ToolResultsRequest) {
+            foreach ($request->getToolCalls() as $call) {
+                $id = $this->resolveToolCallId($call);
+                if (isset($this->dispatchedTools[$id]) || isset($this->knownOutputs[$id])) {
+                    continue;
                 }
-            } elseif ($request instanceof ApprovalRequest) {
-                foreach ($request->getActions() as $action) {
-                    foreach ($this->previewTool(new ToolCall($action->name, $action->id, $action->inputs)) as $frame) {
-                        yield $frame;
-                    }
-                    yield new ProtocolEvent('tool-approval-request', [
-                        'toolCallId' => $action->id,
-                        'approvalId' => $action->id,
-                        'reason' => $action->reason ?? $request->getMessage(),
-                    ]);
-                    if (!$action->isPending()) {
-                        yield new ProtocolEvent('tool-approval-response', [
-                            'approvalId' => $action->id,
-                            'approved' => $action->isApproved(),
-                            ...($action->feedback === null ? [] : ['reason' => $action->feedback]),
-                        ]);
-                    }
+                $this->dispatchedTools[$id] = true;
+                foreach ($this->previewTool($call) as $frame) {
+                    yield $frame;
                 }
-            } else {
-                yield new ProtocolEvent('data-workflow-interrupt', [
-                    'data' => $request->jsonSerialize(),
-                    'transient' => true,
+                yield new ProtocolEvent('tool-input-available', [
+                    'toolCallId' => $this->resolveToolCallId($call),
+                    'toolName' => $call->getName(),
+                    'input' => (object) $call->getInputs(),
                 ]);
             }
+        } elseif ($request instanceof ApprovalRequest) {
+            foreach ($request->getActions() as $action) {
+                foreach ($this->previewTool(new ToolCall($action->name, $action->id, $action->inputs)) as $frame) {
+                    yield $frame;
+                }
+                yield new ProtocolEvent('tool-approval-request', [
+                    'toolCallId' => $action->id,
+                    'approvalId' => $action->id,
+                    'reason' => $action->reason ?? $request->getMessage(),
+                ]);
+                if (!$action->isPending()) {
+                    yield new ProtocolEvent('tool-approval-response', [
+                        'approvalId' => $action->id,
+                        'approved' => $action->isApproved(),
+                        ...($action->feedback === null ? [] : ['reason' => $action->feedback]),
+                    ]);
+                }
+            }
+        } else {
+            yield new ProtocolEvent('data-workflow-interrupt', [
+                'data' => $request->jsonSerialize(),
+                'transient' => true,
+            ]);
         }
         foreach ($this->end() as $frame) {
             yield $frame;

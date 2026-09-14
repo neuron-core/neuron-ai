@@ -123,7 +123,7 @@ class WorkflowLeaseTest extends TestCase
 
         $this->leasedWorkflow(300)
             ->setPersistence($persistence)
-            ->resume([], expectedExecutionAttempt: $attempt - 1)->run();
+            ->resume(null, expectedExecutionAttempt: $attempt - 1)->run();
     }
 
     public function test_caught_failure_clears_the_lease_deadline(): void

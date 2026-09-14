@@ -7,7 +7,7 @@ description: Implement human-in-the-loop tool approval flows with Neuron AI agen
 
 This skill helps you gate agent tool execution behind human approval and build the application around it: the server endpoint, the UI, and the decision round trip.
 
-Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
+Use `Agent::submitApprovalDecisions($decisions)` for tool approval and `Agent::submitToolResults($results)` for deferred tool results. Both accept maps keyed by tool call ID and stage a continuation; finish with `run()` for an `AgentState` or `events()` for a stream.
 
 ## The Mental Model
 
@@ -18,7 +18,7 @@ Native approval decisions are submitted with `$agent->submitApprovalDecisions($d
 Two facts shape the UI:
 
 - **History is append-only.** The suspended `tool_call` message keeps its *pending snapshot* forever; the final outcomes (approved/rejected + feedback + results) are recorded on the `tool_call_result` message that follows it. "Is approval pending?" = the thread tail is a `tool_call` with pending tools.
-- **Partial decisions are retained by ToolNode through durable memos.** Each submission can contain only the newest decisions, including when using `signal()` or addressed `resume()`. Explicit updates to an already-decided action in a still-open batch win.
+- **Partial decisions are retained by ToolNode through durable memos.** Each submission can contain only the newest decisions, through `submitApprovalDecisions($decisions)`. Explicit updates to an already-decided action in a still-open batch win.
 
 ## Enabling Approval
 
@@ -141,7 +141,7 @@ If suspended: render one card per `tools[]` entry that **has** an `approval` fie
 
 ## Submitting Decisions
 
-Decisions travel as a plain map keyed by `callId`. Three value forms — anything else is silently ignored:
+Decisions travel as a plain map keyed by `callId`. Three value forms are accepted; `submitApprovalDecisions()` rejects other values before execution:
 
 | You send | Meaning | What the model eventually sees |
 |---|---|---|
@@ -167,13 +167,13 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 ### UI submission patterns
 
 - **Batch with confirmation (the natural fit)**: collect decisions locally, submit one complete map on "Confirm". For a review step, **withhold one decision until confirmed** — an incomplete set is your draft state. This is the intended way to build a confirm stage; there is deliberately no built-in one.
-- **Submit-per-click**: send the newest decision on every click. The translator preserves previously delivered decisions, and an incomplete submission re-suspends until the last decision lands.
+- **Submit-per-click**: send the newest decision on every click. The agent preserves previously delivered decisions, and an incomplete submission re-suspends until the last decision lands.
 
 ### Pitfalls
 
-- **All continuation paths preserve partial decisions** — `signal()`, addressed `resume()`, and `submitApprovalDecisions()` share the node's durable accumulation.
-- **A typo'd `callId` fails translation** — native decisions must match an action in the persisted requests.
-- **`["approve", "note"]` doesn't exist** — it is malformed and silently ignored; the tool stays pending. Only rejections carry text.
+- **Partial decisions survive continuation** — each `submitApprovalDecisions()` call may contain only newly decided actions. Finish with `run()` or `events()` and render any remaining approvals.
+- **A typo'd `callId` is rejected** — native decisions must match an action in the current persisted request.
+- **`["approve", "note"]` doesn't exist** — `submitApprovalDecisions()` rejects it before execution. Only rejections carry text.
 - **The tail message won't show partial progress** — it keeps its pending snapshot (append-only history). Render interim progress from your own accumulated map, not from the thread.
 
 ## One Endpoint for the Whole Conversation
@@ -205,7 +205,7 @@ function chatEndpoint(string $threadId, array $body): array
         return [
             'status' => 'conflict',
             'error' => $e->getMessage(),
-            'pending' => array_values($e->interrupts),   // InterruptRequest is JsonSerializable
+            'pending' => $e->interrupt,   // InterruptRequest is JsonSerializable
         ];   // HTTP 409
     }
 
@@ -233,7 +233,9 @@ gets the rejection template as the tool result. `abandonRun()` refuses while an
 approval is pending, because the pre-suspend tool call would be left unanswered
 in history; `resetConversation()` wipes the history and frees the thread instead.
 
-For streaming, a new message uses `stream($message)`; an approval continuation uses `submitApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one. With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists one `tool_call` interrupt per pending call (its `id` is the callId); with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Map the client's answers to the decision map above and continue the same way.
+Approving a deferred tool authorizes its execution; it does not provide its result. When the frontend has executed the approved calls, send their outcomes with `submitToolResults(['call_123' => ['result' => $value]])->run()` (or `events()`). Each result entry contains exactly one `result` value or `error` string, and partial results are retained.
+
+For streaming, a new message uses `stream($message)`; an approval continuation uses `submitApprovalDecisions($decisions)->events()`. Drain either generator, emit its chunks, then read the final `AgentState` from `$generator->getReturn()`. Calling `stream()` for the decisions branch would start a new run rather than continue the suspended one. With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists one `confirmation` interrupt per approval action (its `id` is the callId); with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Map the client's answers to the decision map above and continue the same way.
 
 ## A Complete Decision Round Trip
 

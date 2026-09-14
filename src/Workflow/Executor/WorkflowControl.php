@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\WorkflowStatus;
 
-use function array_map;
 use function array_merge;
 use function get_object_vars;
 
@@ -21,7 +19,7 @@ use function get_object_vars;
 final class WorkflowControl
 {
     /**
-     * @param array<int, ActiveInterrupt> $interrupts
+     * @param list<string> $pendingSteps Deferred interruptions in arrival order.
      */
     public function __construct(
         public readonly string $runId,
@@ -29,19 +27,9 @@ final class WorkflowControl
         public readonly int $executionAttempt = 1,
         public readonly ?int $leaseExpiresAt = null,
         public readonly int $nextInterruptId = 1,
-        public readonly array $interrupts = [],
+        public readonly ?ActiveInterrupt $interrupt = null,
+        public readonly array $pendingSteps = [],
     ) {
-    }
-
-    /**
-     * @return array<int, InterruptRequest>
-     */
-    public function interruptRequests(): array
-    {
-        return array_map(
-            static fn (ActiveInterrupt $active): InterruptRequest => $active->request,
-            $this->interrupts,
-        );
     }
 
     public function claim(?int $leaseExpiresAt): self
@@ -60,40 +48,26 @@ final class WorkflowControl
 
     public function addInterrupt(ActiveInterrupt $active): self
     {
-        $interrupts = $this->interrupts;
-        $interrupts[$active->request->getId()] = $active;
-
         return $this->with([
-            'status' => WorkflowStatus::Running,
             'nextInterruptId' => $active->request->getId() + 1,
-            'interrupts' => $interrupts,
+            'interrupt' => $this->interrupt ?? $active,
+            'pendingSteps' => $this->interrupt === null
+                ? $this->pendingSteps
+                : [...$this->pendingSteps, $active->stepId],
         ]);
     }
 
-    public function removeInterrupt(int $id): self
+    public function removeInterrupt(?ActiveInterrupt $next): self
     {
-        $interrupts = $this->interrupts;
-        unset($interrupts[$id]);
-
         return $this->with([
-            'status' => WorkflowStatus::Running,
-            'interrupts' => $interrupts,
+            'interrupt' => $next,
+            'pendingSteps' => array_slice($this->pendingSteps, 1),
         ]);
     }
 
-    /**
-     * @param array<int, ResumeInput> $inputs
-     */
-    public function withInputs(array $inputs): self
+    public function withInput(ResumeInput $input): self
     {
-        $interrupts = $this->interrupts;
-        foreach ($inputs as $id => $input) {
-            if (isset($interrupts[$id])) {
-                $interrupts[$id] = $interrupts[$id]->withInput($input);
-            }
-        }
-
-        return $this->with(['interrupts' => $interrupts]);
+        return $this->with(['interrupt' => $this->interrupt->withInput($input)]);
     }
 
     /**
@@ -115,7 +89,8 @@ final class WorkflowControl
         return $this->with([
             'status' => WorkflowStatus::Completed,
             'leaseExpiresAt' => null,
-            'interrupts' => [],
+            'interrupt' => null,
+            'pendingSteps' => [],
         ]);
     }
 

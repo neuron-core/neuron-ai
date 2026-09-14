@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Frontend;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
@@ -11,9 +12,9 @@ use NeuronAI\Exceptions\InputTranslationException;
 
 class VercelAIInputTranslator extends ToolInputTranslator
 {
-    public function translate(array $payload, array $requests): array
+    public function translate(array $payload, InterruptRequest $request): array
     {
-        $tools = $this->toolRequests($requests);
+        $tools = $this->toolCallIds($request);
         $answers = [];
         foreach ($this->entries($payload, 'messages') as $message) {
             if (($message['role'] ?? null) !== 'assistant') {
@@ -28,7 +29,6 @@ class VercelAIInputTranslator extends ToolInputTranslator
                 if (!is_string($callId) || !isset($tools[$callId])) {
                     continue; // Full client history also contains earlier tool cycles.
                 }
-                $request = $tools[$callId];
                 $state = $part['state'] ?? null;
                 if ($state === 'approval-responded') {
                     if (!$request instanceof ApprovalRequest) {
@@ -38,7 +38,7 @@ class VercelAIInputTranslator extends ToolInputTranslator
                     if (!is_array($approval) || ($approval['id'] ?? null) !== $callId) {
                         throw new InputTranslationException("Approval ID does not match tool call '{$callId}'.");
                     }
-                    $this->answer($answers, $request, $callId, $this->approval($approval));
+                    $this->answer($answers, $callId, $this->approval($approval));
                 } elseif ($state === 'output-available' || $state === 'output-error') {
                     if (!$request instanceof ToolResultsRequest) {
                         throw new InputTranslationException("Tool call '{$callId}' is awaiting approval, not execution results.");
@@ -54,10 +54,10 @@ class VercelAIInputTranslator extends ToolInputTranslator
                         }
                         $result = ['error' => $part['errorText']];
                     }
-                    $this->answer($answers, $request, $callId, $result);
+                    $this->answer($answers, $callId, $result);
                 }
             }
         }
-        return $this->inputs($requests, $answers);
+        return $this->inputs($request, $answers);
     }
 }

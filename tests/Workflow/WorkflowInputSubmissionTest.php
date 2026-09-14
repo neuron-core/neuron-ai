@@ -8,6 +8,7 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -42,14 +43,12 @@ class WorkflowInputSubmissionTest extends TestCase
 
         $translator = $this->createMock(InputTranslatorInterface::class);
         $translator->expects($this->once())->method('translate')->willReturnCallback(
-            function (array $payload, array $requests) use ($requestId): array {
+            function (array $payload, InterruptRequest $request) use ($requestId): array {
                 $this->assertSame(['email' => 'user@example.com'], $payload);
-                $this->assertCount(1, $requests);
-                $request = array_values($requests)[0];
                 $this->assertInstanceOf(WaitForEventRequest::class, $request);
                 $this->assertSame('user.signup', $request->getEventName());
                 $this->assertSame($requestId, $request->getId());
-                return [$request->getId() => ['registered' => $payload['email']]];
+                return ['registered' => $payload['email']];
             },
         );
 
@@ -74,17 +73,12 @@ class WorkflowInputSubmissionTest extends TestCase
     /** @return iterable<string, array{array}> */
     public static function invalidInputs(): iterable
     {
-        yield 'unaddressed payload' => [['registered' => true]];
-        yield 'zero ID' => [[0 => []]];
-        yield 'negative ID' => [[-1 => []]];
-        yield 'missing payload' => [[1 => null]];
-        yield 'scalar payload' => [[1 => 'answer']];
-        yield 'malformed batch' => [[1 => ['registered' => true], 2 => null]];
-        yield 'non-JSON payload' => [[1 => ['value' => NAN]]];
+        yield 'non-JSON payload' => [['value' => NAN]];
+        yield 'infinite value' => [['value' => INF]];
     }
 
     #[DataProvider('invalidInputs')]
-    public function test_invalid_addressed_payloads_leave_persistence_unchanged(array $inputs): void
+    public function test_invalid_payloads_leave_persistence_unchanged(array $inputs): void
     {
         $persistence = new InMemoryPersistence();
         $this->workflow($persistence)->run();
@@ -94,7 +88,7 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertSame($before, serialize($persistence));
         try {
             $workflow->run();
-            $this->fail('Invalid addressed payloads must fail before acceptance.');
+            $this->fail('Invalid payloads must fail before acceptance.');
         } catch (\NeuronAI\Exceptions\WorkflowException) {
             $this->assertSame($before, serialize($persistence));
         }

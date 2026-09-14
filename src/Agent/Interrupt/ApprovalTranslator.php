@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Interrupt;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 
@@ -14,7 +15,7 @@ class ApprovalTranslator extends ToolInputTranslator
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function translate(array $payload, array $requests): array
+    public function translate(array $payload, InterruptRequest $request): array
     {
         foreach ($payload as $decision) {
             if ($decision === 'approve' || $decision === 'reject') {
@@ -25,6 +26,6 @@ class ApprovalTranslator extends ToolInputTranslator
                 throw new InputTranslationException("A decision must be 'approve', 'reject', or ['reject', reason].");
             }
         }
-        return $this->translateCalls($payload, $requests, ApprovalRequest::class);
+        return $this->translateCalls($payload, $request, ApprovalRequest::class);
     }
 }

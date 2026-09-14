@@ -11,10 +11,7 @@ use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\WorkflowStatus;
 
-use function array_map;
-use function count;
 use function date;
-use function implode;
 use function time;
 
 /**
@@ -26,16 +23,13 @@ use function time;
  */
 class RunInFlightException extends WorkflowException
 {
-    /**
-     * @param array<int, InterruptRequest> $interrupts
-     */
     public function __construct(
         public readonly string $workflowId,
         public readonly string $runId,
         public readonly WorkflowStatus $status,
         public readonly int $executionAttempt,
         public readonly ?int $leaseExpiresAt = null,
-        public readonly array $interrupts = [],
+        public readonly ?InterruptRequest $interrupt = null,
     ) {
         parent::__construct(
             "Cannot ignite a new run for workflow ID '{$this->workflowId}': " . $this->describeGeneration()
@@ -47,8 +41,8 @@ class RunInFlightException extends WorkflowException
         $run = "run '{$this->runId}' (attempt {$this->executionAttempt})";
 
         return match ($this->status) {
-            WorkflowStatus::Suspended => "{$run} is suspended, waiting on {$this->describeInterrupts()}. "
-                . 'Deliver the awaited input with signal() or resume($inputs)->run(), or evaluate due deadlines '
+            WorkflowStatus::Suspended => "{$run} is suspended, waiting on {$this->describeInterrupt($this->interrupt)}. "
+                . 'Deliver the awaited input with signal() or resume($payload)->run(), or evaluate due deadlines '
                 . 'with resume()->run(), before igniting again.',
             WorkflowStatus::Completed => "{$run} completed and its outcome is retained. "
                 . "Call acknowledgeCompletion('{$this->runId}') to release the workflow ID.",
@@ -75,16 +69,6 @@ class RunInFlightException extends WorkflowException
 
         return "{$run} holds an expired lease, but a concurrent process changed it while it was "
             . 'being superseded. Retry the ignition.';
-    }
-
-    protected function describeInterrupts(): string
-    {
-        $descriptions = array_map(
-            $this->describeInterrupt(...),
-            $this->interrupts,
-        );
-
-        return count($this->interrupts) . ' interrupt(s): ' . implode(', ', $descriptions);
     }
 
     protected function describeInterrupt(InterruptRequest $request): string

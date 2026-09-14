@@ -5,23 +5,17 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInputResult;
 
 use function array_diff_key;
 use function array_flip;
 use function array_intersect_key;
 use function array_key_exists;
-use function array_values;
 use function serialize;
 use function unserialize;
 
 class WorkflowState
 {
-    /** @var array<int, InterruptRequest> */
-    protected array $interruptRequests = [];
-
-    /** @var ResumeInputResult[] */
-    protected array $inputResults = [];
+    protected ?InterruptRequest $interruptRequest = null;
 
     protected WorkflowStatus $status = WorkflowStatus::Running;
 
@@ -40,16 +34,15 @@ class WorkflowState
      * callers of run()/events() can detect the pause without catching an
      * exception.
      */
-    /** @param array<int, InterruptRequest> $requests */
-    public function markAsSuspended(array $requests): void
+    public function markAsSuspended(?InterruptRequest $request): void
     {
-        $this->interruptRequests = $requests;
+        $this->interruptRequest = $request;
         $this->status = WorkflowStatus::Suspended;
     }
 
     public function markAsRunning(): void
     {
-        $this->interruptRequests = [];
+        $this->interruptRequest = null;
         $this->status = WorkflowStatus::Running;
     }
 
@@ -59,7 +52,7 @@ class WorkflowState
      */
     public function clearInterrupt(): void
     {
-        $this->interruptRequests = [];
+        $this->interruptRequest = null;
         $this->status = WorkflowStatus::Completed;
     }
 
@@ -70,27 +63,7 @@ class WorkflowState
 
     public function getInterruptRequest(): ?InterruptRequest
     {
-        return $this->interruptRequests === []
-            ? null
-            : array_values($this->interruptRequests)[0];
-    }
-
-    /** @return array<int, InterruptRequest> */
-    public function getInterruptRequests(): array
-    {
-        return $this->interruptRequests;
-    }
-
-    /** @return ResumeInputResult[] */
-    public function getInputResults(): array
-    {
-        return $this->inputResults;
-    }
-
-    /** @param ResumeInputResult[] $results */
-    public function setInputResults(array $results): void
-    {
-        $this->inputResults = $results;
+        return $this->interruptRequest;
     }
 
     public function getStatus(): WorkflowStatus

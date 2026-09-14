@@ -39,7 +39,6 @@ use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\Filter\RawFilter;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -137,10 +136,7 @@ class LogListener
     protected function serializeWorkflowInterrupted(WorkflowInterrupted $data): array
     {
         return [
-            'interrupts' => array_map(
-                static fn (InterruptRequest $request): array => $request->jsonSerialize(),
-                array_values($data->state->getInterruptRequests()),
-            ),
+            'interrupt' => $data->state->getInterruptRequest()?->jsonSerialize(),
         ];
     }
 

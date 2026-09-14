@@ -165,7 +165,7 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
             ->setPersistence($persistence)
-            ->resume([$first->getInterruptRequest()->getId() => []])->events();
+            ->resume([])->events();
 
         iterator_to_array($generator);
 
@@ -203,7 +203,7 @@ class WorkflowStreamingTest extends TestCase
             ->withDeclaredWorkflowId('streamed-replay')
             ->setPersistence($persistence)
             ->resume(
-                [],
+                null,
                 expectedRunId: $first->getRunId(),
                 expectedExecutionAttempt: $first->getExecutionAttempt(),
             )->events();
@@ -213,6 +213,6 @@ class WorkflowStreamingTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
         $this->assertTrue($state->get('node_one_executed'));
-        $this->assertGreaterThan($first->getExecutionAttempt(), $state->getExecutionAttempt());
+        $this->assertSame($first->getExecutionAttempt(), $state->getExecutionAttempt());
     }
 }

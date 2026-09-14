@@ -146,7 +146,7 @@ failure, so it is deliberately **not** an `AgentError`:
 use NeuronAI\Observability\Events\WorkflowInterrupted;
 
 $agent->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event): void {
-    foreach ($event->state->getInterruptRequests() as $request) {
+    if ($request = $event->state->getInterruptRequest()) {
         $alerts->notify("Waiting for input: {$request->getMessage()}");
     }
 });

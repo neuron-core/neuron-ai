@@ -400,7 +400,7 @@ class TransferMoneyTool extends Tool
 
 The default is `false` (no approval). Whoever attaches the tool can override the declaration in both directions with `requireApproval()`, `suppressApproval()`, or `withApprovalPolicy()`. The last configured override wins.
 
-Use the **neuron-tool-approval** skill for the rest of the flow: enabling persistence, rendering the approve/deny UI from chat history, and submitting decisions.
+Submit approval decisions with `Agent::submitApprovalDecisions($decisions)->run()` and deferred execution outcomes with `Agent::submitToolResults($results)->run()`; use `events()` for streaming. Both accept maps keyed by tool call ID. Use the **neuron-tool-approval** skill for the rest of the flow: enabling persistence, rendering the approve/deny UI from chat history, and submitting decisions.
 
 ## Creating Toolkits
 

@@ -44,14 +44,13 @@ interface StreamAdapterInterface
      * Protocol suspension sequence, consumed instead of end() when the run
      * pauses for external input.
      *
-     * Adapters encode the active requests so the client learns what the run
+     * Adapters encode the current request so the client learns what the run
      * is waiting for, including any termination frames. Return an empty
      * iterable if the protocol cannot express a pause.
      *
-     * @param array<int, InterruptRequest> $requests The active requests, keyed by interrupt ID.
      * @return iterable<ProtocolEvent>
      */
-    public function suspended(array $requests): iterable;
+    public function suspended(InterruptRequest $request): iterable;
 
     /**
      * Protocol failure sequence, consumed instead of end() when streaming fails.

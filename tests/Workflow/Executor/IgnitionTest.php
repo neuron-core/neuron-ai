@@ -64,7 +64,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
         $this->assertNotNull($persistence->get('ign_sweep', '__ignition'));
 
-        $state = $workflow->resume([1 => ['answer' => 42]])->run();
+        $state = $workflow->resume(['answer' => 42])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(42, $state->get('answer'));
@@ -83,7 +83,7 @@ class IgnitionTest extends TestCase
 
             // A blank instance: same factory shape, workflow ID only — no start event set.
             $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
-            $state = $second->resume([1 => ['answer' => 42]])->run();
+            $state = $second->resume(['answer' => 42])->run();
 
             $this->assertFalse($state->isInterrupted());
             // The node replayed with the ADOPTED event: without adoption the
@@ -120,7 +120,7 @@ class IgnitionTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'ign_unknown'");
 
-        $workflow->resume([1 => ['answer' => 1]])->run();
+        $workflow->resume(['answer' => 1])->run();
     }
 
     public function test_ignition_and_steps_share_the_workflow_persistence_under_a_custom_executor(): void

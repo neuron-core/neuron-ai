@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Stub;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
-
-use function count;
 
 /**
  * Deterministic protocol adapter: unlike AGUIAdapter it generates no random
@@ -39,9 +38,9 @@ class ParityAdapter implements StreamAdapterInterface
         yield new ProtocolEvent('error', ['message' => $error->getMessage()]);
     }
 
-    public function suspended(array $requests): iterable
+    public function suspended(InterruptRequest $request): iterable
     {
-        yield new ProtocolEvent('suspended', ['requests' => count($requests)]);
+        yield new ProtocolEvent('suspended', ['request' => $request->getId()]);
     }
 
     public function end(): iterable

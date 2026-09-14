@@ -118,18 +118,15 @@ class LogListenerTest extends TestCase
         ], $logger->records);
     }
 
-    public function test_interruption_logs_the_complete_request_list(): void
+    public function test_interruption_logs_the_current_request(): void
     {
         $state = new WorkflowState();
-        $state->markAsSuspended([
-            1 => (new ApprovalRequest('first'))->withId(1),
-            2 => (new ApprovalRequest('second'))->withId(2),
-        ]);
+        $state->markAsSuspended((new ApprovalRequest('first'))->withId(1));
 
         $logger = $this->recordingLogger();
         (new LogListener($logger))(new WorkflowInterrupted($state));
 
-        $this->assertSame([1, 2], array_column($logger->records[0]['context']['interrupts'], 'interruptId'));
+        $this->assertSame(1, $logger->records[0]['context']['interrupt']['interruptId']);
     }
 
     public function test_retrieving_logs_filter_structure_without_values(): void

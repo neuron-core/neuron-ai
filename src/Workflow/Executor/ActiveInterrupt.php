@@ -17,6 +17,7 @@ final class ActiveInterrupt
 {
     public function __construct(
         public readonly InterruptRequest $request,
+        public readonly string $stepId,
         public readonly ?ResumeInput $input = null,
     ) {
     }
@@ -37,6 +38,6 @@ final class ActiveInterrupt
             return $this;
         }
 
-        return new self($this->request, $input);
+        return new self($this->request, $this->stepId, $input);
     }
 }

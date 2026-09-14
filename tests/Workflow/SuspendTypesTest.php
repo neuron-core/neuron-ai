@@ -89,7 +89,7 @@ class SuspendTypesTest extends TestCase
         $workflow->run();
 
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
-        $this->expectExceptionMessage("is waiting for signal 'other.event'");
+        $this->expectExceptionMessage("is not waiting for signal 'other.event'");
 
         $workflow->signal('other.event')->run();
     }
@@ -188,7 +188,7 @@ class SuspendTypesTest extends TestCase
         $this->expectException(\NeuronAI\Exceptions\WorkflowException::class);
         $this->expectExceptionMessage("incompatible with interrupt 1");
 
-        $workflow->resume([1 => []])->run();
+        $workflow->resume([])->run();
     }
 
     public function test_wait_for_event_survives_file_persistence_serialization(): void

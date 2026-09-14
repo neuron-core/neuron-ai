@@ -17,8 +17,6 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
-use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -75,7 +73,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      * resume() must keep its inputs until execution, along with any
      * run/attempt checks that prevent delivery to a changed run.
      *
-     * @var array{inputs: array<int, array<string, mixed>>, runId: string|null, executionAttempt: int|null}|null
+     * @var array{payload: array<string, mixed>|null, runId: string|null, executionAttempt: int|null}|null
      */
     protected ?array $stagedInputs = null;
 
@@ -388,19 +386,20 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
-     * Stage payloads keyed by interruption ID. Empty inputs recover or process due timers.
+     * Answer the current interruption. Omit the payload to recover or process its deadline.
+     * An empty array is an answer, while null supplies no answer.
      *
-     * @param array<int, array<string, mixed>> $inputs
+     * @param array<string, mixed>|null $payload
      * @throws WorkflowException
      */
     public function resume(
-        array $inputs = [],
+        ?array $payload = null,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): static {
         $this->assertNoStagedOperation();
         $this->stagedInputs = [
-            'inputs' => $inputs,
+            'payload' => $payload,
             'runId' => $expectedRunId,
             'executionAttempt' => $expectedExecutionAttempt,
         ];
@@ -408,6 +407,8 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * Answer the current interruption only if its event name matches.
+     *
      * @param array<string, mixed> $payload
      * @throws WorkflowException
      */
@@ -435,14 +436,14 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
             throw new InputTranslationException('There is no persisted run to continue.');
         }
 
-        $inputs = $translator->translate($payload, $run->interrupts);
-        if ($inputs === []) {
-            throw new InputTranslationException('The payload contains no matching continuation input.');
+        if ($run->interrupt === null) {
+            throw new InputTranslationException('There is no current interruption to answer.');
         }
+        $response = $translator->translate($payload, $run->interrupt);
 
         // Keep the inspected identity: another continuation may advance the run
         // between submission and execution, making these inputs stale.
-        return $this->resume($inputs, $run->runId, $run->executionAttempt);
+        return $this->resume($response, $run->runId, $run->executionAttempt);
     }
 
     /**
@@ -456,17 +457,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
         if ($this->stagedInputs !== null) {
             $continuation = $this->stagedInputs;
             $this->stagedInputs = null;
-            $inputs = [];
-            foreach ($continuation['inputs'] as $interruptId => $payload) {
-                $inputs[] = ResumeInput::fromArray([
-                    'interruptId' => $interruptId,
-                    'kind' => ResumeType::Event->value,
-                    'payload' => $payload,
-                ]);
-            }
             return $this->forwardEvents($this->getExecutor()->resume(
                 $this,
-                $inputs,
+                $continuation['payload'],
                 $continuation['runId'],
                 $continuation['executionAttempt'],
             ));
@@ -514,7 +507,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
         $state = $this->getState();
         if ($state->isInterrupted()) {
-            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->suspended($state->getInterruptRequests())) as $output) {
+            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->suspended($state->getInterruptRequest())) as $output) {
                 yield $output;
             }
             $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->suspended(clone $state));

@@ -6,6 +6,8 @@ namespace NeuronAI\Tests\Workflow\Persistence;
 
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Workflow\Executor\StepResult;
+use NeuronAI\Workflow\Events\InterruptEvent;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\IgbinarySerializer;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\Assert;
@@ -20,7 +22,7 @@ final class SerializerTest extends TestCase
     {
         return new StepResult(
             stepId: 'step-1',
-            interruptId: 1,
+            event: InterruptEvent::fromRequest((new WaitForEventRequest('approval'))->withId(1)),
         );
     }
 

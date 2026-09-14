@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Workflow\Executor;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingWaitNode;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
@@ -36,7 +35,7 @@ class AcceptedResumeInputTest extends TestCase
         self::assertNotNull($request);
 
         try {
-            $this->workflow(true)->resume([$request->getId() => $payload])->run();
+            $this->workflow(true)->resume($payload)->run();
             self::fail('Expected the node to fail after accepting its input.');
         } catch (RuntimeException $e) {
             self::assertSame('Failed after memoizing the accepted answer.', $e->getMessage());
@@ -52,7 +51,7 @@ class AcceptedResumeInputTest extends TestCase
     public function test_duplicate_delivery_recovers_with_the_accepted_answer(array $payload): void
     {
         $request = $this->failAfterAcceptingInput($payload);
-        $state = $this->workflow()->resume([$request->getId() => $payload])->run();
+        $state = $this->workflow()->resume($payload)->run();
 
         self::assertEquals($payload, $state->get('payload'));
         self::assertEquals($state->get('payload'), $state->get('memo'));
@@ -77,19 +76,13 @@ class AcceptedResumeInputTest extends TestCase
         self::assertSame($state->get('payload'), $state->get('memo'));
     }
 
-    /** @dataProvider conflictingInputProvider */
-    public function test_conflicting_input_preserves_the_accepted_answer(bool $expired): void
+    public function test_conflicting_input_preserves_the_accepted_answer(): void
     {
         $request = $this->failAfterAcceptingInput();
         $control = $this->persistence->get('accepted-input', '__control');
-        $input = $expired
-            ? ResumeInput::expired($request)
-            : ResumeInput::event($request, ['answer' => 'replacement']);
 
         try {
-            $workflow = $this->workflow();
-            $events = (new \NeuronAI\Workflow\Executor\WorkflowExecutor())->resume($workflow, [$input]);
-            iterator_to_array($events);
+            $this->workflow()->resume(['answer' => 'replacement'])->run();
             self::fail('Expected conflicting resume input to be rejected.');
         } catch (WorkflowException $e) {
             self::assertStringContainsString('already has an accepted input', $e->getMessage());
@@ -101,9 +94,4 @@ class AcceptedResumeInputTest extends TestCase
         self::assertSame($state->get('payload'), $state->get('memo'));
     }
 
-    /** @return array<string, array{bool}> */
-    public static function conflictingInputProvider(): array
-    {
-        return ['payload' => [false], 'kind' => [true]];
-    }
 }

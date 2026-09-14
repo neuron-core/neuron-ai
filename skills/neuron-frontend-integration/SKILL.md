@@ -1,6 +1,6 @@
 ---
 name: neuron-frontend-integration
-description: Connect a Neuron AI agent to a real frontend that executes tools in the browser — declaring deferred (frontend) tools, building the endpoint that serves a new turn or continues a suspended run, translating tool results and approval decisions coming from the Vercel AI SDK (useChat), the official AG-UI client, or CopilotKit (useFrontendTool, useInterrupt, runtime bridge), and handling partial results, retries, reloads, restarts and errors. Use this skill whenever the user mentions frontend tools, client-side tools, browser tools, DeferredTool, tool results from the frontend, AG-UI, CopilotKit, Vercel AI SDK, useChat, addToolOutput, addToolApprovalResponse, sendAutomaticallyWhen, useFrontendTool, useInterrupt, HttpAgent, AGUIInputTranslator, VercelAIInputTranslator, submitInputs with a frontend payload, or asks which versions of these libraries Neuron supports.
+description: Connect a Neuron AI agent to a real frontend that executes tools in the browser — declaring deferred (frontend) tools, building the endpoint that serves a new turn or continues a suspended run, translating tool results and approval decisions coming from the Vercel AI SDK (useChat), the official AG-UI client, or CopilotKit (useFrontendTool, useInterrupt, runtime bridge), and handling partial results, retries, reloads, restarts and errors. Use this skill whenever the user mentions frontend tools, client-side tools, browser tools, DeferredTool, tool results from the frontend, AG-UI, CopilotKit, Vercel AI SDK, useChat, addToolOutput, addToolApprovalResponse, sendAutomaticallyWhen, useFrontendTool, useInterrupt, HttpAgent, AGUIInputTranslator, VercelAIInputTranslator, submitToolResults, submitApprovalDecisions, submitInputs with a frontend payload, or asks which versions of these libraries Neuron supports.
 ---
 
 # Neuron AI Frontend Integration
@@ -11,7 +11,7 @@ Every example and every behavioural claim below is proven by the integration sui
 
 ## The Mental Model
 
-A **deferred tool** is a tool the model may call but the backend cannot execute. When the model calls one, `ToolNode` executes the local tools of the batch, then **suspends the run** with a `ToolResultsRequest` carrying the calls that wait for the frontend. The stream adapter (`AGUIAdapter` or `VercelAIAdapter`, see the **neuron-streaming** skill for how adapters shape output and how channels push it) publishes those calls in the protocol's vocabulary, the browser executes them, and the client library sends the outcomes back over HTTP. The endpoint rebuilds the agent, translates the payload into engine inputs with `submitInputs($payload, $translator)`, and continues with `events()`. The next inference sees the results as ordinary tool result messages.
+A **deferred tool** is a tool the model may call but the backend cannot execute. When the model calls one, `ToolNode` executes the local tools of the batch, then `AwaitToolResultsNode` **suspends the run** with a `ToolResultsRequest` carrying the calls that wait for the frontend. The stream adapter (`AGUIAdapter` or `VercelAIAdapter`, see the **neuron-streaming** skill for how adapters shape output and how channels push it) publishes those calls in the protocol's vocabulary, the browser executes them, and the client library sends the outcomes back over HTTP. The endpoint rebuilds the agent and continues with `submitToolResults($results)->events()` for a native result map. Raw SDK envelopes use `submitInputs($payload, $translator)->events()` so the protocol translator can extract the responses. The next inference sees the results as ordinary tool result messages.
 
 Three identities, never interchangeable:
 
@@ -58,6 +58,43 @@ Where the catalog comes from differs by protocol:
 
 A deferred tool can require approval like any other: `$tool->requireApproval()`. The run then suspends first with an `ApprovalRequest`; after approval it suspends again with the `ToolResultsRequest`, and only then does the frontend handler run. A rejection never reaches the frontend: the call is stamped with an instruction string for the model and inference continues.
 
+### Native application payloads
+
+For a custom frontend that sends maps keyed by tool call ID, use the Agent methods
+directly. No event name, interruption ID or native translator is required:
+
+```php
+// Answer the current tool approval request.
+$state = $agent->submitApprovalDecisions([
+    'call_123' => 'approve',
+    'call_456' => ['reject', 'Do not share this page'],
+])->run();
+
+// On a later request, after the approved frontend tool has executed:
+$frames = $agent->submitToolResults([
+    'call_123' => ['result' => ['title' => 'Example']],
+])->events();
+```
+
+Each result entry contains exactly one `result` (any JSON-compatible value,
+including `false`, `0` and `null`) or `error` (a string). For example,
+`['call_123' => ['error' => 'Browser operation cancelled']]` reports execution
+failure. Partial results are retained and the agent waits for the remaining calls.
+Approval and execution are separate phases: a result cannot answer an approval.
+
+Both methods stage a continuation. Finish with `run()` for `AgentState` or
+`events()` to stream; do not call `chat()` or `stream()` to deliver these maps.
+Reconstruct the same thread, durable history and persistence on every request.
+Missing runs, unknown call IDs and invalid maps fail before execution.
+
+### Raw SDK payloads
+
+AG-UI `messages`/`resume` and Vercel `messages`/`parts` are protocol envelopes,
+not native result maps. Keep the corresponding protocol translator in the
+endpoints below. Do not pass the raw envelope to `submitToolResults()` or
+`submitApprovalDecisions()`. If an application already produces a native map,
+use the methods above instead of constructing a native translator.
+
 ### The endpoint
 
 Reconstruct a fresh agent on every request from durable persistence and history; nothing may depend on the previous PHP object.
@@ -68,9 +105,9 @@ use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
 $agent = Agent::make()
-    ->setChatHistory(new SQLChatHistory($pdo, $threadId));
-    ->setPersistence(new DatabasePersistence($pdo));
-    ->setAiProvider($provider);
+    ->setChatHistory(new SQLChatHistory($pdo, $threadId))
+    ->setPersistence(new DatabasePersistence($pdo))
+    ->setAiProvider($provider)
     ->addTool($backendTools);
 
 foreach ($frontendTools as $tool) {

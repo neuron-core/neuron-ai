@@ -179,9 +179,7 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->resume([
-                $request->getId() => $payload,
-            ])->run();
+            $state = $this->agent->resume($payload)->run();
         }
     }
 

@@ -34,33 +34,31 @@ class InputTranslatorTest extends TestCase
             ['role' => 'tool', 'toolCallId' => 'old', 'content' => 'Earlier result'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'Failure', 'error' => 'Permission denied'],
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => '{"title":"Page"}'],
-        ]], [$request]);
-        $this->assertCount(1, $inputs);
-        $this->assertSame(4, array_key_first($inputs));
+        ]], $request);
+        $this->assertCount(2, $inputs);
         $this->assertSame([
             'b' => ['error' => 'Permission denied'],
             'a' => ['result' => '{"title":"Page"}'],
-        ], $inputs[4]);
+        ], $inputs);
     }
 
     public function test_vercel_parts_preserve_json_values_and_ignore_prior_approval(): void
     {
         $translator = new VercelAIInputTranslator();
         $this->assertInstanceOf(InputTranslatorInterface::class, $translator);
-        $requests = [
-            (new ToolResultsRequest([new ToolCall('browser', 'a', deferred: true)]))->withId(4),
-            (new ToolResultsRequest([new ToolCall('browser', 'b', deferred: true)]))->withId(5),
-        ];
+        $request = (new ToolResultsRequest([
+            new ToolCall('browser', 'a', deferred: true),
+            new ToolCall('browser', 'b', deferred: true),
+        ]))->withId(4);
         $inputs = $translator->translate(['messages' => [[
             'role' => 'assistant', 'parts' => [
                 ['type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'approval-responded', 'approval' => ['id' => 'a', 'approved' => true]],
                 ['type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'output-available', 'output' => null],
                 ['type' => 'dynamic-tool', 'toolName' => 'browser', 'toolCallId' => 'b', 'state' => 'output-available', 'output' => ['visible' => false]],
             ],
-        ]]], $requests);
+        ]]], $request);
         $this->assertCount(2, $inputs);
-        $this->assertSame(['a' => ['result' => null]], $inputs[4]);
-        $this->assertSame(['b' => ['result' => ['visible' => false]]], $inputs[5]);
+        $this->assertSame(['a' => ['result' => null], 'b' => ['result' => ['visible' => false]]], $inputs);
     }
 
     public function test_vercel_error_part_becomes_an_error_result(): void
@@ -70,8 +68,8 @@ class InputTranslatorTest extends TestCase
             'role' => 'assistant', 'parts' => [[
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'output-error', 'errorText' => 'GPS unavailable',
             ]],
-        ]]], [$request]);
-        $this->assertSame(['a' => ['error' => 'GPS unavailable']], $inputs[1]);
+        ]]], $request);
+        $this->assertSame(['a' => ['error' => 'GPS unavailable']], $inputs);
     }
 
     public function test_agui_folds_all_approval_responses_into_one_engine_input(): void
@@ -80,10 +78,9 @@ class InputTranslatorTest extends TestCase
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [
             ['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => true]],
             ['interruptId' => 'b', 'status' => 'cancelled'],
-        ], 'messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'approved']]], [$request]);
-        $this->assertCount(1, $inputs);
-        $this->assertSame(7, array_key_first($inputs));
-        $this->assertSame(['a' => 'approve', 'b' => 'reject'], $inputs[7]);
+        ], 'messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'approved']]], $request);
+        $this->assertCount(2, $inputs);
+        $this->assertSame(['a' => 'approve', 'b' => 'reject'], $inputs);
     }
 
     public function test_vercel_partial_approval_only_translates_submitted_decisions(): void
@@ -97,8 +94,8 @@ class InputTranslatorTest extends TestCase
                 'type' => 'tool-browser', 'toolCallId' => 'b', 'state' => 'approval-responded',
                 'approval' => ['id' => 'b', 'approved' => false, 'reason' => 'No thanks'],
             ]],
-        ]]], [$request]);
-        $this->assertSame(['b' => ['reject', 'No thanks']], $inputs[8]);
+        ]]], $request);
+        $this->assertSame(['b' => ['reject', 'No thanks']], $inputs);
     }
 
     public function test_agui_cancelling_a_deferred_interrupt_settles_every_pending_call(): void
@@ -108,11 +105,11 @@ class InputTranslatorTest extends TestCase
         ]))->withId(9);
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [
             ['interruptId' => '9', 'status' => 'cancelled'],
-        ]], [$request]);
+        ]], $request);
         $this->assertSame([
             'a' => ['error' => 'Frontend tool execution cancelled.'],
             'b' => ['error' => 'Frontend tool execution cancelled.'],
-        ], $inputs[9]);
+        ], $inputs);
     }
 
     public function test_agui_generic_event_resume_uses_the_same_interface(): void
@@ -120,9 +117,8 @@ class InputTranslatorTest extends TestCase
         $request = (new WaitForEventRequest('custom.event'))->withId(12);
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [
             ['interruptId' => '12', 'status' => 'resolved', 'payload' => ['value' => 42]],
-        ]], [$request]);
-        $this->assertSame(12, array_key_first($inputs));
-        $this->assertSame(['value' => 42], $inputs[12]);
+        ]], $request);
+        $this->assertSame(['value' => 42], $inputs);
     }
 
     public function test_agui_catalog_creates_schema_tools_without_attaching_them(): void
@@ -145,7 +141,7 @@ class InputTranslatorTest extends TestCase
         (new AGUIInputTranslator())->translate(['messages' => [
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'changed'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
-        ]], [$request]);
+        ]], $request);
     }
 
     /** @return iterable<string, array{array<string, mixed>}> */
@@ -165,7 +161,7 @@ class InputTranslatorTest extends TestCase
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')]))->withId(1);
         $this->expectException(InputTranslationException::class);
-        (new AGUIInputTranslator())->translate($payload, [$request]);
+        (new AGUIInputTranslator())->translate($payload, $request);
     }
 
     public function test_vercel_output_cannot_bypass_approval(): void
@@ -176,7 +172,7 @@ class InputTranslatorTest extends TestCase
             'role' => 'assistant', 'parts' => [[
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'output-available', 'output' => 'done',
             ]],
-        ]]], [$request]);
+        ]]], $request);
     }
 
     public function test_conflicting_duplicate_results_are_rejected(): void
@@ -186,7 +182,7 @@ class InputTranslatorTest extends TestCase
         (new AGUIInputTranslator())->translate(['messages' => [
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'one'],
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'two'],
-        ]], [$request]);
+        ]], $request);
     }
 
     public function test_identical_duplicate_and_accepted_results_are_safe_to_restate(): void
@@ -198,15 +194,15 @@ class InputTranslatorTest extends TestCase
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'original'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
-        ]], [$request]);
-        $this->assertSame(['a' => ['result' => 'original'], 'b' => ['result' => 'new']], $inputs[4]);
+        ]], $request);
+        $this->assertSame(['a' => ['result' => 'original'], 'b' => ['result' => 'new']], $inputs);
     }
 
     public function test_expired_agui_resume_is_rejected(): void
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')], new DateTimeImmutable('-1 minute')))->withId(1);
         $this->expectException(InputTranslationException::class);
-        (new AGUIInputTranslator())->translate(['resume' => [['interruptId' => 'a', 'status' => 'cancelled']]], [$request]);
+        (new AGUIInputTranslator())->translate(['resume' => [['interruptId' => 'a', 'status' => 'cancelled']]], $request);
     }
 
     public function test_resolved_agui_deferred_batch_accepts_a_result_map(): void
@@ -214,8 +210,8 @@ class InputTranslatorTest extends TestCase
         $request = (new ToolResultsRequest([new ToolCall('browser', 'a', deferred: true)]))->withId(3);
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [[
             'interruptId' => '3', 'status' => 'resolved', 'payload' => ['a' => ['result' => false]],
-        ]]], [$request]);
-        $this->assertSame(['a' => ['result' => false]], $inputs[3]);
+        ]]], $request);
+        $this->assertSame(['a' => ['result' => false]], $inputs);
     }
 
     public function test_duplicate_catalog_names_are_rejected(): void
@@ -228,7 +224,7 @@ class InputTranslatorTest extends TestCase
     public function test_null_message_list_is_rejected(): void
     {
         $this->expectException(InputTranslationException::class);
-        (new VercelAIInputTranslator())->translate(['messages' => null], []);
+        (new VercelAIInputTranslator())->translate(['messages' => null], new WaitForEventRequest('event'));
     }
 
     public function test_vercel_approval_must_identify_the_published_approval(): void
@@ -240,7 +236,7 @@ class InputTranslatorTest extends TestCase
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'approval-responded',
                 'approval' => ['id' => 'other', 'approved' => true],
             ]],
-        ]]], [$request]);
+        ]]], $request);
     }
 
 
@@ -254,8 +250,8 @@ class InputTranslatorTest extends TestCase
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'approval-responded',
                 'approval' => ['id' => 'a', 'approved' => false],
             ]],
-        ]]], [$request]);
-        $this->assertSame(['a' => 'reject'], $inputs[8]);
+        ]]], $request);
+        $this->assertSame(['a' => 'reject'], $inputs);
     }
 
 }

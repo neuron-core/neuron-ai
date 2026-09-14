@@ -206,7 +206,7 @@ class EventDispatcherTest extends TestCase
         $this->assertSame([], $errors);
 
         // Resuming to completion fires no further interruption event.
-        $state = $workflow->resume([1 => ['approved' => true]])->run();
+        $state = $workflow->resume(['approved' => true])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $interrupted);

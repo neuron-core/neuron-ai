@@ -27,24 +27,29 @@ interface WorkflowInterface
     public function run(): WorkflowState;
 
     /**
-     * Stage payloads keyed by interruption ID; empty inputs recover or process due timers.
+     * Answer the current interruption; omit the payload to recover or process its deadline.
+     * An empty array is an answer, while null supplies no answer.
      *
-     * @param array<int, array<string, mixed>> $inputs
+     * @param array<string, mixed>|null $payload
      */
     public function resume(
-        array $inputs = [],
+        ?array $payload = null,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
     ): static;
 
     /**
-     * Translate against persisted requests and stage inputs for run() or events().
+     * Translate against the current persisted request and stage its response for run() or events().
      *
      * @param array<array-key, mixed> $payload
      */
     public function submitInputs(array $payload, InputTranslatorInterface $translator): static;
 
-    /** @param array<string, mixed> $payload */
+    /**
+     * Answer the current interruption only if its event name matches.
+     *
+     * @param array<string, mixed> $payload
+     */
     public function signal(string $event, array $payload = []): static;
 
     /** Conditionally purge a retained completed generation. */

@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Executor;
 
 use Amp\Future;
 use Generator;
+use NeuronAI\Workflow\Events\BranchPausedEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\ParallelEvent;
@@ -15,9 +16,7 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use Throwable;
-
 use function Amp\async;
-use function array_push;
 
 /**
  * Executor that runs parallel branches concurrently using Amp fibers.
@@ -48,7 +47,7 @@ class AsyncExecutor extends WorkflowExecutor
     /**
      * Override to run branches as concurrent Amp futures.
      *
-     * @return Generator<int, Event, mixed, ParallelEvent|InterruptEvent>
+     * @return Generator<int, Event, mixed, ParallelEvent|BranchPausedEvent>
      * @throws Throwable
      */
     protected function executeBranches(
@@ -71,7 +70,7 @@ class AsyncExecutor extends WorkflowExecutor
             );
         }
 
-        $requests = [];
+        $paused = false;
         $firstError = null;
 
         // Drain every branch before propagating an exception so no failed
@@ -91,8 +90,8 @@ class AsyncExecutor extends WorkflowExecutor
                         continue;
                     }
 
-                    if ($result->interrupt instanceof InterruptEvent) {
-                        array_push($requests, ...$result->interrupt->requests);
+                    if ($result->paused) {
+                        $paused = true;
                     } else {
                         $parallelEvent->setResult($branchId, $result->result);
                     }
@@ -106,8 +105,13 @@ class AsyncExecutor extends WorkflowExecutor
             throw $firstError;
         }
 
-        if ($requests !== []) {
-            return new InterruptEvent($requests);
+        // Branches deferred while routing an accepted reply can now continue.
+        if ($paused && !$this->shouldPause() && $this->store->control()->interrupt === null) {
+            return yield from $this->executeBranches($workflow, $parallelEvent, $forkStepId);
+        }
+
+        if ($paused || $this->shouldPause()) {
+            return new BranchPausedEvent();
         }
 
         return $parallelEvent;
@@ -130,7 +134,7 @@ class AsyncExecutor extends WorkflowExecutor
 
         return new BranchResult(
             result: $terminal instanceof StopEvent ? $terminal->getResult() : null,
-            interrupt: $terminal instanceof InterruptEvent ? $terminal : null,
+            paused: $terminal instanceof InterruptEvent || $terminal instanceof BranchPausedEvent,
         );
     }
 }

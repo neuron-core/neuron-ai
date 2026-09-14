@@ -22,22 +22,18 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Interrupt\ResumeInputResult;
-use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use stdClass;
-use function array_keys;
-use function array_map;
 
 class ParallelInterruptTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function test_multiple_interruptions_can_be_resolved_across_addressed_batches(): void
+    public function test_parallel_interruptions_are_answered_one_at_a_time(): void
     {
         $fork = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
@@ -54,30 +50,20 @@ class ParallelInterruptTest extends TestCase
 
         $first = $workflow->run();
         $this->assertSame(1, $first->getExecutionAttempt());
-        $this->assertSame([1, 2], array_keys($first->getInterruptRequests()));
+        $this->assertSame(1, $first->getInterruptRequest()->getId());
 
-        $partial = $workflow->resume([1 => []])->run();
+        $partial = $workflow->resume([])->run();
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
-        $this->assertSame([2], array_keys($partial->getInterruptRequests()));
+        $this->assertSame(2, $partial->getInterruptRequest()->getId());
 
-        $completed = $workflow->resume([
-            1 => [],
-            2 => [],
-        ])->run();
+        $completed = $workflow->resume([])->run();
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(3, $completed->getExecutionAttempt());
-        $this->assertSame(
-            [ResumeInputStatus::Stale, ResumeInputStatus::Accepted],
-            array_map(
-                fn (ResumeInputResult $result): ResumeInputStatus => $result->status,
-                $completed->getInputResults(),
-            ),
-        );
     }
 
-    public function test_named_signal_broadcasts_to_all_matching_interruptions(): void
+    public function test_named_signal_answers_only_the_current_interruption(): void
     {
         $fork = new class () extends Node {
             public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
@@ -95,14 +81,9 @@ class ParallelInterruptTest extends TestCase
         $workflow->run();
         $state = $workflow->signal('approval')->run();
 
-        $this->assertFalse($state->isInterrupted());
-        $this->assertSame(
-            [ResumeInputStatus::Accepted, ResumeInputStatus::Accepted],
-            array_map(
-                fn (ResumeInputResult $result): ResumeInputStatus => $result->status,
-                $state->getInputResults(),
-            ),
-        );
+        $this->assertTrue($state->isInterrupted());
+        $this->assertSame(2, $state->getInterruptRequest()->getId());
+        $this->assertFalse($workflow->signal('approval')->run()->isInterrupted());
     }
 
     public function test_partial_resume_does_not_rerun_unaddressed_interrupts(): void
@@ -142,7 +123,7 @@ class ParallelInterruptTest extends TestCase
             }
 
             $workflow->run();
-            $workflow->resume([1 => []])->run();
+            $workflow->resume([])->run();
 
             $this->assertSame(3, $counter->runs);
         }

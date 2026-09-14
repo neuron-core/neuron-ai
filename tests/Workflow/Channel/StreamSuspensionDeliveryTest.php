@@ -75,9 +75,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         $paused->expects($this->never())->method('transform');
         $paused->expects($this->once())->method('suspended')
             ->with($this->callback(
-                static fn (array $requests): bool => count($requests) === 1
-                    && $requests[1] instanceof ApprovalRequest
-                    && $requests[1]->getId() === 1,
+                static fn (ApprovalRequest $request): bool => $request->getId() === 1,
             ))
             ->willReturn([$pauseFrame]);
         $paused->expects($this->never())->method('end');
@@ -103,7 +101,7 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $state = $workflow
             ->setStreamAdapter($completed)
-            ->resume([$state->getInterruptRequest()->getId() => []])->run();
+            ->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame([$pauseFrame, $doneFrame], $channel->sent);
@@ -137,7 +135,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         // The instance is reset at the segment boundary, so the continuation
         // is framed again instead of being silently suppressed.
         $delivered = count($channel->sent);
-        $state = $workflow->resume([$state->getInterruptRequest()->getId() => []])->run();
+        $state = $workflow->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($continuation, $this->types(array_slice($channel->sent, $delivered)));

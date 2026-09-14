@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Executor;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\WorkflowState;
 
 class StepResult
@@ -14,11 +15,6 @@ class StepResult
         protected string $stepId,
         protected ?Event $event = null,
         protected ?WorkflowState $state = null,
-        /**
-         * The active interrupt associated with this incomplete step. The request
-         * itself lives in WorkflowControl; this marker connects replay to it.
-         */
-        protected ?int $interruptId = null,
     ) {
     }
 
@@ -28,16 +24,14 @@ class StepResult
     }
 
     /**
-     * The completed step's terminal event. Interrupted marker records
-     * carry none — consuming one as a completed result is an executor
-     * bug, so this throws instead of null-propagating.
+     * The step's terminal event, including the persisted request when interrupted.
      *
      * @throws WorkflowException
      */
     public function getEvent(): Event
     {
         if (!$this->event instanceof Event) {
-            throw new WorkflowException("Step {$this->stepId} is a marker record and carries no event.");
+            throw new WorkflowException("Step {$this->stepId} carries no event.");
         }
 
         return $this->event;
@@ -66,14 +60,14 @@ class StepResult
 
     /**
      * The step's resulting state. Interrupted markers retain their state so
-     * an unaddressed interruption can be replayed without invoking its node.
+     * a deferred interruption can be replayed without invoking its node.
      *
      * @throws WorkflowException
      */
     public function getState(): WorkflowState
     {
         if (!$this->state instanceof WorkflowState) {
-            throw new WorkflowException("Step {$this->stepId} is a marker record and carries no state.");
+            throw new WorkflowException("Step {$this->stepId} carries no state.");
         }
 
         return $this->state;
@@ -81,12 +75,12 @@ class StepResult
 
     public function isInterrupted(): bool
     {
-        return $this->interruptId !== null;
+        return $this->event instanceof InterruptEvent;
     }
 
     public function getInterruptId(): ?int
     {
-        return $this->interruptId;
+        return $this->event instanceof InterruptEvent ? $this->event->request->getId() : null;
     }
 
     public function __serialize(): array
@@ -95,7 +89,6 @@ class StepResult
             'stepId' => $this->stepId,
             'event' => $this->event,
             'state' => $this->state,
-            'interruptId' => $this->interruptId,
         ];
     }
 
@@ -104,6 +97,5 @@ class StepResult
         $this->stepId = $data['stepId'];
         $this->event = $data['event'] ?? null;
         $this->state = $data['state'] ?? null;
-        $this->interruptId = $data['interruptId'] ?? null;
     }
 }

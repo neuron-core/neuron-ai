@@ -27,7 +27,7 @@ interface StreamingChannelInterface
     public function send(ProtocolEvent $event): void;
 
     /**
-     * Run segment ended with one or more active interrupt requests.
+     * Run segment ended with the current interruption.
      */
     public function suspended(WorkflowState $state): void;
 

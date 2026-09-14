@@ -14,59 +14,45 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 abstract class ToolInputTranslator implements InputTranslatorInterface
 {
     /**
-     * @param InterruptRequest[] $requests
-     * @return array<array-key, ApprovalRequest|ToolResultsRequest>
+     * @return array<array-key, true>
      * @throws InputTranslationException
      */
-    protected function toolRequests(array $requests): array
+    protected function toolCallIds(InterruptRequest $request): array
     {
-        $byCallId = [];
-        foreach ($requests as $request) {
-            if ($request instanceof ApprovalRequest) {
-                $ids = array_map(fn (Action $action): string => $action->id, $request->getActions());
-            } elseif ($request instanceof ToolResultsRequest) {
-                $ids = array_merge(
-                    array_keys($request->getResults()),
-                    array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()),
-                );
-            } else {
-                continue;
+        $ids = match (true) {
+            $request instanceof ApprovalRequest => array_map(fn (Action $action): string => $action->id, $request->getActions()),
+            $request instanceof ToolResultsRequest => array_merge(
+                array_keys($request->getResults()),
+                array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()),
+            ),
+            default => [],
+        };
+        $calls = [];
+        foreach ($ids as $id) {
+            if ($id === null || $id === '') {
+                throw new InputTranslationException('A tool call requires a non-empty call ID.');
             }
-            foreach ($ids as $id) {
-                if ($id === null || $id === '') {
-                    throw new InputTranslationException('A tool call requires a non-empty call ID.');
-                }
-                if (isset($byCallId[$id]) && $byCallId[$id] !== $request) {
-                    throw new InputTranslationException("Tool call '{$id}' belongs to multiple pending requests.");
-                }
-                $byCallId[$id] = $request;
-            }
+            $calls[$id] = true;
         }
-        return $byCallId;
+        return $calls;
     }
 
     /**
      * @param array<array-key, mixed> $payload
-     * @param InterruptRequest[] $requests
      * @param class-string<ApprovalRequest|ToolResultsRequest> $requestClass
-     * @return array<int, array<string, mixed>>
+     * @return array<string, mixed>
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    protected function translateCalls(array $payload, array $requests, string $requestClass): array
+    protected function translateCalls(array $payload, InterruptRequest $request, string $requestClass): array
     {
-        $byCallId = $this->toolRequests(array_filter(
-            $requests,
-            fn (InterruptRequest $request): bool => $request instanceof $requestClass,
-        ));
-        $answers = [];
+        $calls = $request instanceof $requestClass ? $this->toolCallIds($request) : [];
         foreach ($payload as $callId => $value) {
-            if (!isset($byCallId[$callId])) {
+            if (!isset($calls[$callId])) {
                 throw new InputTranslationException("No matching request for tool call '{$callId}'.");
             }
-            $this->answer($answers, $byCallId[$callId], (string) $callId, $value);
         }
-        return $this->inputs($requests, $answers);
+        return $this->inputs($request, $payload);
     }
 
     /**
@@ -107,34 +93,30 @@ abstract class ToolInputTranslator implements InputTranslatorInterface
     }
 
     /**
-     * @param array<int, array<string, mixed>> $answers
+     * @param array<string, mixed> $answers
      * @throws InputTranslationException
-     * @throws WorkflowException
      */
-    protected function answer(array &$answers, InterruptRequest $request, string $callId, mixed $value): void
+    protected function answer(array &$answers, string $callId, mixed $value): void
     {
-        $id = $request->getId();
-        if (array_key_exists($callId, $answers[$id] ?? []) && $answers[$id][$callId] !== $value) {
+        if (array_key_exists($callId, $answers) && $answers[$callId] !== $value) {
             throw new InputTranslationException("Conflicting responses for tool call '{$callId}'.");
         }
-        $answers[$id][$callId] = $value;
+        $answers[$callId] = $value;
     }
 
     /**
-     * @param InterruptRequest[] $requests
-     * @param array<int, array<string, mixed>> $answers
-     * @return array<int, array<string, mixed>>
+     * @param array<string, mixed> $answers
+     * @return array<string, mixed>
      * @throws WorkflowException
+     * @throws InputTranslationException
      */
-    protected function inputs(array $requests, array $answers): array
+    protected function inputs(InterruptRequest $request, array $answers): array
     {
-        foreach ($requests as $request) {
-            if (!array_key_exists($request->getId(), $answers)) {
-                continue;
-            }
-            if ($request instanceof ToolResultsRequest) {
-                $request->validateResults($answers[$request->getId()]);
-            }
+        if ($answers === []) {
+            throw new InputTranslationException('The payload contains no matching continuation input.');
+        }
+        if ($request instanceof ToolResultsRequest) {
+            $request->validateResults($answers);
         }
         return $answers;
     }

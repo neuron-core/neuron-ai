@@ -42,9 +42,9 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `stream($messages)` | Pull-stream `Generator` of native chunks, or `ProtocolEvent`s when an adapter is attached; `getReturn()` is the `AgentState` |
 | `structured($messages, $class)` | Eager: returns the typed output |
 | `run()` / `events()` | Execute staged intent; otherwise start or automatically recover a failed execution |
-| `resume($inputs = [], ...)` | Stage a durable continuation |
-| `submitInputs($payload, $translator)` | Translates against persisted interruptions and stages addressed inputs for the following `run()` or `events()` |
-| `submitApprovalDecisions($decisions)` | Shortcut for `submitInputs($decisions, new ApprovalTranslator())`: stages tool approval decisions keyed by call ID |
+| `resume($payload = null, ...)` | Stage a generic Workflow continuation or inputless recovery |
+| `submitApprovalDecisions($decisions)` | Stage approval decisions keyed by tool call ID; finish with `run()` or `events()` |
+| `submitToolResults($results)` | Stage deferred tool results keyed by tool call ID; finish with `run()` or `events()` |
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
@@ -112,7 +112,7 @@ protected function tools(): array
 }
 ```
 
-When a gated tool is requested, `chat()` returns suspended. A continuation submits decisions keyed by call ID with `submitApprovalDecisions()`, which wraps `submitInputs()` with the built-in `NeuronAI\Agent\Interrupt\ApprovalTranslator`:
+When a gated tool is requested, `chat()` returns suspended. A continuation submits decisions keyed by call ID with `submitApprovalDecisions()`:
 
 ```php
 $agent->submitApprovalDecisions([
@@ -123,7 +123,7 @@ $agent->submitApprovalDecisions([
 
 A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and ToolNode durably accumulates delivered decisions through step memos, regardless of the continuation entry point (explicit updates to the still-open batch win). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
 
-`submitInputs()` is inherited from Workflow and accepts any `InputTranslatorInterface`, including AG-UI, Vercel and custom formats. It reads the persisted run, rejects empty translations, and keeps its run/attempt fences until `run()` or `events()` consumes the inputs. A concurrent continuation invalidates that snapshot. No protocol-specific branching lives in Agent; see `Frontend/README.md`.
+`submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and keep its run/attempt fences until `run()` or `events()` consumes the response. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
 
 ## Tool run limits
 
@@ -153,11 +153,10 @@ $request = $state->getInterruptRequest();
 // Expose the pending ToolResultsRequest to the external executor.
 
 // A later request reconstructs the agent with the same thread, persistence and history.
-// Use NeuronAI\Agent\Interrupt\ToolResultsTranslator for the native result map.
-$state = $agent->submitInputs([
+$state = $agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
     'call_456' => ['error' => 'User cancelled the browser operation'],
-], new ToolResultsTranslator())->run(); // Or events() to stream the continuation.
+])->run(); // Or events() to stream the continuation.
 ```
 
 Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.
@@ -166,7 +165,7 @@ The dispatched batch remains valid even if its definitions are absent from the r
 
 The default wait has no deadline. A customized `AwaitToolResultsNode::buildRequest()` can supply a `ToolResultsRequest` deadline (memoize its initial value so partial resumes do not extend it). Workflow's normal expiry continuation settles only the outstanding calls as error results; scheduling that continuation remains the application's responsibility. `abandonRun()` refuses an unanswered tool call; submit error outcomes or explicitly reset the conversation.
 
-This is the native workflow contract. Translating AG-UI or Vercel schemas, execution requests and inbound results belongs in protocol integrations. Use the durable suspension request as the dispatch boundary; a live stream chunk alone does not prove suspension has committed.
+Use `submitToolResults($results)` for native result maps, including results sent by a custom frontend. Raw AG-UI and Vercel envelopes use their protocol translators through `submitInputs()`; do not pass a messages/parts envelope to the native methods. Use the durable suspension request as the dispatch boundary; a live stream chunk alone does not prove suspension has committed.
 
 ## The thread IS the workflow ID
 
@@ -183,7 +182,7 @@ SupportAgent::make(threadId: $threadId)
 
 // WorkflowId-first resume (background wake): the ignition record supplies the thread.
 SupportAgent::make(workflowId: $ticket->workflowId)
-    ->resume([$ticket->interruptId => $ticket->payload], expectedRunId: $ticket->runId)->run();
+    ->resume($ticket->payload, expectedRunId: $ticket->runId, expectedExecutionAttempt: $ticket->executionAttempt)->run();
 ```
 
 Identity is **always a developer statement; the framework never generates one**. It resolves from `make(threadId:)`, from adoption of a pre-bound history passed to `setChatHistory()` (which selects that conversation), or from the ignition record on a workflowId-first resume. Disagreeing non-null claims throw `AgentException`: a record contradicting an explicit claim is a misidentified continuation. Once resolved, the Agent binds the identity into an unbound history (`setThreadId()`, itself assign-once). A run without identity lives under an engine-generated workflow ID and is simply not findable by its thread; a hook-provided history that self-keys materializes after the ignition record is written, so it does not make a run thread-findable either.

@@ -39,14 +39,14 @@ class WorkflowInspectionTest extends TestCase
         $this->assertSame($before, serialize($persistence));
         $this->assertNull($reader->getRunId());
 
-        $request = array_values($run->interrupts)[0];
-        $workflow->resume([$request->getId() => []], $run->runId, $run->executionAttempt)->run();
+        $request = $run->interrupt;
+        $workflow->resume([], $run->runId, $run->executionAttempt)->run();
         $completed = (new WorkflowExecutor())->inspect($reader);
         $this->assertNotNull($completed);
         $this->assertSame(WorkflowStatus::Completed, $completed->status);
-        $this->assertSame([], $completed->interrupts);
+        $this->assertNull($completed->interrupt);
         $this->assertSame(WorkflowStatus::Suspended, $run->status);
-        $this->assertCount(1, $run->interrupts);
+        $this->assertNotNull($run->interrupt);
         $workflow->acknowledgeCompletion($run->runId);
         $this->assertNull((new WorkflowExecutor())->inspect($reader));
     }

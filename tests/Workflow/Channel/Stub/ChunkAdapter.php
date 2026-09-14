@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel\Stub;
 
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -36,7 +37,7 @@ class ChunkAdapter implements StreamAdapterInterface
         return [];
     }
 
-    public function suspended(array $requests): iterable
+    public function suspended(InterruptRequest $request): iterable
     {
         return [];
     }

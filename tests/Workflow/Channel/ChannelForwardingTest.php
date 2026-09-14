@@ -170,7 +170,7 @@ class ChannelForwardingTest extends TestCase
 
         $workflow->run();
         // An incomplete payload interrupts again with a new active request.
-        $workflow->resume([1 => ['partial' => true]])->run();
+        $workflow->resume(['partial' => true])->run();
 
         $this->assertCount(2, $channel->suspendedStates);
         $this->assertInstanceOf(ApprovalRequest::class, $channel->suspendedStates[0]->getInterruptRequest());
@@ -183,7 +183,7 @@ class ChannelForwardingTest extends TestCase
         );
         $this->assertCount(0, $channel->completions);
 
-        $state = $workflow->resume([2 => ['complete' => true]])->run();
+        $state = $workflow->resume(['complete' => true])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(2, $channel->suspendedStates);
@@ -235,7 +235,7 @@ class ChannelForwardingTest extends TestCase
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
         $workflow->setChannel($resumeSegment);
-        $state = $workflow->resume([1 => []])->run();
+        $state = $workflow->resume([])->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->sent);

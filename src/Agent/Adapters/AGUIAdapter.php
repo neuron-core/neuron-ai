@@ -417,8 +417,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         ]);
     }
 
-    /** @param array<int, InterruptRequest> $requests */
-    public function suspended(array $requests): iterable
+    public function suspended(InterruptRequest $request): iterable
     {
         if ($this->runFailed || $this->finished) {
             return;
@@ -430,31 +429,28 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             yield $frame;
         }
         $interrupts = [];
-        $frontendHandoff = array_filter($requests, fn (InterruptRequest $request): bool => !$request instanceof ToolResultsRequest) === [];
-        foreach ($requests as $request) {
-            if ($request instanceof ToolResultsRequest && $frontendHandoff) {
-                foreach ($request->getToolCalls() as $call) {
-                    foreach ($this->publishToolCall($call) as $frame) {
-                        yield $frame;
-                    }
+        if ($request instanceof ToolResultsRequest) {
+            foreach ($request->getToolCalls() as $call) {
+                foreach ($this->publishToolCall($call) as $frame) {
+                    yield $frame;
                 }
-            } elseif ($request instanceof ApprovalRequest) {
-                foreach ($request->getActions() as $action) {
-                    $interrupts[] = $this->withExpiry([
-                        'id' => $action->id,
-                        'reason' => 'confirmation',
-                        'message' => $action->reason ?? $request->getMessage(),
-                        'responseSchema' => [
-                            'type' => 'object',
-                            'properties' => ['approved' => ['type' => 'boolean'], 'reason' => ['type' => 'string']],
-                            'required' => ['approved'],
-                        ],
-                        'metadata' => $action->jsonSerialize(),
-                    ], $request);
-                }
-            } else {
-                $interrupts[] = $this->interrupt($request);
             }
+        } elseif ($request instanceof ApprovalRequest) {
+            foreach ($request->getActions() as $action) {
+                $interrupts[] = $this->withExpiry([
+                    'id' => $action->id,
+                    'reason' => 'confirmation',
+                    'message' => $action->reason ?? $request->getMessage(),
+                    'responseSchema' => [
+                        'type' => 'object',
+                        'properties' => ['approved' => ['type' => 'boolean'], 'reason' => ['type' => 'string']],
+                        'required' => ['approved'],
+                    ],
+                    'metadata' => $action->jsonSerialize(),
+                ], $request);
+            }
+        } else {
+            $interrupts[] = $this->interrupt($request);
         }
         if ($interrupts === []) {
             // Ordinary frontend tools return role:tool messages, not resume[].

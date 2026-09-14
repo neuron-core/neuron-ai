@@ -130,25 +130,27 @@ distinguish a fresh execution from continuation:
 |---|---|
 | `run()` | Start or recover a failed run and return its final `TState` (`WorkflowState` by default). |
 | `resume()->run()` | Continue without external input: evaluate due waits or recover a crashed/failed attempt. |
-| `resume($inputs, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Continue eagerly with payloads keyed by interruption ID. |
+| `resume($payload, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Answer the current interruption with one plain payload. |
 | `events()` | Start or recover a failed run and yield intermediate output; `getReturn()` is the final `TState`. |
-| `resume()->events()` / `resume($inputs, ...)->events()` | Stream an inputless or addressed continuation. |
+| `resume()->events()` / `resume($payload, ...)->events()` | Stream an inputless continuation or one response. |
 | `signal($name, $payload)->run()` | Deliver an application event, then continue eagerly. |
 | `signal($name, $payload)->events()` | Deliver an application event, then stream the continued segment. |
 | `abandonRun($expectedRunId?)` | Discard the run holding the workflow ID so a new one can ignite; `false` when nothing is in flight. Refuses a retained completion and a run under a fresh lease. |
 
-`resume()` accepts plain payload arrays keyed by positive interruption IDs:
-`resume([$request->getId() => $payload])->run()`. An empty payload for one wait
-is `[$id => []]`; an empty input map requests recovery or processing due deadlines.
-The executor constructs timer and expiry inputs internally.
+`resume($payload)` answers the current interruption. `resume([])` is an empty
+answer; `resume()` supplies no answer and handles recovery or due deadlines.
+Timer and expiry inputs are constructed internally.
 
-`signal()` is the application-facing shortcut for active `awaitEvent()`
-requests. It broadcasts to every active wait with that exact name and throws
-when none match; signals are not queued. Only one signal may be staged before
-the following terminal call.
+`signal($name, $payload)` answers that same current interruption only when its
+event name matches. A mismatch throws. Signals are not queued or broadcast.
+Only one continuation may be staged before the following terminal call.
 
 Continuation fences belong to `resume()`, including inputless continuations.
 Only one operation may be staged: `resume()`, `signal()`, or `submitInputs()`.
+For Agent tool approval and deferred tool results, use
+`submitApprovalDecisions($decisions)` and `submitToolResults($results)` instead,
+followed by `run()` or `events()`. The generic Workflow examples below remain
+useful for custom interruptions.
 
 ## Workflow State
 
@@ -213,7 +215,7 @@ By default, workflows use `InMemoryPersistence` — results are kept in memory a
 
 ### How It Works
 
-Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store. A run's records live in the partition named by its workflow ID; the run ID is a generation stamp inside that partition. Completed steps are replayed from cache and never re-executed; addressed interrupted steps continue; failed steps retry.
+Each completed node becomes a durable **step** persisted via `PersistenceInterface` — a single partitioned key-value store. A run's records live in the partition named by its workflow ID; the run ID is a generation stamp inside that partition. Completed steps are replayed from cache and never re-executed; the answered interrupted step continues; failed steps retry.
 
 After a caught failure, reconstruct the workflow with the same persistence and
 workflow ID and call `run()` or `events()`. A persisted failed execution is recovered
@@ -221,7 +223,7 @@ automatically, reusing completed steps and memoized operations.
 
 Use `resume()->run()` for explicit inputless continuation, including due timers,
 recovery of a process that died without recording failure, and retained outcomes.
-Use `resume($inputs, expectedRunId: $runId)->run()` for addressed delivery.
+Use `resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->run()` for fenced delivery.
 All staging methods are lazy; `run()` and `events()` take no arguments.
 
 ### Persistence Backends
@@ -308,7 +310,7 @@ Workflows support interruption for human intervention at any point.
 `InterruptRequest` is the canonical portable description of the pause. The
 executor clones it, assigns a positive run-scoped ID, persists it while active,
 and exposes that same ID-bound request to callers. Keep request fields
-serializable; inject live services into the node instead. On an addressed
+serializable; inject live services into the node instead. On a
 continuation, `interrupt()` returns the inbound payload array:
 
 ```php
@@ -408,19 +410,20 @@ $result = $state->get('result');
 ```
 
 Application-controlled event delivery normally uses the event name and workflow
-ID; `signal()` resolves the current matching requests internally:
+ID; `signal()` checks the current request's event name:
 
 ```php
 $state = $workflow->signal('payment.received', $payload)->run();
 ```
 
-Delayed, queued, or platform delivery addresses an interrupt explicitly and
-passes the earlier run ID so a stale delivery cannot reach a newer generation:
+Delayed, queued, or platform delivery supplies the observed run ID and execution
+attempt so a stale response cannot reach a later request:
 
 ```php
 $state = $workflow->resume(
-    [$request->getId() => $payload],
+    $payload,
     expectedRunId: $suspendedState->getRunId(),
+    expectedExecutionAttempt: $suspendedState->getExecutionAttempt(),
 )->run();
 ```
 
@@ -452,7 +455,7 @@ class OrderWorkflow extends Workflow
 $workflow = OrderWorkflow::make(orderId: $orderId)
     ->setPersistence($persistence);
 $pending = $workflow->resume()->run();
-$requests = $pending->getInterruptRequests();
+$request = $pending->getInterruptRequest();
 
 // Or deliver a known application signal directly.
 $state = $workflow
@@ -464,10 +467,10 @@ Rules: **one live run per workflow ID** — a plain `run()` starts or recovers a
 failed run and throws `RunInFlightException` when a live one holds the ID: a
 suspended run, a retained completion, or a running attempt whose lease has not
 expired. The exception carries `runId`, `status`, `executionAttempt`,
-`leaseExpiresAt`, and the active `interrupts`, and its message names the verb
+`leaseExpiresAt`, and the current `interrupt`, and its message names the verb
 that settles the state. A failed generation is recovered automatically.
 A running generation whose lease expired is swept on a new start. Settle a pending run with
-`signal(...)->run()` or `resume($inputs)->run()`, or discard it with `abandonRun()`.
+`signal(...)->run()` or `resume($payload)->run()`, or discard it with `abandonRun()`.
 Completed records are swept by default,
 so a later explicit continuation such as `resume()->run()` throws "No run in flight";
 a no-input `run()` may start a new generation. A continuation with no workflow
@@ -490,7 +493,7 @@ interruption model has two axes:
   `type()` remains inherited.
 
 On the first pass, `interrupt()`, `awaitEvent()`, and `sleepUntil()` pause the
-node internally. Once that interruption is addressed, execution re-enters the
+node internally. Once that interruption is answered, execution re-enters the
 node and the verb returns the inbound payload or timeout result—never the request
 object.
 
@@ -566,15 +569,14 @@ $payload = $this->interrupt(new QuotaRefreshRequest($customerId));
 
 ### Coordination stays outside Workflow core
 
-Workflow returns the complete active request set. The invoking application or
-platform reconciles subscriptions and timers, then sends addressed inputs when
-they arrive. There is no scheduler interface or scheduler state inside the
-workflow:
+Workflow returns one current request. The invoking application or platform
+reconciles its subscription or timer and returns one response when ready.
+There is no scheduler interface or scheduler state inside the workflow:
 
 ```php
 $state = $workflow->run();
 
-foreach ($state->getInterruptRequests() as $request) {
+if ($request = $state->getInterruptRequest()) {
     $platform->reconcile($state->getWorkflowId(), $state->getRunId(), $request);
 }
 ```
@@ -1034,34 +1036,26 @@ $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
 
 ### Parallel Branches with Interruptions
 
-Parallel branches fully support human-in-the-loop. The executor lets every
-reachable sibling branch finish or interrupt before the segment returns, so one
-state can expose several active requests. `AsyncExecutor` awaits all branch
-futures before returning the set; it does not stop at the first interruption.
+Parallel branches expose one interruption at a time. The normal executor stops
+at the first interruption. AsyncExecutor lets nodes already running finish and
+persist their result or interruption, then starts no further nodes. Streams are
+drained through that node's terminal result. A memo write is durable but does
+not suspend the node midway through its invocation.
 
-A continuation may address any subset. Addressed branches continue, completed
-branches stay cached, and unaddressed interrupted nodes are not rerun—their
-persisted requests remain in the returned active set. A platform may therefore
-deliver answers one at a time or batch all currently available answers. Each
-interrupt ID may occur only once in a continuation batch; settled or unknown
-IDs are reported as stale through `WorkflowState::getInputResults()`.
+Concurrent interruptions are persisted on their branch steps and exposed in
+arrival order. The current request blocks later requests, including deadlines.
+Deferred deadlines retain their original value and are evaluated only once the
+request becomes current. No live fibers survive a segment. Completed work is
+replayed from persistence, so a fresh process can continue the run.
 
 ```php
 $state = $workflow->run();
 
 if ($state->isInterrupted()) {
-    $requests = $state->getInterruptRequests();
-    $workflowId = $workflow->getWorkflowId();
-
-    // Address one request now; other active requests remain suspended.
-    $request = $requests[$interruptId];
-
-    $state = Workflow::make(workflowId: $workflowId)
-        ->setPersistence($persistence)
-        ->addNodes([...])
-        ->resume([
-            $request->getId() => ['answer' => $decision],
-        ])->run();
+    $request = $state->getInterruptRequest();
+    // Collect an answer for this request, then continue the same workflow.
+    $state = $workflow->resume(['answer' => $decision])->run();
+    // The result may expose the next request.
 }
 ```
 

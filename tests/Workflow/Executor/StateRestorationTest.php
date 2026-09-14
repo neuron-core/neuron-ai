@@ -75,7 +75,7 @@ class StateRestorationTest extends TestCase
         $this->assertSame(['main'], $resumed->restorations);
     }
 
-    public function test_unaddressed_interrupt_and_stale_input_checkpoint_restore_dependencies(): void
+    public function test_resumed_branch_and_unanswered_checkpoint_restore_dependencies(): void
     {
         $persistence = new InMemoryPersistence();
         $make = function () use ($persistence): RestoringStateWorkflow {
@@ -98,10 +98,10 @@ class StateRestorationTest extends TestCase
         $partial->signal('text', []);
         $state = $partial->run();
         $this->assertTrue($state->isInterrupted());
-        $this->assertContains('image:paused', $partial->restorations);
+        $this->assertContains('text', $partial->restorations);
 
         $stale = $make();
-        $checkpoint = $stale->resume([$textRequest->getId() => []])->run();
+        $checkpoint = $stale->resume()->run();
         $this->assertTrue($checkpoint->isInterrupted());
         $this->assertSame('restored', ($checkpoint->operation)());
         $this->assertSame(['main'], $stale->restorations);

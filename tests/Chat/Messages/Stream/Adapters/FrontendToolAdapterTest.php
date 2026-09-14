@@ -58,7 +58,7 @@ class FrontendToolAdapterTest extends TestCase
         $call = new ToolCall('browser', 'a', deferred: true);
         $preview = $this->decode($adapter->transform(new ToolCallChunk($call)));
         $this->assertNotContains('tool-input-available', array_column($preview, 'type'));
-        $frames = iterator_to_array($adapter->suspended([(new ToolResultsRequest([$call]))->withId(1)]));
+        $frames = iterator_to_array($adapter->suspended((new ToolResultsRequest([$call]))->withId(1)));
         $events = $this->decode($frames);
         $this->assertSame(['tool-input-available', 'finish'], array_column($events, 'type'));
         $this->assertSame('{}', json_encode($frames[0]->data['input']));
@@ -81,22 +81,22 @@ class FrontendToolAdapterTest extends TestCase
         $adapter = new VercelAIAdapter('assistant', [[
             'type' => 'tool-browser', 'toolCallId' => 'b', 'state' => 'input-available', 'input' => [],
         ]]);
-        $events = $this->decode($adapter->suspended([(new ToolResultsRequest([new ToolCall('browser', 'b', deferred: true)]))->withId(2)]));
+        $events = $this->decode($adapter->suspended((new ToolResultsRequest([new ToolCall('browser', 'b', deferred: true)]))->withId(2)));
         $this->assertSame(['finish'], array_column($events, 'type'));
     }
 
     public function test_vercel_approval_frames_round_trip_without_dispatch(): void
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser', inputs: ['selector' => 'h1'])]))->withId(4);
-        $events = $this->decode((new VercelAIAdapter())->suspended([$request]));
+        $events = $this->decode((new VercelAIAdapter())->suspended($request));
         $this->assertSame(['start', 'tool-input-start', 'tool-input-delta', 'tool-approval-request', 'finish'], array_column($events, 'type'));
         $inputs = (new VercelAIInputTranslator())->translate(['messages' => [[
             'role' => 'assistant', 'parts' => [[
                 'type' => 'tool-browser', 'toolCallId' => $events[3]['toolCallId'], 'state' => 'approval-responded',
                 'approval' => ['id' => $events[3]['approvalId'], 'approved' => false],
             ]],
-        ]]], [$request]);
-        $this->assertSame(['a' => 'reject'], $inputs[0]->payload);
+        ]]], $request);
+        $this->assertSame(['a' => 'reject'], $inputs);
         $call = (new ToolCall('browser', 'a'))->setApprovalState(ApprovalState::Rejected)->setResult('Rejected');
         $result = $this->decode((new VercelAIAdapter())->transform(new ToolResultChunk($call)));
         $this->assertSame('tool-output-denied', $result[array_key_last($result)]['type']);
@@ -111,7 +111,7 @@ class FrontendToolAdapterTest extends TestCase
         iterator_to_array($adapter->transform(new ReasoningChunk('assistant', 'Thinking')));
         iterator_to_array($adapter->transform(new TextChunk('assistant', 'Checking')));
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')]))->withId(1);
-        $events = $this->decode($adapter->suspended([$request]));
+        $events = $this->decode($adapter->suspended($request));
         $snapshots = array_column($events, null, 'type');
         $this->assertSame(['selection' => 'h1'], $snapshots['STATE_SNAPSHOT']['snapshot']);
         $this->assertSame(['user', 'reasoning', 'assistant'], array_column($snapshots['MESSAGES_SNAPSHOT']['messages'], 'role'));
@@ -120,8 +120,8 @@ class FrontendToolAdapterTest extends TestCase
         $this->assertNotContains('TOOL_CALL_START', array_column($events, 'type'));
         $inputs = (new AGUIInputTranslator())->translate(['resume' => [[
             'interruptId' => $interrupt['id'], 'status' => 'resolved', 'payload' => ['approved' => true],
-        ]]], [$request]);
-        $this->assertSame(['a' => 'approve'], $inputs[0]->payload);
+        ]]], $request);
+        $this->assertSame(['a' => 'approve'], $inputs);
     }
 
     public function test_agui_does_not_echo_frontend_results_or_repeat_known_calls(): void
@@ -146,14 +146,11 @@ class FrontendToolAdapterTest extends TestCase
         $this->assertSame('Not available', $result['error']);
     }
 
-    public function test_agui_mixed_waits_require_explicit_resume_without_premature_dispatch(): void
+    public function test_agui_custom_wait_requires_explicit_resume(): void
     {
-        $events = $this->decode((new AGUIAdapter('thread', 'run'))->suspended([
-            (new ToolResultsRequest([new ToolCall('browser', 'a', deferred: true)]))->withId(1),
-            (new WaitForEventRequest('custom'))->withId(2),
-        ]));
+        $events = $this->decode((new AGUIAdapter('thread', 'run'))->suspended((new WaitForEventRequest('custom'))->withId(2)));
         $this->assertNotContains('TOOL_CALL_START', array_column($events, 'type'));
-        $this->assertSame(['1', '2'], array_column($events[array_key_last($events)]['outcome']['interrupts'], 'id'));
+        $this->assertSame(['2'], array_column($events[array_key_last($events)]['outcome']['interrupts'], 'id'));
     }
 
     public function test_success_closes_parts_and_is_terminal_for_both_adapters(): void

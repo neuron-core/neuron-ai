@@ -78,7 +78,7 @@ class AgentAbandonTest extends TestCase
         $this->assertCount(2, $history->getMessages());
 
         $message = $this->makeAgent($provider, $history, $persistence, $tool)
-            ->resume([1 => ['call_1' => 'approve']])->run()
+            ->resume(['call_1' => 'approve'])->run()
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());
     }

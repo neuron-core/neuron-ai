@@ -242,7 +242,7 @@ class DurableTurnRecoveryTest extends TestCase
 
         // Process 3: the approval is delivered from a cold start and the run completes.
         $message = $this->fileAgent($provider, $tool)
-            ->resume([1 => ['call_1' => 'approve']])->run()
+            ->resume(['call_1' => 'approve'])->run()
             ->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());

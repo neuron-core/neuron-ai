@@ -3,7 +3,7 @@
 ## Summary
 
 The Agent's public verbs now converge with the standard `Workflow` model. The
-`AgentHandler` wrapper class is gone; `chat()`, `stream()`, and `resume()` each return
+`AgentHandler` wrapper class is gone; `chat()`, `stream()`, `run()` and `events()` return
 the type appropriate to their nature — the same eager/lazy split a plain Workflow uses
 with `run()` (eager → state) and `events()` (lazy → generator):
 
@@ -12,16 +12,19 @@ with `run()` (eager → state) and `events()` (lazy → generator):
 | `chat($messages)` | `AgentHandler` | `AgentState` (eager — runs to completion) |
 | `stream($messages)` | `AgentHandler` | `Generator` (pull-stream; `getReturn()` is the `AgentState`) |
 | `structured($messages, $class)` | `mixed` | `mixed` (unchanged) |
-| `resume($payload)` | — | `AgentState` (replaces `wake()`) |
-| `wake($payload)` | `AgentHandler` | **removed** — use `resume()` |
+| `submitApprovalDecisions($decisions)->run()` | `wake($decisions)` returned `AgentHandler` | `AgentState` after approval continuation |
+| `submitToolResults($results)->run()` | Generic continuation | `AgentState` after deferred tool results |
+| `resume($payload)->run()` | Generic continuation | `AgentState` for other Workflow interruptions |
+| `wake($payload)` | `AgentHandler` | **removed** — use the appropriate staging method and `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final `AgentState` directly — there is no longer a
 separate `->run()` step. `stream()` *is* the generator: iterate it directly. Configure a
 `StreamAdapterInterface` (Vercel / AG-UI / SSE) through `setStreamAdapter()` when you want
 protocol-formatted lines instead of raw Neuron chunks.
 
-The continuation verb is `resume($payload): AgentState` everywhere — `wake()` no longer
-exists. Interrupt state is read on the returned `AgentState` itself, exactly like a plain
+For Agent tool responses, stage `submitApprovalDecisions($decisions)` or
+`submitToolResults($results)`, then execute with `run()` or `events()`. Generic
+Workflow interruptions use `resume($payload)->run()`. `wake()` no longer exists. Interrupt state is read on the returned `AgentState` itself, exactly like a plain
 `WorkflowState`.
 
 **Important:** This is the Agent-side counterpart of upgrade 2 (which removed
@@ -57,7 +60,9 @@ Then follow the call sites you find: any variable that received the result of
 | `$h->getState()` | `$state` (it already *is* the state) |
 | `$h->interrupted()` | `$state->isInterrupted()` |
 | `$h->getInterruptRequest()` | `$state->getInterruptRequest()` |
-| `$agent->wake($payload)` | `$agent->resume($payload)` (`AgentState`) |
+| `$agent->wake($decisions)` for approval | `$agent->submitApprovalDecisions($decisions)->run()` (`AgentState`) |
+| `$agent->wake($results)` for deferred tools | `$agent->submitToolResults($results)->run()` (`AgentState`) |
+| `$agent->wake($payload)` for another interruption | `$agent->resume($payload)->run()` (`AgentState`) |
 
 ### Case 1: Chat — one-shot, then read the message
 
@@ -143,12 +148,25 @@ $handler = $agent->wake(['call_123' => 'approve']);
 $message = $handler->run()->getMessage();
 ```
 
-After — `resume()` is eager and returns the `AgentState`:
+After — stage approval decisions, then execute with `run()` to get `AgentState`:
 
 ```php
-$state = $agent->resume(['call_123' => 'approve']);
+$state = $agent->submitApprovalDecisions(['call_123' => 'approve'])->run();
 echo $state->getMessage()->getContent();
 ```
+
+For deferred tool results, use the matching method after external execution:
+
+```php
+$state = $agent->submitToolResults([
+    'call_123' => ['result' => ['title' => 'Example']],
+    'call_456' => ['error' => 'Browser operation cancelled'],
+])->run();
+```
+
+Both maps are keyed by tool call ID. Approval and execution are separate phases;
+a result cannot answer a pending approval. Use `events()` instead of `run()` to
+stream either continuation and obtain its final state from `getReturn()`.
 
 ### Case 5: Reading interrupt state
 
@@ -164,14 +182,14 @@ if ($handler->interrupted()) {
 ```
 
 After — interrupt state lives on the `AgentState`, the same place a plain
-`WorkflowState` surfaces it:
+`WorkflowState` surfaces it. For an agent whose interruptions are tool approvals:
 
 ```php
 $state = $agent->chat($message);
 while ($state->isInterrupted()) {
     $request = $state->getInterruptRequest();
-    // ... collect decisions ...
-    $state = $agent->resume($payload);
+    // ... collect $decisions keyed by tool call ID ...
+    $state = $agent->submitApprovalDecisions($decisions)->run();
 }
 ```
 
@@ -198,8 +216,8 @@ public function handle(AgentState $state): void { /* ... */ }
   (`getMessage()`, `isInterrupted()`, `getInterruptRequest()`). Code that already chained
   off the result of `chat()` (e.g. `->getMessage()`) keeps working.
 - `structured()` is unchanged — it still returns the typed output directly.
-- Thread-first `resume()` is unchanged by this step — a `resume()` with no explicit runId
-  still finds the run from the thread alone. (Guide 14 replaces the mechanism behind it:
+- Thread-first continuation still finds the run from the thread alone;
+  `submitApprovalDecisions()` and `submitToolResults()` need no explicit run ID. (Guide 14 replaces the mechanism behind it:
   the thread itself becomes the run's workflow ID in workflow persistence.)
 - The on-disk chat history format, persistence backends, and the approval flow are
   unaffected. This step only changes the Agent's public verb layer and its consumers.
@@ -207,7 +225,7 @@ public function handle(AgentState $state): void { /* ... */ }
 ## Verification Checklist
 
 - [ ] No references to `AgentHandler` remain (imports, type hints, `new AgentHandler(...)`)
-- [ ] No `->wake(` calls remain — all migrated to `resume()`
+- [ ] No `->wake(` calls remain — Agent tool responses use `submitApprovalDecisions()` or `submitToolResults()`, followed by `run()` or `events()`
 - [ ] No `->events(` calls remain on an Agent result — streaming iterates `stream()` directly
 - [ ] No `->interrupted(` / `->getState(` / `->getProviderResponse(` remain on Agent results
 - [ ] `->getResult()` after a consumed stream is replaced with `$generator->getReturn()`

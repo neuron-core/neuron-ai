@@ -85,14 +85,17 @@ The approve/deny endpoint keeps its promise — the thread is the only handle
 you need:
 
 ```php
-// Identical before and after — and it now works for EVERY suspension type
-// (approval, awaitEvent, sleepUntil), not just approvals:
-$agent = Agent::make()
-    ->setChatHistory(new SQLChatHistory($threadId, $pdo))
+// Rebuild the same thread, durable history and workflow persistence.
+$agent = Agent::make(threadId: $threadId)
+    ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 
-$agent->resume(['call_123' => 'approve']);
+$state = $agent->submitApprovalDecisions(['call_123' => 'approve'])->run();
 ```
+
+Deferred tool execution uses `submitToolResults($results)->run()` on the same
+reconstructed agent. Use `events()` to stream either continuation. Native maps
+use tool call IDs, not workflow interruption IDs.
 
 If your UI read the runId off the tail message, drop it — rendering pending
 approvals never needed it (read the tool calls' approval states and reasons),

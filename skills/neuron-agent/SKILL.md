@@ -7,7 +7,7 @@ description: Create and configure Neuron AI agents with providers, tools, instru
 
 This skill helps you create and configure Neuron AI agents for building agentic applications in PHP.
 
-Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
+Use `Agent::submitApprovalDecisions($decisions)` for tool approval and `Agent::submitToolResults($results)` for deferred tool results. Both accept maps keyed by tool call ID and stage a continuation; finish with `run()` for an `AgentState` or `events()` for a stream.
 
 ## Core Agent Structure
 
@@ -48,7 +48,8 @@ Workflow uses:
 | `structured($messages, $class)` | The typed output — starts a new run and consumes it eagerly |
 | `run()` | `AgentState` — inherited eager Workflow terminal |
 | `events()` | `Generator` — inherited pull-stream Workflow terminal; `getReturn()` is the `AgentState` |
-| `submitApprovalDecisions($decisions)` | Stages tool approval decisions keyed by call ID (a shortcut for `submitInputs($decisions, new ApprovalTranslator())`); finish with `run()` or `events()` |
+| `submitApprovalDecisions($decisions)` | Stages tool approval decisions keyed by call ID; finish with `run()` or `events()` |
+| `submitToolResults($results)` | Stages deferred tool results keyed by call ID; finish with `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
 Read the assistant message off it with `getMessage()`, and read an approval pause with
@@ -56,12 +57,14 @@ Read the assistant message off it with `getMessage()`, and read an approval paus
 exposes.
 
 The inherited `run()` / `events()` terminals execute staged intent. Without a
-staged operation they start or recover a failed run. `resume($inputs, ...)` stages
+staged operation they start or recover a failed run. `resume($payload, ...)` stages
 an explicit continuation. Agent new-turn methods select a fresh execution internally. `resume()->run()` is an inputless continuation for due timers
 or crash recovery (a failed turn needs neither: the next `chat()` supersedes
 it). Agent tool approval accepts decisions keyed by tool call ID through
 `submitApprovalDecisions($decisions)->run()` or
-`submitApprovalDecisions($decisions)->events()`.
+`submitApprovalDecisions($decisions)->events()`. Deferred tool results use
+`submitToolResults($results)->run()` or `submitToolResults($results)->events()`.
+Neither method starts a new user turn.
 
 `Agent` specializes the generic `Workflow<AgentState>` contract, so inherited
 `run()`, `events()`, `getState()`, and `setState()` retain the concrete
@@ -604,15 +607,31 @@ if ($state->isInterrupted()) {
 $response = $state->getMessage();
 ```
 
-`submitApprovalDecisions()` wraps `submitInputs()` with the built-in `ApprovalTranslator`
-and stages payloads addressed to the matching approval requests, so application code needs only the thread ID
+`submitApprovalDecisions()` stages decisions for the current approval request,
+so application code needs only the thread ID
 and decisions keyed by tool call ID. Call `events()` instead of `run()` when the
 continued segment must stream.
 
+Deferred tools continue through the same thread identity:
+
+```php
+$state = MyAgent::make(threadId: $threadId)
+    ->submitToolResults([
+        'call_123' => ['result' => ['title' => 'Example']],
+        'call_456' => ['error' => 'Browser operation cancelled'],
+    ])->run();
+```
+
+Reconstruct the same durable history and persistence as for the original turn.
+Each entry contains exactly one JSON-compatible `result` or string `error`.
+Partial results accumulate; the returned state may be interrupted again.
+Use `events()` to stream the continuation. Raw AG-UI or Vercel payloads use
+`submitInputs($payload, $translator)` as described in **neuron-frontend-integration**.
+
 Other interruption types use the generic Workflow API: application-controlled
 event waits use `signal($name, $payload)->run()`, due timers and inputless
-recovery use `resume()->run()`, and durable platform SDKs stage payloads keyed by interruption ID with
-`resume([$interruptId => $payload])->run()` or `->events()`. A background, workflow-ID-first
+recovery use `resume()->run()`, and durable platform SDKs pass run and execution-attempt fences to
+`resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->run()` or `->events()`. A background, workflow-ID-first
 continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
 

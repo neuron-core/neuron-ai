@@ -1,13 +1,12 @@
 # Upgrade: Stream adapters see a suspended run
 
-Native approval decisions are submitted with `$agent->submitApprovalDecisions($decisions)`, the Agent shortcut for `submitInputs($decisions, new NeuronAI\Agent\Interrupt\ApprovalTranslator())`; the examples below use the shortcut.
+Use `Agent::submitApprovalDecisions($decisions)` for tool approval and `Agent::submitToolResults($results)` for deferred tool results. Both accept maps keyed by tool call ID and stage a continuation; finish with `run()` for an `AgentState` or `events()` for a stream.
 
 ## What Changed
 
-1. **`StreamAdapterInterface` gained `suspended(array $requests): iterable`.** The Workflow
-   calls it *instead of* `end()` when a segment ends with active interrupts (a tool approval,
-   `awaitEvent()`, `sleepUntil()`), passing the active `InterruptRequest`s keyed by interrupt
-   ID. Both pull consumers and an attached channel (`send()`) receive its events. Custom
+1. **`StreamAdapterInterface` gained `suspended(InterruptRequest $request): iterable`.** The Workflow
+   calls it *instead of* `end()` when a segment ends with an interruption (a tool approval,
+   `awaitEvent()`, `sleepUntil()`), passing the single current `InterruptRequest`. Both pull consumers and an attached channel (`send()`) receive its events. Custom
    adapters must implement it.
 2. **An `InterruptEvent` no longer passes through `transform()`.** A
    `mapEvent(InterruptEvent::class, ...)` mapping is never invoked anymore; the pause is
@@ -16,14 +15,14 @@ Native approval decisions are submitted with `$agent->submitApprovalDecisions($d
    exactly like a completed one — on AG-UI with the gated tool call still open, which the
    official `@ag-ui/client` verifier rejects (`Cannot send 'RUN_FINISHED' while tool calls are
    still active`).
-   - `AGUIAdapter`: every open tool call is closed, gated calls that never reached the stream
-     are announced (`TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END`), and
-     `RUN_FINISHED` carries `outcome: {type: "interrupt", interrupts: [...]}` — one
-     `tool_call` interrupt per approval action (its `id` and `toolCallId` are the tool call
-     ID, `message` is the approval reason, `metadata` the action) and one `neuron:<type>`
-     interrupt per other request (its portable JSON as `metadata`). `expiresAt` is set when
-     the request has a deadline.
-   - `VercelAIAdapter`: a pending approval emits `tool-input-available` then
+   - `AGUIAdapter`: approval proposals appear in `RUN_FINISHED` under
+     `outcome: {type: "interrupt", interrupts: [...]}` — one `confirmation`
+     interrupt per action, with the tool call ID as `id`, a response schema and
+     action metadata. Approval does not dispatch executable calls. Deferred calls
+     are published when the agent later waits for their results. Other requests
+     use `neuron:<type>` with their portable JSON as metadata. A request deadline
+     becomes `expiresAt`.
+   - `VercelAIAdapter`: a pending approval emits an argument preview and
      `tool-approval-request` (the approval ID is the tool call ID) per action before
      `finish`; other requests travel as a transient `data-workflow-interrupt` part.
 4. **`Action` gained `inputs`** (the tool call arguments), serialized as `inputs` in the
@@ -64,12 +63,9 @@ final class MyAdapter implements StreamAdapterInterface
 {
     // ...
 
-    /** @param array<int, InterruptRequest> $requests */
-    public function suspended(array $requests): iterable
+    public function suspended(InterruptRequest $request): iterable
     {
-        foreach ($requests as $request) {
-            yield 'data: ' . json_encode(['type' => 'paused', 'request' => $request]) . "\n\n";
-        }
+        yield new ProtocolEvent('paused', ['request' => $request->jsonSerialize()]);
     }
 }
 ```
@@ -77,13 +73,18 @@ final class MyAdapter implements StreamAdapterInterface
 ### Frontends
 
 An AG-UI client checks `event.outcome?.type === 'interrupt'` on `RUN_FINISHED` and reads
-`event.outcome.interrupts`; each `tool_call` interrupt's `toolCallId` is the key of the
-decision map to deliver with `submitApprovalDecisions($decisions)`. A Vercel AI SDK client receives the
+`event.outcome.interrupts`; each `confirmation` interrupt's `id` is the key of the
+decision map to deliver with `submitApprovalDecisions($decisions)->events()`. A Vercel AI SDK client receives the
 standard `tool-approval-request` part and answers it through the SDK's approval response.
+
+Custom frontends sending native result maps continue deferred execution with
+`submitToolResults($results)->events()`, where each call ID maps to either
+`['result' => $value]` or `['error' => $message]`. Raw AG-UI and Vercel payloads
+use `submitInputs($payload, $translator)` with their protocol translator.
 
 ## Verification Checklist
 
 - [ ] Every custom `StreamAdapterInterface` implementation defines `suspended()`
 - [ ] No `mapEvent(InterruptEvent::class, ...)` registrations remain
-- [ ] A streamed approval over AG-UI ends with `TOOL_CALL_END` before `RUN_FINISHED`, and the
-      `RUN_FINISHED` event carries an `interrupt` outcome
+- [ ] A streamed approval over AG-UI exposes `confirmation` actions in the
+      `RUN_FINISHED` interrupt outcome without dispatching executable calls

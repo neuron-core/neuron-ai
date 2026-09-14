@@ -58,7 +58,7 @@ What changed:
 
 ## Update your code
 
-The three entry points, one rule — identity enters through `make()` when you
+The entry points share one rule — identity enters through `make()` when you
 hold it, through the record when you don't, and never through collaborator
 construction:
 
@@ -67,10 +67,15 @@ construction:
 SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint)
-SupportAgent::make(threadId: $threadId)->resume(['call_123' => 'approve']);
+SupportAgent::make(threadId: $threadId)
+    ->submitApprovalDecisions(['call_123' => 'approve'])->run();
+
+// Thread-first continuation after frontend execution
+SupportAgent::make(threadId: $threadId)
+    ->submitToolResults(['call_123' => ['result' => 'Page title']])->run();
 
 // workflowId-first resume (background wake): the ignition record supplies it
-SupportAgent::make(workflowId: $workflowId)->resume($payload);
+SupportAgent::make(workflowId: $workflowId)->resume($payload)->run();
 ```
 
 Subclass hooks construct identity-free:
@@ -101,7 +106,7 @@ Agent::make(workflowId: $workflowId)
 // After
 Agent::make(workflowId: $workflowId)
     ->setChatHistory(new SQLChatHistory($pdo))
-    ->resume($payload);
+    ->resume($payload)->run();
 ```
 
 Pre-bound histories (`new SQLChatHistory($pdo, $threadId)`) remain a legal

@@ -8,6 +8,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -90,7 +91,7 @@ class AgentInputSubmissionTest extends TestCase
             $agent = $this->agent(true);
             match ($source) {
                 'signal' => $agent->signal('approval', $decisions),
-                'resume' => $agent->resume([$state->getInterruptRequest()->getId() => $decisions]),
+                'resume' => $agent->resume($decisions),
                 'translator' => $agent->submitApprovalDecisions($decisions),
                 default => $this->fail('Unknown approval delivery source.'),
             };
@@ -119,9 +120,7 @@ class AgentInputSubmissionTest extends TestCase
         $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
         $this->assertTrue($state->getInterruptRequest()->getActions()[0]->isRejected());
 
-        $state = $this->agent(true)->resume([
-            $state->getInterruptRequest()->getId() => ['b' => 'approve'],
-        ])->run();
+        $state = $this->agent(true)->resume(['b' => 'approve'])->run();
         $request = $state->getInterruptRequest();
         $this->assertInstanceOf(\NeuronAI\Agent\Interrupt\ToolResultsRequest::class, $request);
         $this->assertSame(['b'], array_map(fn (ToolCall $call): ?string => $call->getCallId(), $request->getToolCalls()));
@@ -164,12 +163,12 @@ class AgentInputSubmissionTest extends TestCase
         $this->agent()->chat(new UserMessage('Read the page'));
         $translator = $this->createMock(InputTranslatorInterface::class);
         $translator->expects($this->once())->method('translate')->willReturnCallback(
-            function (array $payload, array $requests): array {
+            function (array $payload, ToolResultsRequest $request): array {
                 $this->assertSame(['custom' => 'Title'], $payload);
-                $this->assertCount(1, $requests);
-                return [array_values($requests)[0]->getId() => [
+                $this->assertCount(2, $request->getToolCalls());
+                return [
                     'a' => ['result' => $payload['custom']], 'b' => ['error' => 'Cancelled'],
-                ]];
+                ];
             },
         );
         $stream = $this->agent()->submitInputs(['custom' => 'Title'], $translator)->events();

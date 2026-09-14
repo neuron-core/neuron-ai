@@ -17,39 +17,29 @@ use PHPUnit\Framework\TestCase;
 
 class NativeInputTranslatorTest extends TestCase
 {
-    public function test_approval_inputs_are_addressed_per_request_without_repeating_previous_decisions(): void
+    public function test_approval_payload_does_not_repeat_previous_decisions(): void
     {
-        $requests = [
-            (new ApprovalRequest('First', [new Action('a', 'one', decision: ActionDecision::Approved), new Action('b', 'two')]))->withId(4),
-            (new ApprovalRequest('Second', [new Action('123', 'three')]))->withId(8),
-        ];
-        $inputs = (new ApprovalTranslator())->translate(['b' => ['reject', 'Too expensive'], 123 => 'approve'], $requests);
-        $this->assertSame([4, 8], array_keys($inputs));
-        $this->assertSame(['b' => ['reject', 'Too expensive']], $inputs[4]);
-        $this->assertSame([123 => 'approve'], $inputs[8]);
-        $updated = (new ApprovalTranslator())->translate(['a' => 'reject'], $requests);
-        $this->assertSame(['a' => 'reject'], $updated[4]);
+        $request = (new ApprovalRequest('Approve', [
+            new Action('a', 'one', decision: ActionDecision::Approved),
+            new Action('b', 'two'),
+            new Action('123', 'three'),
+        ]))->withId(4);
+        $payload = ['b' => ['reject', 'Too expensive'], 123 => 'approve'];
+        $this->assertSame($payload, (new ApprovalTranslator())->translate($payload, $request));
+        $this->assertSame(['a' => 'reject'], (new ApprovalTranslator())->translate(['a' => 'reject'], $request));
     }
 
-    public function test_results_are_partitioned_without_answering_other_requests(): void
+    public function test_results_are_returned_as_one_payload(): void
     {
-        $requests = [
-            (new ToolResultsRequest([new ToolCall('browser', 'a')]))->withId(4),
-            (new ToolResultsRequest([new ToolCall('browser', 'b')]))->withId(8),
-            (new ApprovalRequest('Other', [new Action('c', 'other')]))->withId(12),
-        ];
-        $inputs = (new ToolResultsTranslator())->translate(['a' => ['result' => false], 'b' => ['result' => null]], $requests);
-        $this->assertSame([4, 8], array_keys($inputs));
-        $this->assertSame(['a' => ['result' => false]], $inputs[4]);
-        $this->assertSame(['b' => ['result' => null]], $inputs[8]);
+        $request = (new ToolResultsRequest([new ToolCall('browser', 'a'), new ToolCall('browser', 'b')]))->withId(4);
+        $payload = ['a' => ['result' => false], 'b' => ['result' => null]];
+        $this->assertSame($payload, (new ToolResultsTranslator())->translate($payload, $request));
     }
 
     public function test_execution_results_cannot_answer_an_approval_request(): void
     {
         $this->expectException(InputTranslationException::class);
-        (new ToolResultsTranslator())->translate(['a' => ['result' => 'approve']], [
-            (new ApprovalRequest('Approve', [new Action('a', 'one')]))->withId(1),
-        ]);
+        (new ToolResultsTranslator())->translate(['a' => ['result' => 'approve']], (new ApprovalRequest('Approve', [new Action('a', 'one')]))->withId(1));
     }
 
     /** @return iterable<string, array{mixed}> */
@@ -67,8 +57,6 @@ class NativeInputTranslatorTest extends TestCase
     public function test_invalid_native_decisions_are_rejected(mixed $decision): void
     {
         $this->expectException(InputTranslationException::class);
-        (new ApprovalTranslator())->translate(['a' => $decision], [
-            (new ApprovalRequest('Approve', [new Action('a', 'one')]))->withId(1),
-        ]);
+        (new ApprovalTranslator())->translate(['a' => $decision], (new ApprovalRequest('Approve', [new Action('a', 'one')]))->withId(1));
     }
 }

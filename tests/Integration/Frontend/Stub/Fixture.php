@@ -9,7 +9,6 @@ use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use PDO;
 use RuntimeException;
@@ -150,7 +149,7 @@ class Fixture
                 'runId' => $run->runId,
                 'status' => $run->status->value,
                 'executionAttempt' => $run->executionAttempt,
-                'interrupts' => array_map(fn (InterruptRequest $request): string => $request::class, $run->interrupts),
+                'interrupts' => $run->interrupt === null ? [] : [$run->interrupt::class],
             ] : null,
             'invocations' => array_map(fn (array $row): array => [
                 'method' => $row['method'],

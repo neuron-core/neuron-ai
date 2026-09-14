@@ -230,33 +230,28 @@ class ConversationTest extends TestCase
         $this->assertSame('Both searches done.', $trajectory->finalAnswer());
     }
 
-    public function test_multiple_active_interruptions_are_resolved_one_at_a_time(): void
+    public function test_sequential_interruptions_are_resolved_one_at_a_time(): void
     {
         $first = new AgentState();
-        $first->markAsSuspended([
-            1 => (new ApprovalRequest('first'))->withId(1),
-            2 => (new ApprovalRequest('second'))->withId(2),
-        ]);
+        $first->markAsSuspended((new ApprovalRequest('first'))->withId(1));
 
         $second = new AgentState();
-        $second->markAsSuspended([
-            2 => (new ApprovalRequest('second'))->withId(2),
-        ]);
+        $second->markAsSuspended((new ApprovalRequest('second'))->withId(2));
 
         $completed = new AgentState();
         $completed->clearInterrupt();
 
         $history = new InMemoryChatHistory();
-        $resumedInterrupts = [];
+        $responses = [];
 
         $agent = $this->createMock(AgentInterface::class);
         $agent->method('getChatHistory')->willReturn($history);
         $agent->expects($this->once())->method('chat')->willReturn($first);
         $agent->expects($this->exactly(2))
             ->method('resume')
-            ->willReturnCallback(function (array $inputs) use (&$resumedInterrupts, $agent): AgentInterface {
-                $this->assertCount(1, $inputs);
-                $resumedInterrupts[] = array_key_first($inputs);
+            ->willReturnCallback(function (array $inputs) use (&$responses, $agent): AgentInterface {
+                $this->assertSame([], $inputs);
+                $responses[] = $inputs;
                 return $agent;
             });
         $agent->expects($this->exactly(2))->method('run')->willReturn($second, $completed);
@@ -272,7 +267,7 @@ class ConversationTest extends TestCase
             ->run();
 
         $this->assertSame([1, 2], $policyInterrupts);
-        $this->assertSame([1, 2], $resumedInterrupts);
+        $this->assertSame([[], []], $responses);
     }
 
     protected function makeSimulator(FakeAIProvider $provider): UserSimulator

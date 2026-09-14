@@ -23,7 +23,6 @@ use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ResumeInputStatus;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -76,7 +75,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame($suspended->getRunId(), $resumed->getRunId());
     }
 
-    public function test_stale_only_resume_does_not_claim_a_new_execution_attempt(): void
+    public function test_inputless_resume_keeps_an_unanswered_interruption(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
@@ -85,16 +84,15 @@ class WorkflowIdentityTest extends TestCase
         $duplicate = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
             ->setPersistence($persistence)
-            ->resume([99 => []])->run();
+            ->resume()->run();
 
         $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
-        $this->assertSame(ResumeInputStatus::Stale, $duplicate->getInputResults()[0]->status);
         $this->assertTrue($duplicate->isInterrupted());
         $this->assertTrue($duplicate->get('node_one_executed'));
         $this->assertTrue($duplicate->get('interruptable_node_executed'));
     }
 
-    public function test_stale_only_resume_preserves_a_failed_status(): void
+    public function test_a_reply_without_an_interruption_preserves_the_failed_run(): void
     {
         $persistence = new InMemoryPersistence();
         $crashingNode = new class () extends Node {
@@ -110,13 +108,17 @@ class WorkflowIdentityTest extends TestCase
         } catch (RuntimeException) {
         }
 
-        $result = Workflow::make('failed-run')
+        $before = serialize($persistence);
+        try {
+            Workflow::make('failed-run')
             ->setPersistence($persistence)
             ->addNode(new NodeOne())
-            ->resume([99 => []])->run();
+            ->resume([])->run();
 
-        $this->assertSame(WorkflowStatus::Failed, $result->getStatus());
-        $this->assertSame(ResumeInputStatus::Stale, $result->getInputResults()[0]->status);
+            $this->fail('There is no interruption to answer.');
+        } catch (WorkflowException) {
+            $this->assertSame($before, serialize($persistence));
+        }
     }
 
     public function test_matching_run_fence_continues_the_expected_generation(): void
@@ -195,9 +197,9 @@ class WorkflowIdentityTest extends TestCase
             $this->assertSame(WorkflowStatus::Suspended, $e->status);
             $this->assertSame(1, $e->executionAttempt);
             $this->assertNull($e->leaseExpiresAt);
-            $this->assertInstanceOf(ApprovalRequest::class, $e->interrupts[1]);
+            $this->assertInstanceOf(ApprovalRequest::class, $e->interrupt);
             $this->assertStringContainsString(
-                "run '{$suspended->getRunId()}' (attempt 1) is suspended, waiting on 1 interrupt(s): #1 wait_for_event 'approval'.",
+                "run '{$suspended->getRunId()}' (attempt 1) is suspended, waiting on #1 wait_for_event 'approval'.",
                 $e->getMessage(),
             );
             $this->assertStringContainsString('signal()', $e->getMessage());
@@ -239,7 +241,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
 
         $retry = Workflow::make('retained-completion')->setPersistence($persistence);
-        $replayed = $retry->resume([], expectedRunId: $runId)->run();
+        $replayed = $retry->resume(null, expectedRunId: $runId)->run();
 
         $this->assertSame($completed->all(), $replayed->all());
         $retry->acknowledgeCompletion($runId);

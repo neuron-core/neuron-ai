@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Support;
 
-use LogicException;
-use NeuronAI\Workflow\Executor\ActiveInterrupt;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptType;
@@ -13,8 +11,6 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
-
-use function array_values;
 
 trait ExecutorTestHelpers
 {
@@ -60,9 +56,7 @@ trait ExecutorTestHelpers
     }
 
     /**
-     * Continue a run through the public API. This helper
-     * keeps existing test fixtures concise by addressing the run's first
-     * active interrupt; tests of batching supply addressed payloads.
+     * Continue the current interruption through the public API.
      *
      * @param array<string, mixed>|null $payload
      */
@@ -75,7 +69,7 @@ trait ExecutorTestHelpers
     ): WorkflowState {
         $workflow = $this->configure($workflow, $persistence);
         if ($payload === null) {
-            return $workflow->resume([], expectedRunId: $expectedRunId)->run();
+            return $workflow->resume(null, expectedRunId: $expectedRunId)->run();
         }
 
         $raw = $workflow->getPersistence()->get(
@@ -83,18 +77,15 @@ trait ExecutorTestHelpers
             '__control',
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
-        if (!$control instanceof WorkflowControl || $control->interrupts === []) {
-            return $workflow->resume([1 => $payload], $expectedRunId)->run();
+        if (!$control instanceof WorkflowControl || $control->interrupt === null) {
+            return $workflow->resume($payload, $expectedRunId)->run();
         }
 
-        $active = array_values($control->interrupts)[0];
-        if (!$active instanceof ActiveInterrupt) {
-            throw new LogicException('The test helper found an invalid active interrupt.');
-        }
+        $active = $control->interrupt;
 
         $inputs = $timedOut || $active->request->type() === InterruptType::SleepUntil
-            ? []
-            : [$active->request->getId() => $payload];
+            ? null
+            : $payload;
 
         return $workflow->resume($inputs, $expectedRunId)->run();
     }

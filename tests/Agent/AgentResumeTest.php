@@ -193,12 +193,12 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->resume([1 => ['call_a' => 'approve']])->run();
+        $partial = $agent1->resume(['call_a' => 'approve'])->run();
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // Only the remaining decision is needed to complete the run.
-        $complete = $agent1->resume([2 => ['call_b' => 'approve']])->run();
+        $complete = $agent1->resume(['call_b' => 'approve'])->run();
         $this->assertSame('Both searches done.', $complete->getMessage()->getContent());
     }
 
@@ -243,7 +243,7 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->resume([1 => ['call_1' => 'approve']])->run()->get('structured_output');
+        $user = $rag2->resume(['call_1' => 'approve'])->run()->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);

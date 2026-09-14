@@ -9,7 +9,7 @@ breaking change to four areas:
 1. **`ToolInterface` gained `requiresApproval()`** — direct implementors must add it.
 2. **Tools declare their own approval default** — a `Tool` subclass overrides
    `approvalPolicy()`; a string return doubles as the approval reason.
-3. **Resume payloads are incremental** — ToolNode durably preserves earlier decisions.
+3. **Approval submissions are incremental** — ToolNode durably preserves earlier decisions.
 4. **`ApprovalRequest`/`Action` lost their round-trip mutators** — `fromArray()`,
    `generatePayload()`, and the `Action` mutators are removed.
 5. **A new user turn on a thread with a pending tool call is rejected** at the chat history
@@ -52,15 +52,15 @@ class TransferMoneyTool extends Tool
 }
 ```
 
-## 3. Resume payloads are incremental
+## 3. Approval submissions are incremental
 
 The payload contains decisions keyed by tool call ID. ToolNode durably accumulates
-delivered decisions, so each resume may contain only newly decided actions. An
-incomplete set re-suspends. This behavior is shared by named signals, addressed
-payloads, and translated frontend inputs.
+delivered decisions, so each `submitApprovalDecisions($decisions)` call may contain
+only newly decided actions. Finish with `run()` or `events()`; an incomplete set
+re-suspends. Application code does not construct a translator or name an event.
 
 ```php
-// The full decision set in one resume.
+// Submit decisions keyed by tool call ID, then continue.
 $agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'too expensive'],
@@ -70,8 +70,13 @@ $agent->submitApprovalDecisions([
 A tool runs **iff** explicitly approved; silence is never consent. Decisions are revisable
 (the latest delivered payload wins) until the set completes.
 
-**Migration:** submit decisions as arrays; client-side accumulation is optional. Remove any use of
+**Migration:** use `submitApprovalDecisions($decisions)->run()` or `->events()`; client-side accumulation is optional. Remove any use of
 `ApprovalRequest::generatePayload()`.
+
+For deferred/frontend tools, approval authorizes execution. After execution,
+continue with `submitToolResults(['call_123' => ['result' => $value]])->run()`
+or `->events()`. Use `['error' => 'Execution failed']` for an error outcome.
+Tool results are separate from approval decisions.
 
 ## 4. `ApprovalRequest` and `Action` are outbound-only
 
@@ -83,7 +88,7 @@ These methods are removed:
 - `Action::approve()`, `Action::reject()`, `Action::decision()`, `Action::feedback()`
 
 `ApprovalRequest` is a pure outbound snapshot the caller renders; `Action` is a readonly
-value object. Decisions travel inbound as the resume payload (section 3).
+value object. Decisions travel inbound through `submitApprovalDecisions()` (section 3).
 
 **Migration:** build payload arrays directly from the rendered UI instead of mutating the
 request or its actions.

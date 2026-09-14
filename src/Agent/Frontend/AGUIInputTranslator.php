@@ -15,20 +15,18 @@ use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 
 class AGUIInputTranslator extends ToolInputTranslator
 {
-    public function translate(array $payload, array $requests): array
+    public function translate(array $payload, InterruptRequest $request): array
     {
         if (array_key_exists('resume', $payload)) {
             // Explicit interrupt answers take precedence over mirrored chat history.
-            return $this->translateResume($payload, $requests);
+            return $this->translateResume($payload, $request);
         }
 
-        foreach ($requests as $request) {
-            if (!$request instanceof ToolResultsRequest) {
-                throw new InputTranslationException('Pending AG-UI interrupts require an explicit resume array.');
-            }
+        if (!$request instanceof ToolResultsRequest) {
+            throw new InputTranslationException('Pending AG-UI interrupts require an explicit resume array.');
         }
 
-        $tools = $this->toolRequests($requests);
+        $tools = $this->toolCallIds($request);
         $answers = [];
         foreach ($this->entries($payload, 'messages') as $message) {
             if (($message['role'] ?? null) !== 'tool') {
@@ -37,10 +35,6 @@ class AGUIInputTranslator extends ToolInputTranslator
             $callId = $message['toolCallId'] ?? null;
             if (!is_string($callId) || !isset($tools[$callId])) {
                 continue;
-            }
-            $request = $tools[$callId];
-            if (!$request instanceof ToolResultsRequest) {
-                throw new InputTranslationException("Tool call '{$callId}' requires an explicit approval response.");
             }
             if (isset($message['error'])) {
                 if (!is_string($message['error'])) {
@@ -54,9 +48,9 @@ class AGUIInputTranslator extends ToolInputTranslator
                 // AG-UI content is text, even when it happens to contain JSON.
                 $result = ['result' => $message['content']];
             }
-            $this->answer($answers, $request, $callId, $result);
+            $this->answer($answers, $callId, $result);
         }
-        return $this->inputs($requests, $answers);
+        return $this->inputs($request, $answers);
     }
 
     /**
@@ -84,24 +78,14 @@ class AGUIInputTranslator extends ToolInputTranslator
 
     /**
      * @param array<string, mixed> $payload
-     * @param InterruptRequest[] $requests
-     * @return array<int, array<string, mixed>>
+     * @return array<string, mixed>
      */
-    protected function translateResume(array $payload, array $requests): array
+    protected function translateResume(array $payload, InterruptRequest $request): array
     {
-        $targets = [];
-        foreach ($requests as $request) {
-            // Match the identifiers published by AGUIAdapter::suspended().
-            $ids = $request instanceof ApprovalRequest
-                ? array_map(fn (Action $action): string => $action->id, $request->getActions())
-                : [(string) $request->getId()];
-            foreach ($ids as $id) {
-                if (isset($targets[$id])) {
-                    throw new InputTranslationException("Ambiguous AG-UI interrupt ID '{$id}'.");
-                }
-                $targets[$id] = $request;
-            }
-        }
+        $ids = $request instanceof ApprovalRequest
+            ? array_map(fn (Action $action): string => $action->id, $request->getActions())
+            : [(string) $request->getId()];
+        $targets = array_fill_keys($ids, true);
 
         $answers = [];
         $seen = [];
@@ -121,22 +105,21 @@ class AGUIInputTranslator extends ToolInputTranslator
             if ($status === 'cancelled' && array_key_exists('payload', $entry)) {
                 throw new InputTranslationException('A cancelled resume must omit payload.');
             }
-            $request = $targets[$id];
             if ($request instanceof WaitForEventRequest && $request->getExpiresAt() instanceof \DateTimeImmutable
                 && $request->getExpiresAt()->getTimestamp() <= time()) {
                 throw new InputTranslationException("Interrupt '{$id}' has expired.");
             }
             if ($request instanceof ApprovalRequest) {
-                $this->answer($answers, $request, $id, $status === 'cancelled' ? 'reject' : $this->approval($entry['payload'] ?? null));
+                $this->answer($answers, $id, $status === 'cancelled' ? 'reject' : $this->approval($entry['payload'] ?? null));
             } elseif ($request instanceof ToolResultsRequest && $status === 'cancelled') {
                 foreach ($request->getToolCalls() as $call) {
-                    $this->answer($answers, $request, $call->getCallId(), ['error' => 'Frontend tool execution cancelled.']);
+                    $this->answer($answers, $call->getCallId(), ['error' => 'Frontend tool execution cancelled.']);
                 }
             } elseif ($request instanceof WaitForEventRequest && $status === 'resolved') {
                 if (!is_array($entry['payload'] ?? null)) {
                     throw new InputTranslationException("Interrupt '{$id}' requires an object payload.");
                 }
-                $answers[$request->getId()] = $entry['payload'];
+                $answers = $entry['payload'];
             } else {
                 throw new InputTranslationException("Interrupt '{$id}' does not support this resume operation.");
             }
@@ -144,6 +127,9 @@ class AGUIInputTranslator extends ToolInputTranslator
         if (count($seen) !== count($targets)) {
             throw new InputTranslationException('AG-UI resume must address every published interrupt.');
         }
-        return $this->inputs($requests, $answers);
+        if ($request instanceof ToolResultsRequest) {
+            $request->validateResults($answers);
+        }
+        return $answers;
     }
 }

@@ -8,6 +8,7 @@ use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
+use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -521,5 +522,14 @@ class Agent extends Workflow implements AgentInterface
     public function submitApprovalDecisions(array $decisions): static
     {
         return $this->submitInputs($decisions, new ApprovalTranslator());
+    }
+
+    /**
+     * @throws InputTranslationException
+     * @throws WorkflowException
+     */
+    public function submitToolResults(array $results): static
+    {
+        return $this->submitInputs($results, new ToolResultsTranslator());
     }
 }
