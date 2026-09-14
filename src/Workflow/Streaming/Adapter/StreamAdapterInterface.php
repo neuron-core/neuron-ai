@@ -11,6 +11,14 @@ use Throwable;
 interface StreamAdapterInterface
 {
     /**
+     * Begin a run segment. The Workflow calls it before start() on every
+     * segment, so one instance can serve a suspension and its continuation
+     * in the same process: drop the previous segment's stream state, keep
+     * the seeded protocol identity and snapshot.
+     */
+    public function reset(): void;
+
+    /**
      * Transform a Neuron chunk into protocol events.
      *
      * @param object $chunk Neuron chunk (TextChunk, ToolCallChunk, etc.) or custom objects

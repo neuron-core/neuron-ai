@@ -90,6 +90,24 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
     }
 
     /**
+     * Kept across segments: the message being continued and the tool parts
+     * the frontend already holds, so a continuation neither re-emits nor
+     * forgets them.
+     */
+    public function reset(): void
+    {
+        $this->started = false;
+        $this->runFailed = false;
+        $this->finished = false;
+        $this->toolCallIds = [];
+        $this->textPartId = null;
+        $this->reasoningPartId = null;
+        $this->partSourceId = null;
+        $this->afterToolResults = false;
+        $this->stepStarted = false;
+    }
+
+    /**
      * @throws StreamAdapterException
      */
     public function transform(object $chunk): iterable
