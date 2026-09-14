@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
+use JsonException;
 use NeuronAI\Tools\Tool;
 
 class McpTool extends Tool
@@ -20,6 +21,10 @@ class McpTool extends Tool
         $this->annotations = $annotations;
     }
 
+    /**
+     * @throws JsonException
+     * @throws McpException
+     */
     public function __invoke(mixed ...$arguments): mixed
     {
         return $this->connector->invokeTool(

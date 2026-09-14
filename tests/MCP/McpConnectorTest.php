@@ -14,6 +14,8 @@ use NeuronAI\Testing\FakeMcpTransport;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -407,5 +409,49 @@ class McpConnectorTest extends TestCase
         // Test "exclude" filter
         $toolsExclude = $connector->only([])->exclude(['tool2'])->tools();
         $this->assertCount(2, $toolsExclude);
+    }
+
+    public function test_with_configures_the_named_tool(): void
+    {
+        $this->transport->addResponses([
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'result' => ['tools' => [
+                ['name' => 'search', 'inputSchema' => ['type' => 'object', 'properties' => []]],
+                ['name' => 'delete', 'inputSchema' => ['type' => 'object', 'properties' => []]],
+            ]],
+        ]);
+
+        [$search, $delete] = $this->connector
+            ->with('search', fn (ToolInterface $tool): ToolInterface => $tool->setMaxRuns(3))
+            ->with('delete', function (Tool $tool): void {
+                $tool->requireApproval();
+            })
+            ->tools();
+
+        $this->assertSame(3, $search->getMaxRuns());
+        $this->assertFalse($search->requiresApproval([]));
+        $this->assertNull($delete->getMaxRuns());
+        $this->assertTrue($delete->requiresApproval([]));
+    }
+
+    public function test_with_callbacks_do_not_break_tool_serialization(): void
+    {
+        $this->transport->addResponses([
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'result' => ['tools' => [
+                ['name' => 'search', 'inputSchema' => ['type' => 'object', 'properties' => []]],
+            ]],
+        ]);
+
+        $tool = $this->connector
+            ->with('search', fn (ToolInterface $tool): ToolInterface => $tool->setMaxRuns(3))
+            ->tools()[0];
+
+        $unserialized = unserialize(serialize($tool));
+
+        $this->assertInstanceOf(McpTool::class, $unserialized);
+        $this->assertSame(3, $unserialized->getMaxRuns());
     }
 }

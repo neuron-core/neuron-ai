@@ -41,6 +41,11 @@ class McpConnector
     protected array $only = [];
 
     /**
+     * @var array<string, callable>
+     */
+    protected array $with = [];
+
+    /**
      * @param array<string, mixed> $config
      */
     public function __construct(
@@ -94,6 +99,16 @@ class McpConnector
     }
 
     /**
+     * Configure the tool published under $name before it is handed out: the
+     * callback may mutate the tool in place, or return a replacement for it.
+     */
+    public function with(string $name, callable $callback): McpConnector
+    {
+        $this->with[$name] = $callback;
+        return $this;
+    }
+
+    /**
      * @return ToolInterface[]
      * @throws Exception
      */
@@ -124,6 +139,10 @@ class McpConnector
 
         foreach (ToolPropertyFactory::fromSchema($item['inputSchema'] ?? []) as $property) {
             $tool->addProperty($property);
+        }
+
+        if (isset($this->with[$item['name']])) {
+            return $this->with[$item['name']]($tool) ?? $tool;
         }
 
         return $tool;

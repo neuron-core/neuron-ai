@@ -568,7 +568,7 @@ $mcpTools = McpConnector::make([
 ])->tools();
 ```
 
-### MCP Tool Filtering
+### MCP Tool Filtering and Configuration
 
 ```php
 // Exclude specific tools
@@ -584,6 +584,15 @@ $mcpTools = McpConnector::make([
     'url' => 'https://mcp.example.com',
 ])
     ->only(['search', 'read', 'write'])
+    ->tools();
+
+// Configure a specific tool by its server-assigned name
+$mcpTools = McpConnector::make([
+    'url' => 'https://mcp.example.com',
+])
+    ->with('delete_record', function (Tool $tool): void {
+        $tool->requireApproval();  // Human-in-the-loop on a destructive tool
+    })
     ->tools();
 ```
 

@@ -2,7 +2,7 @@
 
 ## Summary
 
-AI provider methods `chat()` and `stream()` now return `ProviderResponse` instead of `Message`. The `ProviderResponse` wraps the assistant message and provides access to the raw HTTP response body and headers.
+AI provider methods `chat()` and `structured()`, and the final value of `stream()`, now return `ProviderResponse` instead of `Message`. The `ProviderResponse` wraps the assistant message and provides access to the raw HTTP response body and headers.
 
 **This only affects standalone provider usage.** When providers are used inside an Agent (via `chat()`, `stream()`, or `structured()` on the Agent itself), no changes are needed — the Agent handles the `ProviderResponse` internally.
 
@@ -22,6 +22,7 @@ Identify standalone usage by searching for direct calls to `->chat(`, `->stream(
 ```
 grep -rn "->chat(" --include="*.php" .
 grep -rn "->stream(" --include="*.php" .
+grep -rn "->structured(" --include="*.php" .
 ```
 
 Within the results, exclude calls inside Agent classes or Agent subclasses — those are handled internally and do not need changes.
@@ -115,13 +116,22 @@ $response->headers();   // array — response headers
 $response->metadata('usage'); // mixed — per-key metadata access
 ```
 
-### Case 5: `structured()` — no change needed
+### Case 5: `structured()` — the JSON message is wrapped too
 
-The `structured()` method returns the DTO class instance directly, same as before:
+On a provider, `structured()` returned the assistant `Message` carrying the JSON text; turning that text into the DTO is the Agent's job, not the provider's. In 4.x it returns a `ProviderResponse`, like `chat()`.
+
+**Before:**
 
 ```php
-// No change required
-$dto = $provider->structured($messages, MyDto::class, $schema);
+$message = $provider->structured($messages, MyDto::class, $schema);
+$json = $message->getContent();
+```
+
+**After — call `message()` on the ProviderResponse:**
+
+```php
+$response = $provider->structured($messages, MyDto::class, $schema);
+$json = $response->message()->getContent();
 ```
 
 ### Case 6: Provider used inside an Agent — no change needed
@@ -142,6 +152,6 @@ For each file you modify:
 - [ ] The file uses a provider directly (not through an Agent)
 - [ ] `$provider->chat(...)` return value: chained calls to `->getContent()`, `->getRole()`, etc. are now accessed via `->message()->getContent()`, `->message()->getRole()`
 - [ ] `$provider->stream(...)` generator return value: `$generator->getReturn()` is a `ProviderResponse`, call `->message()` on it
-- [ ] No changes to `structured()` calls
+- [ ] `$provider->structured(...)` return value: a `ProviderResponse` like `chat()`, call `->message()` on it
 - [ ] No changes to code where providers are used inside Agents
 - [ ] `ProviderResponse` import added where needed: `use NeuronAI\Providers\ProviderResponse;`
