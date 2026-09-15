@@ -18,11 +18,14 @@ use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 class ChatNodeStreamingTest extends TestCase
 {
-    public function test_live_stream_yields_chunks_and_records_response(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_live_inference_yields_chunks_only_when_streaming_and_records_response(bool $stream): void
     {
         $chatHistory = new InMemoryChatHistory();
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
@@ -33,7 +36,7 @@ class ChatNodeStreamingTest extends TestCase
 
         $state->request = new InferenceRequest(instructions: 'Test', tools: []);
         $event = new AIInferenceEvent();
-        $state->request->options->stream = true;
+        $state->request->options->stream = $stream;
         $state->request->messages = [new UserMessage('hi')];
 
         $node->setWorkflowContext(new NodeContext($state, $event));
@@ -46,19 +49,27 @@ class ChatNodeStreamingTest extends TestCase
         }
         $return = $generator->getReturn();
 
-        // The live consumer receives real streamed chunks.
-        $this->assertNotEmpty($chunks);
-        $this->assertInstanceOf(TextChunk::class, $chunks[0]);
+        if ($stream) {
+            $this->assertNotEmpty($chunks);
+            $this->assertInstanceOf(TextChunk::class, $chunks[0]);
+        } else {
+            $this->assertSame([], $chunks);
+        }
 
-        // The inference was invoked exactly once.
-        $provider->assertMethodCallCount('stream', 1);
+        $provider->assertMethodCallCount($stream ? 'stream' : 'chat', 1);
+        $provider->assertMethodCallCount($stream ? 'chat' : 'stream', 0);
+        $this->assertCount(2, $chatHistory->getMessages());
 
         // The final response was captured on state and handed off to output.
         $this->assertInstanceOf(ProviderResponse::class, $state->getResponse());
         $this->assertInstanceOf(AgentOutputEvent::class, $return);
     }
 
-    public function test_recovery_serves_cached_response_without_re_streaming(): void
+    #[TestWith([false, false])]
+    #[TestWith([false, true])]
+    #[TestWith([true, false])]
+    #[TestWith([true, true])]
+    public function test_recovery_serves_cached_response_across_transports(bool $stream, bool $replayStream): void
     {
         $chatHistory = new InMemoryChatHistory();
         // A provider stream is non-resumable, so only the terminal response is
@@ -78,10 +89,10 @@ class ChatNodeStreamingTest extends TestCase
 
         $state->request = new InferenceRequest(instructions: 'Test', tools: []);
         $event = new AIInferenceEvent();
-        $state->request->options->stream = true;
+        $state->request->options->stream = $stream;
         $state->request->messages = [new UserMessage('hi')];
 
-        // Run 1: live stream + record the response as a durable memo.
+        // Run 1: record the response as a durable memo.
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
@@ -92,7 +103,7 @@ class ChatNodeStreamingTest extends TestCase
         $firstReturn = $generator1->getReturn();
 
         $this->assertInstanceOf(AgentOutputEvent::class, $firstReturn);
-        $provider->assertMethodCallCount('stream', 1);
+        $provider->assertMethodCallCount($stream ? 'stream' : 'chat', 1);
         $firstResponse = $state->getResponse();
         $this->assertNotNull($firstResponse);
 
@@ -103,6 +114,7 @@ class ChatNodeStreamingTest extends TestCase
         $node2 = new ChatNode($provider, $chatHistory);
         $state2 = new AgentState();
         $state2->request = clone $state->request;
+        $state2->request->options->stream = $replayStream;
         $state2->setExecutionMetadata($runId, $runId, 1);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
@@ -114,12 +126,15 @@ class ChatNodeStreamingTest extends TestCase
         }
         $secondReturn = $generator2->getReturn();
 
-        // No re-inference: the provider stream is still a single call.
-        $provider->assertMethodCallCount('stream', 1);
+        // Replay reuses the response even when the transport changes.
+        $provider->assertMethodCallCount($stream ? 'stream' : 'chat', 1);
 
         // No chunks are re-yielded on recovery — there is no live consumer and
         // the stream is non-replayable; the cached response is served directly.
         $this->assertSame([], $replayedChunks);
+
+        $provider->assertMethodCallCount($stream ? 'chat' : 'stream', 0);
+        $this->assertCount(2, $chatHistory->getMessages());
 
         // The same terminal response drives routing.
         $this->assertInstanceOf(AgentOutputEvent::class, $secondReturn);

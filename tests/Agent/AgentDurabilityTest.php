@@ -28,6 +28,7 @@ use RuntimeException;
 
 use function glob;
 use function is_dir;
+use function iterator_to_array;
 use function rmdir;
 use function sys_get_temp_dir;
 use function unlink;
@@ -109,7 +110,7 @@ class AgentDurabilityTest extends TestCase
         $state1->setExecutionMetadata($workflowId, $workflowId, 1);
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $node1($event, $state1);
+        $this->assertSame([], iterator_to_array($node1($event, $state1)));
 
         $this->assertSame(1, $provider->getCallCount());
 
@@ -120,7 +121,7 @@ class AgentDurabilityTest extends TestCase
         $state2->setExecutionMetadata($workflowId, $workflowId, 1);
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $node2($event, $state2);
+        $this->assertSame([], iterator_to_array($node2($event, $state2)));
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
     }

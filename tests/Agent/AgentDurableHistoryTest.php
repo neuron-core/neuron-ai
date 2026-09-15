@@ -25,6 +25,7 @@ use PHPUnit\Framework\TestCase;
 
 use function glob;
 use function is_dir;
+use function iterator_to_array;
 use function rmdir;
 use function strlen;
 use function sys_get_temp_dir;
@@ -193,7 +194,7 @@ class AgentDurableHistoryTest extends TestCase
         $state1->request = clone $state->request;
         $node1 = new ChatNode($provider, $chatHistory);
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $node1($event, $state1);
+        $this->assertSame([], iterator_to_array($node1($event, $state1)));
 
         $this->assertCount(2, $chatHistory->getMessages());
 
@@ -201,7 +202,7 @@ class AgentDurableHistoryTest extends TestCase
         $state2->request = clone $state->request;
         $node2 = new ChatNode($provider, $chatHistory);
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $node2($event, $state2);
+        $this->assertSame([], iterator_to_array($node2($event, $state2)));
 
         $messages = $chatHistory->getMessages();
         $this->assertCount(2, $messages, 'Replayed history writes must be skipped, not duplicated');

@@ -12,9 +12,9 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\InferenceStart;
 use NeuronAI\Observability\Events\InferenceStop;
 use NeuronAI\Providers\ProviderResponse;
@@ -33,24 +33,28 @@ use function end;
 class ChatNode extends InferenceNode
 {
     /**
+     * @return Generator<int, StreamChunk, mixed, AgentOutputEvent|StoreMemoryEvent|ToolCallEvent>
      * @throws ChatHistoryException
      * @throws Throwable
      */
     public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|AgentOutputEvent|StoreMemoryEvent|ToolCallEvent
     {
-        if ($state->request->options->stream) {
-            return $this->streamedInference($state);
-        }
-
         $inbound = $state->request->messages;
         $messages = $this->pendingConversation($inbound);
         $lastMessage = end($messages);
 
         $this->emit(new InferenceStart($lastMessage));
-        $providerResponse = $this->memoize(
-            'inference',
-            fn (): ProviderResponse => $this->inference($state->request, $messages),
-        );
+        $providerResponse = $this->recallMemo('inference');
+
+        if (!$providerResponse instanceof ProviderResponse) {
+            $providerResponse = $state->request->options->stream
+                ? yield from $this->stream($state->request, $messages)
+                : $this->chat($state->request, $messages);
+
+            // Only the terminal response is durable; a live stream cannot be replayed.
+            $providerResponse = $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
+        }
+
         $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
         $this->addToChatHistory($inbound, 'history.inbound');
@@ -70,64 +74,16 @@ class ChatNode extends InferenceNode
     }
 
     /**
-     * The streaming transport, kept in its own generator method: a function
-     * body containing yield is always a Generator function, so the buffered
-     * chat path above must live outside it to return events directly.
-     *
-     * @throws ChatHistoryException
+     * @param Message[] $messages
+     * @return Generator<int, StreamChunk, mixed, ProviderResponse>
      * @throws Throwable
      */
-    protected function streamedInference(AgentState $state): Generator
+    protected function stream(InferenceRequest $request, array $messages): Generator
     {
-        $inbound = $state->request->messages;
-        $messages = $this->pendingConversation($inbound);
-        $lastMessage = end($messages);
-
-        try {
-            $this->emit(new InferenceStart($lastMessage));
-
-            // A provider stream is a live, non-resumable cursor, so only the
-            // terminal response is durable: on recovery it is recalled and the
-            // stream skipped entirely; on the live path it is recorded after
-            // streaming so a crash before the step commits won't re-bill.
-            $providerResponse = $this->recallMemo('inference');
-
-            if (!$providerResponse instanceof ProviderResponse) {
-                $stream = $this->provider
-                    ->systemPrompt($state->request->instructions)
-                    ->setTools($state->request->tools)
-                    ->stream(...$messages);
-
-                foreach ($stream as $chunk) {
-                    yield $chunk;
-                }
-
-                $providerResponse = $stream->getReturn();
-
-                $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
-            }
-
-            $this->emit(new InferenceStop($lastMessage, $providerResponse));
-
-            $this->addToChatHistory($inbound, 'history.inbound');
-
-            $state->setResponse($providerResponse);
-            $message = $providerResponse->message();
-
-            if ($message instanceof ToolCallMessage) {
-                return new ToolCallEvent($message);
-            }
-
-            $this->addToChatHistory($message, 'history.response');
-
-            return $this->memoryAvailable && $state->request->options->rememberMemory
-                ? new StoreMemoryEvent([...$inbound, $message])
-                : new AgentOutputEvent();
-
-        } catch (Throwable $exception) {
-            $this->emit(new AgentError($exception));
-            throw $exception;
-        }
+        return yield from $this->provider
+            ->systemPrompt($request->instructions)
+            ->setTools($request->tools)
+            ->stream(...$messages);
     }
 
     /**
@@ -136,7 +92,7 @@ class ChatNode extends InferenceNode
      *
      * @param Message[] $messages
      */
-    protected function inference(InferenceRequest $request, array $messages): ProviderResponse
+    protected function chat(InferenceRequest $request, array $messages): ProviderResponse
     {
         return $this->provider
             ->systemPrompt($request->instructions)

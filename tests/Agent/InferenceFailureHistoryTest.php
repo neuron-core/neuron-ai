@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -54,11 +55,18 @@ class InferenceFailureHistoryTest extends TestCase
         $provider = new FakeAIProvider();
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
+        $errors = [];
+        $agent = $this->makeAgent($provider, $history, $persistence)
+            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+                $errors[] = $event;
+            });
 
         try {
-            $this->makeAgent($provider, $history, $persistence)->chat(new UserMessage('Hello'))->getMessage();
+            $agent->chat(new UserMessage('Hello'))->getMessage();
             $this->fail('Expected the provider failure to propagate.');
-        } catch (ProviderException) {
+        } catch (ProviderException $exception) {
+            $this->assertCount(1, $errors);
+            $this->assertSame($exception, $errors[0]->exception);
         }
 
         $this->assertCount(0, $history->getMessages());
@@ -120,11 +128,18 @@ class InferenceFailureHistoryTest extends TestCase
         $provider = new FakeAIProvider();
         $history = new InMemoryChatHistory();
         $persistence = new InMemoryPersistence();
+        $errors = [];
+        $agent = $this->makeAgent($provider, $history, $persistence)
+            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+                $errors[] = $event;
+            });
 
         try {
-            iterator_to_array($this->makeAgent($provider, $history, $persistence)->stream(new UserMessage('Hello')));
+            iterator_to_array($agent->stream(new UserMessage('Hello')));
             $this->fail('Expected the provider failure to propagate.');
-        } catch (ProviderException) {
+        } catch (ProviderException $exception) {
+            $this->assertCount(1, $errors);
+            $this->assertSame($exception, $errors[0]->exception);
         }
 
         $this->assertCount(0, $history->getMessages());
