@@ -22,9 +22,9 @@ In addition, we provide tutorials and other educational content to help you get 
 
 ## Why Neuron
 
-Your next application will be agentic. A growing share of new software is no longer a web application with AI features added along the way, but an application born agentic, where the agent is the architecture itself, driving how the system reasons, acts, and talks to its interface. Building this kind of application requires a specific set of foundations: event-driven workflows with checkpointing, human-in-the-loop interruption, multi-agent orchestration, streaming through agentic UI protocols like AG-UI and the Vercel AI SDK protocol, MCP, and asynchronous execution.
+Your next application will be agentic. A growing share of new software is no longer a web application with AI features added along the way, but an application born agentic, where the agent is the architecture itself, driving how the system reasons, acts, and talks to the user interface. Building this kind of application requires a specific set of foundations: event-driven workflows with checkpointing, human-in-the-loop, interruption, multi-agent orchestration, streaming, and agentic UI integration like AG-UI and the Vercel AI SDK, MCP connectors, and asynchronous execution.
 
-In the PHP ecosystem, this set of foundations exists in one place. Each one is a chapter of the documentation:
+Each one is a chapter of the documentation:
 [Workflow](#workflow),
 [Human in the loop](https://docs.neuron-ai.dev/workflow/human-in-the-loop),
 [Streaming & UI protocols](https://docs.neuron-ai.dev/agent/streaming#stream-adapters),
@@ -37,7 +37,7 @@ There is also no second framework waiting for you when the project grows. The sa
 
 Neuron is also the only vertical ecosystem for agentic applications development in PHP. Around the framework there is a registry of extensions, tools, and technologies designed specifically for agentic applications, and a growing number of companies building on the same architecture instead of assembling their own from scattered parts.
 
-For a software house, this is a place to be recognized as a specialist rather than one more team claiming AI experience. For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose whole direction is this space, not a general-purpose library where agents are a side feature.
+For a software house or a product company this is a place to be recognized as a specialist rather than one more team claiming AI experience. For a company that needs an agentic foundation it can commit to for years, it means standardizing on an architecture whose whole direction is this space, not a general-purpose library where AI is a side feature. It also means hiring becomes a solvable problem: as the community grows, so does the number of developers who already know how to design, test, and run agentic applications on this architecture, so the people you bring in tomorrow speak the same language as the system you are building today.
 
 ## Requirements
 
@@ -160,16 +160,16 @@ Learn more about Monitoring in the [documentation](https://docs.neuron-ai.dev/ag
 
 ## Supported LLM Providers
 
-With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/components/ai-provider) with just one line of code, without any impact on your agent implementation.
+With Neuron, you can switch between [LLM providers](https://docs.neuron-ai.dev/providers/ai-provider) with just one line of code, without any impact on your agent implementation.
 Supported providers:
 
-- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic) (supports [prompt caching](#anthropic-prompt-caching))
-- [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#openai))
+- [Anthropic](https://docs.neuron-ai.dev/providers/ai-provider#anthropic)
+- [OpenAI](https://docs.neuron-ai.dev/providers/ai-provider#openai)
 - [OpenAI Responses API](https://docs.neuron-ai.dev/providers/ai-provider#openairesponses)
 - [OpenAI on Azure](https://docs.neuron-ai.dev/providers/ai-provider#azureopenai)
 - [OpenAILike](https://docs.neuron-ai.dev/providers/ai-provider#openailike) (OpenAI compatible APIs)
-- [Ollama](https://docs.neuron-ai.dev/providers/ai-provider#ollama) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#ollama))
-- [Gemini](https://docs.neuron-ai.dev/providers/ai-provider#gemini) (also as an [embeddings provider](https://docs.neuron-ai.dev/rag/embeddings-provider#gemini))
+- [Ollama](https://docs.neuron-ai.dev/providers/ai-provider#ollama)
+- [Gemini](https://docs.neuron-ai.dev/providers/ai-provider#gemini)
 - [Gemini Vertex](https://docs.neuron-ai.dev/providers/ai-provider#gemini-vertex-ai)
 - [Mistral](https://docs.neuron-ai.dev/providers/ai-provider#mistral)
 - [HuggingFace](https://docs.neuron-ai.dev/providers/ai-provider#huggingface)
@@ -399,7 +399,7 @@ to retrieval use cases, or tool calls, structured output, etc. Workflow allows y
 agentic system completely from scratch. Agent and RAG can be used inside a Workflow to complete tasks
 as any other component if you need their built-in capabilities.
 
-[![Neuron Workflow](./docs/images/workflow.png)](https://docs.neuron-ai.dev/v2/workflow/getting-started)
+[![Neuron Workflow](./docs/images/workflow.png)](https://docs.neuron-ai.dev/workflow/getting-started)
 
 Neuron Workflow supports a robust [**human-in-the-loop**](https://docs.neuron-ai.dev/workflow/human-in-the-loop)
 pattern, enabling human intervention at any point in an automated process. This is especially useful in
