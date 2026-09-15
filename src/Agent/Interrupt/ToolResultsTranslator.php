@@ -6,7 +6,11 @@ namespace NeuronAI\Agent\Interrupt;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
-/** Translates native result/error entries keyed by tool call ID. */
+/**
+ * Translates native result/error entries keyed by tool call ID.
+ *
+ * ['tool_call_id' => ['result' => mixed]]
+ */
 class ToolResultsTranslator extends ToolInputTranslator
 {
     public function translate(array $payload, InterruptRequest $request): array
