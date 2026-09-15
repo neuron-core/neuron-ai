@@ -1,6 +1,6 @@
 ---
 name: neuron-streaming
-description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, CallbackChannel, PusherChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
+description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, CallbackChannel, RedisChannel, PusherChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
 ---
 
 # Neuron AI Streaming
@@ -206,7 +206,7 @@ The lifecycle methods fire once per segment after the adapter's terminal frames.
 
 ### CallbackChannel
 
-`CallbackChannel` wraps up to four closures, one per method. Unset hooks are silent no-ops, so a transport usually needs a single closure:
+`CallbackChannel` wraps up to four closures, one per method. Unset hooks are silent no-ops, so a transport usually needs a single closure. With Laravel Broadcast, for example, the event type is the broadcast name and `data` the payload, sent synchronously because a queued broadcast with several workers loses ordering:
 
 ```php
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
@@ -217,24 +217,33 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 $agent = MyAgent::make(threadId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new CallbackChannel(
-        onSend: fn (ProtocolEvent $event) => $redis->publish("chat:{$threadId}", json_encode($event)),
-        onCompleted: fn ($state, string $workflowId) => $redis->publish("chat:{$threadId}", '[DONE]'),
+        onSend: fn (ProtocolEvent $event) => Broadcast::private("chat.{$threadId}")
+            ->as($event->type)
+            ->with($event->data)
+            ->sendNow(),
     ));
 
 foreach ($agent->stream(new UserMessage($message)) as $ignored) {
 }
 ```
 
-Drain `stream()` rather than calling `chat()`: the buffered path never yields provider chunks, so the channel would only see the terminal frames. With Laravel Broadcast the event type is the broadcast name and `data` the payload, sent synchronously because a queued broadcast with several workers loses ordering:
-
-```php
-onSend: fn (ProtocolEvent $event) => Broadcast::private("chat.{$threadId}")
-    ->as($event->type)
-    ->with($event->data)
-    ->sendNow(),
-```
+Drain `stream()` rather than calling `chat()`: the buffered path never yields provider chunks, so the channel would only see the terminal frames.
 
 For a dedicated transport implement `StreamingChannelInterface` directly, or declare it once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter.
+
+### RedisChannel
+
+`RedisChannel` publishes the segment on a Redis Pub/Sub channel, the usual fan-out between a worker running the agent and the process holding the client's connection (an SSE endpoint, a websocket server). It needs `ext-redis` and a connected client, the same requirement as `RedisPersistence`.
+
+```php
+use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
+
+$agent = MyAgent::make(threadId: $threadId)
+    ->setStreamAdapter(new VercelAIAdapter())
+    ->setChannel(new RedisChannel($redis, "chat:{$threadId}"));
+```
+
+Every message is one protocol event as JSON with the `type` first, exactly what `SSEEncoder::frame()` puts after `data: `, so a subscriber relays it to the browser without transformation: the process holding the SSE response subscribes to the channel, writes `data: {$message}\n\n` for each message, and closes on `stream.completed`, `stream.suspended` or `stream.failed`, which arrive the same way carrying `workflowId` only. Redis delivers the messages of one publisher in order and has no meaningful size ceiling, so there is nothing to fragment or batch. Pub/Sub does not replay: a subscriber that connects mid-run has missed the earlier messages and reconciles from chat history, which is the framework's contract for every channel.
 
 ### PusherChannel
 
