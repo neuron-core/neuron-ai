@@ -33,7 +33,6 @@ use function end;
 class ChatNode extends InferenceNode
 {
     /**
-     * @return Generator<int, StreamChunk, mixed, AgentOutputEvent|StoreMemoryEvent|ToolCallEvent>
      * @throws ChatHistoryException
      * @throws Throwable
      */
