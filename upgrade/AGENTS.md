@@ -2,7 +2,7 @@
 
 This directory contains the step-by-step guides for upgrading an application from Neuron AI 3.x to 4.x. Each numbered file (`1-*.md`, `2-*.md`, ...) documents one breaking change: what changed, how to find affected code, and how to refactor it.
 
-Your job is to upgrade the **application codebase** you are working in (the project that depends on `inspector-apm/neuron-ai`), not the framework itself.
+Your job is to upgrade the **application codebase** you are working in (the project that depends on `neuron-core/neuron-ai`), not the framework itself.
 
 ## Process
 
