@@ -5,7 +5,7 @@ name: neuron-ai-tests
 services:
   php:
     build:
-      context: ../../Users/ilval/Desktop
+      context: .
       dockerfile: Dockerfile
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
@@ -14,7 +14,12 @@ services:
       - composer-cache:/tmp/composer-cache
     working_dir: /app
     network_mode: host
+    environment:
+      WORKFLOW_REDIS_HOST: 127.0.0.1
+      WORKFLOW_REDIS_PORT: "6379"
     depends_on:
+      redis:
+        condition: service_healthy
       qdrant:
         condition: service_started
       chroma:
@@ -37,6 +42,16 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+
+  redis:
+    image: redis:${REDIS_VERSION:-7.4-alpine}
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
 
   qdrant:
     image: qdrant/qdrant:${QDRANT_VERSION:-v1.14.1}

@@ -445,6 +445,14 @@ docker compose run --rm php composer update --prefer-stable
 docker compose run --rm php vendor/bin/phpunit
 ```
 
+To run only the Redis workflow persistence tests:
+
+```bash
+docker compose build php
+docker compose up -d --wait redis
+docker compose run --rm --no-deps php vendor/bin/phpunit tests/Workflow/Persistence/RedisPersistenceTest.php
+```
+
 To stop all services:
 
 ```bash

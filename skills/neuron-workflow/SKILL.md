@@ -230,6 +230,7 @@ All staging methods are lazy; `run()` and `events()` take no arguments.
 
 ```php
 use NeuronAI\Workflow\Persistence\DatabasePersistence;use NeuronAI\Workflow\Persistence\EloquentPersistence;use NeuronAI\Workflow\Persistence\FilePersistence;
+use NeuronAI\Workflow\Persistence\RedisPersistence;
 
 // File system — directory is auto-created if it doesn't exist
 $persistence = new FilePersistence('/path/to/storage');
@@ -239,7 +240,23 @@ $persistence = new DatabasePersistence($pdo);
 
 // Eloquent model — requires a model with partition, key, value columns
 $persistence = new EloquentPersistence(WorkflowStore::class);
+
+// Redis — requires the optional ext-redis PHP extension (PhpRedis)
+$redis = new \Redis();
+$redis->connect('127.0.0.1', 6379);
+$persistence = new RedisPersistence($redis, prefix: 'neuron:workflow:');
 ```
+
+For multiple workers, use `DatabasePersistence`, `EloquentPersistence`, or
+`RedisPersistence`. File storage is for controlled single-process use.
+
+Redis stores each workflow partition in one hash and uses Lua scripts for atomic
+conditional writes and deletion. Pass a connected `\Redis` client outside a
+transaction or pipeline. The default prefix is `neuron:workflow:`; use the same
+Redis database and prefix when reconstructing a workflow. Values remain raw bytes
+regardless of client serializer settings. Redis errors raise `PersistenceException`.
+The backend sets no TTL; workflow completion and acknowledgement control cleanup.
+Configure Redis persistence and eviction to preserve active and retained runs.
 
 ### Enabling Persistence
 

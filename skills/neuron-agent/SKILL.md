@@ -605,7 +605,7 @@ recovery use `resume()->run()`, and durable platform SDKs pass run and execution
 continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
 
-Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`. See the **neuron-workflow** skill for full details on persistence and continuation, and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
+Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`, and `RedisPersistence` (optional `ext-redis`, using a connected `\Redis` client). See the **neuron-workflow** skill for full details on persistence and continuation, and the **neuron-tool-approval** skill for the complete approval flow (UI rendering, decision payloads, unified endpoint).
 
 ### Failed turns, pending approvals, and the lease
 
@@ -648,8 +648,10 @@ completion delivery, opt into `retainCompletionUntilAcknowledged()`, retrieve
 retained state with `resume()->run()`, and release that exact generation with
 `acknowledgeCompletion($runId)`. Retained completion blocks a new turn until
 acknowledged. File persistence is for controlled single-process use; choose
-appropriate database-backed persistence for multi-process coordination and
-reconstruct the same history, providers, and tools on continuation.
+`DatabasePersistence`, `EloquentPersistence`, or `RedisPersistence` for
+multi-process coordination. Redis requires persistence and eviction settings that
+preserve active and retained runs. Reconstruct the same history, providers, and
+tools on continuation.
 
 ## Key Decisions
 

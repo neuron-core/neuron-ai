@@ -38,6 +38,8 @@ You never fight the framework: the architecture you use on day one is the same o
 | `src/Evaluation/` | AI evaluation framework (incl. multi-turn conversation eval)  | Agent, Chat, Workflow, Tools |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |
 
+Workflow persistence backends include `InMemoryPersistence`, `FilePersistence`, `DatabasePersistence`, `EloquentPersistence`, and `RedisPersistence` (optional `ext-redis`). See [Workflow guidance](src/Workflow/AGENTS.md) for coordination and durability requirements.
+
 ## Development Commands
 
 ```bash
