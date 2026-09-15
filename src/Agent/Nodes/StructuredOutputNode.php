@@ -97,9 +97,6 @@ class StructuredOutputNode extends InferenceNode
 
                 $messages = $this->pendingConversation($pending);
 
-                $this->addToChatHistory($pending, "history.inbound.{$attempt}");
-                $pending = [];
-
                 $last = clone end($messages);
 
                 $this->emit(new InferenceStart($last));
@@ -118,6 +115,9 @@ class StructuredOutputNode extends InferenceNode
 
                 $message = $providerResponse->message();
                 $this->emit(new InferenceStop($last, $providerResponse));
+
+                $this->addToChatHistory($pending, "history.inbound.{$attempt}");
+                $pending = [];
 
                 if ($message instanceof ToolCallMessage) {
                     return new ToolCallEvent($message);
