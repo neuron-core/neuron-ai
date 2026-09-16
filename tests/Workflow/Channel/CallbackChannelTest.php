@@ -40,7 +40,7 @@ class CallbackChannelTest extends TestCase
             onSend: function (ProtocolEvent $item) use (&$calls): void {
                 $calls[] = ['send', $item];
             },
-            onSuspended: function (WorkflowState $state) use (&$calls): void {
+            onInterrupted: function (WorkflowState $state) use (&$calls): void {
                 $calls[] = ['suspended', $state];
             },
             onCompleted: function (WorkflowState $state, string $runId) use (&$calls): void {
