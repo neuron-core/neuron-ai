@@ -4,42 +4,40 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Streaming\Channel;
 
-use JsonException;
-use NeuronAI\HttpClient\Curl\CurlHttpClient;
-use NeuronAI\HttpClient\HasHttpClient;
-use NeuronAI\HttpClient\HttpClientInterface;
-use NeuronAI\HttpClient\HttpMethod;
-use NeuronAI\HttpClient\HttpRequest;
-use NeuronAI\Workflow\Streaming\ProtocolEvent;
+use InvalidArgumentException;
+use Pusher\Pusher;
+use Pusher\PusherCrypto;
 
-use function array_map;
-use function hash_hmac;
+use function count;
 use function implode;
+use function intdiv;
+use function json_decode;
 use function json_encode;
-use function md5;
+use function preg_match;
+use function str_repeat;
+use function str_starts_with;
 use function strlen;
-use function time;
+use function max;
 
-use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
 
 final class PusherChannel extends AbstractChannel
 {
-    use HasHttpClient;
-
     public function __construct(
+        protected Pusher $pusher,
         protected string $channel,
-        protected string $appId,
-        protected string $key,
-        protected string $secret,
-        string $host = 'https://api-mt1.pusher.com',
         protected int $maxRequestBytes = 10_000,
         protected int $batchSize = 10,
-        ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($host)
-            ->withHeaders(['Content-Type' => 'application/json']);
+        if (preg_match('/\A[-a-zA-Z0-9_=@,.;]{1,164}\z/', $channel) !== 1) {
+            throw new InvalidArgumentException('Invalid Pusher channel name.');
+        }
+        if ($batchSize < 1 || $batchSize > 50) {
+            throw new InvalidArgumentException('Pusher batch size must be between 1 and 50.');
+        }
+        if ($maxRequestBytes <= strlen('{"batch":[]}')) {
+            throw new InvalidArgumentException('Pusher request byte limit must leave room for events.');
+        }
     }
 
     protected function batchSize(): int
@@ -47,57 +45,66 @@ final class PusherChannel extends AbstractChannel
         return $this->batchSize;
     }
 
-    /** The request body minus the batch envelope. */
     protected function budget(): int
     {
-        return $this->maxRequestBytes - strlen('{"batch":[]}');
+        return $this->maxRequestBytes;
     }
 
-    /**
-     * A batch item plus its separating comma.
-     *
-     * @throws JsonException
-     */
-    protected function size(ProtocolEvent $event): int
+    protected function eventBudget(): int
     {
-        return strlen($this->item($event)) + 1;
+        if (!PusherCrypto::is_encrypted_channel($this->channel)) {
+            return 10_000;
+        }
+
+        // Secretbox adds 16 bytes; base64 uses four characters per three bytes.
+        // Each base64 character may be a slash, escaped by the SDK's JSON encoder.
+        return 3 * intdiv(10_000 - strlen($this->encryptedMetadata()), 8) - 16;
     }
 
-    /**
-     * @throws JsonException
-     */
-    protected function deliver(array $events): void
+    /** @param list<string> $events */
+    protected function batch(array $events): string
     {
-        $body = '{"batch":[' . implode(',', array_map($this->item(...), $events)) . ']}';
-
-        $this->httpClient->request(new HttpRequest(HttpMethod::POST, $this->signedUri($body), body: $body));
+        return '{"batch":[' . implode(',', $events) . ']}';
     }
 
-    /**
-     * Pusher wants data as a string, encoded here so the signature covers the
-     * exact bytes on the wire; unicode stays escaped as on the SSE path.
-     *
-     * @throws JsonException
-     */
-    protected function item(ProtocolEvent $event): string
+    /** @param list<string> $events */
+    protected function batchBytes(array $events): int
     {
+        if (!PusherCrypto::is_encrypted_channel($this->channel)) {
+            return parent::batchBytes($events);
+        }
+
+        $bytes = strlen('{"batch":[]}') + max(0, count($events) - 1);
+        foreach ($events as $encoded) {
+            $event = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
+            $ciphertextCharacters = 4 * intdiv(strlen($event['data']) + 16 + 2, 3);
+            $event['data'] = $this->encryptedMetadata();
+            // The SDK JSON-encodes encrypted data twice: a slash can take four bytes.
+            $bytes += strlen(json_encode($event, JSON_THROW_ON_ERROR)) + 4 * $ciphertextCharacters;
+        }
+        return $bytes;
+    }
+
+    protected function encryptedMetadata(): string
+    {
+        return json_encode(['nonce' => str_repeat('/', 32), 'ciphertext' => ''], JSON_THROW_ON_ERROR);
+    }
+
+    protected function deliver(string $batch): void
+    {
+        $this->pusher->triggerBatch(json_decode($batch, true, 512, JSON_THROW_ON_ERROR)['batch'], true);
+    }
+
+    protected function encode(string $type, string $envelope): string
+    {
+        if ($type === '' || strlen($type) > 200 || str_starts_with($type, 'pusher:')) {
+            throw new InvalidArgumentException('Pusher event names must be 1–200 bytes and cannot start with pusher:.');
+        }
+
         return json_encode([
             'channel' => $this->channel,
-            'name' => $event->type,
-            'data' => json_encode($event->data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+            'name' => $type,
+            'data' => $envelope,
         ], JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Pusher HTTP API authentication, version 1.0: an HMAC-SHA256 over the
-     * method, the path and the key-sorted, unescaped query string.
-     */
-    protected function signedUri(string $body): string
-    {
-        $path = "/apps/{$this->appId}/batch_events";
-        $query = "auth_key={$this->key}&auth_timestamp=" . time() . "&auth_version=1.0&body_md5=" . md5($body);
-        $signature = hash_hmac('sha256', "POST\n{$path}\n{$query}", $this->secret);
-
-        return "{$path}?{$query}&auth_signature={$signature}";
     }
 }

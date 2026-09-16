@@ -12,15 +12,15 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
-use NeuronAI\Workflow\Streaming\SSEEncoder;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Redis;
 
 use function array_column;
 use function array_map;
 use function iterator_to_array;
-use function json_encode;
+use function json_decode;
 
 class RedisChannelTest extends TestCase
 {
@@ -44,43 +44,60 @@ class RedisChannelTest extends TestCase
         return $state;
     }
 
-    public function test_send_publishes_the_protocol_event_as_json_with_the_type_first(): void
+    public function test_send_publishes_the_shared_envelope(): void
     {
         $event = new ProtocolEvent('text-delta', ['id' => 'msg_1', 'delta' => 'Hello']);
-
         $this->channel()->send($event);
-
-        $this->assertSame(
-            [['channel' => 'chat:42', 'message' => '{"type":"text-delta","id":"msg_1","delta":"Hello"}']],
-            $this->redis->published,
-        );
-        // A subscriber relays the message as an SSE frame without transformation.
-        $this->assertSame(SSEEncoder::frame($event), "data: {$this->redis->published[0]['message']}\n\n");
-    }
-
-    public function test_lifecycle_events_carry_the_workflow_id_only(): void
-    {
-        $channel = $this->channel();
-
-        $channel->interrupted($this->state());
-        $channel->completed($this->state(), 'wf-1');
-        $channel->failed(new RuntimeException('internal details'), 'wf-1');
-
-        $this->assertSame(
-            [
-                '{"type":"stream.interrupted","workflowId":"wf-1"}',
-                '{"type":"stream.completed","workflowId":"wf-1"}',
-                '{"type":"stream.failed","workflowId":"wf-1"}',
-            ],
-            array_column($this->redis->published, 'message'),
-        );
+        $this->assertSame('chat:42', $this->redis->published[0]['channel']);
+        $envelope = json_decode($this->redis->published[0]['message'], true);
+        $this->assertSame($event->type, $envelope['type']);
+        $this->assertSame($event->data, $envelope['data']);
+        $this->assertSame(0, $envelope['sequence']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $envelope['streamId']);
     }
 
     public function test_invalid_utf8_is_substituted_instead_of_losing_the_message(): void
     {
         $this->channel()->send(new ProtocolEvent('text-delta', ['delta' => "caf\xE9"]));
+        $envelope = json_decode($this->redis->published[0]['message'], true);
+        $this->assertSame("caf\u{FFFD}", $envelope['data']['delta']);
+    }
 
-        $this->assertSame('{"type":"text-delta","delta":"caf\ufffd"}', $this->redis->published[0]['message']);
+    public function test_a_zero_subscriber_count_is_successful(): void
+    {
+        $this->redis->result = 0;
+        $channel = $this->channel();
+        $channel->send(new ProtocolEvent('text-delta'));
+        $channel->send(new ProtocolEvent('text-delta'));
+        $this->assertCount(2, $this->redis->published);
+    }
+
+    public function test_false_publish_results_stop_data_delivery_but_allow_the_terminal(): void
+    {
+        $this->redis->result = false;
+        $channel = $this->channel();
+        try {
+            $channel->send(new ProtocolEvent('text-delta'));
+            $this->fail('Expected publish failure.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('publish failed', $e->getMessage());
+        }
+        $channel->send(new ProtocolEvent('text-delta'));
+        $this->assertCount(1, $this->redis->published);
+        $this->redis->result = 1;
+        $channel->completed($this->state(), 'wf-1');
+        $this->assertSame('stream.completed', json_decode($this->redis->published[1]['message'], true)['type']);
+    }
+
+    public function test_queued_clients_are_rejected_before_a_publish_is_enqueued(): void
+    {
+        $this->redis->mode = Redis::PIPELINE;
+        try {
+            $this->channel()->send(new ProtocolEvent('text-delta'));
+            $this->fail('Expected a queued-client error.');
+        } catch (RuntimeException) {
+            $this->assertSame([], $this->redis->published);
+        }
     }
 
     public function test_streams_an_agent_run_as_the_adapter_events_followed_by_the_completion(): void
@@ -90,9 +107,14 @@ class RedisChannelTest extends TestCase
 
         $pulled = iterator_to_array($agent->stream(new UserMessage('Hi')), false);
 
+        $envelopes = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $this->redis->published);
         $this->assertSame(
-            [...array_map(static fn (ProtocolEvent $event): string => json_encode($event), $pulled), '{"type":"stream.completed","workflowId":"' . $agent->getWorkflowId() . '"}'],
-            array_column($this->redis->published, 'message'),
+            [...array_map(static fn (ProtocolEvent $event): string => $event->type, $pulled), 'stream.completed'],
+            array_column($envelopes, 'type'),
         );
+        foreach ($pulled as $index => $event) {
+            $this->assertSame($event->data, $envelopes[$index]['data']);
+            $this->assertSame($index, $envelopes[$index]['sequence']);
+        }
     }
 }

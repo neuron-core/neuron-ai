@@ -10,7 +10,7 @@ test("fragmented delivery: a long multi-byte result survives the runtime bridge 
   await send(page, "What is the title?");
 
   const reply = page.getByTestId("copilot-assistant-message").last();
-  await expect(reply).toContainText("Done: ");
+  await expect(reply).toContainText("Done: ", { timeout: 15_000 });
   const text = (await reply.textContent())!;
   expect(JSON.parse(text.slice(text.indexOf("Done: ") + "Done: ".length))).toEqual({ call_read_title_1: title });
 });

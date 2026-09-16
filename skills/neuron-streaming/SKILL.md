@@ -243,87 +243,58 @@ $agent = MyAgent::make(threadId: $threadId)
     ->setChannel(new RedisChannel($redis, "chat:{$threadId}"));
 ```
 
-Every message is one protocol event as JSON with the `type` first, exactly what `SSEEncoder::frame()` puts after `data: `, so a subscriber relays it to the browser without transformation: the process holding the SSE response subscribes to the channel, writes `data: {$message}\n\n` for each message, and closes on `stream.completed`, `stream.interrupted` or `stream.failed`, which arrive the same way carrying `workflowId` only. Redis delivers the messages of one publisher in order and has no meaningful size ceiling, so there is nothing to fragment or batch. Pub/Sub does not replay: a subscriber that connects mid-run has missed the earlier messages and reconciles from chat history, which is the framework's contract for every channel.
+Every message is a JSON envelope `{streamId, sequence, type, data}`. Unwrap it before passing the protocol event to an SSE encoder; forwarding the envelope directly is not the UI protocol. The Redis client must be connected and outside a transaction or pipeline. A publish result of zero subscribers is valid; Pub/Sub does not replay missed messages. Read [Channel wire contract and consumers](references/channels.md) when wiring subscribers, reassembly, or gap recovery.
 
 ### PusherChannel
 
-`PusherChannel` pushes the segment to a Pusher Channels channel through the HTTP API with no extra dependency: it uses the framework's `HttpClientInterface`, so a custom client, proxies and request hooks apply. Any server speaking the Pusher protocol works through `host` (Pusher clusters, Laravel Reverb, Soketi).
+`PusherChannel` accepts an application-configured `Pusher\Pusher` instance from the optional `pusher/pusher-php-server` package (`composer require pusher/pusher-php-server:^7.2`). The official SDK owns signing, encryption, endpoint settings and HTTP delivery. Configure `host`, `port` and `scheme` on that client for Pusher-compatible servers such as Reverb and Soketi; a custom Guzzle client can be passed as its fifth constructor argument.
 
 ```php
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
+use Pusher\Pusher;
+
+$pusher = new Pusher(
+    $_ENV['PUSHER_APP_KEY'],
+    $_ENV['PUSHER_APP_SECRET'],
+    $_ENV['PUSHER_APP_ID'],
+    [
+        'cluster' => 'eu',
+        'timeout' => 5,
+        'encryption_master_key_base64' => $_ENV['PUSHER_ENCRYPTION_MASTER_KEY'],
+    ],
+);
 
 // Inside a queued job: the HTTP request already returned.
 $agent = MyAgent::make(threadId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new PusherChannel(
-        channel: "private-chat.{$threadId}",
-        appId: $_ENV['PUSHER_APP_ID'],
-        key: $_ENV['PUSHER_APP_KEY'],
-        secret: $_ENV['PUSHER_APP_SECRET'],
-        host: 'https://api-eu.pusher.com', // or your Reverb / Soketi URL
+        pusher: $pusher,
+        channel: "private-encrypted-chat.{$threadId}",
     ));
 
 foreach ($agent->stream(new UserMessage($message)) as $ignored) {
 }
 ```
 
-Each protocol event becomes a Pusher event named by its `type` and carrying its `data`, so the browser rebuilds the exact stream the SSE path would deliver. The segment lifecycle is broadcast as `stream.interrupted`, `stream.completed` and `stream.failed`, each carrying `workflowId` and nothing else: what a client learns about an error is the adapter's decision, through its own error frame.
+Each protocol event becomes a Pusher event named by its `type`, carrying the same `{streamId, sequence, type, data}` envelope as Redis. The three lifecycle events carry only `workflowId` in `data`; exception details and workflow state are not exposed.
 
-**Fragments.** Pusher caps an event at 10 KB; Reverb defaults to the same, Soketi to 100 KB, and `maxRequestBytes` (default `10_000`) tunes the ceiling. An event that does not fit, typically a tool result or an AG-UI `MESSAGES_SNAPSHOT`, is split into consecutive `stream.fragment` events shaped `{event, index, total, part}`, where `part` is a URL-safe base64 slice of the event's JSON data (unicode escaped, so `atob()` decodes it once `-` and `_` are mapped back to `+` and `/`). Fragments arrive in order and never interleave, so the browser concatenates them and parses the last one. This is the only client code the transport needs:
+For encryption, configure a base64-encoded 32-byte master key on the SDK and use a `private-encrypted-*` channel. The SDK encrypts every envelope, including fragments and lifecycle events. Use the encryption-enabled Pusher JavaScript client; it decrypts before invoking event callbacks, so the envelope consumer stays unchanged. The application must authenticate and authorize subscribers before returning `$pusher->authorizeChannel($channel, $socketId)` from its authorization endpoint. Only the per-channel shared secret goes to an authorized subscriber; never expose the master key. An encrypted channel without a configured key fails delivery; it never falls back to plaintext. For ordinary private channels, use `private-*` and omit the encryption key.
 
-```js
-let fragments = '';
+Pusher keeps `batchSize: 10` by default, with an independent 10,000-byte event-data limit and `maxRequestBytes: 10_000` request limit. Increasing the request limit does not increase the event limit. Encrypted channels conservatively reserve space for the authentication tag, nonce, base64 and both layers of JSON escaping; encrypted fragments may be smaller and batches may flush before ten events. Partial batches wait until another event fills the batch or the segment ends; choose `batchSize: 1` for immediate delivery.
 
-channel.bind_global((name, data) => {
-  if (name.startsWith('pusher:')) return;
-  if (name !== 'stream.fragment') return onEvent({ type: name, ...data });
+Neuron does not mutate the injected Pusher client or configure its timeouts. Set the SDK's `timeout` option explicitly (five seconds in the example); the SDK passes this timeout per request even when a custom Guzzle client is injected. Configure `connect_timeout` on that Guzzle client if needed.
 
-  fragments = (data.index === 0 ? '' : fragments) + data.part;
-  if (data.index + 1 < data.total) return;
+### Writing and consuming a channel
 
-  onEvent({ type: data.event, ...JSON.parse(atob(fragments.replace(/-/g, '+').replace(/_/g, '/'))) });
-});
-```
+Extend `AbstractChannel` for a transport with the shared wire contract; `CallbackChannel` remains a direct lifecycle callback adapter, and an `onSend` callback alone receives no lifecycle notifications. The base class serializes each payload once, splits oversized events incrementally, batches encoded bytes, and enforces event and delivery limits. Implement `deliver(string $batch)`; only override the encoding/limit hooks your transport needs.
 
-`onEvent` receives the same `{ type, ...data }` object for plain and reassembled events, so a Vercel transport or an AG-UI subscriber built on it never sees fragments, and the same handler serves every channel built on `AbstractChannel`. A client that subscribes mid-run has missed earlier deltas anyway and reconciles from chat history after `stream.completed` or `stream.interrupted`.
-
-**Batching.** Requests go through the `batch_events` endpoint, which Pusher, Reverb and Soketi all implement: up to `batchSize` events (default `10`, the Pusher maximum) and `maxRequestBytes` per request, so a fast token stream costs a fraction of the HTTP round trips. The buffer flushes when either limit is reached and after every lifecycle event, so nothing is left behind at the end of a segment, and a fragment pushes the pending events out ahead of it, so the wire keeps the stream order. Batching is invisible to the browser, which receives individual events either way. The trade-off is latency: buffered events wait for the next event or the segment end, so the events preceding a long tool execution reach the UI when it finishes. `batchSize: 1` sends every event on its own for the lowest latency.
-
-### Writing a channel
-
-Built-in channels extend `AbstractChannel`, which owns the wire contract every channel shares, so the browser code above works unchanged whatever the transport: protocol events go out as themselves, named by their type; the lifecycle goes out as `stream.interrupted`, `stream.completed` and `stream.failed` with `workflowId` only; an event over the transport's ceiling goes out as `stream.fragment` events. A transport implements `deliver(array $events)`, which receives events in stream order and never an empty list. Return the ceiling in bytes from `budget()` when the transport has one; `size()` defaults to the event's JSON size, so override it only when your envelope adds to it. `batchSize()` defaults to one; return more only when the transport has a real batch endpoint, and accept that buffered events then wait for the next event or the segment end.
-
-```php
-use NeuronAI\Workflow\Streaming\Channel\AbstractChannel;
-
-final class SocketServerChannel extends AbstractChannel
-{
-    public function __construct(
-        protected SocketServer $server, // your transport client
-        protected string $room,
-        protected int $maxFrameBytes = 65_536,
-    ) {
-    }
-
-    protected function budget(): ?int
-    {
-        return $this->maxFrameBytes;
-    }
-
-    protected function deliver(array $events): void
-    {
-        foreach ($events as $event) {
-            $this->server->broadcast($this->room, json_encode($event, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
-        }
-    }
-}
-```
-
-Deliver synchronously and in order: a queue between the channel and the transport reorders deltas. Let transport exceptions propagate: the buffer is cleared before `deliver()` runs, so a failure loses that batch only and the Workflow reports it as a `ChannelError` without failing the run. Test a channel by driving it directly with `ProtocolEvent`s against a fake transport client, as `PusherChannelTest` does with a Guzzle mock handler; buffering and fragmentation are covered once by `AbstractChannelTest`.
+Read [Channel wire contract and consumers](references/channels.md) for the exact envelope and fragment shapes, a bounded browser consumer, extension hooks, and the socket transport example. Do not assume Pusher batches arrive in order or concatenate fragments by arrival order.
 
 ### Failure policy
 
-A channel error never fails the run. The Workflow catches it, dispatches a `ChannelError` observability event carrying the exception, and continues delivering. Losing liveness must never lose the run. Retries, thresholds, and circuit breaking belong to the channel implementation and to the observer that listens for `ChannelError`, not to the engine.
+A channel error never fails the workflow. Workflow dispatches `ChannelError` with the exception. After the first transport delivery failure, `AbstractChannel` stops ordinary delivery for that segment; it does not retry uncertain batches. At termination it attempts pending data, then separately attempts the terminal notification even if that flush failed. Terminal delivery is not retried. Segment state is cleared even when termination fails, so sequential reuse starts with a fresh stream ID. Never share an instance between concurrent segments or reuse one after abandoning its generator without termination.
+
+Clients detect gaps using sequence numbers, bound fragment buffering, and reconcile from application history on a timeout, disconnect, or incomplete segment. Streamed output is not a durable delivery channel.
 
 ## Testing Streamed Output
 

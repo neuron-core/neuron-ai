@@ -4,13 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Streaming\Channel;
 
-use JsonException;
 use Redis;
-
-use function json_encode;
-
-use const JSON_INVALID_UTF8_SUBSTITUTE;
-use const JSON_THROW_ON_ERROR;
+use RuntimeException;
 
 final class RedisChannel extends AbstractChannel
 {
@@ -20,15 +15,13 @@ final class RedisChannel extends AbstractChannel
     ) {
     }
 
-    /**
-     * Invalid UTF-8 becomes U+FFFD instead of a lost message, as on the SSE path.
-     *
-     * @throws JsonException
-     */
-    protected function deliver(array $events): void
+    protected function deliver(string $batch): void
     {
-        foreach ($events as $event) {
-            $this->client->publish($this->channel, json_encode($event, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
+        if ($this->client->getMode() !== Redis::ATOMIC) {
+            throw new RuntimeException('Redis streaming cannot run inside a transaction or pipeline.');
+        }
+        if ($this->client->publish($this->channel, $batch) === false) {
+            throw new RuntimeException('Redis streaming publish failed: ' . $this->client->getLastError());
         }
     }
 }

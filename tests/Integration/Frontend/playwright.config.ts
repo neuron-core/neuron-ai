@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: { trace: "retain-on-failure" },
   projects: [
+    { name: "channels", testMatch: /channels\/.*\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "agui", testMatch: /agui\/.*\.spec\.ts/ },
     { name: "vercel", testMatch: /vercel\/.*\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "copilotkit", testMatch: /copilotkit\/.*\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },

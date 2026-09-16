@@ -4,173 +4,241 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use InvalidArgumentException;
+use LengthException;
+use NeuronAI\Tests\Workflow\Channel\Stub\CountingPayload;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function array_fill;
+use function array_column;
 use function array_map;
 use function array_merge;
-use function array_sum;
 use function base64_decode;
 use function count;
 use function implode;
 use function json_decode;
 use function json_encode;
-use function mb_check_encoding;
 use function range;
 use function str_repeat;
+use function strlen;
 use function strtr;
 
 class AbstractChannelTest extends TestCase
 {
+    /** @return list<array<string, mixed>> */
+    protected function events(RecordingChannel $channel): array
+    {
+        return array_merge(...$channel->deliveries);
+    }
+
     protected function state(): WorkflowState
     {
         $state = new WorkflowState();
         $state->setExecutionMetadata('wf-1', 'run-1', 1);
-
         return $state;
     }
 
-    /**
-     * Every event type on the wire, in delivery order.
-     *
-     * @return string[]
-     */
-    protected function types(RecordingChannel $channel): array
-    {
-        return array_map(static fn (ProtocolEvent $event): string => $event->type, array_merge(...$channel->deliveries));
-    }
-
-    public function test_delivers_each_event_alone_and_in_order_by_default(): void
+    public function test_events_have_one_stream_identity_and_increasing_sequences(): void
     {
         $channel = new RecordingChannel();
-        $first = new ProtocolEvent('text-delta', ['delta' => 'a']);
-        $second = new ProtocolEvent('text-delta', ['delta' => str_repeat('x', 100_000)]);
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'a', 'type' => 'payload-type']));
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
+        $channel->completed($this->state(), 'wf-1');
+        $events = $this->events($channel);
 
-        $channel->send($first);
-        $channel->send($second);
-
-        // No budget means no fragments, however large the event.
-        $this->assertSame([[$first], [$second]], $channel->deliveries);
+        $this->assertSame([0, 1, 2], array_column($events, 'sequence'));
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $events[0]['streamId']);
+        $this->assertSame([$events[0]['streamId'], $events[0]['streamId'], $events[0]['streamId']], array_column($events, 'streamId'));
+        $this->assertSame('text-delta', $events[0]['type']);
+        $this->assertSame(['delta' => 'a', 'type' => 'payload-type'], $events[0]['data']);
     }
 
-    public function test_lifecycle_events_carry_the_workflow_id_only(): void
+    public function test_lifecycle_payloads_expose_only_the_workflow_id_and_reset_the_segment(): void
     {
         $channel = new RecordingChannel();
-
         $channel->interrupted($this->state());
         $channel->completed($this->state(), 'wf-1');
         $channel->failed(new RuntimeException('internal details'), 'wf-1');
+        $events = $this->events($channel);
 
-        $this->assertSame(
-            [
-                '{"type":"stream.interrupted","workflowId":"wf-1"}',
-                '{"type":"stream.completed","workflowId":"wf-1"}',
-                '{"type":"stream.failed","workflowId":"wf-1"}',
-            ],
-            array_map(static fn (ProtocolEvent $event): string => json_encode($event), array_merge(...$channel->deliveries)),
-        );
+        $this->assertSame(['stream.interrupted', 'stream.completed', 'stream.failed'], array_column($events, 'type'));
+        $this->assertSame([['workflowId' => 'wf-1'], ['workflowId' => 'wf-1'], ['workflowId' => 'wf-1']], array_column($events, 'data'));
+        $this->assertSame([0, 0, 0], array_column($events, 'sequence'));
+        $this->assertNotSame($events[0]['streamId'], $events[1]['streamId']);
+        $this->assertNotSame($events[1]['streamId'], $events[2]['streamId']);
     }
 
-    public function test_a_batch_leaves_when_full_and_the_lifecycle_flushes_the_rest(): void
+    public function test_batch_count_flushes_data_and_terminal_delivery_is_separate(): void
     {
         $channel = new RecordingChannel(batchSize: 3);
-
         foreach (['a', 'b', 'c', 'd'] as $delta) {
             $channel->send(new ProtocolEvent('text-delta', ['delta' => $delta]));
         }
         $this->assertCount(1, $channel->deliveries);
-
         $channel->completed($this->state(), 'wf-1');
 
-        $this->assertSame([3, 2], array_map(count(...), $channel->deliveries));
-        $this->assertSame(
-            ['a', 'b', 'c', 'd', 'wf-1'],
-            array_map(static fn (ProtocolEvent $event): string => $event->data['delta'] ?? $event->data['workflowId'], array_merge(...$channel->deliveries)),
-        );
+        $this->assertSame([3, 1, 1], array_map(count(...), $channel->deliveries));
+        $this->assertSame([0, 1, 2, 3, 4], array_column($this->events($channel), 'sequence'));
     }
 
-    public function test_a_batch_leaves_when_the_next_event_would_exceed_the_budget(): void
+    public function test_byte_budget_includes_the_batch_wrapper(): void
     {
-        $channel = new RecordingChannel(batchSize: 10, budget: 300);
-
+        $channel = new RecordingChannel(batchSize: 10, budget: 500);
         foreach (range(1, 5) as $ignored) {
             $channel->send(new ProtocolEvent('text-delta', ['delta' => str_repeat('x', 100)]));
         }
         $channel->completed($this->state(), 'wf-1');
 
-        $this->assertSame([2, 2, 2], array_map(count(...), $channel->deliveries));
-        foreach ($channel->deliveries as $delivery) {
-            $this->assertLessThanOrEqual(300, array_sum(array_map($channel->sizeOf(...), $delivery)));
+        $this->assertSame([2, 2, 1, 1], array_map(count(...), $channel->deliveries));
+        foreach ($channel->bytes as $bytes) {
+            $this->assertLessThanOrEqual(500, $bytes);
         }
     }
 
-    public function test_an_event_over_the_budget_travels_as_fragments_that_reassemble_to_the_event(): void
+    public function test_fragments_reassemble_unicode_and_have_distinct_message_identities(): void
     {
         $channel = new RecordingChannel(budget: 500);
-        $data = ['toolCallId' => 'call_1', 'output' => str_repeat('Napoli è bella / ok? ', 100)];
-
-        $channel->send(new ProtocolEvent('tool-output-available', $data));
-
-        $fragments = array_merge(...$channel->deliveries);
-        $this->assertGreaterThan(1, count($fragments));
-        foreach ($fragments as $index => $fragment) {
-            $this->assertSame('stream.fragment', $fragment->type);
-            $this->assertSame('tool-output-available', $fragment->data['event']);
-            $this->assertSame($index, $fragment->data['index']);
-            $this->assertSame(count($fragments), $fragment->data['total']);
-            $this->assertMatchesRegularExpression('/^[A-Za-z0-9_=-]+$/', $fragment->data['part']);
-            $this->assertLessThanOrEqual(500, $channel->sizeOf($fragment));
+        $data = ['output' => str_repeat('Napoli è bella / ok? ', 100)];
+        $channel->send(new ProtocolEvent('tool-output', $data));
+        $channel->send(new ProtocolEvent('tool-output', $data));
+        $groups = [];
+        foreach ($this->events($channel) as $event) {
+            $this->assertSame('stream.fragment', $event['type']);
+            $groups[$event['sequence']][] = $event['data'];
         }
-
-        $encoded = base64_decode(strtr(implode('', array_map(
-            static fn (ProtocolEvent $fragment): string => $fragment->data['part'],
-            $fragments,
-        )), '-_', '+/'));
-        $this->assertTrue(mb_check_encoding($encoded, 'ASCII'), 'A fragment must decode with atob(), which only carries ASCII.');
-        $this->assertSame($data, json_decode($encoded, true));
+        $this->assertCount(2, $groups);
+        foreach ($groups as $fragments) {
+            $this->assertSame(range(0, count($fragments) - 1), array_column($fragments, 'index'));
+            foreach ($fragments as $fragment) {
+                $this->assertSame(count($fragments), $fragment['total']);
+                $this->assertSame('tool-output', $fragment['event']);
+            }
+            $decoded = base64_decode(strtr(implode('', array_column($fragments, 'part')), '-_', '+/'), true);
+            $this->assertSame($data, json_decode($decoded, true));
+        }
+        foreach ($channel->bytes as $bytes) {
+            $this->assertLessThanOrEqual(500, $bytes);
+        }
     }
 
-    public function test_a_fragment_leaves_after_the_pending_batch_and_keeps_the_stream_order(): void
+    public function test_event_limit_is_independent_of_the_delivery_limit(): void
     {
-        $channel = new RecordingChannel(batchSize: 10, budget: 500);
-
-        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'before']));
-        $channel->send(new ProtocolEvent('tool-output-available', ['output' => str_repeat('x', 2_000)]));
-        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'after']));
+        $channel = new RecordingChannel(batchSize: 10, budget: 5_000, eventBudget: 400);
+        $channel->send(new ProtocolEvent('tool-output', ['output' => str_repeat('x', 2_000)]));
         $channel->completed($this->state(), 'wf-1');
 
-        $types = $this->types($channel);
-        $fragments = count($types) - 3;
-        $this->assertGreaterThan(1, $fragments);
-        $this->assertSame(
-            ['text-delta', ...array_fill(0, $fragments, 'stream.fragment'), 'text-delta', 'stream.completed'],
-            $types,
-        );
-        $this->assertSame(['text-delta'], array_map(static fn (ProtocolEvent $event): string => $event->type, $channel->deliveries[0]));
+        foreach ($this->events($channel) as $event) {
+            $this->assertLessThanOrEqual(400, strlen(json_encode($event)));
+        }
+        foreach ($channel->bytes as $bytes) {
+            $this->assertLessThanOrEqual(5_000, $bytes);
+        }
     }
 
-    public function test_a_failed_delivery_loses_that_batch_only(): void
+    public function test_lifecycle_events_follow_the_same_fragmentation_rules(): void
+    {
+        $channel = new RecordingChannel(budget: 300);
+        $workflowId = str_repeat('w', 1_000);
+        $channel->completed($this->state(), $workflowId);
+        $fragments = array_column($this->events($channel), 'data');
+
+        $this->assertGreaterThan(1, count($fragments));
+        $this->assertSame('stream.completed', $fragments[0]['event']);
+        $this->assertSame(['workflowId' => $workflowId], json_decode(base64_decode(strtr(implode('', array_column($fragments, 'part')), '-_', '+/')), true));
+        foreach ($channel->bytes as $bytes) {
+            $this->assertLessThanOrEqual(300, $bytes);
+        }
+    }
+
+    public function test_an_impossible_fragment_budget_fails_without_delivering_oversized_bytes(): void
+    {
+        $channel = new RecordingChannel(budget: 50);
+        try {
+            $channel->send(new ProtocolEvent('tool-output', ['output' => str_repeat('x', 100)]));
+            $this->fail('Expected an impossible-budget error.');
+        } catch (LengthException $e) {
+            $this->assertStringContainsString('fragment envelope', $e->getMessage());
+        }
+        $this->assertSame([], $channel->deliveries);
+    }
+
+    public function test_invalid_limits_are_rejected(): void
+    {
+        foreach ([new RecordingChannel(batchSize: 0), new RecordingChannel(budget: 0), new RecordingChannel(eventBudget: -1)] as $channel) {
+            try {
+                $channel->send(new ProtocolEvent('text-delta'));
+                $this->fail('Expected invalid channel limits.');
+            } catch (InvalidArgumentException) {
+                $this->assertSame([], $channel->deliveries);
+            }
+        }
+    }
+
+    public function test_data_delivery_stops_after_failure_but_terminal_delivery_is_attempted(): void
     {
         $channel = new RecordingChannel(batchSize: 2);
         $channel->send(new ProtocolEvent('text-delta', ['delta' => 'a']));
         $channel->failNextDelivery = true;
-
         try {
             $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
-            $this->fail('The transport failure must propagate.');
+            $this->fail('Expected transport failure.');
         } catch (RuntimeException) {
         }
-
         $channel->send(new ProtocolEvent('text-delta', ['delta' => 'c']));
         $channel->send(new ProtocolEvent('text-delta', ['delta' => 'd']));
+        $this->assertSame(1, $channel->attempts);
+        $channel->completed($this->state(), 'wf-1');
 
-        $this->assertSame(
-            [['c', 'd']],
-            array_map(static fn (array $delivery): array => array_map(static fn (ProtocolEvent $event): string => $event->data['delta'], $delivery), $channel->deliveries),
-        );
+        $this->assertSame(2, $channel->attempts);
+        $this->assertSame(['stream.completed'], array_column($this->events($channel), 'type'));
+        $this->assertSame(2, $this->events($channel)[0]['sequence']);
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'new segment']));
+        $channel->completed($this->state(), 'wf-2');
+        $this->assertSame(0, $this->events($channel)[1]['sequence']);
+        $this->assertNotSame($this->events($channel)[0]['streamId'], $this->events($channel)[1]['streamId']);
+    }
+
+    public function test_terminal_notification_survives_failure_flushing_pending_data(): void
+    {
+        $channel = new RecordingChannel(batchSize: 10);
+        $channel->send(new ProtocolEvent('text-delta'));
+        $channel->failNextDelivery = true;
+        try {
+            $channel->completed($this->state(), 'wf-1');
+            $this->fail('The original delivery failure must be reported.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('transport down', $e->getMessage());
+        }
+        $this->assertSame(2, $channel->attempts);
+        $this->assertSame(['stream.completed'], array_column($this->events($channel), 'type'));
+    }
+
+    public function test_an_unavailable_transport_gets_no_terminal_retries(): void
+    {
+        $channel = new RecordingChannel(batchSize: 10);
+        $channel->send(new ProtocolEvent('text-delta'));
+        $channel->alwaysFail = true;
+        try {
+            $channel->failed(new RuntimeException('workflow error'), 'wf-1');
+            $this->fail('Expected transport failure.');
+        } catch (RuntimeException) {
+        }
+        $this->assertSame(2, $channel->attempts);
+        $channel->alwaysFail = false;
+        $channel->completed($this->state(), 'wf-2');
+        $this->assertSame(0, $this->events($channel)[0]['sequence']);
+    }
+
+    public function test_payload_serialization_runs_once_for_plain_and_fragmented_events(): void
+    {
+        foreach ([null, 500] as $budget) {
+            $payload = new CountingPayload(str_repeat('x', 2_000));
+            $channel = new RecordingChannel(budget: $budget);
+            $channel->send(new ProtocolEvent('tool-output', ['output' => $payload]));
+            $this->assertSame(1, $payload->calls);
+        }
     }
 }

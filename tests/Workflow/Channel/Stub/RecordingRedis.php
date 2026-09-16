@@ -14,10 +14,19 @@ final class RecordingRedis extends Redis
     /** @var array<int, array{channel: string, message: string}> */
     public array $published = [];
 
-    public function publish(string $channel, string $message): int
+    public int|false $result = 1;
+
+    public int $mode = Redis::ATOMIC;
+
+    public function getMode(): int
+    {
+        return $this->mode;
+    }
+
+    public function publish(string $channel, string $message): int|false
     {
         $this->published[] = ['channel' => $channel, 'message' => $message];
 
-        return 1;
+        return $this->result;
     }
 }

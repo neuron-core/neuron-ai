@@ -14,10 +14,11 @@ use Throwable;
  * receives the adapter's ProtocolEvents, framing included, plus the segment
  * lifecycle. Without an adapter only the lifecycle methods are called.
  *
- * A channel instance is segment-scoped (one events() consumption), so it may
- * hold per-segment state without cross-run leakage. Channels should not
- * throw; the framework guards every call regardless — a channel error never
- * fails the run (see Workflow::fireChannel()).
+ * Channel delivery state belongs to one segment (one events() consumption).
+ * AbstractChannel resets its state after a terminal notification, including
+ * a failed terminal delivery. Do not share a channel between active segments.
+ * Transport failures should throw: Workflow reports them as ChannelError
+ * without failing the run (see Workflow::fireChannel()).
  */
 interface StreamingChannelInterface
 {

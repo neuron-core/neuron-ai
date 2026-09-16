@@ -5,22 +5,30 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Channel\Stub;
 
 use NeuronAI\Workflow\Streaming\Channel\AbstractChannel;
-use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use RuntimeException;
 
-/**
- * A channel with a configurable batch and budget that records every delivery.
- */
+use function implode;
+use function json_decode;
+use function strlen;
+
 final class RecordingChannel extends AbstractChannel
 {
-    /** @var array<int, ProtocolEvent[]> */
+    /** @var list<list<array<string, mixed>>> */
     public array $deliveries = [];
 
+    /** @var list<int> */
+    public array $bytes = [];
+
     public bool $failNextDelivery = false;
+
+    public bool $alwaysFail = false;
+
+    public int $attempts = 0;
 
     public function __construct(
         protected int $batchSize = 1,
         protected ?int $budget = null,
+        protected ?int $eventBudget = null,
     ) {
     }
 
@@ -34,19 +42,25 @@ final class RecordingChannel extends AbstractChannel
         return $this->budget;
     }
 
-    protected function deliver(array $events): void
+    protected function eventBudget(): ?int
     {
-        if ($this->failNextDelivery) {
+        return $this->eventBudget;
+    }
+
+    protected function batch(array $events): string
+    {
+        return '[' . implode(',', $events) . ']';
+    }
+
+    protected function deliver(string $batch): void
+    {
+        ++$this->attempts;
+        if ($this->failNextDelivery || $this->alwaysFail) {
             $this->failNextDelivery = false;
             throw new RuntimeException('transport down');
         }
 
-        $this->deliveries[] = $events;
-    }
-
-    /** The default wire cost, exposed for assertions. */
-    public function sizeOf(ProtocolEvent $event): int
-    {
-        return $this->size($event);
+        $this->deliveries[] = json_decode($batch, true);
+        $this->bytes[] = strlen($batch);
     }
 }

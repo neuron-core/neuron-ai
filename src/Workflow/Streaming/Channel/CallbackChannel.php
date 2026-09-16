@@ -10,9 +10,9 @@ use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 /**
- * Universal userland escape hatch: wraps up to four closures, one per
- * channel method. All closures are optional — unset hooks are silent
- * no-ops, so a Redis/Pusher-style transport only needs $onSend.
+ * Direct lifecycle callbacks, without the AbstractChannel wire envelope.
+ * Unset callbacks are no-ops: onSend alone does not receive lifecycle events.
+ * Extend AbstractChannel to implement a transport with the shared wire contract.
  */
 final class CallbackChannel implements StreamingChannelInterface
 {

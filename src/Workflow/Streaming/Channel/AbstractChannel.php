@@ -4,173 +4,248 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Streaming\Channel;
 
-use JsonException;
+use InvalidArgumentException;
+use LengthException;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function base64_encode;
+use function bin2hex;
 use function count;
+use function implode;
+use function intdiv;
 use function json_encode;
-use function str_split;
+use function min;
+use function random_bytes;
 use function strlen;
 use function strtr;
+use function substr;
+use function str_repeat;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
+use const PHP_INT_MAX;
 
 /**
- * The wire contract every channel shares, so a browser consumes any transport
- * with the same code: protocol events named by their type, the lifecycle as
- * stream.interrupted / stream.completed / stream.failed with the workflowId
- * only, and an event over budget() as stream.fragment slices the client
- * concatenates and parses. Events are buffered up to batchSize() per
- * deliver() call within budget() bytes and flushed at the end of the segment;
- * the buffer is cleared before deliver() runs, so a failure loses that batch
- * only and the Workflow reports it as a ChannelError.
+ * Owns the channel envelope, fragmentation and segment-local delivery policy.
+ * Transports encode envelopes and batches, then deliver within their measured byte limits.
  */
 abstract class AbstractChannel implements StreamingChannelInterface
 {
-    /** Room for index and total to grow beyond the single digits of the measured empty fragment. */
-    protected const COUNTER_DIGITS = 12;
-
-    /** @var ProtocolEvent[] */
+    /** @var list<string> */
     protected array $pending = [];
 
-    protected int $pendingBytes = 0;
+    protected ?string $streamId = null;
 
-    /**
-     * @param ProtocolEvent[] $events In stream order, never empty.
-     */
-    abstract protected function deliver(array $events): void;
+    protected int $sequence = 0;
 
-    /**
-     * Events one deliver() call may carry.
-     */
+    protected bool $stopped = false;
+
+    abstract protected function deliver(string $batch): void;
+
     protected function batchSize(): int
     {
         return 1;
     }
 
-    /**
-     * Bytes one deliver() call may carry on this transport; null means no ceiling.
-     */
+    /** Maximum encoded delivery bytes, including the batch wrapper. */
     protected function budget(): ?int
     {
         return null;
     }
 
-    /**
-     * Wire cost of one event inside a delivery, its share of the transport
-     * envelope included. Measured only when a budget is set.
-     *
-     * @throws JsonException
-     */
-    protected function size(ProtocolEvent $event): int
+    /** Maximum envelope bytes before transport encoding. */
+    protected function eventBudget(): ?int
     {
-        return strlen(json_encode($event, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
+        return null;
     }
 
-    /**
-     * @throws JsonException
-     */
-    public function send(ProtocolEvent $event): void
+    protected function encode(string $type, string $envelope): string
     {
-        foreach ($this->fragments($event) as $piece) {
-            $this->enqueue($piece);
+        return $envelope;
+    }
+
+    /** @param list<string> $events Already encoded for this transport. */
+    protected function batch(array $events): string
+    {
+        return implode('', $events);
+    }
+
+    /** @param list<string> $events */
+    protected function batchBytes(array $events): int
+    {
+        return strlen($this->batch($events));
+    }
+
+    final public function send(ProtocolEvent $event): void
+    {
+        if (!$this->stopped) {
+            $this->enqueueEvent($event);
         }
     }
 
-    /**
-     * @throws JsonException
-     */
-    public function interrupted(WorkflowState $state): void
+    final public function interrupted(WorkflowState $state): void
     {
-        $this->enqueue(new ProtocolEvent('stream.interrupted', ['workflowId' => $state->getWorkflowId()]));
-        $this->flush();
+        $this->finish(new ProtocolEvent('stream.interrupted', ['workflowId' => $state->getWorkflowId()]));
     }
 
-    /**
-     * @throws JsonException
-     */
-    public function completed(WorkflowState $state, string $workflowId): void
+    final public function completed(WorkflowState $state, string $workflowId): void
     {
-        $this->enqueue(new ProtocolEvent('stream.completed', ['workflowId' => $workflowId]));
-        $this->flush();
+        $this->finish(new ProtocolEvent('stream.completed', ['workflowId' => $workflowId]));
     }
 
-    /**
-     * @throws JsonException
-     */
-    public function failed(Throwable $exception, string $workflowId): void
+    final public function failed(Throwable $exception, string $workflowId): void
     {
-        $this->enqueue(new ProtocolEvent('stream.failed', ['workflowId' => $workflowId]));
-        $this->flush();
+        $this->finish(new ProtocolEvent('stream.failed', ['workflowId' => $workflowId]));
     }
 
-    /**
-     * The event itself when it fits a delivery alone, otherwise its fragments,
-     * sized from a probe measured by size() so each one fits alone too.
-     *
-     * @return iterable<ProtocolEvent>
-     * @throws JsonException
-     */
-    protected function fragments(ProtocolEvent $event): iterable
+    final protected function finish(ProtocolEvent $event): void
     {
-        $budget = $this->budget();
-        if ($budget === null || $this->size($event) <= $budget) {
-            yield $event;
-            return;
+        $failure = null;
+        try {
+            $this->flush();
+        } catch (Throwable $e) {
+            $failure = $e;
         }
 
-        // Unicode stays escaped so a slice decodes with atob(), which only
-        // carries ASCII; invalid UTF-8 becomes U+FFFD as on the SSE path.
-        $encoded = json_encode($event->data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
-        $sliceBytes = $budget - $this->size($this->fragment($event->type, 0, 0, '')) - self::COUNTER_DIGITS;
+        // A failed data batch must not prevent the terminal notification attempt.
+        try {
+            $this->enqueueEvent($event);
+            $this->flush();
+        } catch (Throwable $e) {
+            $failure ??= $e;
+        } finally {
+            $this->pending = [];
+            $this->streamId = null;
+            $this->sequence = 0;
+            $this->stopped = false;
+        }
 
-        // URL-safe base64 holds no character a JSON encoder escapes, so a
-        // slice costs exactly its length on any transport.
-        $parts = str_split(strtr(base64_encode($encoded), '+/', '-_'), $sliceBytes);
-        foreach ($parts as $index => $part) {
-            yield $this->fragment($event->type, $index, count($parts), $part);
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
-    protected function fragment(string $event, int $index, int $total, string $part): ProtocolEvent
+    final protected function enqueueEvent(ProtocolEvent $event): void
     {
-        return new ProtocolEvent('stream.fragment', ['event' => $event, 'index' => $index, 'total' => $total, 'part' => $part]);
+        if ($this->batchSize() < 1 || ($this->budget() !== null && $this->budget() < 1)
+            || ($this->eventBudget() !== null && $this->eventBudget() < 1)) {
+            throw new InvalidArgumentException('Channel batch size and byte limits must be positive.');
+        }
+
+        $this->streamId ??= bin2hex(random_bytes(16));
+        $sequence = $this->sequence++;
+        $data = json_encode($event->data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        foreach ($this->fragments($event->type, $data, $sequence) as $encoded) {
+            $this->enqueue($encoded);
+        }
     }
 
-    /**
-     * One rule for every event, fragments included: what would not fit the
-     * delivery goes after a flush, and a full batch leaves at once.
-     *
-     * @throws JsonException
-     */
-    protected function enqueue(ProtocolEvent $event): void
+    final protected function envelope(string $type, string $data, int $sequence): string
     {
-        $budget = $this->budget();
-        $bytes = $budget === null ? 0 : $this->size($event);
+        $header = json_encode([
+            'streamId' => $this->streamId,
+            'sequence' => $sequence,
+            'type' => $type,
+        ], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
 
-        if ($this->pending !== [] && $budget !== null && $this->pendingBytes + $bytes > $budget) {
+        return substr($header, 0, -1) . ',"data":' . $data . '}';
+    }
+
+    /** @return iterable<string> */
+    final protected function fragments(string $type, string $data, int $sequence): iterable
+    {
+        $envelope = $this->envelope($type, $data, $sequence);
+        if ($this->eventBudget() === null || strlen($envelope) <= $this->eventBudget()) {
+            $encoded = $this->encode($type, $envelope);
+            if ($this->fits($envelope, $encoded)) {
+                yield $encoded;
+                return;
+            }
+        }
+        unset($envelope, $encoded);
+
+        $length = strlen($data);
+        $maxFragments = intdiv($length + 2, 3);
+        $probe = $this->fragment($type, $sequence, $maxFragments, $maxFragments, '');
+        $capacity = min(
+            $this->eventBudget() === null ? PHP_INT_MAX : $this->eventBudget() - strlen($probe),
+            $this->budget() === null ? PHP_INT_MAX : $this->budget() - $this->batchBytes([$this->encode('stream.fragment', $probe)]),
+        );
+        // Find a capacity that also accounts for transport expansion (such as encryption).
+        $groups = 0;
+        $upper = min($maxFragments, intdiv($capacity, 4));
+        $lower = 1;
+        while ($lower <= $upper) {
+            $candidate = intdiv($lower + $upper, 2);
+            $probe = $this->fragment($type, $sequence, $maxFragments, $maxFragments, str_repeat('A', $candidate * 4));
+            if ($this->fits($probe, $this->encode('stream.fragment', $probe))) {
+                $groups = $candidate;
+                $lower = $candidate + 1;
+            } else {
+                $upper = $candidate - 1;
+            }
+        }
+        if ($groups === 0) {
+            throw new LengthException('Channel byte limits cannot fit a fragment envelope and its data.');
+        }
+
+        // Whole three-byte groups let independently encoded slices concatenate.
+        $sliceBytes = $groups * 3;
+        $total = intdiv($length + $sliceBytes - 1, $sliceBytes);
+        for ($index = 0, $offset = 0; $offset < $length; ++$index, $offset += $sliceBytes) {
+            $part = strtr(base64_encode(substr($data, $offset, $sliceBytes)), '+/', '-_');
+            $envelope = $this->fragment($type, $sequence, $index, $total, $part);
+            $encoded = $this->encode('stream.fragment', $envelope);
+            if (!$this->fits($envelope, $encoded)) {
+                throw new LengthException('Transport encoding exceeds the channel fragment byte limits.');
+            }
+            yield $encoded;
+        }
+    }
+
+    final protected function fragment(string $type, int $sequence, int $index, int $total, string $part): string
+    {
+        return $this->envelope('stream.fragment', json_encode([
+            'event' => $type,
+            'index' => $index,
+            'total' => $total,
+            'part' => $part,
+        ], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE), $sequence);
+    }
+
+    final protected function fits(string $envelope, string $encoded): bool
+    {
+        return ($this->eventBudget() === null || strlen($envelope) <= $this->eventBudget())
+            && ($this->budget() === null || $this->batchBytes([$encoded]) <= $this->budget());
+    }
+
+    final protected function enqueue(string $encoded): void
+    {
+        if ($this->pending !== [] && $this->budget() !== null
+            && $this->batchBytes([...$this->pending, $encoded]) > $this->budget()) {
             $this->flush();
         }
 
-        $this->pending[] = $event;
-        $this->pendingBytes += $bytes;
-
+        $this->pending[] = $encoded;
         if (count($this->pending) >= $this->batchSize()) {
             $this->flush();
         }
     }
 
-    protected function flush(): void
+    final protected function flush(): void
     {
         if ($this->pending === []) {
             return;
         }
 
-        [$events, $this->pending, $this->pendingBytes] = [$this->pending, [], 0];
-        $this->deliver($events);
+        [$events, $this->pending] = [$this->pending, []];
+        try {
+            $this->deliver($this->batch($events));
+        } catch (Throwable $e) {
+            $this->stopped = true;
+            throw $e;
+        }
     }
 }

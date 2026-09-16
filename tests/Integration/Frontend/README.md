@@ -2,7 +2,8 @@
 
 Executable evidence that Neuron's frontend-tool flow works with real clients:
 the official AG-UI client, Vercel AI SDK `useChat`, and CopilotKit's hooks through
-its runtime bridge.
+its runtime bridge. A dedicated Chromium project also verifies the broadcast
+channel wire contract using real Redis/Pusher encoders and in-memory transport fakes.
 
 ## Layout
 
@@ -10,6 +11,7 @@ its runtime bridge.
 |---|---|
 | `backend/router.php` | Example application endpoint for the built-in PHP server: `/agui`, `/vercel`, and test-only `/_test/*` routes |
 | `Stub/Fixture.php` | SQLite-backed application state: workflow persistence, chat history, thread→scenario binding, audit reads |
+| `Stub/ChannelFixture.php` | Real Redis/Pusher channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker |
 | `Stub/ScenarioProvider.php` | Deterministic provider choosing replies from the inference input; every invocation is persisted |
 | `fixtures/vercel/` | React app on `useChat` with a browser-side `read_title` handler |
 | `fixtures/copilotkit/` | React app on `useFrontendTool` + `CopilotChat`, and `server.mjs`, the CopilotKit runtime bridge that drives `/agui` through `HttpAgent` |
@@ -24,7 +26,9 @@ page title under test arrives through the fixture page URL.
 
 ## Running
 
-Requires PHP with `pdo_sqlite` and Node 22.
+Requires PHP with `pdo_sqlite` and Node 22. The `channels` project also needs
+`ext-redis` for the Redis test double, `ext-sodium` for encrypted Pusher tests, and the repository’s Composer dev dependencies.
+No Redis server, Pusher account, or broker credentials are used.
 
 ```bash
 cd tests/Integration/Frontend
@@ -32,6 +36,7 @@ npm ci
 npx playwright install --with-deps chromium
 npx playwright test                 # all projects
 npx playwright test --project=agui  # SDK contract tests, no browser needed
+npx playwright test --project=channels  # broadcast envelopes in Chromium
 ```
 
 Playwright starts the PHP server (8787), the CopilotKit runtime bridge (4000), and
@@ -51,6 +56,7 @@ passed with. There is no automatic upgrade process.
 | AG-UI (`@ag-ui/client`, `@ag-ui/core`) | 0.0.x | 0.0.59 |
 | Vercel AI SDK (`ai`, `@ai-sdk/react`) | 7.x / 4.x | 7.0.98 / 4.0.101 |
 | CopilotKit (`@copilotkit/react-core`, `@copilotkit/runtime`, v2 API) | 1.x | 1.71.0 |
+| Pusher (`pusher-js`) | 8.x | 8.6.0 |
 | React | 19.x | 19.3.0 |
 | Playwright | 1.x | 1.63.0, Chromium headless shell 1243 |
 | Node | 22 LTS | 22.18 |
@@ -83,6 +89,28 @@ Beyond scenarios, the specs cover partial and out-of-order results, repeated,
 conflicting and stale submissions, a backend restart on the same database, browser
 reload, dynamic tool registration and client-generated schemas, fragmented
 multi-byte delivery, and errors before and after the response headers.
+
+## Broadcast channel coverage
+
+The `channels` project fetches envelopes from `POST /_test/channels`, which drives
+real `PusherChannel` and `RedisChannel` instances with transport I/O captured in
+memory. Chromium runs the JavaScript consumer extracted directly from the
+[shipped channel guide](../../../skills/neuron-streaming/references/channels.md),
+so changes to that example are exercised without a second implementation.
+
+Coverage includes reversed/interleaved fragments from two events of the same type,
+Unicode and structured payloads, duplicate delivery, isolation of concurrent stream
+IDs, and completion/interruption/failure arriving before preceding data. Missing
+fragments and transport failure must trigger gap reconciliation rather than expose
+partial content or prematurely report completion. Buffer limits are checked too. Encrypted cases use the official PHP SDK and the
+encryption-enabled Pusher JavaScript SDK in Chromium, including fragmented Unicode
+payloads, all lifecycle outcomes, unique nonces, rejected ciphertext tampering, and
+wrong subscriber keys. Authorization responses come from the real PHP SDK; socket
+frames are injected at the browser SDK boundary, without a live WebSocket server.
+
+These tests verify the PHP-to-browser wire contract and consumer behavior. They do
+not verify a live broker, subscriber authorization, or the HTTP signature against
+Pusher's service; transport-level checks also live in `tests/Workflow/Channel`.
 
 ## Verified behaviour and client limitations
 

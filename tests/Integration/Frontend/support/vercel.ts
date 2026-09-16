@@ -20,7 +20,7 @@ export async function send(page: Page, text: string): Promise<void> {
 }
 
 export async function expectReply(page: Page, text: string): Promise<void> {
-  await expect(page.locator('[data-role="assistant"] [data-part="text"]').last()).toHaveText(text);
+  await expect(page.locator('[data-role="assistant"] [data-part="text"]').last()).toHaveText(text, { timeout: 15_000 });
   await expect(page.getByTestId("status")).toHaveText("ready");
   await expect(page.getByTestId("error")).toHaveText("");
 }

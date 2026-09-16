@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Integration\Frontend\Stub\Fixture;
+use NeuronAI\Tests\Integration\Frontend\Stub\ChannelFixture;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
@@ -113,6 +114,8 @@ function vercel(Fixture $fixture, array $payload): void
 try {
     if ($method === 'GET' && $path === '/_test/health') {
         respondJson(200, ['ok' => true]);
+    } elseif ($method === 'POST' && $path === '/_test/channels') {
+        respondJson(200, ChannelFixture::run($payload['transport'], $payload['outcome'], $payload['failDelivery'] ?? false));
     } elseif ($method === 'POST' && $path === '/_test/threads') {
         $fixture->registerThread((string) $payload['threadId'], (string) $payload['scenario']);
         respondJson(201, ['threadId' => $payload['threadId']]);
