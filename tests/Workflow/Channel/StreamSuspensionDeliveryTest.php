@@ -74,7 +74,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         $paused->expects($this->once())->method('start')->willReturn([]);
         // The InterruptEvent is the suspension terminal, never stream content.
         $paused->expects($this->never())->method('transform');
-        $paused->expects($this->once())->method('suspended')
+        $paused->expects($this->once())->method('interrupt')
             ->with($this->callback(
                 static fn (ApprovalRequest $request): bool => $request->getId() === 1,
             ))
@@ -97,7 +97,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         $completed = $this->createMock(StreamAdapterInterface::class);
         $completed->expects($this->once())->method('reset');
         $completed->expects($this->once())->method('start')->willReturn([]);
-        $completed->expects($this->never())->method('suspended');
+        $completed->expects($this->never())->method('interrupt');
         $completed->expects($this->once())->method('end')->willReturn([$doneFrame]);
 
         $state = $workflow

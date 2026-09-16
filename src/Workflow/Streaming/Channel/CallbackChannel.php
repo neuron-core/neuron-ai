@@ -37,7 +37,7 @@ final class CallbackChannel implements StreamingChannelInterface
         }
     }
 
-    public function suspended(WorkflowState $state): void
+    public function interrupted(WorkflowState $state): void
     {
         if ($this->onSuspended instanceof Closure) {
             ($this->onSuspended)($state);

@@ -29,7 +29,7 @@ interface StreamingChannelInterface
     /**
      * Run segment ended with the current interruption.
      */
-    public function suspended(WorkflowState $state): void;
+    public function interrupted(WorkflowState $state): void;
 
     /** Run segment ended cleanly. */
     public function completed(WorkflowState $state, string $workflowId): void;

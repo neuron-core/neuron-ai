@@ -38,7 +38,7 @@ class ParityAdapter implements StreamAdapterInterface
         yield new ProtocolEvent('error', ['message' => $error->getMessage()]);
     }
 
-    public function suspended(InterruptRequest $request): iterable
+    public function interrupt(InterruptRequest $request): iterable
     {
         yield new ProtocolEvent('suspended', ['request' => $request->getId()]);
     }

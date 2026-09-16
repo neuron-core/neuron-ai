@@ -205,7 +205,7 @@ class VercelAIAdapterTest extends TestCase
         $request = (new ApprovalRequest('Approve', [
             new Action('call_1', 'delete_file', reason: 'Consent required', inputs: ['path' => '/tmp/x']),
         ]))->withId(1);
-        $frames = iterator_to_array($this->adapter->suspended($request), false);
+        $frames = iterator_to_array($this->adapter->interrupt($request), false);
 
         $events = $this->decode($frames);
         $this->assertSame(['tool-approval-request', 'finish'], array_column($events, 'type'));
@@ -219,7 +219,7 @@ class VercelAIAdapterTest extends TestCase
             new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']),
         ]))->withId(1);
 
-        $frames = iterator_to_array($this->adapter->suspended($request), false);
+        $frames = iterator_to_array($this->adapter->interrupt($request), false);
 
 
         $events = $this->decode($frames);
@@ -232,7 +232,7 @@ class VercelAIAdapterTest extends TestCase
     {
         $request = (new WaitForEventRequest('order.approved'))->withId(3);
 
-        $frames = iterator_to_array($this->adapter->suspended($request), false);
+        $frames = iterator_to_array($this->adapter->interrupt($request), false);
 
 
         $this->assertSame([
@@ -255,7 +255,7 @@ class VercelAIAdapterTest extends TestCase
         iterator_to_array($this->adapter->error(new RuntimeException('Failed')), false);
 
         $request = (new WaitForEventRequest('order.approved'))->withId(1);
-        $this->assertSame([], iterator_to_array($this->adapter->suspended($request), false));
+        $this->assertSame([], iterator_to_array($this->adapter->interrupt($request), false));
     }
 
     /**

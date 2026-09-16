@@ -4,13 +4,13 @@ Use `Agent::submitApprovalDecisions($decisions)` for tool approval and `Agent::s
 
 ## What Changed
 
-1. **`StreamAdapterInterface` gained `suspended(InterruptRequest $request): iterable`.** The Workflow
+1. **`StreamAdapterInterface` gained `interrupt(InterruptRequest $request): iterable`.** The Workflow
    calls it *instead of* `end()` when a segment ends with an interruption (a tool approval,
    `awaitEvent()`, `sleepUntil()`), passing the single current `InterruptRequest`. Both pull consumers and an attached channel (`send()`) receive its events. Custom
    adapters must implement it.
 2. **An `InterruptEvent` no longer passes through `transform()`.** A
    `mapEvent(InterruptEvent::class, ...)` mapping is never invoked anymore; the pause is
-   encoded by `suspended()`.
+   encoded by `interrupt()`.
 3. **Built-in adapters encode the pause natively.** Previously a suspended stream ended
    exactly like a completed one — on AG-UI with the gated tool call still open, which the
    official `@ag-ui/client` verifier rejects (`Cannot send 'RUN_FINISHED' while tool calls are
@@ -63,7 +63,7 @@ final class MyAdapter implements StreamAdapterInterface
 {
     // ...
 
-    public function suspended(InterruptRequest $request): iterable
+    public function interrupt(InterruptRequest $request): iterable
     {
         yield new ProtocolEvent('paused', ['request' => $request->jsonSerialize()]);
     }
@@ -84,7 +84,7 @@ use `submitInputs($payload, $translator)` with their protocol translator.
 
 ## Verification Checklist
 
-- [ ] Every custom `StreamAdapterInterface` implementation defines `suspended()`
+- [ ] Every custom `StreamAdapterInterface` implementation defines `interrupt()`
 - [ ] No `mapEvent(InterruptEvent::class, ...)` registrations remain
 - [ ] A streamed approval over AG-UI exposes `confirmation` actions in the
       `RUN_FINISHED` interrupt outcome without dispatching executable calls

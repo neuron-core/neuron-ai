@@ -83,7 +83,7 @@ then stages the response with the observed run ID and execution attempt. If anot
 continuation advances the run before execution, the staged response is rejected.
 An empty response is valid; translators reject malformed or unmatched transport data.
 
-Custom stream adapters implement `suspended(InterruptRequest $request): iterable`.
+Custom stream adapters implement `interrupt(InterruptRequest $request): iterable`.
 The terminal `InterruptEvent` carries `$request` and is not passed to `transform()`.
 One approval request can still contain multiple tool actions; protocol adapters
 may encode those actions individually. `RunInFlightException` exposes `$interrupt`.
@@ -134,6 +134,6 @@ Search application source and tests, excluding dependencies, for:
 - `ResumeInput`, `ResumeType`, `ResumeInputResult`, `ResumeInputStatus`.
 - Interruption-ID maps passed to `resume()`.
 - `getInterruptRequests()`, `getInputResults()`, `->interrupts`, `->requests`.
-- Translator signatures taking request arrays and adapter `suspended(array ...)`.
+- Translator signatures taking request arrays.
 - Signal handlers assuming broadcast or allowing a later request to bypass the current one.
 - Calls to `run(...)` or `events(...)` with continuation arguments.

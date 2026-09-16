@@ -50,7 +50,7 @@ interface StreamAdapterInterface
      *
      * @return iterable<ProtocolEvent>
      */
-    public function suspended(InterruptRequest $request): iterable;
+    public function interrupt(InterruptRequest $request): iterable;
 
     /**
      * Protocol failure sequence, consumed instead of end() when streaming fails.

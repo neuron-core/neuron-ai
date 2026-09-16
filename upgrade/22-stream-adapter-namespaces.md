@@ -86,7 +86,7 @@ final class MyRawAdapter implements StreamAdapterInterface { /* ... */ }
 
 `SSEAdapter` has no 4.x counterpart, so an adapter that extended it cannot load until its
 body is rewritten too: treat guides 22 and 23 as one step for those files. Custom adapters
-must also satisfy the enlarged 4.x contract (`suspended()` and `error()`), covered by
+must also satisfy the enlarged 4.x contract (`interrupt()` and `error()`), covered by
 guide 21.
 
 ### Case 3: Type hints and `::class` references

@@ -508,10 +508,10 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
         $state = $this->getState();
         if ($state->isInterrupted()) {
-            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->suspended($state->getInterruptRequest())) as $output) {
+            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->interrupt($state->getInterruptRequest())) as $output) {
                 yield $output;
             }
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->suspended(clone $state));
+            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->interrupted(clone $state));
 
             return $state;
         }
