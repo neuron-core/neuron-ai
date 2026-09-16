@@ -210,7 +210,7 @@ class PusherChannelTest extends TestCase
     {
         foreach ([['batchSize' => 0], ['batchSize' => 51], ['maxRequestBytes' => 11], ['channel' => 'invalid/name'], ['channel' => str_repeat('a', 165)]] as $options) {
             try {
-                new PusherChannel(...[...['pusher' => new Pusher('key', 'secret', 'app'), 'channel' => 'private-test'], ...$options]);
+                new PusherChannel(...[...['client' => new Pusher('key', 'secret', 'app'), 'channel' => 'private-test'], ...$options]);
                 $this->fail('Expected invalid Pusher configuration: ' . json_encode($options));
             } catch (InvalidArgumentException $e) {
                 $this->assertNotSame('', $e->getMessage());

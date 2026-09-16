@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.2.0
 
 - Introduce transport-neutral multi-segment reconciliation with `createChannelConsumer`, a thin `subscribeToPusher` input adapter, and a validated `createProtocolStream` output bridge.
 - Preserve stream identity and sequence in reconstructed events; support plain callbacks, UI frameworks, AG-UI, and Vercel consumers without core SDK dependencies.

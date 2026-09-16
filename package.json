@@ -12,7 +12,8 @@
     "test:frontend": "npm run build && npm test --workspace neuron-frontend-integration",
     "typecheck": "npm run build && tsc -p tests/Integration/Frontend/tsconfig.json",
     "pack:streaming": "npm run build && node packages/streaming/tools/pack.mjs",
-    "test:packed": "node packages/streaming/tools/test-packed.mjs"
+    "test:packed": "node packages/streaming/tools/test-packed.mjs",
+    "release:check": "npm test && npm run typecheck && npm run pack:streaming && npm run test:packed"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
