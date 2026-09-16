@@ -11,36 +11,21 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
-use NeuronAI\Workflow\WorkflowState;
-use Throwable;
 
-use function base64_encode;
-use function count;
+use function array_map;
 use function hash_hmac;
 use function implode;
 use function json_encode;
 use function md5;
-use function str_split;
 use function strlen;
 use function time;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
-use const JSON_UNESCAPED_SLASHES;
 
-final class PusherChannel implements StreamingChannelInterface
+final class PusherChannel extends AbstractChannel
 {
     use HasHttpClient;
-
-    protected const ENVELOPE_FLAGS = JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES;
-
-    /** Room for index and total to grow beyond the single digits of the measured empty envelope. */
-    protected const COUNTER_DIGITS = 12;
-
-    /** @var string[] Batch items, each already a JSON object literal, in send order. */
-    protected array $pending = [];
-
-    protected int $pendingBytes = 0;
 
     public function __construct(
         protected string $channel,
@@ -57,123 +42,50 @@ final class PusherChannel implements StreamingChannelInterface
             ->withHeaders(['Content-Type' => 'application/json']);
     }
 
-    /**
-     * @throws JsonException
-     */
-    public function send(ProtocolEvent $event): void
+    protected function batchSize(): int
     {
-        $this->trigger($event->type, $event->data);
-    }
-
-    /**
-     * @throws JsonException
-     */
-    public function interrupted(WorkflowState $state): void
-    {
-        $this->trigger('stream.interrupted', ['workflowId' => $state->getWorkflowId()]);
-        $this->flush();
-    }
-
-    /**
-     * @throws JsonException
-     */
-    public function completed(WorkflowState $state, string $workflowId): void
-    {
-        $this->trigger('stream.completed', ['workflowId' => $workflowId]);
-        $this->flush();
-    }
-
-    /**
-     * @throws JsonException
-     */
-    public function failed(Throwable $exception, string $workflowId): void
-    {
-        $this->trigger('stream.failed', ['workflowId' => $workflowId]);
-        $this->flush();
-    }
-
-    /**
-     * Fragmentation happens before buffering, so the batch only ever sees
-     * items that fit one request on their own.
-     *
-     * @param array<string, mixed> $data
-     * @throws JsonException
-     */
-    protected function trigger(string $name, array $data): void
-    {
-        // Unicode stays escaped so a fragment decodes with atob(), which only
-        // carries ASCII; invalid UTF-8 becomes U+FFFD as on the SSE path.
-        $encoded = json_encode($data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
-        $item = $this->item($name, $encoded);
-
-        if (strlen($item) <= $this->budget()) {
-            $this->enqueue($item);
-            return;
-        }
-
-        $sliceBytes = $this->budget() - strlen($this->fragment($name, 0, 0, '')) - self::COUNTER_DIGITS;
-        $parts = str_split(base64_encode($encoded), $sliceBytes);
-        foreach ($parts as $index => $part) {
-            $this->enqueue($this->fragment($name, $index, count($parts), $part));
-        }
-    }
-
-    /**
-     * Base64 keeps a slice the same size once wrapped in JSON: nothing in it
-     * is escaped (slashes included, see ENVELOPE_FLAGS), so a fragment item
-     * is exactly the slice plus the envelope measured in trigger().
-     */
-    protected function fragment(string $type, int $index, int $total, string $part): string
-    {
-        return $this->item('stream.fragment', json_encode(
-            ['type' => $type, 'index' => $index, 'total' => $total, 'part' => $part],
-            self::ENVELOPE_FLAGS,
-        ));
-    }
-
-    protected function item(string $name, string $encodedData): string
-    {
-        return json_encode(
-            ['channel' => $this->channel, 'name' => $name, 'data' => $encodedData],
-            self::ENVELOPE_FLAGS,
-        );
-    }
-
-    /**
-     * One rule for every item, fragments included: what would not fit the
-     * request goes after a flush, and a full batch leaves at once.
-     */
-    protected function enqueue(string $item): void
-    {
-        if ($this->pendingBytes + strlen($item) > $this->budget()) {
-            $this->flush();
-        }
-
-        $this->pending[] = $item;
-        $this->pendingBytes += strlen($item) + 1; // the separating comma
-
-        if (count($this->pending) >= $this->batchSize) {
-            $this->flush();
-        }
-    }
-
-    protected function flush(): void
-    {
-        if ($this->pending === []) {
-            return;
-        }
-
-        $body = '{"batch":[' . implode(',', $this->pending) . ']}';
-        $this->pending = [];
-        $this->pendingBytes = 0;
-
-        $this->httpClient->request(new HttpRequest(HttpMethod::POST, $this->signedUri($body), body: $body));
+        return $this->batchSize;
     }
 
     /** The request body minus the batch envelope. */
     protected function budget(): int
     {
         return $this->maxRequestBytes - strlen('{"batch":[]}');
+    }
+
+    /**
+     * A batch item plus its separating comma.
+     *
+     * @throws JsonException
+     */
+    protected function size(ProtocolEvent $event): int
+    {
+        return strlen($this->item($event)) + 1;
+    }
+
+    /**
+     * @throws JsonException
+     */
+    protected function deliver(array $events): void
+    {
+        $body = '{"batch":[' . implode(',', array_map($this->item(...), $events)) . ']}';
+
+        $this->httpClient->request(new HttpRequest(HttpMethod::POST, $this->signedUri($body), body: $body));
+    }
+
+    /**
+     * Pusher wants data as a string, encoded here so the signature covers the
+     * exact bytes on the wire; unicode stays escaped as on the SSE path.
+     *
+     * @throws JsonException
+     */
+    protected function item(ProtocolEvent $event): string
+    {
+        return json_encode([
+            'channel' => $this->channel,
+            'name' => $event->type,
+            'data' => json_encode($event->data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**

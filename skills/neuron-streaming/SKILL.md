@@ -1,6 +1,6 @@
 ---
 name: neuron-streaming
-description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, CallbackChannel, RedisChannel, PusherChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
+description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE), and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, StreamingChannelInterface, AbstractChannel, CallbackChannel, RedisChannel, PusherChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
 ---
 
 # Neuron AI Streaming
@@ -229,7 +229,7 @@ foreach ($agent->stream(new UserMessage($message)) as $ignored) {
 
 Drain `stream()` rather than calling `chat()`: the buffered path never yields provider chunks, so the channel would only see the terminal frames.
 
-For a dedicated transport implement `StreamingChannelInterface` directly, or declare it once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter.
+For a dedicated transport extend `AbstractChannel` (see *Writing a channel* below). Declare a channel once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter.
 
 ### RedisChannel
 
@@ -269,7 +269,7 @@ foreach ($agent->stream(new UserMessage($message)) as $ignored) {
 
 Each protocol event becomes a Pusher event named by its `type` and carrying its `data`, so the browser rebuilds the exact stream the SSE path would deliver. The segment lifecycle is broadcast as `stream.interrupted`, `stream.completed` and `stream.failed`, each carrying `workflowId` and nothing else: what a client learns about an error is the adapter's decision, through its own error frame.
 
-**Fragments.** Pusher caps an event at 10 KB; Reverb defaults to the same, Soketi to 100 KB, and `maxRequestBytes` (default `10_000`) tunes the ceiling. An event that does not fit, typically a tool result or an AG-UI `MESSAGES_SNAPSHOT`, is split into consecutive `stream.fragment` events shaped `{type, index, total, part}`, where `part` is a base64 slice of the event's JSON data (unicode escaped, so `atob()` is enough to decode it). Fragments arrive in order and never interleave, so the browser concatenates them and parses the last one. This is the only client code the transport needs:
+**Fragments.** Pusher caps an event at 10 KB; Reverb defaults to the same, Soketi to 100 KB, and `maxRequestBytes` (default `10_000`) tunes the ceiling. An event that does not fit, typically a tool result or an AG-UI `MESSAGES_SNAPSHOT`, is split into consecutive `stream.fragment` events shaped `{event, index, total, part}`, where `part` is a URL-safe base64 slice of the event's JSON data (unicode escaped, so `atob()` decodes it once `-` and `_` are mapped back to `+` and `/`). Fragments arrive in order and never interleave, so the browser concatenates them and parses the last one. This is the only client code the transport needs:
 
 ```js
 let fragments = '';
@@ -281,13 +281,45 @@ channel.bind_global((name, data) => {
   fragments = (data.index === 0 ? '' : fragments) + data.part;
   if (data.index + 1 < data.total) return;
 
-  onEvent({ type: data.type, ...JSON.parse(atob(fragments)) });
+  onEvent({ type: data.event, ...JSON.parse(atob(fragments.replace(/-/g, '+').replace(/_/g, '/'))) });
 });
 ```
 
-`onEvent` receives the same `{ type, ...data }` object for plain and reassembled events, so a Vercel transport or an AG-UI subscriber built on it never sees fragments. A client that subscribes mid-run has missed earlier deltas anyway and reconciles from chat history after `stream.completed` or `stream.interrupted`.
+`onEvent` receives the same `{ type, ...data }` object for plain and reassembled events, so a Vercel transport or an AG-UI subscriber built on it never sees fragments, and the same handler serves every channel built on `AbstractChannel`. A client that subscribes mid-run has missed earlier deltas anyway and reconciles from chat history after `stream.completed` or `stream.interrupted`.
 
 **Batching.** Requests go through the `batch_events` endpoint, which Pusher, Reverb and Soketi all implement: up to `batchSize` events (default `10`, the Pusher maximum) and `maxRequestBytes` per request, so a fast token stream costs a fraction of the HTTP round trips. The buffer flushes when either limit is reached and after every lifecycle event, so nothing is left behind at the end of a segment, and a fragment pushes the pending events out ahead of it, so the wire keeps the stream order. Batching is invisible to the browser, which receives individual events either way. The trade-off is latency: buffered events wait for the next event or the segment end, so the events preceding a long tool execution reach the UI when it finishes. `batchSize: 1` sends every event on its own for the lowest latency.
+
+### Writing a channel
+
+Built-in channels extend `AbstractChannel`, which owns the wire contract every channel shares, so the browser code above works unchanged whatever the transport: protocol events go out as themselves, named by their type; the lifecycle goes out as `stream.interrupted`, `stream.completed` and `stream.failed` with `workflowId` only; an event over the transport's ceiling goes out as `stream.fragment` events. A transport implements `deliver(array $events)`, which receives events in stream order and never an empty list. Return the ceiling in bytes from `budget()` when the transport has one; `size()` defaults to the event's JSON size, so override it only when your envelope adds to it. `batchSize()` defaults to one; return more only when the transport has a real batch endpoint, and accept that buffered events then wait for the next event or the segment end.
+
+```php
+use NeuronAI\Workflow\Streaming\Channel\AbstractChannel;
+
+final class SocketServerChannel extends AbstractChannel
+{
+    public function __construct(
+        protected SocketServer $server, // your transport client
+        protected string $room,
+        protected int $maxFrameBytes = 65_536,
+    ) {
+    }
+
+    protected function budget(): ?int
+    {
+        return $this->maxFrameBytes;
+    }
+
+    protected function deliver(array $events): void
+    {
+        foreach ($events as $event) {
+            $this->server->broadcast($this->room, json_encode($event, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
+        }
+    }
+}
+```
+
+Deliver synchronously and in order: a queue between the channel and the transport reorders deltas. Let transport exceptions propagate: the buffer is cleared before `deliver()` runs, so a failure loses that batch only and the Workflow reports it as a `ChannelError` without failing the run. Test a channel by driving it directly with `ProtocolEvent`s against a fake transport client, as `PusherChannelTest` does with a Guzzle mock handler; buffering and fragmentation are covered once by `AbstractChannelTest`.
 
 ### Failure policy
 
