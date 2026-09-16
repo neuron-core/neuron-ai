@@ -32,6 +32,7 @@ use function count;
 use function hash_hmac;
 use function iterator_to_array;
 use function json_decode;
+use function json_encode;
 use function md5;
 use function parse_str;
 use function range;
@@ -155,6 +156,22 @@ class PusherChannelTest extends TestCase
         $this->assertRequestsWithinBudget(10_000, 10);
     }
 
+    public function test_maximum_batch_size_flushes_fifty_events(): void
+    {
+        $channel = $this->channel(batchSize: 50, maxRequestBytes: 100_000);
+        foreach (range(1, 49) as $ignored) {
+            $channel->send(new ProtocolEvent('text-delta', ['delta' => 'a']));
+        }
+        $this->assertSame([], $this->sent);
+
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
+        $this->assertSame([50], array_map(count(...), $this->batches()));
+        $channel->completed($this->state(), 'wf-1');
+
+        $this->assertSame([50, 1], array_map(count(...), $this->batches()));
+        $this->assertRequestsWithinBudget(100_000, 50);
+    }
+
     public function test_transport_encoding_and_batch_wrapper_obey_the_request_budget(): void
     {
         $channel = $this->channel(batchSize: 10, maxRequestBytes: 1_000);
@@ -191,10 +208,10 @@ class PusherChannelTest extends TestCase
 
     public function test_invalid_transport_configuration_is_rejected(): void
     {
-        foreach ([['batchSize' => 0], ['batchSize' => 11], ['maxRequestBytes' => 11], ['channel' => 'invalid/name'], ['channel' => str_repeat('a', 165)]] as $options) {
+        foreach ([['batchSize' => 0], ['batchSize' => 51], ['maxRequestBytes' => 11], ['channel' => 'invalid/name'], ['channel' => str_repeat('a', 165)]] as $options) {
             try {
                 new PusherChannel(...[...['pusher' => new Pusher('key', 'secret', 'app'), 'channel' => 'private-test'], ...$options]);
-                $this->fail('Expected invalid Pusher configuration.');
+                $this->fail('Expected invalid Pusher configuration: ' . json_encode($options));
             } catch (InvalidArgumentException $e) {
                 $this->assertNotSame('', $e->getMessage());
             }
