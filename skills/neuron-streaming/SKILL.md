@@ -247,7 +247,7 @@ Every message is a JSON envelope `{streamId, sequence, type, data}`. Unwrap it b
 
 ### PusherChannel
 
-`PusherChannel` accepts an application-configured `Pusher\Pusher` instance from the optional `pusher/pusher-php-server` package (`composer require pusher/pusher-php-server:^7.2`). The official SDK owns signing, encryption, endpoint settings and HTTP delivery. Configure `host`, `port` and `scheme` on that client for Pusher-compatible servers such as Reverb and Soketi; a custom Guzzle client can be passed as its fifth constructor argument.
+`PusherChannel` accepts an application-configured `Pusher\Pusher` instance from the optional `pusher/pusher-php-server` package (`composer require pusher/pusher-php-server:^7.2.4`). The official SDK owns signing, encryption, endpoint settings and HTTP delivery. Configure `host`, `port` and `scheme` on that client for Pusher-compatible servers such as Reverb and Soketi; a custom Guzzle client can be passed as its fifth constructor argument.
 
 ```php
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
@@ -282,7 +282,7 @@ For encryption, configure a base64-encoded 32-byte master key on the SDK and use
 
 Pusher keeps `batchSize: 10` by default, with an independent 10,000-byte event-data limit and `maxRequestBytes: 10_000` request limit. Increasing the request limit does not increase the event limit. Encrypted channels conservatively reserve space for the authentication tag, nonce, base64 and both layers of JSON escaping; encrypted fragments may be smaller and batches may flush before ten events. Partial batches wait until another event fills the batch or the segment ends; choose `batchSize: 1` for immediate delivery.
 
-Neuron does not mutate the injected Pusher client or configure its timeouts. Set the SDK's `timeout` option explicitly (five seconds in the example); the SDK passes this timeout per request even when a custom Guzzle client is injected. Configure `connect_timeout` on that Guzzle client if needed.
+Use Pusher SDK 7.2.4 or later; earlier releases do not propagate the SDK timeout to HTTP requests. Neuron does not mutate the injected Pusher client or configure its timeouts. Set the SDK's `timeout` option explicitly (five seconds in the example); the SDK passes this timeout per request even when a custom Guzzle client is injected. Configure `connect_timeout` on that Guzzle client if needed.
 
 ### Writing and consuming a channel
 
