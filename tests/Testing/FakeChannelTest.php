@@ -35,7 +35,7 @@ class FakeChannelTest extends TestCase
         $exception = new RuntimeException('boom');
 
         $channel->send(new ProtocolEvent('finish'));
-        $channel->suspended($state);
+        $channel->interrupted($state);
         $channel->completed($state, 'wf_1');
         $channel->failed($exception, 'wf_1');
 
@@ -71,7 +71,7 @@ class FakeChannelTest extends TestCase
         $channel->assertNothingSent();
 
         $channel->send(new ProtocolEvent('text-delta', ['delta' => 'Hi']));
-        $channel->suspended(new WorkflowState());
+        $channel->interrupted(new WorkflowState());
         $channel->completed(new WorkflowState(), 'wf_1');
         $channel->failed(new RuntimeException('boom'), 'wf_1');
 

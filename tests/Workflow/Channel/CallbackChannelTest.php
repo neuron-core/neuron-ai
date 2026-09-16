@@ -26,7 +26,7 @@ class CallbackChannelTest extends TestCase
         $channel->send($item);
 
         // The other three hooks are unset: calling them must be a silent no-op.
-        $channel->suspended(new WorkflowState());
+        $channel->interrupted(new WorkflowState());
         $channel->completed(new WorkflowState(), 'run_1');
         $channel->failed(new RuntimeException('boom'), 'run_1');
 
@@ -40,7 +40,7 @@ class CallbackChannelTest extends TestCase
             onSend: function (ProtocolEvent $item) use (&$calls): void {
                 $calls[] = ['send', $item];
             },
-            onSuspended: function (WorkflowState $state) use (&$calls): void {
+            onInterrupted: function (WorkflowState $state) use (&$calls): void {
                 $calls[] = ['suspended', $state];
             },
             onCompleted: function (WorkflowState $state, string $runId) use (&$calls): void {
@@ -56,7 +56,7 @@ class CallbackChannelTest extends TestCase
         $exception = new RuntimeException('boom');
 
         $channel->send($item);
-        $channel->suspended($state);
+        $channel->interrupted($state);
         $channel->completed($state, 'run_1');
         $channel->failed($exception, 'run_1');
 

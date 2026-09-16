@@ -196,7 +196,7 @@ class AgUIProtocolComplianceTest extends TestCase
             $adapter->start(),
             $adapter->transform(new TextChunk('msg_1', 'Searching')),
             $adapter->transform(new ToolArgumentChunk('msg_1', 'search', '{"query":"test"}', 'call_1')),
-            $adapter->suspended($request),
+            $adapter->interrupt($request),
         );
 
         $this->assertCompliant($events);

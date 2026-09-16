@@ -37,7 +37,7 @@ class ChunkAdapter implements StreamAdapterInterface
         return [];
     }
 
-    public function suspended(InterruptRequest $request): iterable
+    public function interrupt(InterruptRequest $request): iterable
     {
         return [];
     }

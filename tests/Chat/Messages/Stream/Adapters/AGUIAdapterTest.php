@@ -123,7 +123,7 @@ class AGUIAdapterTest extends TestCase
         }
         $call = new ToolCall('calculator', 'call_1', ['operation' => 'add'], deferred: true);
         $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk($call)), false));
-        $events = $this->decode($adapter->suspended((new ToolResultsRequest([$call]))->withId(1)));
+        $events = $this->decode($adapter->interrupt((new ToolResultsRequest([$call]))->withId(1)));
         $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
         $this->assertSame('{"operation":"add"}', $events[1]['delta'] . $events[2]['delta']);
         $this->assertArrayNotHasKey('outcome', $events[4]);
@@ -146,7 +146,7 @@ class AGUIAdapterTest extends TestCase
     {
         $adapter = new AGUIAdapter('thread_test', 'run_test');
         $call = new ToolCall('calculator', 'call_1', ['operation' => 'add'], deferred: true);
-        $events = $this->decode($adapter->suspended((new ToolResultsRequest([$call]))->withId(1)));
+        $events = $this->decode($adapter->interrupt((new ToolResultsRequest([$call]))->withId(1)));
         $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
         $this->assertSame('{"operation":"add"}', $events[1]['delta']);
     }
@@ -157,7 +157,7 @@ class AGUIAdapterTest extends TestCase
         iterator_to_array($adapter->start(), false);
         iterator_to_array($adapter->transform(new TextChunk('msg_123', 'Let me check')), false);
         iterator_to_array($adapter->transform(new ToolArgumentChunk('msg_123', 'geolocation_get', '{"save":true}', 'call_1')), false);
-        $events = $this->decode($adapter->suspended($this->approval('call_1', 'Consent required')));
+        $events = $this->decode($adapter->interrupt($this->approval('call_1', 'Consent required')));
         $this->assertSame(['TEXT_MESSAGE_END', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'], array_column($events, 'type'));
         $this->assertSame('msg_123', $events[2]['messages'][0]['id']);
         $this->assertArrayNotHasKey('toolCalls', $events[2]['messages'][0]);
@@ -171,7 +171,7 @@ class AGUIAdapterTest extends TestCase
     public function test_buffered_approval_has_a_snapshot_and_response_schema(): void
     {
         $adapter = new AGUIAdapter('thread_test', 'run_test');
-        $events = $this->decode($adapter->suspended($this->approval('call_1')));
+        $events = $this->decode($adapter->interrupt($this->approval('call_1')));
         $this->assertSame(['STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'], array_column($events, 'type'));
         $interrupt = $events[2]['outcome']['interrupts'][0];
         $this->assertSame('call_1', $interrupt['id']);
@@ -188,7 +188,7 @@ class AGUIAdapterTest extends TestCase
             new Action('call_b', 'send_email', inputs: ['to' => 'team@example.com']),
         ]))->withId(1);
 
-        $events = $this->decode($adapter->suspended($request));
+        $events = $this->decode($adapter->interrupt($request));
 
         $interrupts = $events[array_key_last($events)]['outcome']['interrupts'];
         $this->assertSame(['call_a', 'call_b'], array_column($interrupts, 'id'));
@@ -202,7 +202,7 @@ class AGUIAdapterTest extends TestCase
         iterator_to_array($adapter->start(), false);
         $request = (new WaitForEventRequest('order.approved', new DateTimeImmutable('2026-09-11T10:00:00+00:00')))->withId(3);
 
-        $events = $this->decode($adapter->suspended($request));
+        $events = $this->decode($adapter->interrupt($request));
 
         $this->assertCount(3, $events);
         $this->assertSame([
@@ -225,7 +225,7 @@ class AGUIAdapterTest extends TestCase
         iterator_to_array($adapter->start(), false);
         iterator_to_array($adapter->error(new RuntimeException('Failed')), false);
 
-        $this->assertSame([], iterator_to_array($adapter->suspended($this->approval('call_1')), false));
+        $this->assertSame([], iterator_to_array($adapter->interrupt($this->approval('call_1')), false));
     }
 
     private function approval(string $callId, ?string $reason = null): ApprovalRequest

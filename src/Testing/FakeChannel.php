@@ -44,7 +44,7 @@ class FakeChannel implements StreamingChannelInterface
         $this->recorded[] = new ChannelRecord('send', event: $event);
     }
 
-    public function suspended(WorkflowState $state): void
+    public function interrupted(WorkflowState $state): void
     {
         $this->recorded[] = new ChannelRecord('suspended', state: $state);
     }

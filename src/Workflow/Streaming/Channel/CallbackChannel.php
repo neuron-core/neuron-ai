@@ -18,13 +18,13 @@ final class CallbackChannel implements StreamingChannelInterface
 {
     /**
      * @param ?Closure(ProtocolEvent): void $onSend
-     * @param ?Closure(WorkflowState): void $onSuspended
+     * @param ?Closure(WorkflowState): void $onInterrupted
      * @param ?Closure(WorkflowState, string): void $onCompleted
      * @param ?Closure(Throwable, string): void $onFailed
      */
     public function __construct(
         protected ?Closure $onSend = null,
-        protected ?Closure $onSuspended = null,
+        protected ?Closure $onInterrupted = null,
         protected ?Closure $onCompleted = null,
         protected ?Closure $onFailed = null,
     ) {
@@ -37,10 +37,10 @@ final class CallbackChannel implements StreamingChannelInterface
         }
     }
 
-    public function suspended(WorkflowState $state): void
+    public function interrupted(WorkflowState $state): void
     {
-        if ($this->onSuspended instanceof Closure) {
-            ($this->onSuspended)($state);
+        if ($this->onInterrupted instanceof Closure) {
+            ($this->onInterrupted)($state);
         }
     }
 

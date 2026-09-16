@@ -389,7 +389,7 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
         return [];
     }
 
-    public function suspended(InterruptRequest $request): iterable
+    public function interrupt(InterruptRequest $request): iterable
     {
         if ($this->runFailed || $this->finished) {
             return;

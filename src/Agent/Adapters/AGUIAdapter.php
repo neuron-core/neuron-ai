@@ -6,6 +6,7 @@ namespace NeuronAI\Agent\Adapters;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use JsonException;
 use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
 use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
@@ -19,6 +20,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\UniqueIdGenerator;
@@ -421,7 +423,11 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         ]);
     }
 
-    public function suspended(InterruptRequest $request): iterable
+    /**
+     * @throws WorkflowException
+     * @throws JsonException
+     */
+    public function interrupt(InterruptRequest $request): iterable
     {
         if ($this->runFailed || $this->finished) {
             return;
@@ -454,7 +460,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
                 ], $request);
             }
         } else {
-            $interrupts[] = $this->interrupt($request);
+            $interrupts[] = $this->interruption($request);
         }
         if ($interrupts === []) {
             // Ordinary frontend tools return role:tool messages, not resume[].
@@ -473,8 +479,11 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         ]);
     }
 
-    /** @return array<string, mixed> */
-    protected function interrupt(InterruptRequest $request): array
+    /**
+     * @return array<string, mixed>
+     * @throws WorkflowException
+     */
+    protected function interruption(InterruptRequest $request): array
     {
         return $this->withExpiry([
             'id' => (string) $request->getId(),

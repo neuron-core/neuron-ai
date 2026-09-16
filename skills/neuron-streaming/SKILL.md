@@ -133,7 +133,7 @@ The Workflow selects the terminal from the segment's outcome, so application cod
 | Outcome | Adapter method | What the client learns |
 |---|---|---|
 | Completed | `end()` | The run finished |
-| Suspended | `suspended($requests)` | The active `InterruptRequest`s, keyed by interrupt ID |
+| Suspended | `interrupt($request)` | The current `InterruptRequest` the run waits for |
 | Failed | `error($e)` | A neutral failure text (override the adapter's protected `errorMessage()` to expose more), then the exception is rethrown to the caller |
 
 With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists the pending interrupts; with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call. Continue native approvals with `$agent->submitApprovalDecisions($decisions)->events()` and deferred tool results with `$agent->submitToolResults($results)->events()`. Both maps use tool call IDs; a result entry contains exactly one `result` value or `error` string. Raw AG-UI and Vercel envelopes still use their protocol translators through `submitInputs()`. See **neuron-tool-approval** and **neuron-frontend-integration** for the inbound round trip.
@@ -169,7 +169,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Custom adapters
 
-Implement `StreamAdapterInterface`: `reset()` opens a segment by dropping the previous segment's stream state, and `start()`, `transform(object)`, `end()`, `suspended(InterruptRequest)`, `error(Throwable)` each return an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `suspended()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
+Implement `StreamAdapterInterface`: `reset()` opens a segment by dropping the previous segment's stream state, and `start()`, `transform(object)`, `end()`, `interrupt(InterruptRequest)`, `error(Throwable)` each return an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `interrupt()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
 
 ## Streaming Channels: Push Delivery
 
@@ -187,7 +187,7 @@ namespace NeuronAI\Workflow\Streaming\Channel;
 interface StreamingChannelInterface
 {
     public function send(ProtocolEvent $event): void;                    // the adapter's events, in stream order
-    public function suspended(WorkflowState $state): void;
+    public function interrupted(WorkflowState $state): void;
     public function completed(WorkflowState $state, string $workflowId): void;
     public function failed(Throwable $exception, string $workflowId): void;
 }
@@ -202,7 +202,7 @@ A channel speaks the adapter's protocol, so content delivery needs an adapter:
 
 The channel encodes for its own transport. Native objects never reach it: a push destination is another system and needs a wire vocabulary, which is exactly what the adapter provides.
 
-The lifecycle methods fire once per segment after the adapter's terminal frames. `suspended()` receives a clone of the state so the channel can inspect the pending interrupts. The channel receives lifecycle calls even when nothing was streamed, so a zero-item run still reports completion.
+The lifecycle methods fire once per segment after the adapter's terminal frames. `interrupted()` receives a clone of the state so the channel can inspect the pending interrupts. The channel receives lifecycle calls even when nothing was streamed, so a zero-item run still reports completion.
 
 ### CallbackChannel
 
