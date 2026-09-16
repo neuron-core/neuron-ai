@@ -18,3 +18,7 @@ docker-compose.yml export-ignore
 Dockerfile export-ignore
 .dockerignore export-ignore
 .env.example export-ignore
+
+packages export-ignore
+package.json export-ignore
+package-lock.json export-ignore

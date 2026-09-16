@@ -1,0 +1,20 @@
+{
+  "name": "neuron-ai-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/streaming",
+    "tests/Integration/Frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @neuron-core/streaming",
+    "test": "npm run build && npm test --workspace @neuron-core/streaming",
+    "test:frontend": "npm run build && npm test --workspace neuron-frontend-integration",
+    "typecheck": "npm run build && tsc -p tests/Integration/Frontend/tsconfig.json",
+    "pack:streaming": "npm run build && node packages/streaming/tools/pack.mjs",
+    "test:packed": "node packages/streaming/tools/test-packed.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

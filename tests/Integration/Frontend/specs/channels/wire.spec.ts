@@ -1,8 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type Pusher from "pusher-js";
-import { BACKEND } from "../../support/backend";
+import type { ChannelConsumer } from "@neuron-core/streaming";
+import { BACKEND, FRONTEND } from "../../support/backend";
 
 interface Event {
   type: string;
@@ -21,27 +20,19 @@ interface Fixture {
   errors: number;
   requests: number;
 }
-interface Consumer {
-  accept(frame: Frame): void;
-  close(): void;
-}
-
 declare global {
   interface Window {
-    createChannelConsumer(streamId: string, onEvent: (event: Event) => void, onGap: (reason: string) => void): Consumer;
+    createChannelConsumer: typeof import("@neuron-core/streaming")["createChannelConsumer"];
+    subscribeToPusher: typeof import("@neuron-core/streaming")["subscribeToPusher"];
+    channelSubscription: { close(): void };
     channelEvents: Event[];
     channelGaps: string[];
-    channelConsumer: Consumer;
+    channelConsumer: ChannelConsumer;
     Pusher: typeof Pusher;
     encryptedChannel: ReturnType<Pusher["subscribe"]>;
     decryptedFrames: Frame[];
   }
 }
-
-// Exercise the shipped example itself, so documentation and frontend behavior cannot drift.
-const guide = readFileSync(new URL("../../../../../skills/neuron-streaming/references/channels.md", import.meta.url), "utf8");
-const consumerSource = guide.match(/```js\r?\n([\s\S]*?)\r?\n```/)?.[1];
-if (!consumerSource) throw new Error("Channel guide has no JavaScript consumer example");
 
 async function fixture(request: APIRequestContext, transport = "pusher", outcome = "completed", failDelivery = false): Promise<Fixture> {
   const response = await request.post(`${BACKEND}/_test/channels`, { data: { transport, outcome, failDelivery } });
@@ -50,15 +41,17 @@ async function fixture(request: APIRequestContext, transport = "pusher", outcome
 }
 
 async function openConsumer(page: Page, streamId: string): Promise<void> {
-  await page.goto(`${BACKEND}/_test/health`);
-  await page.addScriptTag({ content: consumerSource });
+  await page.goto(`${FRONTEND}/channels/`);
+  await page.waitForFunction(() => typeof window.createChannelConsumer === "function");
   await page.evaluate((id) => {
     window.channelEvents = [];
     window.channelGaps = [];
     window.channelConsumer = window.createChannelConsumer(
+      {
+        onEvent: ({ type, data }) => window.channelEvents.push({ type, data } as Event),
+        onGap: (reason) => window.channelGaps.push(reason),
+      },
       id,
-      (event) => window.channelEvents.push(event),
-      (reason) => window.channelGaps.push(reason),
     );
   }, streamId);
 }
@@ -145,8 +138,7 @@ test("incomplete event buffering is bounded and fails into reconciliation", asyn
 });
 
 async function openEncryptedConsumer(page: Page, fixture: Fixture, wrongKey = false): Promise<void> {
-  await openConsumer(page, "pending");
-  await page.addScriptTag({ path: fileURLToPath(new URL("../../node_modules/pusher-js/dist/web/pusher-with-encryption.js", import.meta.url)) });
+  await openConsumer(page, "0".repeat(32));
   await page.evaluate(async ({ channelName, authorization, wrongKey }) => {
     const auth = { ...authorization };
     if (wrongKey) auth.shared_secret = btoa("x".repeat(32));
@@ -162,17 +154,11 @@ async function openEncryptedConsumer(page: Page, fixture: Fixture, wrongKey = fa
       window.encryptedChannel.authorize("123.456", (error) => error ? reject(error) : resolve());
     });
     window.decryptedFrames = [];
-    window.encryptedChannel.bind_global((_name: string, frame: Frame) => {
-      if (window.decryptedFrames.length === 0) {
-        window.channelConsumer.close();
-        window.channelConsumer = window.createChannelConsumer(
-          frame.streamId,
-          (event) => window.channelEvents.push(event),
-          (reason) => window.channelGaps.push(reason),
-        );
-      }
-      window.decryptedFrames.push(frame);
-      window.channelConsumer.accept(frame);
+    window.channelConsumer.close();
+    window.encryptedChannel.bind_global((_name: string, frame: Frame) => window.decryptedFrames.push(frame));
+    window.channelSubscription = window.subscribeToPusher(window.encryptedChannel, {
+      onEvent: ({ type, data }) => window.channelEvents.push({ type, data } as Event),
+      onGap: (reason) => window.channelGaps.push(reason),
     });
   }, { channelName: fixture.channel, authorization: fixture.authorization, wrongKey });
 }

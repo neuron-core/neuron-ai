@@ -64,7 +64,7 @@
         ],
         "test:frontend": [
             "Composer\\Config::disableProcessTimeout",
-            "npx --prefix tests/Integration/Frontend playwright test --config tests/Integration/Frontend/playwright.config.ts"
+            "npm run test:frontend"
         ]
     },
     "scripts-descriptions": {

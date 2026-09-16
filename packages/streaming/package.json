@@ -1,0 +1,32 @@
+{
+  "name": "@neuron-core/streaming",
+  "version": "0.1.0",
+  "description": "Ordered Neuron AI channel streams for JavaScript and TypeScript",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neuron-core/neuron-ai.git",
+    "directory": "packages/streaming"
+  },
+  "homepage": "https://github.com/neuron-core/neuron-ai",
+  "files": [
+    "dist"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.mjs"
+  }
+}

@@ -268,7 +268,7 @@ $pusher = new Pusher(
 $agent = MyAgent::make(threadId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new PusherChannel(
-        pusher: $pusher,
+        client: $pusher,
         channel: "private-encrypted-chat.{$threadId}",
     ));
 
@@ -288,7 +288,7 @@ Use Pusher SDK 7.2.4 or later; earlier releases do not propagate the SDK timeout
 
 Extend `AbstractChannel` for a transport with the shared wire contract; `CallbackChannel` remains a direct lifecycle callback adapter, and an `onSend` callback alone receives no lifecycle notifications. The base class serializes each payload once, splits oversized events incrementally, batches encoded bytes, and enforces event and delivery limits. Implement `deliver(string $batch)`; only override the encoding/limit hooks your transport needs.
 
-Read [Channel wire contract and consumers](references/channels.md) for the exact envelope and fragment shapes, a bounded browser consumer, extension hooks, and the socket transport example. Do not assume Pusher batches arrive in order or concatenate fragments by arrival order.
+Read [Channel wire contract and consumers](references/channels.md) for the exact envelope and fragment shapes, `@neuron-core/streaming` consumer examples, extension hooks, and the socket transport example. Do not assume Pusher batches arrive in order or concatenate fragments by arrival order.
 
 ### Failure policy
 

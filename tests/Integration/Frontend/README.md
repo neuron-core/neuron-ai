@@ -31,12 +31,14 @@ Requires PHP with `pdo_sqlite` and Node 22. The `channels` project also needs
 No Redis server, Pusher account, or broker credentials are used.
 
 ```bash
-cd tests/Integration/Frontend
+# From the repository root
 npm ci
+npm run build
 npx playwright install --with-deps chromium
-npx playwright test                 # all projects
-npx playwright test --project=agui  # SDK contract tests, no browser needed
-npx playwright test --project=channels  # broadcast envelopes in Chromium
+npm run test:frontend                 # all projects
+npm test --workspace neuron-frontend-integration -- --project=channels
+npm run pack:streaming
+npm run test:packed                   # all projects against an isolated npm archive installation
 ```
 
 Playwright starts the PHP server (8787), the CopilotKit runtime bridge (4000), and
@@ -94,9 +96,14 @@ multi-byte delivery, and errors before and after the response headers.
 
 The `channels` project fetches envelopes from `POST /_test/channels`, which drives
 real `PusherChannel` and `RedisChannel` instances with transport I/O captured in
-memory. Chromium runs the JavaScript consumer extracted directly from the
-[shipped channel guide](../../../skills/neuron-streaming/references/channels.md),
-so changes to that example are exercised without a second implementation.
+memory. Chromium imports `@neuron-core/streaming` through its public exports.
+Normal development uses the workspace package; CI and releases use `test:packed`,
+which installs the archive in a temporary directory and points Vite at that installed
+entry. The same command tests the archive's public declarations and consumer unit
+suite. Encryption cases exercise `subscribeToPusher` with the official browser SDK.
+Protocol cases generate events with the PHP AG-UI and Vercel adapters, fragment
+them through Pusher, and feed reordered duplicates through `createProtocolStream`
+into the official AG-UI agent and Vercel message-stream consumer.
 
 Coverage includes reversed/interleaved fragments from two events of the same type,
 Unicode and structured payloads, duplicate delivery, isolation of concurrent stream

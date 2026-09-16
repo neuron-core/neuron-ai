@@ -24,10 +24,10 @@ use const JSON_THROW_ON_ERROR;
 final class PusherChannel extends AbstractChannel
 {
     public function __construct(
-        protected Pusher $pusher,
+        protected Pusher $client,
         protected string $channel,
-        protected int $maxRequestBytes = 10_000,
-        protected int $batchSize = 10,
+        protected int    $maxRequestBytes = 10_000,
+        protected int    $batchSize = 10,
     ) {
         if (preg_match('/\A[-a-zA-Z0-9_=@,.;]{1,164}\z/', $channel) !== 1) {
             throw new InvalidArgumentException('Invalid Pusher channel name.');
@@ -92,7 +92,7 @@ final class PusherChannel extends AbstractChannel
 
     protected function deliver(string $batch): void
     {
-        $this->pusher->triggerBatch(json_decode($batch, true, 512, JSON_THROW_ON_ERROR)['batch'], true);
+        $this->client->triggerBatch(json_decode($batch, true, 512, JSON_THROW_ON_ERROR)['batch'], true);
     }
 
     protected function encode(string $type, string $envelope): string

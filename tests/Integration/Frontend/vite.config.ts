@@ -6,6 +6,11 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   root: "fixtures",
   plugins: [react()],
+  resolve: {
+    alias: process.env.NEURON_STREAMING_ENTRY
+      ? { "@neuron-core/streaming": process.env.NEURON_STREAMING_ENTRY }
+      : {},
+  },
   server: {
     proxy: {
       "/api": { target: "http://127.0.0.1:8787", rewrite: (path) => path.replace(/^\/api/, "") },

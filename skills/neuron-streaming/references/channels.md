@@ -21,99 +21,35 @@ All fragments of one logical event share `(streamId, sequence)`. Sort their zero
 
 Ordering is a consumer responsibility. Pusher [guarantees order within a batch, not between batches](https://docs.bird.com/pusher/channels/channels/events/why-dont-channels-events-arrive-in-order). A terminal event can therefore arrive before earlier data. Do not close on its arrival until preceding sequences are complete, or declare a gap and reconcile from application history. Redis orders one publisher's messages, but different segments can share a destination and must still be distinguished.
 
-## Browser consumer example
+## Browser consumer
 
-This example consumes **one selected segment**. Route by `streamId` at the application edge; do not combine simultaneous streams. The limits below are example application limits, not PHP transport limits. Adjust them for expected payload sizes. Subscribe before execution, and reconcile a late subscription from history instead of treating its first received sequence as zero.
-
-`onEvent` receives `{type, data}` after ordering and reassembly. A protocol bridge can convert this to the flat `{...data, type}` representation used by `SSEEncoder`. The supplied `onGap` callback should discard partial UI output and reload authoritative application history. Call `close()` on unmount and call `onGap` on transport disconnection; if completion itself is lost without a disconnect, use an application-level run timeout/status check.
+Install `@neuron-core/streaming`; the package owns ordering, fragmentation, duplicate handling, buffer limits, and gap deadlines.
 
 ```js
-function createChannelConsumer(streamId, onEvent, onGap) {
-  const pending = new Map();
-  const terminalTypes = new Set(['stream.completed', 'stream.interrupted', 'stream.failed']);
-  let next = 0;
-  let bufferedBytes = 0;
-  let bufferedParts = 0;
-  let timer = null;
-  let closed = false;
+import { subscribeToPusher } from '@neuron-core/streaming';
 
-  function close() {
-    closed = true;
-    clearTimeout(timer);
-    pending.clear();
-    bufferedBytes = 0;
-    bufferedParts = 0;
-  }
+const subscription = subscribeToPusher(channel, {
+  onEvent: ({ type, data }) => renderEvent(type, data),
+  onGap: (reason) => reloadConversation(reason),
+});
 
-  function fail(reason) {
-    close();
-    onGap(reason);
-  }
-
-  function accept(frame) {
-    if (closed || frame.streamId !== streamId) return;
-    if (!Number.isSafeInteger(frame.sequence) || frame.sequence < 0 || typeof frame.type !== 'string') {
-      return fail('Invalid channel envelope');
-    }
-    if (frame.sequence < next) return; // Already consumed duplicate.
-    const fragment = frame.type === 'stream.fragment';
-    const data = frame.data;
-    if (fragment && (!data || typeof data.event !== 'string' || typeof data.part !== 'string'
-      || !/^[A-Za-z0-9_=-]*$/.test(data.part) || !Number.isSafeInteger(data.index)
-      || !Number.isSafeInteger(data.total) || data.total < 1 || data.total > 4096
-      || data.index < 0 || data.index >= data.total)) {
-      return fail('Invalid channel fragment');
-    }
-    let entry = pending.get(frame.sequence);
-    if (entry && (entry.fragment !== fragment || (fragment && (entry.type !== data.event || entry.total !== data.total)))) {
-      return fail('Conflicting channel fragments');
-    }
-    if (!entry) {
-      entry = { fragment, type: fragment ? data.event : frame.type, total: fragment ? data.total : 1, parts: new Map(), bytes: 0, data };
-      pending.set(frame.sequence, entry);
-    }
-    const index = fragment ? data.index : 0;
-    if (entry.parts.has(index)) return;
-    const part = fragment ? data.part : JSON.stringify(data);
-    if (typeof part !== 'string') return fail('Missing channel payload');
-    entry.parts.set(index, part);
-    ++bufferedParts;
-    const bytes = new TextEncoder().encode(part).length;
-    entry.bytes += bytes;
-    bufferedBytes += bytes;
-    if (pending.size > 1024 || bufferedParts > 4096 || bufferedBytes > 8 * 1024 * 1024) {
-      return fail('Channel buffer limit exceeded');
-    }
-
-    clearTimeout(timer);
-    while (pending.has(next)) {
-      const ready = pending.get(next);
-      if (ready.parts.size !== ready.total) break;
-      let payload = ready.data;
-      if (ready.fragment) {
-        const parts = Array.from({ length: ready.total }, (_, i) => ready.parts.get(i));
-        try {
-          payload = JSON.parse(atob(parts.join('').replace(/-/g, '+').replace(/_/g, '/')));
-        } catch {
-          return fail('Invalid reassembled payload');
-        }
-      }
-      pending.delete(next++);
-      bufferedBytes -= ready.bytes;
-      bufferedParts -= ready.parts.size;
-      const terminal = terminalTypes.has(ready.type);
-      if (terminal) close();
-      onEvent({ type: ready.type, data: payload });
-      if (terminal) return;
-    }
-    if (pending.size) timer = setTimeout(() => fail('Missing channel events'), 30_000);
-  }
-
-  return { accept, close };
-}
+// On cleanup or transport disconnection:
+subscription.close();
 ```
 
-For Pusher, feed the second argument of `channel.bind_global((name, envelope) => ...)` into `accept`, excluding `pusher:*` control events. For Redis, parse the published JSON first. A multiplexer needs its own bound on active stream IDs and must dispose each consumer on completion, failure, disconnect, or application timeout. Sequence numbers cannot recover lost events.
+Pass a channel from the official Pusher browser SDK, using `pusher-js/with-encryption` for encrypted channels. Wait for subscription success before starting backend execution. `onEvent` receives `{streamId, sequence, type, data}` after ordering and reassembly. Multiple segment IDs are tracked independently; a gap closes the subscription before calling `onGap`.
+
+For another transport, or to consume one selected segment (omit the second argument to discover segments automatically):
+
+```js
+import { createChannelConsumer } from '@neuron-core/streaming';
+
+const consumer = createChannelConsumer({ onEvent, onGap }, streamId);
+consumer.accept(JSON.parse(message));
+consumer.close(); // on cleanup
+```
+
+Reconcile late subscriptions and transport disconnections from authoritative history. A lost final event or silence before the first event requires an application run timeout/status check. The package cannot replay events. See the [package guide](../../../packages/streaming/README.md) for limits, lifecycle details, and TypeScript usage.
 
 ## Implementing a transport
 

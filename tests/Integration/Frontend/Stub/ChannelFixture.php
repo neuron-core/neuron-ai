@@ -10,6 +10,9 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use InvalidArgumentException;
 use GuzzleHttp\Client;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use Pusher\Pusher;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
@@ -31,7 +34,7 @@ use function base64_encode;
 final class ChannelFixture
 {
     /** @return array<string, mixed> */
-    public static function run(string $transport, string $outcome, bool $failDelivery = false): array
+    public static function run(string $transport, string $outcome, bool $failDelivery = false, ?string $protocol = null): array
     {
         if (!in_array($transport, ['pusher', 'pusher-encrypted', 'redis'], true)
             || !in_array($outcome, ['completed', 'interrupted', 'failed'], true)) {
@@ -72,6 +75,18 @@ final class ChannelFixture
                 'output' => ['text' => str_repeat('Second result 日本語 ', 300), 'type' => 'payload-type'],
             ]),
         ];
+        if ($protocol !== null) {
+            $adapter = match ($protocol) {
+                'agui' => new AGUIAdapter('thread-channel', 'run-channel'),
+                'vercel' => new VercelAIAdapter(),
+                default => throw new InvalidArgumentException('Unknown channel fixture protocol.'),
+            };
+            $events = [
+                ...$adapter->start(),
+                ...$adapter->transform(new TextChunk('message-1', str_repeat('Hello 日本語 🌍 ', 400))),
+                ...$adapter->end(),
+            ];
+        }
         $errors = 0;
         foreach ($events as $event) {
             try {

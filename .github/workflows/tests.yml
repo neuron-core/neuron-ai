@@ -197,29 +197,35 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.4'
-                  extensions: pdo_sqlite
+                  extensions: pdo_sqlite, redis, sodium, mongodb, bcmath
                   coverage: none
 
             - name: Install PHP dependencies
               uses: ramsey/composer-install@v4
 
             - name: Setup Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: '22'
                   cache: npm
-                  cache-dependency-path: tests/Integration/Frontend/package-lock.json
 
             - name: Install frontend dependencies
-              working-directory: tests/Integration/Frontend
               run: npm ci
 
             - name: Install Chromium
-              working-directory: tests/Integration/Frontend
               run: npx playwright install --with-deps chromium
 
-            - name: Frontend integration tests
-              run: composer test:frontend
+            - name: TypeScript unit tests
+              run: npm test
+
+            - name: Type checks
+              run: npm run typecheck
+
+            - name: Pack the frontend library
+              run: npm run pack:streaming
+
+            - name: Frontend integration tests using the installed archive
+              run: npm run test:packed
 
             - name: Upload Playwright traces
               if: failure()

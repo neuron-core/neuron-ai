@@ -1,0 +1,72 @@
+name: Release frontend package
+
+on:
+  push:
+    tags:
+      - 'frontend-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      dist-tag: ${{ steps.release.outputs.dist-tag }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate release tag
+        id: release
+        run: node packages/streaming/tools/release.mjs >> "$GITHUB_OUTPUT"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, redis, sodium, mongodb, bcmath
+          coverage: none
+      - uses: ramsey/composer-install@v4
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run pack:streaming
+      - name: Test the archive against the PHP backend
+        run: npm run test:packed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: streaming-package
+          path: artifacts/streaming.tgz
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-release-traces
+          path: tests/Integration/Frontend/test-results
+          retention-days: 7
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: streaming-package
+          path: artifacts
+      - name: Publish the tested archive through npm Trusted Publishing
+        env:
+          NPM_DIST_TAG: ${{ needs.verify.outputs.dist-tag }}
+        run: npm publish ./artifacts/streaming.tgz --access public --tag "$NPM_DIST_TAG" --ignore-scripts

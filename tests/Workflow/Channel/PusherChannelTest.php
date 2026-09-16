@@ -65,7 +65,7 @@ class PusherChannelTest extends TestCase
         }
         $this->pusher = new Pusher('app-key', 'app-secret', 'app-id', $options, new Client(['handler' => $stack]));
         return new PusherChannel(
-            pusher: $this->pusher,
+            client: $this->pusher,
             channel: $encrypted ? 'private-encrypted-chat.42' : 'chat.42',
             maxRequestBytes: $maxRequestBytes,
             batchSize: $batchSize,

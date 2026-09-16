@@ -13,3 +13,7 @@ composer.lock
 scripts
 phpunit.xml.local
 DOCS_*
+
+/node_modules/
+/packages/streaming/dist/
+/artifacts/

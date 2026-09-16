@@ -115,7 +115,7 @@ try {
     if ($method === 'GET' && $path === '/_test/health') {
         respondJson(200, ['ok' => true]);
     } elseif ($method === 'POST' && $path === '/_test/channels') {
-        respondJson(200, ChannelFixture::run($payload['transport'], $payload['outcome'], $payload['failDelivery'] ?? false));
+        respondJson(200, ChannelFixture::run($payload['transport'], $payload['outcome'], $payload['failDelivery'] ?? false, $payload['protocol'] ?? null));
     } elseif ($method === 'POST' && $path === '/_test/threads') {
         $fixture->registerThread((string) $payload['threadId'], (string) $payload['scenario']);
         respondJson(201, ['threadId' => $payload['threadId']]);
