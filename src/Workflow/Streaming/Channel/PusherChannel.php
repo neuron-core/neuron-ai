@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Streaming\Channel;
 
+use JsonException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -27,27 +28,6 @@ use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_THROW_ON_ERROR;
 use const JSON_UNESCAPED_SLASHES;
 
-/**
- * Pushes a run segment to a Pusher Channels channel through the HTTP API, so
- * a browser subscribed to it follows a run driven by another process (a queue
- * worker, a resumed run). Any server speaking the Pusher protocol works
- * through $host: Pusher clusters, Laravel Reverb, Soketi.
- *
- * Wire contract, in stream order:
- *  - every protocol event is a Pusher event named by its type, carrying its data;
- *  - the segment lifecycle is stream.interrupted / stream.completed / stream.failed,
- *    carrying the workflowId only: what a client learns about an error is the
- *    adapter's decision, through its own error frame;
- *  - an event that does not fit one request travels as consecutive
- *    stream.fragment events {type, index, total, part}, part being a base64
- *    slice of the event's JSON data; the client concatenates and parses the last.
- *
- * Requests go through the batch_events endpoint, up to $batchSize events and
- * $maxRequestBytes per request: one number honours Pusher's per-event ceiling
- * and Reverb's per-request one. Subscribers receive individual events either
- * way. A rejected request raises HttpException, which the Workflow reports as
- * a ChannelError without failing the run.
- */
 final class PusherChannel implements StreamingChannelInterface
 {
     use HasHttpClient;
@@ -77,23 +57,35 @@ final class PusherChannel implements StreamingChannelInterface
             ->withHeaders(['Content-Type' => 'application/json']);
     }
 
+    /**
+     * @throws JsonException
+     */
     public function send(ProtocolEvent $event): void
     {
         $this->trigger($event->type, $event->data);
     }
 
+    /**
+     * @throws JsonException
+     */
     public function interrupted(WorkflowState $state): void
     {
         $this->trigger('stream.interrupted', ['workflowId' => $state->getWorkflowId()]);
         $this->flush();
     }
 
+    /**
+     * @throws JsonException
+     */
     public function completed(WorkflowState $state, string $workflowId): void
     {
         $this->trigger('stream.completed', ['workflowId' => $workflowId]);
         $this->flush();
     }
 
+    /**
+     * @throws JsonException
+     */
     public function failed(Throwable $exception, string $workflowId): void
     {
         $this->trigger('stream.failed', ['workflowId' => $workflowId]);
@@ -105,6 +97,7 @@ final class PusherChannel implements StreamingChannelInterface
      * items that fit one request on their own.
      *
      * @param array<string, mixed> $data
+     * @throws JsonException
      */
     protected function trigger(string $name, array $data): void
     {
