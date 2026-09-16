@@ -37,6 +37,7 @@ use function parse_str;
 use function range;
 use function str_repeat;
 use function strlen;
+use function strtr;
 
 class PusherChannelTest extends TestCase
 {
@@ -196,16 +197,16 @@ class PusherChannelTest extends TestCase
         foreach ($items as $index => $item) {
             $this->assertSame('stream.fragment', $item['name']);
             $fragment = json_decode($item['data'], true);
-            $this->assertSame('tool-output-available', $fragment['type']);
+            $this->assertSame('tool-output-available', $fragment['event']);
             $this->assertSame($index, $fragment['index']);
             $this->assertSame(count($items), $fragment['total']);
         }
         $this->assertRequestsWithinBudget(2_000, 1);
 
-        $encoded = base64_decode(implode('', array_map(
+        $encoded = base64_decode(strtr(implode('', array_map(
             static fn (array $item): string => json_decode($item['data'], true)['part'],
             $items,
-        )));
+        )), '-_', '+/'));
         $this->assertTrue(mb_check_encoding($encoded, 'ASCII'), 'A fragment must decode with atob(), which only carries ASCII.');
         $this->assertSame($data, json_decode($encoded, true));
     }
