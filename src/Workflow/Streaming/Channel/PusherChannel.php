@@ -35,7 +35,7 @@ use const JSON_UNESCAPED_SLASHES;
  *
  * Wire contract, in stream order:
  *  - every protocol event is a Pusher event named by its type, carrying its data;
- *  - the segment lifecycle is stream.suspended / stream.completed / stream.failed,
+ *  - the segment lifecycle is stream.interrupted / stream.completed / stream.failed,
  *    carrying the workflowId only: what a client learns about an error is the
  *    adapter's decision, through its own error frame;
  *  - an event that does not fit one request travels as consecutive
@@ -82,9 +82,9 @@ final class PusherChannel implements StreamingChannelInterface
         $this->trigger($event->type, $event->data);
     }
 
-    public function suspended(WorkflowState $state): void
+    public function interrupted(WorkflowState $state): void
     {
-        $this->trigger('stream.suspended', ['workflowId' => $state->getWorkflowId()]);
+        $this->trigger('stream.interrupted', ['workflowId' => $state->getWorkflowId()]);
         $this->flush();
     }
 

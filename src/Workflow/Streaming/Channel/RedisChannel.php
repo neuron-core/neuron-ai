@@ -23,7 +23,7 @@ use const JSON_THROW_ON_ERROR;
  * Every message is one protocol event as JSON with the type first, exactly
  * what SSEEncoder::frame() puts after "data: ", so a subscriber relays it to
  * the browser without transformation. The segment lifecycle arrives the same
- * way as stream.suspended / stream.completed / stream.failed, carrying the
+ * way as stream.interrupted / stream.completed / stream.failed, carrying the
  * workflowId only: what a client learns about an error is the adapter's
  * decision, through its own error frame.
  *
@@ -45,9 +45,9 @@ final class RedisChannel implements StreamingChannelInterface
         $this->publish($event);
     }
 
-    public function suspended(WorkflowState $state): void
+    public function interrupted(WorkflowState $state): void
     {
-        $this->publish(new ProtocolEvent('stream.suspended', ['workflowId' => $state->getWorkflowId()]));
+        $this->publish(new ProtocolEvent('stream.interrupted', ['workflowId' => $state->getWorkflowId()]));
     }
 
     public function completed(WorkflowState $state, string $workflowId): void

@@ -62,13 +62,13 @@ class RedisChannelTest extends TestCase
     {
         $channel = $this->channel();
 
-        $channel->suspended($this->state());
+        $channel->interrupted($this->state());
         $channel->completed($this->state(), 'wf-1');
         $channel->failed(new RuntimeException('internal details'), 'wf-1');
 
         $this->assertSame(
             [
-                '{"type":"stream.suspended","workflowId":"wf-1"}',
+                '{"type":"stream.interrupted","workflowId":"wf-1"}',
                 '{"type":"stream.completed","workflowId":"wf-1"}',
                 '{"type":"stream.failed","workflowId":"wf-1"}',
             ],

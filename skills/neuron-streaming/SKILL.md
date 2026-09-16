@@ -243,7 +243,7 @@ $agent = MyAgent::make(threadId: $threadId)
     ->setChannel(new RedisChannel($redis, "chat:{$threadId}"));
 ```
 
-Every message is one protocol event as JSON with the `type` first, exactly what `SSEEncoder::frame()` puts after `data: `, so a subscriber relays it to the browser without transformation: the process holding the SSE response subscribes to the channel, writes `data: {$message}\n\n` for each message, and closes on `stream.completed`, `stream.suspended` or `stream.failed`, which arrive the same way carrying `workflowId` only. Redis delivers the messages of one publisher in order and has no meaningful size ceiling, so there is nothing to fragment or batch. Pub/Sub does not replay: a subscriber that connects mid-run has missed the earlier messages and reconciles from chat history, which is the framework's contract for every channel.
+Every message is one protocol event as JSON with the `type` first, exactly what `SSEEncoder::frame()` puts after `data: `, so a subscriber relays it to the browser without transformation: the process holding the SSE response subscribes to the channel, writes `data: {$message}\n\n` for each message, and closes on `stream.completed`, `stream.interrupted` or `stream.failed`, which arrive the same way carrying `workflowId` only. Redis delivers the messages of one publisher in order and has no meaningful size ceiling, so there is nothing to fragment or batch. Pub/Sub does not replay: a subscriber that connects mid-run has missed the earlier messages and reconciles from chat history, which is the framework's contract for every channel.
 
 ### PusherChannel
 
@@ -267,7 +267,7 @@ foreach ($agent->stream(new UserMessage($message)) as $ignored) {
 }
 ```
 
-Each protocol event becomes a Pusher event named by its `type` and carrying its `data`, so the browser rebuilds the exact stream the SSE path would deliver. The segment lifecycle is broadcast as `stream.suspended`, `stream.completed` and `stream.failed`, each carrying `workflowId` and nothing else: what a client learns about an error is the adapter's decision, through its own error frame.
+Each protocol event becomes a Pusher event named by its `type` and carrying its `data`, so the browser rebuilds the exact stream the SSE path would deliver. The segment lifecycle is broadcast as `stream.interrupted`, `stream.completed` and `stream.failed`, each carrying `workflowId` and nothing else: what a client learns about an error is the adapter's decision, through its own error frame.
 
 **Fragments.** Pusher caps an event at 10 KB; Reverb defaults to the same, Soketi to 100 KB, and `maxRequestBytes` (default `10_000`) tunes the ceiling. An event that does not fit, typically a tool result or an AG-UI `MESSAGES_SNAPSHOT`, is split into consecutive `stream.fragment` events shaped `{type, index, total, part}`, where `part` is a base64 slice of the event's JSON data (unicode escaped, so `atob()` is enough to decode it). Fragments arrive in order and never interleave, so the browser concatenates them and parses the last one. This is the only client code the transport needs:
 
@@ -285,7 +285,7 @@ channel.bind_global((name, data) => {
 });
 ```
 
-`onEvent` receives the same `{ type, ...data }` object for plain and reassembled events, so a Vercel transport or an AG-UI subscriber built on it never sees fragments. A client that subscribes mid-run has missed earlier deltas anyway and reconciles from chat history after `stream.completed` or `stream.suspended`.
+`onEvent` receives the same `{ type, ...data }` object for plain and reassembled events, so a Vercel transport or an AG-UI subscriber built on it never sees fragments. A client that subscribes mid-run has missed earlier deltas anyway and reconciles from chat history after `stream.completed` or `stream.interrupted`.
 
 **Batching.** Requests go through the `batch_events` endpoint, which Pusher, Reverb and Soketi all implement: up to `batchSize` events (default `10`, the Pusher maximum) and `maxRequestBytes` per request, so a fast token stream costs a fraction of the HTTP round trips. The buffer flushes when either limit is reached and after every lifecycle event, so nothing is left behind at the end of a segment, and a fragment pushes the pending events out ahead of it, so the wire keeps the stream order. Batching is invisible to the browser, which receives individual events either way. The trade-off is latency: buffered events wait for the next event or the segment end, so the events preceding a long tool execution reach the UI when it finishes. `batchSize: 1` sends every event on its own for the lowest latency.
 

@@ -135,13 +135,13 @@ class PusherChannelTest extends TestCase
     {
         $channel = $this->channel(batchSize: 1);
 
-        $channel->suspended($this->state());
+        $channel->interrupted($this->state());
         $channel->completed($this->state(), 'wf-1');
         $channel->failed(new RuntimeException('internal details'), 'wf-1');
 
         $this->assertSame(
             [
-                [['channel' => 'chat.42', 'name' => 'stream.suspended', 'data' => '{"workflowId":"wf-1"}']],
+                [['channel' => 'chat.42', 'name' => 'stream.interrupted', 'data' => '{"workflowId":"wf-1"}']],
                 [['channel' => 'chat.42', 'name' => 'stream.completed', 'data' => '{"workflowId":"wf-1"}']],
                 [['channel' => 'chat.42', 'name' => 'stream.failed', 'data' => '{"workflowId":"wf-1"}']],
             ],
