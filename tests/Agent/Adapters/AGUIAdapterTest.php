@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
+namespace NeuronAI\Tests\Agent\Adapters;
 
 use DateTimeImmutable;
 use NeuronAI\Agent\Adapters\AGUIAdapter;

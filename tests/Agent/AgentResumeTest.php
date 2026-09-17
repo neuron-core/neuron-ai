@@ -100,18 +100,15 @@ class AgentResumeTest extends TestCase
         $agent2->setStreamAdapter(new ParityAdapter());
 
         // The approval wrapper hides the signal name; events() selects streaming.
-        $handler2 = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
+        $state = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
             ->events();
-        $chunks = iterator_to_array($handler2);
-        $state = $handler2->getReturn();
 
         // The run completed, on the right thread, in the right mode.
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('thread-1', $agent2->getChatHistory()->getThreadId());
 
-        // Stream intent survived suspend → resume through both pull and push delivery.
+        // Stream intent survived suspend → resume through channel delivery.
         $isText = static fn (ProtocolEvent $event): bool => $event->type === 'text';
-        $this->assertNotEmpty(array_filter($chunks, $isText));
         $this->assertNotEmpty(array_filter($channel->getSent(), $isText));
         $this->assertCount(1, $channel->getCompletions());
 

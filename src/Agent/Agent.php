@@ -478,23 +478,22 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The pull-stream verb: yields Neuron chunks, and
-     * {@see Generator::getReturn()} is the final {@see AgentState}. A stream
-     * adapter configured on the Workflow transforms the yielded output into protocol events and,
-     * when a channel is attached, the same events are delivered there.
+     * With an adapter and channel, stream eagerly and return the final AgentState.
+     * Otherwise, return a lazy generator of native chunks or adapted protocol events;
+     * {@see Generator::getReturn()} is the final {@see AgentState}.
      *
      * @param Message|Message[] $messages
-     * @return Generator<int, object, mixed, AgentState>
+     * @return Generator<int, object, mixed, AgentState>|AgentState
      * @throws AgentException
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function stream(Message|array $messages = []): Generator
+    public function stream(Message|array $messages = []): Generator|AgentState
     {
         $this->prepareNewTurn();
         $this->getStartEvent()->options->stream = true;
         $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
-        return yield from $this->events();
+        return $this->events();
     }
 
     /**

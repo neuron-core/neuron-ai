@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use Generator;
 use LogicException;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Observability\Events\AgentError;
@@ -20,6 +21,8 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -32,6 +35,7 @@ use Throwable;
 
 use function array_map;
 use function count;
+use function iterator_to_array;
 
 class ChannelForwardingTest extends TestCase
 {
@@ -61,7 +65,7 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame([], $channel->getFailures());
     }
 
-    public function test_wired_channel_receives_items_via_caller_held_generator(): void
+    public function test_wired_channel_consumes_events_and_returns_the_final_state(): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make()
@@ -69,13 +73,54 @@ class ChannelForwardingTest extends TestCase
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
 
-        $pulled = [];
-        foreach ($workflow->events() as $event) {
-            $pulled[] = $event;
-        }
+        $state = $workflow->events();
 
-        // Push and pull consumers see the same items — same instances, same order.
-        $this->assertSame($pulled, $channel->getSent());
+        $this->assertInstanceOf(WorkflowState::class, $state);
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+        $this->assertSame(['chunk-1', 'chunk-2'], array_map(
+            static fn (ProtocolEvent $event): string => $event->data['payload'],
+            $channel->getSent(),
+        ));
+        $this->assertCount(1, $channel->getCompletions());
+        $this->assertSame($state, $channel->getCompletions()[0]->state);
+    }
+
+    public function test_events_remain_lazy_without_a_complete_channel_pipeline(): void
+    {
+        foreach ([[false, false], [true, false], [false, true]] as [$adapter, $channel]) {
+            $workflow = Workflow::make()
+                ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+                ->setStreamAdapter($adapter ? new ChunkAdapter() : null)
+                ->setChannel($channel ? new FakeChannel() : null);
+
+            $stream = $workflow->events();
+
+            $this->assertInstanceOf(Generator::class, $stream);
+            $this->assertNull($workflow->getState()->get('node_one_executed'));
+            iterator_to_array($stream);
+            $this->assertTrue($stream->getReturn()->get('node_one_executed'));
+        }
+    }
+
+    public function test_signal_eagerly_delivers_the_continuation_to_the_channel(): void
+    {
+        $channel = new FakeChannel();
+        $workflow = Workflow::make()
+            ->addNodes([new PreStreamNode(), new WaitForEventNode(), new PostStreamNode()])
+            ->setStreamAdapter(new ChunkAdapter())
+            ->setChannel($channel);
+
+        $this->assertTrue($workflow->events()->isInterrupted());
+
+        $state = $workflow->signal('user.signup', ['user' => 42])->events();
+
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+        $this->assertSame(['user' => 42], $state->get('received_payload'));
+        $this->assertSame(['pre', 'post'], array_map(
+            static fn (ProtocolEvent $event): string => $event->data['payload'],
+            $channel->getSent(),
+        ));
+        $this->assertCount(1, $channel->getSuspensions());
         $this->assertCount(1, $channel->getCompletions());
     }
 
@@ -226,7 +271,7 @@ class ChannelForwardingTest extends TestCase
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($firstSegment);
 
-        $workflow->run();
+        $this->assertTrue($workflow->events()->isInterrupted());
 
         $this->assertCount(1, $firstSegment->getSent());
         $this->assertSame('pre', $firstSegment->getSent()[0]->data['payload']);
@@ -236,7 +281,7 @@ class ChannelForwardingTest extends TestCase
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
         $workflow->setChannel($resumeSegment);
-        $state = $workflow->resume([])->run();
+        $state = $workflow->resume([])->events();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->getSent());

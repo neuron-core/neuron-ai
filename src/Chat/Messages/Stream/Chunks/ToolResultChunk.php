@@ -18,7 +18,7 @@ class ToolResultChunk extends StreamChunk
     {
         return [
             'messageId' => $this->messageId,
-            'tools' => $this->tool->jsonSerialize(),
+            'tool' => $this->tool->jsonSerialize(),
         ];
     }
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub;
+namespace NeuronAI\Tests\Agent\Adapters\Stub;
 
 class IndexingProgress
 {

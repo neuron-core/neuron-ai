@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Tests\Chat\Messages\Stream\Adapters;
+namespace NeuronAI\Tests\Agent\Adapters;
 
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
@@ -13,10 +13,10 @@ use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
-use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\DetailedIndexingProgress;
-use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\IndexingProgress;
-use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\SuppressedProgress;
-use NeuronAI\Tests\Chat\Messages\Stream\Adapters\Stub\UnsupportedStreamEvent;
+use NeuronAI\Tests\Agent\Adapters\Stub\DetailedIndexingProgress;
+use NeuronAI\Tests\Agent\Adapters\Stub\IndexingProgress;
+use NeuronAI\Tests\Agent\Adapters\Stub\SuppressedProgress;
+use NeuronAI\Tests\Agent\Adapters\Stub\UnsupportedStreamEvent;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;

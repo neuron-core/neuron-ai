@@ -116,7 +116,7 @@ final class ChannelFixture
                 }
             }
         }
-        if ($redis !== null) {
+        if ($redis instanceof \NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis) {
             $frames = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $redis->published);
         }
 

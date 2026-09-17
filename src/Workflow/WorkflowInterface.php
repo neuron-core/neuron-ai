@@ -70,10 +70,11 @@ interface WorkflowInterface
 
     /**
      * Stream the staged operation, or start/recover a failed run by default.
+     * With an adapter and channel, deliver eagerly and return the final state.
      *
-     * @return Generator<int, object|string, mixed, TState>
+     * @return Generator<int, object|string, mixed, TState>|TState
      */
-    public function events(): Generator;
+    public function events(): Generator|WorkflowState;
 
     /**
      * The workflow ID, also the continuation handle: pass it back to the

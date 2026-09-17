@@ -26,17 +26,19 @@ use Psr\Http\Message\RequestInterface;
 use InvalidArgumentException;
 use NeuronAI\Tests\Workflow\Channel\Stub\CountingPayload;
 
+use function array_column;
+use function array_fill;
 use function array_map;
 use function array_merge;
 use function count;
 use function hash_hmac;
-use function iterator_to_array;
 use function json_decode;
 use function json_encode;
 use function md5;
 use function parse_str;
 use function range;
 use function str_repeat;
+use function str_split;
 use function strlen;
 use function array_unique;
 use function base64_decode;
@@ -222,16 +224,21 @@ class PusherChannelTest extends TestCase
     {
         $channel = $this->channel();
         $agent = Agent::make()->setStreamAdapter(new VercelAIAdapter())->setChannel($channel);
-        $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world from Pusher, streamed in small chunks')))->setStreamChunkSize(5));
-        $pulled = iterator_to_array($agent->stream(new UserMessage('Hi')), false);
-        $items = array_merge(...$this->batches());
-        $this->assertSame(
-            [...array_map(static fn (ProtocolEvent $event): string => $event->type, $pulled), 'stream.completed'],
-            array_map(static fn (array $item): string => $item['name'], $items),
+        $response = 'Hello world from Pusher, streamed in small chunks';
+        $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
+        $state = $agent->stream(new UserMessage('Hi'));
+
+        $envelopes = array_map(
+            static fn (array $item): array => json_decode($item['data'], true),
+            array_merge(...$this->batches()),
         );
-        foreach ($pulled as $index => $event) {
-            $envelope = json_decode($items[$index]['data'], true);
-            $this->assertSame($event->data, $envelope['data']);
+        $this->assertSame($response, $state->getMessage()->getContent());
+        $this->assertSame(
+            ['start', 'text-start', ...array_fill(0, count(str_split($response, 5)), 'text-delta'), 'text-end', 'finish', 'stream.completed'],
+            array_column($envelopes, 'type'),
+        );
+        $this->assertSame($response, implode('', array_column(array_column($envelopes, 'data'), 'delta')));
+        foreach ($envelopes as $index => $envelope) {
             $this->assertSame($index, $envelope['sequence']);
         }
         $this->assertRequestsWithinBudget(10_000, 10);

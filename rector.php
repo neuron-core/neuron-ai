@@ -6,7 +6,7 @@ use Rector\Config\RectorConfig;
 use Rector\TypeDeclaration\Rector\ClassMethod\AddReturnTypeDeclarationRector;
 
 return RectorConfig::configure()
-    ->withParallel(timeoutSeconds: 600, maxNumberOfProcess: 10)
+    ->withParallel(timeoutSeconds: 600, maxNumberOfProcess: 12)
     ->withPaths([
         __DIR__ . '/src',
         __DIR__ . '/tests',

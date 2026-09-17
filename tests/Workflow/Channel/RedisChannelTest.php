@@ -18,9 +18,12 @@ use RuntimeException;
 use Redis;
 
 use function array_column;
+use function array_fill;
 use function array_map;
-use function iterator_to_array;
+use function count;
+use function implode;
 use function json_decode;
+use function str_split;
 
 class RedisChannelTest extends TestCase
 {
@@ -103,18 +106,20 @@ class RedisChannelTest extends TestCase
     public function test_streams_an_agent_run_as_the_adapter_events_followed_by_the_completion(): void
     {
         $agent = Agent::make()->setStreamAdapter(new VercelAIAdapter())->setChannel($this->channel());
-        $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world from Redis')))->setStreamChunkSize(5));
+        $response = 'Hello world from Redis';
+        $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
 
-        $pulled = iterator_to_array($agent->stream(new UserMessage('Hi')), false);
+        $state = $agent->stream(new UserMessage('Hi'));
 
         $envelopes = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $this->redis->published);
+        $this->assertSame($response, $state->getMessage()->getContent());
         $this->assertSame(
-            [...array_map(static fn (ProtocolEvent $event): string => $event->type, $pulled), 'stream.completed'],
+            ['start', 'text-start', ...array_fill(0, count(str_split($response, 5)), 'text-delta'), 'text-end', 'finish', 'stream.completed'],
             array_column($envelopes, 'type'),
         );
-        foreach ($pulled as $index => $event) {
-            $this->assertSame($event->data, $envelopes[$index]['data']);
-            $this->assertSame($index, $envelopes[$index]['sequence']);
+        $this->assertSame($response, implode('', array_column(array_column($envelopes, 'data'), 'delta')));
+        foreach ($envelopes as $index => $envelope) {
+            $this->assertSame($index, $envelope['sequence']);
         }
     }
 }

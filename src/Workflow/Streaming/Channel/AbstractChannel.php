@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Streaming\Channel;
 
 use InvalidArgumentException;
+use JsonException;
 use LengthException;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
+use Random\RandomException;
 use Throwable;
 
 use function base64_encode;
@@ -78,6 +80,9 @@ abstract class AbstractChannel implements StreamingChannelInterface
         return strlen($this->batch($events));
     }
 
+    /**
+     * @throws JsonException
+     */
     final public function send(ProtocolEvent $event): void
     {
         if (!$this->stopped) {
@@ -85,21 +90,33 @@ abstract class AbstractChannel implements StreamingChannelInterface
         }
     }
 
+    /**
+     * @throws Throwable
+     */
     final public function interrupted(WorkflowState $state): void
     {
         $this->finish(new ProtocolEvent('stream.interrupted', ['workflowId' => $state->getWorkflowId()]));
     }
 
+    /**
+     * @throws Throwable
+     */
     final public function completed(WorkflowState $state, string $workflowId): void
     {
         $this->finish(new ProtocolEvent('stream.completed', ['workflowId' => $workflowId]));
     }
 
+    /**
+     * @throws Throwable
+     */
     final public function failed(Throwable $exception, string $workflowId): void
     {
         $this->finish(new ProtocolEvent('stream.failed', ['workflowId' => $workflowId]));
     }
 
+    /**
+     * @throws Throwable
+     */
     final protected function finish(ProtocolEvent $event): void
     {
         $failure = null;
@@ -122,11 +139,15 @@ abstract class AbstractChannel implements StreamingChannelInterface
             $this->stopped = false;
         }
 
-        if ($failure !== null) {
+        if ($failure instanceof Throwable) {
             throw $failure;
         }
     }
 
+    /**
+     * @throws RandomException
+     * @throws JsonException
+     */
     final protected function enqueueEvent(ProtocolEvent $event): void
     {
         if ($this->batchSize() < 1 || ($this->budget() !== null && $this->budget() < 1)
@@ -142,6 +163,9 @@ abstract class AbstractChannel implements StreamingChannelInterface
         }
     }
 
+    /**
+     * @throws JsonException
+     */
     final protected function envelope(string $type, string $data, int $sequence): string
     {
         $header = json_encode([
@@ -153,7 +177,10 @@ abstract class AbstractChannel implements StreamingChannelInterface
         return substr($header, 0, -1) . ',"data":' . $data . '}';
     }
 
-    /** @return iterable<string> */
+    /**
+     * @return iterable<string>
+     * @throws JsonException
+     */
     final protected function fragments(string $type, string $data, int $sequence): iterable
     {
         $envelope = $this->envelope($type, $data, $sequence);
@@ -205,6 +232,9 @@ abstract class AbstractChannel implements StreamingChannelInterface
         }
     }
 
+    /**
+     * @throws JsonException
+     */
     final protected function fragment(string $type, int $sequence, int $index, int $total, string $part): string
     {
         return $this->envelope('stream.fragment', json_encode([
@@ -221,6 +251,9 @@ abstract class AbstractChannel implements StreamingChannelInterface
             && ($this->budget() === null || $this->batchBytes([$encoded]) <= $this->budget());
     }
 
+    /**
+     * @throws Throwable
+     */
     final protected function enqueue(string $encoded): void
     {
         if ($this->pending !== [] && $this->budget() !== null
@@ -234,6 +267,9 @@ abstract class AbstractChannel implements StreamingChannelInterface
         }
     }
 
+    /**
+     * @throws Throwable
+     */
     final protected function flush(): void
     {
         if ($this->pending === []) {

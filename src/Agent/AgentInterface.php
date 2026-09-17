@@ -68,9 +68,9 @@ interface AgentInterface extends WorkflowInterface
 
     /**
      * @param Message|Message[] $messages
-     * @return Generator<int, object|string, mixed, AgentState>
+     * @return Generator<int, object|string, mixed, AgentState>|AgentState
      */
-    public function stream(Message|array $messages = []): Generator;
+    public function stream(Message|array $messages = []): Generator|AgentState;
 
     /**
      * @param Message|Message[] $messages

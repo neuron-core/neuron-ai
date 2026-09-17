@@ -9,7 +9,8 @@ use JsonException;
 use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Testing\FakeChannel;
+use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\WorkflowStatus;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
@@ -97,7 +98,6 @@ class SSEEncoderTest extends TestCase
 
     public function test_an_unencodable_stream_event_closes_the_protocol_and_fails_the_run(): void
     {
-        $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): Generator
@@ -108,8 +108,7 @@ class SSEEncoderTest extends TestCase
                     return new StopEvent();
                 }
             }])
-            ->setStreamAdapter(new VercelAIAdapter())
-            ->setChannel($channel);
+            ->setStreamAdapter(new VercelAIAdapter());
 
         $types = [];
         $caught = null;
@@ -123,8 +122,6 @@ class SSEEncoderTest extends TestCase
 
         $this->assertInstanceOf(JsonException::class, $caught);
         $this->assertSame(['start', 'text-start', 'text-delta', 'text-end', 'error'], $types);
-        $this->assertCount(1, $channel->getFailures());
-        $this->assertSame($caught, $channel->getFailures()[0]->exception);
-        $this->assertSame([], $channel->getCompletions());
+        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
     }
 }

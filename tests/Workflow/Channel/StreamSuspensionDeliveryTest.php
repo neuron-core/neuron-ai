@@ -28,7 +28,7 @@ use function json_encode;
 
 class StreamSuspensionDeliveryTest extends TestCase
 {
-    public function test_suspension_frames_reach_pull_and_push_consumers_instead_of_end(): void
+    public function test_suspension_frames_reach_the_channel_instead_of_end(): void
     {
         $request = new ApprovalRequest('needs a human', [
             new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']),
@@ -39,19 +39,13 @@ class StreamSuspensionDeliveryTest extends TestCase
             ->setStreamAdapter(new AGUIAdapter('thread_test', 'run_test'))
             ->setChannel($channel);
 
-        $pulled = [];
-        $generator = $workflow->events();
-        foreach ($generator as $line) {
-            $pulled[] = $line;
-        }
-        $state = $generator->getReturn();
+        $state = $workflow->events();
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->getSent());
         $this->assertCount(1, $channel->getSuspensions());
         $this->assertSame([], $channel->getCompletions());
 
-        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $channel->getSent());
         $this->assertSame(
             ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),

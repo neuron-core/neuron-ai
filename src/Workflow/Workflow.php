@@ -383,7 +383,9 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
      */
     public function run(): WorkflowState
     {
-        return $this->consume($this->events());
+        $result = $this->events();
+
+        return $result instanceof Generator ? $this->consume($result) : $result;
     }
 
     /**
@@ -449,34 +451,40 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
 
     /**
      * Stream the staged operation, or start/recover a failed run by default.
+     * With an adapter and channel, deliver eagerly and return the final state.
+     * Otherwise, return a lazy generator whose return value is the final state.
      *
-     * @return Generator<int, object, mixed, TState>
+     * @return Generator<int, object, mixed, TState>|TState
      * @throws Throwable
      */
-    public function events(): Generator
+    public function events(): Generator|WorkflowState
     {
         if ($this->stagedInputs !== null) {
             $continuation = $this->stagedInputs;
             $this->stagedInputs = null;
-            return $this->forwardEvents($this->getExecutor()->resume(
+            $generator = $this->getExecutor()->resume(
                 $this,
                 $continuation['payload'],
                 $continuation['runId'],
                 $continuation['executionAttempt'],
-            ));
-        }
-
-        if ($this->stagedSignalName !== null) {
+            );
+        } elseif ($this->stagedSignalName !== null) {
             $name = $this->stagedSignalName;
             $payload = $this->stagedSignalPayload;
             $this->stagedSignalName = null;
             $this->stagedSignalPayload = [];
-            return $this->forwardEvents($this->getExecutor()->signal($this, $name, $payload));
+            $generator = $this->getExecutor()->signal($this, $name, $payload);
+        } else {
+            $fresh = $this->forceNewRun;
+            $this->forceNewRun = false;
+            $generator = $this->getExecutor()->execute($this, fresh: $fresh);
         }
 
-        $fresh = $this->forceNewRun;
-        $this->forceNewRun = false;
-        return $this->forwardEvents($this->getExecutor()->execute($this, fresh: $fresh));
+        $generator = $this->forwardEvents($generator);
+
+        return $this->getStreamAdapter() instanceof StreamAdapterInterface && $this->getChannel() instanceof StreamingChannelInterface
+            ? $this->consume($generator)
+            : $generator;
     }
 
     /**

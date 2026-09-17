@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use Generator;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -28,6 +30,25 @@ use function json_encode;
 
 class PushAdapterDeliveryTest extends TestCase
 {
+    public function test_stream_remains_lazy_without_a_complete_channel_pipeline(): void
+    {
+        foreach ([[false, false], [true, false], [false, true]] as [$adapter, $channel]) {
+            $provider = new FakeAIProvider(new AssistantMessage('Hello'));
+            $agent = Agent::make()
+                ->setStreamAdapter($adapter ? new ParityAdapter() : null)
+                ->setChannel($channel ? new FakeChannel() : null);
+            $agent->setAiProvider($provider);
+
+            $stream = $agent->stream(new UserMessage('Hi'));
+
+            $this->assertInstanceOf(Generator::class, $stream);
+            $provider->assertCallCount(0);
+            $this->assertNotEmpty(iterator_to_array($stream));
+            $this->assertSame('Hello', $stream->getReturn()->getMessage()->getContent());
+            $provider->assertCallCount(1);
+        }
+    }
+
     public function test_push_output_is_byte_identical_to_the_pull_path(): void
     {
         // Pull: the caller drains the Workflow-managed adapter output.
@@ -55,9 +76,10 @@ class PushAdapterDeliveryTest extends TestCase
             },
         ));
 
-        // Stream mode so ChatNode yields chunks the channel can adapt; the
-        // pull-side output is discarded — only the channel sink is asserted.
-        iterator_to_array($pushAgent->stream(new UserMessage('Hi')));
+        $state = $pushAgent->stream(new UserMessage('Hi'));
+
+        $this->assertInstanceOf(AgentState::class, $state);
+        $this->assertSame('Hello world, streaming bytes', $state->getMessage()->getContent());
 
         $this->assertGreaterThan(2, count($sink), 'The stream should carry protocol events beyond start/end');
         $this->assertEquals($pulled, $sink);
@@ -95,7 +117,7 @@ class PushAdapterDeliveryTest extends TestCase
         $this->assertEquals($pulled, $sink);
     }
 
-    public function test_suspended_stream_frames_are_identical_between_pull_and_push(): void
+    public function test_suspended_stream_delivers_frames_and_returns_the_interrupted_state(): void
     {
         $tool = new class () extends Tool {
             protected string $name = 'geolocation_get';
@@ -123,17 +145,14 @@ class PushAdapterDeliveryTest extends TestCase
         ])));
         $agent->addTool($tool);
 
-        $generator = $agent->stream(new UserMessage('Where am I?'));
-        $pulled = iterator_to_array($generator, false);
-        $state = $generator->getReturn();
+        $state = $agent->stream(new UserMessage('Where am I?'));
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame($pulled, $channel->getSent());
         $this->assertCount(1, $channel->getSuspensions());
         $this->assertSame([], $channel->getCompletions());
 
         // Approval proposals stay in interrupt metadata, off the executable tool channel.
-        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $channel->getSent());
         $this->assertSame(
             ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             array_column($events, 'type'),

@@ -43,32 +43,38 @@ class StreamFailureDeliveryTest extends TestCase
         StreamAdapterInterface $adapter,
         bool $emitChunk,
         array $expectedTypes,
+        bool $push,
     ): void {
         $error = new RuntimeException('Provider unavailable', 503);
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new FailingStreamNode($error, $emitChunk)])
             ->setStreamAdapter($adapter)
-            ->setChannel($channel);
+            ->setChannel($push ? $channel : null);
 
         $pulled = [];
         $caught = null;
         try {
-            foreach ($workflow->events() as $line) {
-                $pulled[] = $line;
+            if ($push) {
+                $workflow->events();
+            } else {
+                foreach ($workflow->events() as $line) {
+                    $pulled[] = $line;
+                }
             }
         } catch (Throwable $exception) {
             $caught = $exception;
         }
 
         $this->assertSame($error, $caught);
-        $this->assertSame($pulled, $channel->getSent());
-        $this->assertCount(1, $channel->getFailures());
-        $this->assertSame($error, $channel->getFailures()[0]->exception);
+        if ($push) {
+            $this->assertCount(1, $channel->getFailures());
+            $this->assertSame($error, $channel->getFailures()[0]->exception);
+        }
         $this->assertSame([], $channel->getCompletions());
         $this->assertSame([], $channel->getSuspensions());
 
-        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $pulled);
+        $events = array_map(static fn (ProtocolEvent $event): array => json_decode(json_encode($event), true), $push ? $channel->getSent() : $pulled);
         $this->assertSame($expectedTypes, array_column($events, 'type'));
         $this->assertSame(
             $adapter instanceof AGUIAdapter
@@ -79,16 +85,19 @@ class StreamFailureDeliveryTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{StreamAdapterInterface, bool, list<string>}>
+     * @return iterable<string, array{StreamAdapterInterface, bool, list<string>, bool}>
      */
     public static function failed_streams(): iterable
     {
-        yield 'AG-UI before output' => [new AGUIAdapter('thread_test'), false, ['RUN_STARTED', 'RUN_ERROR']];
-        yield 'AG-UI after output' => [new AGUIAdapter('thread_test'), true, [
-            'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END', 'RUN_ERROR',
-        ]];
-        yield 'Vercel before output' => [new VercelAIAdapter(), false, ['error']];
-        yield 'Vercel after output' => [new VercelAIAdapter(), true, ['start', 'text-start', 'text-delta', 'text-end', 'error']];
+        foreach ([false, true] as $push) {
+            $mode = $push ? 'push' : 'pull';
+            yield "AG-UI before output ($mode)" => [new AGUIAdapter('thread_test'), false, ['RUN_STARTED', 'RUN_ERROR'], $push];
+            yield "AG-UI after output ($mode)" => [new AGUIAdapter('thread_test'), true, [
+                'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END', 'RUN_ERROR',
+            ], $push];
+            yield "Vercel before output ($mode)" => [new VercelAIAdapter(), false, ['error'], $push];
+            yield "Vercel after output ($mode)" => [new VercelAIAdapter(), true, ['start', 'text-start', 'text-delta', 'text-end', 'error'], $push];
+        }
     }
 
     public function test_custom_adapter_receives_original_throwable_during_run(): void
