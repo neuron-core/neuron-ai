@@ -424,6 +424,15 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     }
 
     /**
+     * The persisted run as it stands now, or null when nothing is persisted.
+     * Its interrupt is what a client needs to rebuild a pending request after a reload.
+     */
+    public function inspect(): ?WorkflowRunSnapshot
+    {
+        return $this->getExecutor()->inspect($this);
+    }
+
+    /**
      * Translate and stage inputs for the next run() or events() continuation.
      *
      * @param array<array-key, mixed> $payload
@@ -434,7 +443,7 @@ class Workflow implements WorkflowInterface, WorkflowRuntimeInterface
     {
         $this->assertNoStagedOperation();
 
-        $run = $this->getExecutor()->inspect($this);
+        $run = $this->inspect();
         if (!$run instanceof WorkflowRunSnapshot) {
             throw new InputTranslationException('There is no persisted run to continue.');
         }

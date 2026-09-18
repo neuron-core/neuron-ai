@@ -18,8 +18,10 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -71,6 +73,34 @@ class AgentInputSubmissionTest extends TestCase
         $state = $this->agent()->submitInputs(['a' => ['result' => 'Title']], new ToolResultsTranslator())->run();
         $this->assertSame('Finished', $state->getMessage()->getContent());
         $this->assertSame(2, $this->provider->getCallCount());
+    }
+
+    public function test_a_reconstructed_agent_inspects_the_interruption_it_is_suspended_on(): void
+    {
+        $this->assertNull($this->agent(true)->inspect());
+        $this->assertSame([], $this->agent(true)->pendingApprovals());
+
+        $state = $this->agent(true)->chat(new UserMessage('Read the page'));
+
+        $run = $this->agent(true)->inspect();
+        $this->assertSame(WorkflowStatus::Suspended, $run->status);
+        $this->assertEquals($state->getInterruptRequest(), $run->interrupt);
+        $this->assertSame(['a', 'b'], $this->pendingApprovalIds());
+
+        $this->agent(true)->submitApprovalDecisions(['a' => 'approve'])->run();
+        $this->assertSame(['b'], $this->pendingApprovalIds());
+
+        $this->agent(true)->submitApprovalDecisions(['b' => ['reject', 'Cancelled']])->run();
+        $this->assertSame([], $this->agent(true)->pendingApprovals());
+    }
+
+    /** @return string[] */
+    protected function pendingApprovalIds(): array
+    {
+        return array_map(
+            static fn (Action $action): string => $action->id,
+            $this->agent(true)->pendingApprovals(),
+        );
     }
 
     /** @return iterable<string, array{string, string, bool}> */

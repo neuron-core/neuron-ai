@@ -7,6 +7,7 @@ namespace NeuronAI\Agent;
 use Closure;
 use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
@@ -24,12 +25,15 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
+use function array_filter;
+use function array_values;
 use function end;
 use function is_array;
 use function is_string;
@@ -454,6 +458,25 @@ class Agent extends Workflow implements AgentInterface
     protected function getOutputClass(): string
     {
         throw new AgentException('You need to set a structured output class.');
+    }
+
+    /**
+     * The tool calls still awaiting a human decision on the current interruption.
+     *
+     * @return Action[]
+     */
+    public function pendingApprovals(): array
+    {
+        $request = $this->inspect()?->interrupt;
+
+        if (!$request instanceof ApprovalRequest) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $request->getActions(),
+            static fn (Action $action): bool => $action->isPending(),
+        ));
     }
 
     /**
