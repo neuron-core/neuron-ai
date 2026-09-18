@@ -49,7 +49,7 @@ use function implode;
 use function json_decode;
 use function json_encode;
 
-class NativeAdapterTest extends TestCase
+class AgentChunkAdapterTest extends TestCase
 {
     #[DataProvider('chunks')]
     public function test_each_chunk_becomes_one_event_named_after_its_kind(StreamChunk $chunk, string $type): void
