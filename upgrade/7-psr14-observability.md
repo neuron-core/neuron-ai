@@ -6,7 +6,7 @@ The observability system moved from a **static EventBus** to a **PSR-14 event
 dispatcher owned by each Workflow instance** (`psr/event-dispatcher`). Events are
 now plain objects dispatched to class-keyed listeners; the string-name channel
 survives only for the deprecated observer path. This is a breaking change to
-five areas:
+six areas:
 
 1. **`EventBus` is removed** — `EventBus::observe()`, `EventBus::emit()`, and
    `EventBus::clear()` no longer exist; there are no global observers.
@@ -20,6 +20,9 @@ five areas:
    the next major.
 5. **`NodeInterface::setWorkflowContext()` gained a `$dispatcher` parameter** —
    direct implementors must add it.
+6. **Inspector is no longer bundled** — `inspector-apm/inspector-php` is an
+   optional dependency and monitoring is never attached automatically; the
+   application requires the package and subscribes its `InspectorSubscriber`.
 
 A behavioral fix rides along: listeners are registered on the workflow
 **instance** and survive every run of it. Previously, scoped observers were
@@ -133,6 +136,107 @@ public function setWorkflowContext(
 
 Custom `WorkflowExecutorInterface` implementations should pass
 `$workflow->getEventDispatcher()` through to the nodes they run.
+
+## 6. Inspector is no longer bundled
+
+In 3.x `inspector-apm/inspector-php` was a hard dependency of the framework and
+the `EventBus` attached an `InspectorObserver` to every workflow on its own:
+setting `INSPECTOR_INGESTION_KEY` was enough to get monitoring. In 4.x the
+framework does not depend on Inspector and attaches nothing by default. The
+integration lives in the Inspector package as a PSR-14 listener,
+`Inspector\Neuron\V4\InspectorSubscriber`, and the application wires it
+explicitly.
+
+### What to Search For
+
+```bash
+grep -rn "INSPECTOR_INGESTION_KEY\|NEURON_AUTOFLUSH\|NEURON_SPLIT_MONITORING" --exclude-dir=vendor .
+grep -rn "InspectorObserver\|setDefaultObserver\|Inspector\\\\Neuron" --include="*.php" --exclude-dir=vendor .
+grep -n "inspector-apm" composer.json
+```
+
+An application is affected if **any** of these match — including the case where
+only the environment variable is set and no PHP code mentions Inspector: that
+application was monitored implicitly in 3.x and silently stops being monitored
+in 4.x. If nothing matches, this step does not apply.
+
+### Refactoring
+
+**1. Require the package in the application** (it used to arrive transitively),
+at a version that ships the `Inspector\Neuron\V4` namespace:
+
+```bash
+composer require inspector-apm/inspector-php
+```
+
+Framework integrations (`inspector-apm/inspector-laravel`,
+`inspector-apm/inspector-symfony`, ...) already pull it in; make sure the
+resolved version contains `Inspector\Neuron\V4\InspectorSubscriber`.
+
+**2. Subscribe the listener on every agent and workflow that must be monitored.**
+There is no global registration anymore (see section 1), so an agent without an
+explicit subscription is not monitored.
+
+```php
+// Before — implicit (env variable only), or explicit:
+use NeuronAI\Observability\InspectorObserver;   // or Inspector\Neuron\InspectorObserver
+
+$agent->observe(InspectorObserver::instance());
+$agent->observe(new InspectorObserver($inspector));
+EventBus::setDefaultObserver(new InspectorObserver($inspector));
+
+// After
+use Inspector\Neuron\V4\InspectorSubscriber;
+use NeuronAI\Observability\ObservabilityEvent;
+
+$agent->subscribe(ObservabilityEvent::class, InspectorSubscriber::instance());
+$agent->subscribe(ObservabilityEvent::class, new InspectorSubscriber($inspector));
+```
+
+`InspectorSubscriber::instance()` reads the same `INSPECTOR_INGESTION_KEY`,
+`INSPECTOR_TRANSPORT`, `INSPECTOR_MAX_ITEMS`, `INSPECTOR_URL` and
+`NEURON_SPLIT_MONITORING` variables as before, so the environment file does not
+change. When the host framework already owns an `Inspector` instance (Laravel,
+Symfony, ...), pass that instance to the constructor, as the application did
+with `InspectorObserver`, so agent segments land in the current transaction.
+
+To cover every agent the way the 3.x default did, subscribe where the
+application builds its agents — a shared base class, a factory, or the DI
+container — rather than at each call site:
+
+```php
+abstract class MonitoredAgent extends Agent
+{
+    public function __construct()
+    {
+        $this->subscribe(ObservabilityEvent::class, InspectorSubscriber::instance());
+    }
+}
+```
+
+**3. Remove what no longer exists:**
+
+- `NeuronAI\Observability\InspectorObserver` is deleted, and
+  `Inspector\Neuron\InspectorObserver` targets the 3.x observer API — do not
+  keep it alive through the deprecated `observe()`.
+- The `$autoFlush` argument and the `NEURON_AUTOFLUSH` variable are gone: the
+  subscriber flushes at `WorkflowEnd` whenever it started the transaction
+  itself, and leaves a transaction opened by the host application to the host.
+- `@throws InspectorException` annotations copied from framework signatures can
+  be dropped; the framework no longer throws it.
+
+**4. Custom observers extending `InspectorObserver`** port by changing the parent
+to `InspectorSubscriber`. Handlers now receive the event object instead of
+`(object $source, string $event, mixed $data, ?string $branchId)`; read `$event->source` and
+`$event->branchId` from it (section 3).
+
+### Checklist
+
+- [ ] `inspector-apm/inspector-php` is in the application's own `composer.json`
+- [ ] Every agent/workflow that was monitored in 3.x — explicitly or through the
+      default observer — subscribes an `InspectorSubscriber`
+- [ ] No reference to `InspectorObserver`, `setDefaultObserver`, or `NEURON_AUTOFLUSH` remains
+- [ ] A run of one agent produces a transaction in the Inspector dashboard
 
 ## New: `WorkflowInterrupted` event
 
