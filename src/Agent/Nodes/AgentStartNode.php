@@ -8,13 +8,12 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Workflow\Node;
 
 /**
  * Initializes the state request from the agent definition and start payload,
- * then routes through recall when requested and available. RAG initializes
+ * then routes to inference. RAG initializes
  * the same request in PreProcessNode before enriching it during retrieval.
  */
 class AgentStartNode extends Node
@@ -22,11 +21,10 @@ class AgentStartNode extends Node
     public function __construct(
         protected SystemMessage $instructions,
         protected array $tools,
-        protected bool $memoryAvailable = false,
     ) {
     }
 
-    public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
+    public function __invoke(AgentStartEvent $event, AgentState $state): AIInferenceEvent
     {
         $state->resetToolRuns();
 
@@ -39,8 +37,6 @@ class AgentStartNode extends Node
             options: $event->options,
         );
 
-        return $this->memoryAvailable && $state->request->options->recallMemory
-            ? new RecallMemoryEvent()
-            : AIInferenceEvent::fromRequest($state->request);
+        return AIInferenceEvent::fromRequest($state->request);
     }
 }

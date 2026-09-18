@@ -9,7 +9,6 @@ use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\AgentStartNode;
@@ -37,8 +36,6 @@ class InferenceIntentTest extends TestCase
         $this->assertFalse($first->options->stream);
         $this->assertNull($first->options->outputClass);
         $this->assertSame(1, $first->options->maxRetries);
-        $this->assertTrue($first->options->recallMemory);
-        $this->assertTrue($first->options->rememberMemory);
 
         $first->options->stream = true;
         $this->assertFalse($second->options->stream);
@@ -52,7 +49,7 @@ class InferenceIntentTest extends TestCase
         $state = new AgentState();
         $start = new AgentStartEvent(
             [new UserMessage('Original question')],
-            new AgentRunOptions(stream: true, recallMemory: false, rememberMemory: false),
+            new AgentRunOptions(stream: true),
         );
         $event = $node($start, $state);
         $request = $state->request;
@@ -89,13 +86,13 @@ class InferenceIntentTest extends TestCase
         $this->assertSame([], get_object_vars($structured));
     }
 
-    public function test_memory_routing_preserves_the_state_request_options(): void
+    public function test_start_node_routes_structured_output_preserving_options(): void
     {
         $start = new AgentStartEvent(options: new AgentRunOptions(outputClass: stdClass::class));
         $state = new AgentState();
-        $event = (new AgentStartNode(new SystemMessage('Instructions'), [], true))($start, $state);
+        $event = (new AgentStartNode(new SystemMessage('Instructions'), []))($start, $state);
 
-        $this->assertInstanceOf(RecallMemoryEvent::class, $event);
+        $this->assertInstanceOf(StructuredInferenceEvent::class, $event);
         $this->assertSame($start->options, $state->request->options);
         $this->assertInstanceOf(StructuredInferenceEvent::class, AIInferenceEvent::fromRequest($state->request));
     }
@@ -108,7 +105,7 @@ class InferenceIntentTest extends TestCase
             'Recorded instructions',
             [$tool],
             [new UserMessage('Question')],
-            new AgentRunOptions(outputClass: stdClass::class, maxRetries: 0, recallMemory: false, rememberMemory: false),
+            new AgentRunOptions(outputClass: stdClass::class, maxRetries: 0),
         );
         $state->addStep(new UserMessage('Transient step'));
         $state->incrementToolRun('count_users');

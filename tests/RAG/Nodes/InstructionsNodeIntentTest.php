@@ -8,7 +8,6 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
@@ -84,23 +83,4 @@ class InstructionsNodeIntentTest extends TestCase
         $this->assertTrue($state->request->instructions->contains('Neuron is a PHP agent framework.'));
     }
 
-    public function test_memory_enabled_routes_the_inference_through_recall(): void
-    {
-        $state = $this->enter(new AgentRunOptions());
-        $request = $state->request;
-        $recall = (new InstructionsNode(true))($this->event(), $state);
-
-        $this->assertInstanceOf(RecallMemoryEvent::class, $recall);
-        $this->assertSame($request, $state->request);
-    }
-
-    public function test_memory_usage_survives_retrieval_and_controls_recall(): void
-    {
-        $state = $this->enter(new AgentRunOptions(recallMemory: false, rememberMemory: false));
-        $inference = (new InstructionsNode(true))($this->event(), $state);
-
-        $this->assertSame(AIInferenceEvent::class, $inference::class);
-        $this->assertFalse($state->request->options->recallMemory);
-        $this->assertFalse($state->request->options->rememberMemory);
-    }
 }

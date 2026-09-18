@@ -13,7 +13,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Memory\Stub\InspectableMemory;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -220,11 +219,10 @@ class ThreadIdentityTest extends TestCase
             new AssistantMessage('Second reply'),
             new AssistantMessage('Welcome back'),
         );
-        $memory = new InspectableMemory();
         $persistence = new InMemoryPersistence();
         $agent = Agent::make();
         $agent->setAiProvider($provider)->setInstructions('test')
-            ->setChatHistory($first)->setMemory($memory);
+            ->setChatHistory($first);
         $agent->setPersistence($persistence)->retainCompletionUntilAcknowledged();
 
         $agent->chat(new UserMessage('First conversation'));
@@ -247,10 +245,6 @@ class ThreadIdentityTest extends TestCase
         $ignition = (new PhpSerializer())->unserialize($persistence->get('thread-b', '__ignition'));
         $this->assertInstanceOf(Ignition::class, $ignition);
         $this->assertSame(['threadId' => 'thread-b'], $ignition->context);
-        $this->assertSame([
-            ['thread-a', 'First conversation', 'First reply'],
-            ['thread-b', 'Second conversation', 'Second reply'],
-        ], $memory->remembered);
 
         $agent->setChatHistory($first);
         $agent->acknowledgeCompletion($firstRunId);

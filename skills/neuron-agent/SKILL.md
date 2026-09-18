@@ -42,11 +42,11 @@ class MyAgent extends Agent
 The default path is:
 
 ```text
-AgentStartEvent → AgentStartNode → [RecallMemoryNode] → inference ⇄ tools
-    final response → [StoreMemoryNode] → AgentOutputEvent → AgentEndNode → StopEvent
+AgentStartEvent → AgentStartNode → inference ⇄ tools
+    final response → AgentOutputEvent → AgentEndNode → StopEvent
 ```
 
-`ChatNode` handles chat and streaming; `StructuredOutputNode` handles structured inference. Tools may pause for approval or deferred results before returning to inference. `AgentOutputEvent` means the final answer is available and configured memory storage has completed or been skipped; it is not a terminal event.
+`ChatNode` handles chat and streaming; `StructuredOutputNode` handles structured inference. Tools may pause for approval or deferred results before returning to inference. `AgentOutputEvent` means the final answer is available for output processing; it is not a terminal event.
 
 - `nodes()` rebuilds the graph from the current configuration each execution segment. `entryNodes()` defaults to `AgentStartNode`; `exitNodes()` defaults to `AgentEndNode`.
 - A node's `__invoke(EventType $event, AgentState $state)` receives one exact routed event type. `addNode()` registers a handler; array order does not connect nodes, and duplicate handlers are rejected.
@@ -54,7 +54,7 @@ AgentStartEvent → AgentStartNode → [RecallMemoryNode] → inference ⇄ tool
 - For postprocessing, override `exitNodes()` with a node accepting `AgentOutputEvent`. Return an application event to continue through another node, or `StopEvent` to finish. Replace the default ending: including `parent::exitNodes()` alongside another output handler creates a duplicate.
 - `AgentState::$request` holds instructions, messages, tools, and run options. Events route execution; collaborators such as providers and history remain node dependencies. `getMessage()` reads the provider response, while extra artifacts can use state keys.
 
-For example, an Agent subclass can own speech synthesis without replacing inference or memory nodes:
+For example, an Agent subclass can own speech synthesis without replacing inference nodes:
 
 ```php
 protected function exitNodes(): array
@@ -210,7 +210,7 @@ $files = FileSystemToolkit::make(scope: '/srv/agent-workspace')
 - **TavilyToolkit** — web search, extraction, and crawling.
 - **JinaToolkit** — web search and URL reading; reranking is a separate RAG component.
 - **SupadataYouTubeToolkit** — video metadata/transcripts and channel/playlist lookup.
-- **ZepLongTermMemoryToolkit** — Zep graph search and ingestion exposed as tools; distinct from Agent's `MemoryInterface` lifecycle.
+- **ZepLongTermMemoryToolkit** — Zep graph search and ingestion exposed as tools; available independently of RAG conversation retrieval.
 
 `NeuronAI\Tools\Toolkits\AWS\SESTool` is a standalone email tool, not a `SESToolkit`.
 
@@ -295,168 +295,11 @@ A pre-bound history supplied by `chatHistory()` must agree with an explicitly co
 
 The default `InMemoryChatHistory` generates an ephemeral backend key, so simple `MyAgent::make()->chat(...)` needs no explicit thread ID. This is not a durable conversation handle: for later-process continuation, declare the thread before ignition and configure durable history and workflow persistence. A workflow-ID-first recovery can instead restore the thread from persisted ignition context. A history hook that first supplies an identity during graph bootstrap is too late to key that run by the thread.
 
-### Long-term Memory
+### Conversation memory
 
-Why configure memory on the Agent: chat history and long-term memory belong to
-the same conversation. Wiring them once prevents nodes and middleware from
-clearing one store while leaving stale information in the other.
+Conversation memory is a RAG composition: `SemanticMemoryRetrieval` accepts the authorized thread IDs and builds its filters; `CompositeRetrieval` combines it with ordinary document retrieval. Attach `ConversationIngestionNode` through `exitNodes()` to create conversation documents after a completed response. Creation and recall are independent opt-ins.
 
-Use `SemanticMemory` for ready-to-use vector-backed memory. It uses the same
-vector-store and embeddings interfaces as RAG. Give it a dedicated collection
-or index with the default schema; the framework identifies memories with the
-built-in filterable source fields, so no custom `DocumentSchema` is needed.
-A shared RAG store with other required metadata fields is not compatible unless
-its memory documents provide those fields.
-
-```php
-use NeuronAI\Agent\Memory\SemanticMemory;
-use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
-use NeuronAI\RAG\VectorStore\FileVectorStore;
-
-// Application-provided directory and authorized, non-empty thread allowlist.
-$agent = MyAgent::make(threadId: $threadId);
-$agent->setMemory(new SemanticMemory(
-    vectorStore: new FileVectorStore(directory: $memoryDirectory),
-    embeddings: new OpenAIEmbeddingsProvider(
-        key: $_ENV['OPENAI_API_KEY'],
-        model: $_ENV['OPENAI_EMBEDDING_MODEL'],
-    ),
-    recallThreadIds: $authorizedThreadIds,
-    topK: 5,
-));
-```
-
-Why define recall threads explicitly: the application owns conversation
-authorization, while `SemanticMemory` owns the immutable search scope supplied
-at construction. The non-empty list is the exact recall allowlist; the current
-thread is not added implicitly. Load it from trusted application data, such as
-conversations owned by the authenticated user. Never accept client-provided
-thread IDs without verifying ownership.
-
-Recall searches all allowed threads together and applies `topK` globally.
-Completed exchanges are still stored in the current thread, and
-`resetConversation()` still deletes only the current thread.
-
-Use a durable vector store in production; `MemoryVectorStore` is intended for
-tests and process-local usage.
-
-Before the first inference of each turn, `RecallMemoryNode` adds relevant past exchanges to a separate
-`<CONVERSATION-MEMORIES>` system block. They help the model immediately, even
-when the original messages have not reached the chat-history trimming limit.
-Tool-loop iterations bypass recall, so a turn recalls only once. After the
-final successful response, `StoreMemoryNode` stores the completed plain
-user-assistant exchange. Chat, streaming, structured output, RAG, and
-tool-assisted turns all use the same behavior. Tool calls and tool results are
-protocol traffic and are excluded from the stored exchange.
-
-#### Control recall and remembering independently
-
-Why control the branches separately: an application may need to keep creating
-memories while allowing each user to decide whether the agent can use past
-conversations. Attach memory normally, then set the policy for the new run:
-
-```php
-$state = MyAgent::make(threadId: $threadId)
-    ->setMemory($memory)
-    ->setMemoryUsage(
-        recall: $user->allowsMemoryRecall(),
-        remember: true,
-    )
-    ->chat(new UserMessage($input));
-```
-
-`recall` controls the branch before inference. `remember` controls the branch
-after the final assistant response. Both default to `true`, so existing agents
-keep the complete memory lifecycle without additional configuration.
-
-Use the combinations directly when a fixed policy is needed:
-
-```php
-// Remember this exchange without reading past memories.
-$agent->setMemoryUsage(recall: false);
-
-// Read past memories without storing this exchange.
-$agent->setMemoryUsage(remember: false);
-
-// Keep memory attached but skip it for this run.
-$agent->setMemoryUsage(recall: false, remember: false);
-```
-
-Each call defines the complete policy; an omitted argument defaults to `true`.
-The policy may change between new turns. It is recorded as run intent, so a
-suspended run keeps its original choices when resumed in another process.
-Disabled branches are not traversed and emit no memory stream or observability
-events. `resetConversation()` remains an explicit lifecycle operation and
-still clears attached memory regardless of the current usage policy.
-
-During a stream, the memory nodes expose their work through portable step
-events:
-
-- `memory.recall` starts and finishes before the first inference;
-- `memory.store` starts and finishes after the final assistant response;
-- the recall finish metadata contains only the number of recalled memories,
-  never their contents or thread IDs.
-
-With `AGUIAdapter`, these become native step lifecycle events. With
-`VercelAIAdapter`, they become transient `data-workflow-step` parts. Without an
-adapter, the stream yields `StepStartedStreamEvent` and
-`StepFinishedStreamEvent` objects directly. Agents without memory do not add
-these nodes or events.
-
-For backend monitoring, subscribe to the memory observability events instead of
-parsing UI stream output:
-
-```php
-use NeuronAI\Observability\Events\MemoryRecalled;
-use NeuronAI\Observability\Events\MemoryStored;
-
-$agent->subscribe(MemoryRecalled::class, function (MemoryRecalled $event): void {
-    $this->metrics->count('agent.memory.recalled', $event->memoryCount);
-});
-
-$agent->subscribe(MemoryStored::class, function (MemoryStored $event): void {
-    $this->metrics->increment('agent.memory.stored');
-});
-```
-
-The full lifecycle is `MemoryRecalling` / `MemoryRecalled` and `MemoryStoring` /
-`MemoryStored`. Use each pair to measure operation latency. Recall events expose
-`MemoryRecalled::$memoryCount`; `MemoryRecalling` has no payload. Queries,
-recalled content, and thread IDs are not included in these memory events. If an operation fails, the start
-event is followed by the standard `AgentError` and no successful completion
-event.
-
-The inference nodes do not call memory or build memory prompts. The dedicated
-nodes own those operations, so inference middleware stays focused on provider
-behavior. Implement `MemoryInterface` when recall, redaction, or persistence
-needs custom behavior.
-
-The order of `setChatHistory()` and `setMemory()` does not matter. They remain
-independent components, and `getChatHistory()` always returns the exact history
-instance the developer attached.
-
-For class-based configuration, return the same implementation from the protected
-`memory(): ?MemoryInterface` hook (`NeuronAI\Agent\Memory\MemoryInterface`).
-Implement that interface's `recall()`, `remember()`, and `forget()` for a custom backend.
-
-An explicit `setMemory()` call takes precedence over `memory()`. Configure it
-before execution, like providers, tools, and other graph dependencies. Each
-memory implementation owns its retrieval scope; `SemanticMemory` receives its
-recall thread allowlist in the constructor.
-
-`flushAll()` on chat history clears only the working conversation. This is
-important for `Summarization`, which rewrites history while long-term memory
-must survive. To permanently clear both stores, call:
-
-```php
-$agent->resetConversation();
-```
-
-The Agent forgets semantic memory first and then clears chat history. If the
-memory operation fails, history is preserved and the exception propagates.
-
-Without `setMemory()` or the `memory()` hook, chat history works exactly as
-before.
+See [conversation memory](references/conversation-memory.md) for complete retrieval, ingestion, recovery and deletion examples. `resetConversation()` clears the working history and pending execution; delete conversation documents explicitly through the vector store.
 
 ### Chat History Backends
 - `InMemoryChatHistory` - Default, session-based
@@ -611,8 +454,8 @@ Available backends: `FilePersistence`, `DatabasePersistence`, `EloquentPersisten
 
 A failed first inference does not commit its inbound message. Later failures can
 leave earlier successful work in history: tool-loop inputs may be committed,
-and a failed output node can leave the completed text exchange in history and
-memory. Failure does not roll those stores back.
+and a failed output node can leave the completed text exchange in history.
+Failure does not roll back committed writes.
 
 `run()` / `events()` recover a failed turn using committed steps and memos;
 `resume()->run()` is an explicit continuation. A new `chat()` supersedes the
@@ -630,7 +473,7 @@ to re-render the pending decision, and settle it with `submitApprovalDecisions($
 another and returns `false` when none exists. Agent refuses abandonment while
 history ends in an unanswered tool call, including approval and deferred-result
 waits. Settle that call first, or use `resetConversation()` to abandon the run
-and clear memory/history together. Reset bypasses the unanswered-call check,
+and clear chat history. Reset bypasses the unanswered-call check,
 but still respects live execution leases and retained-completion guards.
 
 Every Agent run holds a **ten-minute lease** by default. A process killed with

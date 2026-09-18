@@ -27,7 +27,7 @@ The executor dispatches the lifecycle (`WorkflowStart`, `WorkflowNodeStart`/`End
 
 `LogListener` and legacy `LogObserver` include `workflowId`, `runId`, `executionAttempt` and `status` in interruption and end records. The interruption record includes one `interrupt`; the end record retains application data under `state`. Use identity plus attempt to correlate sequential interruptions and use the explicit status for completion metrics.
 
-Memory events (`MemoryRecalling`/`MemoryRecalled`, `MemoryStoring`/`MemoryStored`) delimit the memory boundary and report counts only: no queries, recalled content, retrieval scope or thread IDs, so the default log context never leaks conversation data. A failing memory operation emits its start event and `AgentError`, never a completion event.
+Conversation retrieval uses `Retrieving`/`Retrieved`; optional ingestion uses the standard `WorkflowNodeStart`/`WorkflowNodeEnd` lifecycle for `ConversationIngestionNode`. Failures use `AgentError`.
 
 ## Deprecated path
 

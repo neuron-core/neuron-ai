@@ -2,7 +2,7 @@
 
 Use `entryNodes()` and `exitNodes()` when Agent's inference/tool loop fits and you need extra work before or after it. The default boundaries are `AgentStartNode` and `AgentEndNode`.
 
-The output handoff is `AgentOutputEvent`: the final provider response is in `AgentState`, and optional memory storage has completed or been skipped. An output node returns another routing event to continue, or `StopEvent` to terminate. A node must not extend `StopEvent` to create an intermediate routing signal, because the executor treats its subclasses as terminal too.
+The output handoff is `AgentOutputEvent`: the final provider response is in `AgentState`. An output node returns another routing event to continue, or `StopEvent` to terminate. A node must not extend `StopEvent` to create an intermediate routing signal, because the executor treats its subclasses as terminal too.
 
 ## Speech output without replacing inference nodes
 
@@ -97,13 +97,13 @@ Replace the fake provider hooks with application-configured implementations for 
 ## Composition and lifecycle rules
 
 - **Replace the default output handler.** Do not also include `parent::exitNodes()` here: `AgentEndNode` and `TextToSpeechNode` would both handle `AgentOutputEvent`.
-- **Connect multiple stages through events.** For synthesis followed by storage, let TTS return an application `AudioGeneratedEvent`, register a storage node for it, then return `StopEvent`. Registration order alone never establishes edges. You do not need to modify the chat, structured-output, or memory nodes.
+- **Connect multiple stages through events.** For synthesis followed by storage, let TTS return an application `AudioGeneratedEvent`, register a storage node for it, then return `StopEvent`. Registration order alone never establishes edges. You do not need to modify the chat or structured-output nodes.
 - **Preserve the provider response.** Store generated audio separately so `getMessage()` continues to expose the LLM answer and subsequent text inferences do not receive synthesized audio in history.
 - **Treat artifacts as run results.** Read audio only after successful completion. The example clears it when the output step runs, including when the response has no text. If a reused Agent must expose empty artifact keys even during a new turn's earlier suspension, clear those keys in the new turn's entry node too; generic state keys are not automatically reset.
 - **Keep external calls durable.** Providers remain live dependencies on nodes rebuilt per segment. `memoize()` reuses a committed synthesis result after replay; it cannot prevent a repeat if an external call succeeds but its memo never commits.
-- **Resume the same turn after output failure.** Reconstruct the same persistence, history, and dependencies, then call `run()` or `events()`. Completed inference and memory steps are reused. Calling `chat()` starts a new turn instead. History and memory may already contain the final text while synthesis is failed or incomplete.
+- **Resume the same turn after output failure.** Reconstruct the same persistence, history, and dependencies, then call `run()` or `events()`. Completed inference steps are reused. Calling `chat()` starts a new turn instead. History may already contain the final text while synthesis is failed or incomplete.
 - **Keep return contracts explicit.** `chat()` returns `AgentState`; `stream()` yields the original live output and returns state when exhausted. This serial example starts synthesis after final inference, without overlapping audio and text streams. `structured()` still returns the typed object; the example would speak its raw JSON, with audio available through `getState()`. Provide an explicit narration mapping if needed.
-- **Keep graph export accurate.** This node's `__invoke()` declares its outgoing `StopEvent`. Generator-only nodes can implement `NeuronAI\Workflow\Exporter\DescibeExporterTransitions` to describe their final routing events, as `StoreMemoryNode` does.
+- **Keep graph export accurate.** This node's `__invoke()` declares its outgoing `StopEvent`. Generator-only nodes can implement `NeuronAI\Workflow\Exporter\DescibeExporterTransitions` to describe their final routing events.
 
 ## Adding speech input
 

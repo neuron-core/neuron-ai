@@ -35,7 +35,6 @@ All components emit event objects automatically. Every event class lives in
 // Domain (emitted by nodes):
 // InferenceStart, InferenceStop, ToolCalling, ToolCalled,
 // MessageSaving, MessageSaved, Retrieving, Retrieved,
-// MemoryRecalling, MemoryRecalled, MemoryStoring, MemoryStored,
 // PreProcessing, PreProcessed, PostProcessing, PostProcessed,
 // SchemaGeneration, SchemaGenerated, Extracting, Extracted, ...
 ```
@@ -173,35 +172,9 @@ is replayed, so they are not an exactly-once audit trail.
 $agent->parallelToolCalls(true);
 ```
 
-### Slow or Failing Semantic Memory
+### Slow or failing conversation memory
 
-**Symptoms**: delayed first token, slow completion after the final response, or
-memory-store errors.
-
-Memory operations emit domain pairs around the actual backend boundary:
-
-- `MemoryRecalling` / `MemoryRecalled`
-- `MemoryStoring` / `MemoryStored`
-
-Use each pair to measure latency. A start event followed by `AgentError` without
-its completion event identifies a failed memory operation.
-
-```php
-use NeuronAI\Observability\Events\MemoryRecalled;
-use NeuronAI\Observability\Events\MemoryStored;
-
-$agent->subscribe(MemoryRecalled::class, function (MemoryRecalled $event): void {
-    $this->metrics->count('agent.memory.results', $event->memoryCount);
-});
-
-$agent->subscribe(MemoryStored::class, function (MemoryStored $event): void {
-    $this->metrics->increment('agent.memory.stored');
-});
-```
-
-The recall completion event exposes only the result count. Queries, recalled
-content, messages, retrieval scope, and thread IDs are intentionally excluded.
-`LogListener` serializes it as `memory-count`.
+Conversation retrieval uses RAG's `Retrieving` / `Retrieved` events. Observe `WorkflowNodeStart` / `WorkflowNodeEnd` for `ConversationIngestionNode` to measure optional ingestion. A failed step emits `AgentError`. These use the existing retrieval and workflow monitoring paths; there are no separate memory events.
 
 ### Poor Response Quality
 

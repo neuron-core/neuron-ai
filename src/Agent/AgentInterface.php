@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Agent;
 
 use Generator;
-use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -43,14 +42,8 @@ interface AgentInterface extends WorkflowInterface
 
     public function getChatHistory(): ChatHistoryInterface;
 
-    public function setMemory(MemoryInterface $memory): AgentInterface;
-
-    public function setMemoryUsage(bool $recall = true, bool $remember = true): AgentInterface;
-
-    public function getMemory(): ?MemoryInterface;
-
     /**
-     * Permanently clear both long-term memory and chat history for this conversation.
+     * Clear chat history and abandon the pending execution for this conversation.
      */
     public function resetConversation(): AgentInterface;
 

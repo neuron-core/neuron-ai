@@ -9,14 +9,11 @@ use Generator;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
-use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\AgentEndNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
-use NeuronAI\Agent\Nodes\RecallMemoryNode;
 use NeuronAI\Agent\Nodes\AgentStartNode;
-use NeuronAI\Agent\Nodes\StoreMemoryNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -27,7 +24,6 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
@@ -51,12 +47,6 @@ class Agent extends Workflow implements AgentInterface
     use HandleInstructions;
 
     protected ChatHistoryInterface $chatHistory;
-
-    protected ?MemoryInterface $memory = null;
-
-    protected bool $recallMemory = true;
-
-    protected bool $rememberMemory = true;
 
     /**
      * The conversation this run belongs to, and the run's declared workflow
@@ -128,6 +118,9 @@ class Agent extends Workflow implements AgentInterface
         return 600;
     }
 
+    /**
+     * @throws ChatHistoryException
+     */
     protected function chatHistory(): ChatHistoryInterface
     {
         // With no explicit threadId the history self-keys, and its key is
@@ -139,6 +132,8 @@ class Agent extends Workflow implements AgentInterface
      * A pre-bound history explicitly selects the conversation; an unbound
      * one receives the current thread identity. Swapping conversations clears
      * local run context while preserving their histories and durable runs.
+     *
+     * @throws AgentException
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
@@ -184,40 +179,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Provide the default long-term memory implementation. Subclasses may
-     * override this hook; null keeps the Agent memory-free.
-     */
-    protected function memory(): ?MemoryInterface
-    {
-        return null;
-    }
-
-    public function setMemory(MemoryInterface $memory): self
-    {
-        $this->memory = $memory;
-
-        return $this;
-    }
-
-    /**
-     * Configure how attached memory participates in each new run. The policy
-     * is copied to the start event, so a suspended run keeps its original
-     * choices when resumed while later runs may choose differently.
-     */
-    public function setMemoryUsage(bool $recall = true, bool $remember = true): self
-    {
-        $this->recallMemory = $recall;
-        $this->rememberMemory = $remember;
-
-        return $this;
-    }
-
-    final public function getMemory(): ?MemoryInterface
-    {
-        return $this->memory ??= $this->memory();
-    }
-
-    /**
      * Implicit identity adoption validates the selected conversation. Only
      * an explicit setChatHistory() call may select a different conversation.
      *
@@ -248,25 +209,15 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Permanently clear both long-term memory and chat history for this conversation.
-     *
-     * @throws ChatHistoryException
+     * Clear chat history and abandon the pending execution for this conversation.
      */
     public function resetConversation(): self
     {
         $chatHistory = $this->getChatHistory();
-        $memory = $this->getMemory();
 
         // The history is wiped below, so a pending approval cannot dangle:
         // the engine verb frees the thread without abandonRun()'s guard.
         parent::abandonRun();
-
-        if ($memory instanceof MemoryInterface) {
-            $threadId = $chatHistory->getThreadId() ?? throw new ChatHistoryException(
-                'Cannot reset memory for an unbound chat history.'
-            );
-            $memory->forget($threadId);
-        }
 
         $chatHistory->flushAll();
 
@@ -315,8 +266,6 @@ class Agent extends Workflow implements AgentInterface
         $this->toolsBootstrapCache = [];
 
         $chatHistory = $this->getChatHistory();
-        $memory = $this->getMemory();
-        $memoryAvailable = $memory instanceof MemoryInterface;
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode(
@@ -330,16 +279,11 @@ class Agent extends Workflow implements AgentInterface
 
         $nodes = [
             ...$this->entryNodes(),
-            new ChatNode($this->getProvider(), $chatHistory, $memoryAvailable),
-            new StructuredOutputNode($this->getProvider(), $chatHistory, $memoryAvailable),
+            new ChatNode($this->getProvider(), $chatHistory),
+            new StructuredOutputNode($this->getProvider(), $chatHistory),
             $toolNode,
             new AwaitToolResultsNode($chatHistory),
         ];
-
-        if ($memory instanceof MemoryInterface) {
-            $nodes[] = new RecallMemoryNode($memory, $chatHistory);
-            $nodes[] = new StoreMemoryNode($memory, $chatHistory);
-        }
 
         return [...$nodes, ...$this->exitNodes()];
     }
@@ -367,17 +311,8 @@ class Agent extends Workflow implements AgentInterface
             new AgentStartNode(
                 $this->getInstructions(),
                 $tools,
-                $this->getMemory() instanceof MemoryInterface,
             ),
         ];
-    }
-
-    public function makeIgnition(string $runId): Ignition
-    {
-        $this->getStartEvent()->options->recallMemory = $this->recallMemory;
-        $this->getStartEvent()->options->rememberMemory = $this->rememberMemory;
-
-        return parent::makeIgnition($runId);
     }
 
     /**
@@ -427,10 +362,7 @@ class Agent extends Workflow implements AgentInterface
 
     protected function startEvent(): AgentStartEvent
     {
-        return new AgentStartEvent(options: new AgentRunOptions(
-            recallMemory: $this->recallMemory,
-            rememberMemory: $this->rememberMemory,
-        ));
+        return new AgentStartEvent();
     }
 
     /**

@@ -54,6 +54,5 @@ class RequestEditingMiddleware implements WorkflowMiddleware
         $state->request->instructions = new SystemMessage($this->instructions);
         $state->request->messages = [new UserMessage('Middleware question')];
         $state->request->options->maxRetries = 0;
-        $state->request->options->rememberMemory = false;
     }
 }

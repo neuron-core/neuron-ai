@@ -1,13 +1,13 @@
 # RAG Module
 
-Retrieval Augmented Generation. `RAG` extends `Agent`, so it inherits the whole Agent/Workflow machinery (thread identity, persistence, resume, memory, approvals) and only replaces the entry chain of the graph.
+Retrieval Augmented Generation. `RAG` extends `Agent`, so it inherits the whole Agent/Workflow machinery (thread identity, persistence, resume, approvals) and only replaces the entry chain of the graph.
 
 ## The retrieval chain
 
 `RAG::entryNodes()` swaps the Agent's `AgentStartNode` for a retrieval pipeline whose last node produces the inference event:
 
 ```text
-AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → [RecallMemoryNode] → inference
+AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → InstructionsNode → inference
 ```
 
 - `PreProcessNode` reads the question from the start event, initializes `state->request` (the role `AgentStartNode` plays in the Agent) and runs the pre-processors (query rewriting, expansion). Nothing is written to chat history before inference: pending messages commit only after the provider call succeeds, so a failed turn never leaves a dangling user message.
@@ -39,7 +39,9 @@ class WorkoutTipsAgent extends RAG
 }
 ```
 
-`RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters)` receives the per-run filters; a strategy must AND them with its own, never drop them. `SimilarityRetrieval` is the built-in strategy.
+`RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters)` receives the per-run filters; a strategy must AND them with its own, never drop them. `SimilarityRetrieval` performs similarity search. `SemanticMemoryRetrieval` specializes it with conversation source filters and an explicit thread-ID allowlist. `CompositeRetrieval` calls its children in order and concatenates results, forwarding mandatory filters to each; the existing retrieval node deduplicates and the shared postprocessors process the combined set.
+
+Conversation creation is opt-in through `ConversationIngestionNode` in `exitNodes()`. It handles `AgentOutputEvent`, embeds and stores the final plain user/assistant exchange under the current history thread, and returns `StopEvent`. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md).
 
 ## Vector stores are stateless per call
 

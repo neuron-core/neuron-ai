@@ -6,10 +6,6 @@ namespace NeuronAI\Tests\Observability;
 
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Observability\Events\MemoryRecalled;
-use NeuronAI\Observability\Events\MemoryRecalling;
-use NeuronAI\Observability\Events\MemoryStored;
-use NeuronAI\Observability\Events\MemoryStoring;
 use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\Observability\Events\WorkflowInterrupted;
 use NeuronAI\Observability\Events\WorkflowEnd;
@@ -86,40 +82,6 @@ class LogListenerTest extends TestCase
         $messages = array_column($logger->records, 'message');
         $this->assertContains('workflow-start', $messages);
         $this->assertContains('workflow-end', $messages);
-    }
-
-    public function test_memory_events_log_only_safe_monitoring_context(): void
-    {
-        $logger = $this->recordingLogger();
-        $listener = new LogListener($logger);
-
-        $listener(new MemoryRecalling());
-        $listener(new MemoryRecalled(5));
-        $listener(new MemoryStoring());
-        $listener(new MemoryStored());
-
-        $this->assertSame([
-            [
-                'level' => 'info',
-                'message' => 'memory-recalling',
-                'context' => [],
-            ],
-            [
-                'level' => 'info',
-                'message' => 'memory-recalled',
-                'context' => ['memory-count' => 5],
-            ],
-            [
-                'level' => 'info',
-                'message' => 'memory-storing',
-                'context' => [],
-            ],
-            [
-                'level' => 'info',
-                'message' => 'memory-stored',
-                'context' => [],
-            ],
-        ], $logger->records);
     }
 
     public function test_interruption_logs_the_current_request(): void

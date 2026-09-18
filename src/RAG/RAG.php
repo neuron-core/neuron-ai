@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\RAG;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Memory\MemoryInterface;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\Workflow\WorkflowState;
@@ -61,7 +60,7 @@ class RAG extends Agent
             ),
             new RetrievalNode($this->resolveRetrieval(), $this->resolveRetrievalScope()),
             new PostProcessNode($this->postProcessors()),
-            new InstructionsNode($this->getMemory() instanceof MemoryInterface),
+            new InstructionsNode(),
         ];
     }
 

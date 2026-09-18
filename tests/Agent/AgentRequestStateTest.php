@@ -79,7 +79,6 @@ class AgentRequestStateTest extends TestCase
         $freshProvider->assertSystemPrompt('Middleware instructions');
         $freshProvider->assertToolsConfigured(['count_users']);
         $this->assertSame(0, $state->request->options->maxRetries);
-        $this->assertFalse($state->request->options->rememberMemory);
         $toolResult = $state->request->messages[0];
         $this->assertInstanceOf(ToolResultMessage::class, $toolResult);
         $this->assertSame('42', $toolResult->getToolCalls()[0]->getResult());

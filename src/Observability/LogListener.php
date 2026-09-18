@@ -15,8 +15,6 @@ use NeuronAI\Observability\Events\InstructionsChanged;
 use NeuronAI\Observability\Events\InstructionsChanging;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
-use NeuronAI\Observability\Events\MemoryRecalled;
-use NeuronAI\Observability\Events\MemoryRecalling;
 use NeuronAI\Observability\Events\MiddlewareEnd;
 use NeuronAI\Observability\Events\MiddlewareStart;
 use NeuronAI\Observability\Events\PostProcessed;
@@ -106,8 +104,6 @@ class LogListener
             MessageSaving::class,
             MessageSaved::class           => $this->serializeWithMessage($data),
             InferenceStop::class          => $this->serializeInferenceStop($data),
-            MemoryRecalling::class        => $this->serializeMemoryRecalling($data),
-            MemoryRecalled::class         => $this->serializeMemoryRecalled($data),
             InstructionsChanging::class   => $this->serializeInstructionsChanging($data),
             InstructionsChanged::class    => $this->serializeInstructionsChanged($data),
             ToolCalling::class,
@@ -177,20 +173,6 @@ class LogListener
         return [
             'message'  => $data->message->jsonSerialize(),
             'response' => $data->response->message()->jsonSerialize(),
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    protected function serializeMemoryRecalling(MemoryRecalling $data): array
-    {
-        return [];
-    }
-
-    /** @return array<string, int> */
-    protected function serializeMemoryRecalled(MemoryRecalled $data): array
-    {
-        return [
-            'memory-count' => $data->memoryCount,
         ];
     }
 

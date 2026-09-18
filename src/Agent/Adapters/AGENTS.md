@@ -55,5 +55,3 @@ Resolution order: a yielded `StreamEventInterface` is encoded directly; then an 
 ## Durability
 
 Yielded items are live, ephemeral output: they are not stored in workflow persistence and are not replayed when a completed step is restored. Only the generator's returned routing event is durable. Never promise that a reconnecting client sees past progress events, and never make correctness depend on receiving one.
-
-Semantic memory is a consumer of this feature, not part of it: `RecallMemoryNode` and `StoreMemoryNode` yield `memory.recall` / `memory.store` step events, and adapters never import memory classes.

@@ -34,7 +34,7 @@ $state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://you
 echo $state->getMessage()->getContent();
 ```
 
-Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `addTool()`, `setChatHistory()`, `setMemory()`, `setPersistence()`), and an explicit setter wins over the hook. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
+Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `addTool()`, `setChatHistory()`, `setPersistence()`), and an explicit setter wins over the hook. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
 
 | Verb | Nature |
 |---|---|
@@ -53,13 +53,13 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 Default nodes are rebuilt through Workflow's `nodes()` hook at every execution segment, from the current configuration and never from which sugar method was called. Explicitly added nodes and registered middleware stay attached; custom node construction that must read configuration belongs in `nodes()` / `entryNodes()`.
 
 ```text
-AgentStartEvent ─► StartNode ─► [RecallMemoryNode] ─► AIInferenceEvent ─► ChatNode ─────────────────┐
+AgentStartEvent ─► StartNode ─► AIInferenceEvent ─► ChatNode ─────────────────┐
  (messages+options)                                 or StructuredInferenceEvent ─► StructuredOutputNode ├► ToolNode ⟲
                                                                                                       │ final response
-                                                                                     [StoreMemoryNode] ─► AgentOutputEvent ─► EndNode ─► Stop
+                                                                                     AgentOutputEvent ─► EndNode ─► Stop
 ```
 
-- Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`, `recallMemory`, `rememberMemory`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
+- Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
 - `AgentStartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
 - Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
 - The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
@@ -74,7 +74,7 @@ $state->request->tools[] = $tool;
 
 ### Output extension
 
-Every final response converges on `AgentOutputEvent` after optional memory storage completes or is skipped. The response remains in `AgentState`; the event carries no payload and does not terminate the workflow. Tool calls continue through the inference loop before reaching this boundary.
+Every final response converges on `AgentOutputEvent`. The response remains in `AgentState`; the event carries no payload and does not terminate the workflow. Tool calls continue through the inference loop before reaching this boundary.
 
 `exitNodes()` supplies `[new EndNode()]` by default. Override it to replace the default ending with application nodes:
 
@@ -87,7 +87,7 @@ protected function exitNodes(): array
 
 The first output node handles `AgentOutputEvent` and reads `$state->getMessage()`. It returns `StopEvent` to finish, or an application event handled by the next output node. Event types determine ordering; the array only registers nodes. Do not include the parent's `AgentEndNode` alongside another handler for `AgentOutputEvent`, because a workflow allows only one handler per event class.
 
-Output nodes are ordinary durable steps: if one fails, `run()` recovers the turn without repeating committed inference or memory storage. History and memory may already contain the final text while output processing is still running or has failed. `chat()` and `stream()` retain their existing contracts; `structured()` still returns the typed object, and extra output artifacts can be read from the Agent state.
+Output nodes are ordinary durable steps: if one fails, `run()` recovers the turn without repeating committed inference. History may already contain the final text while output processing is still running or has failed. `chat()` and `stream()` retain their existing contracts; `structured()` still returns the typed object, and extra output artifacts can be read from the Agent state.
 
 ### Middleware
 
@@ -102,13 +102,11 @@ History is injected into agent nodes as a constructor dependency (`AgentNodeInte
 - Durable workflow persistence needs a comparably durable history: `InMemoryChatHistory` loses the thread across processes.
 - `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
 
-## Memory
+## Conversation memory
 
-`MemoryInterface` (`recall(query)`, `remember(threadId, user, assistant)`, `forget(threadId)`) is the customization boundary: each implementation owns its retrieval scope. `SemanticMemory` is the vector-backed one, reusing the RAG store and embeddings interfaces with the default `DocumentSchema` (`sourceType` / `sourceName` isolate memory documents by type and thread, so give it a dedicated collection). Its `recallThreadIds` is an explicit allowlist, the current thread is not added implicitly, and it must come from trusted application data: never accept thread IDs from a client without an ownership check.
+Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/thread filters from an explicit thread-ID allowlist. `CompositeRetrieval` combines it with document retrieval. Creation is opt-in: override `exitNodes()` with `NeuronAI\RAG\Nodes\ConversationIngestionNode`, providing the vector store, embeddings provider and chat history. Agent has no memory collaborator or memory-specific routing.
 
-Memory attaches independently of history (`memory()` hook or `setMemory()`), and `getChatHistory()` always returns the developer's exact instance; memory never wraps or proxies it. When attached, `RecallMemoryNode` runs once per turn before the first provider call (memoized; recalled strings are appended as a trailing `<CONVERSATION-MEMORIES>` system block and never enter history) and `StoreMemoryNode` stores the plain user/assistant exchange after the final response (tool traffic excluded; failed or interrupted turns store nothing). Both yield `memory.recall` / `memory.store` step events and emit count-only observability events. Inference nodes know nothing about memory, and a memory-free agent keeps its original graph.
-
-`setMemoryUsage(recall:, remember:)` sets per-run intent for the two branches (a disabled branch is not traversed), and a suspended run resumes with its original choices. Working history and long-term memory share thread identity but have separate lifecycles: `flushAll()` clears only history (so `Summarization` can compact the context window), while `resetConversation()` forgets memory first and then clears history, leaving history untouched if forgetting fails.
+`resetConversation()` abandons the pending execution and clears chat history. Stored conversation documents have a separate lifecycle and are deleted explicitly through the vector store. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md) for attachment, retrieval and deletion examples.
 
 ## Tool approval
 

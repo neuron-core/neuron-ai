@@ -6,7 +6,6 @@ namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\RecallMemoryEvent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
@@ -19,22 +18,15 @@ use NeuronAI\Workflow\Node;
  */
 class InstructionsNode extends Node
 {
-    public function __construct(
-        protected bool $memoryAvailable = false,
-    ) {
-    }
-
     /**
      * Enrich the existing state request with documents, preserving changes
-     * made earlier in the retrieval chain, then route to recall or inference.
+     * made earlier in the retrieval chain, then route to inference.
      */
-    public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent|RecallMemoryEvent
+    public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent
     {
         $state->request->instructions->addContent(new SystemContent($this->buildBlockContent($event->documents)));
 
-        return $this->memoryAvailable && $state->request->options->recallMemory
-            ? new RecallMemoryEvent()
-            : AIInferenceEvent::fromRequest($state->request);
+        return AIInferenceEvent::fromRequest($state->request);
     }
 
     private function buildBlockContent(array $documents): string

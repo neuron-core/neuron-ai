@@ -6,7 +6,6 @@ namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
-use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
@@ -54,10 +53,9 @@ class StructuredOutputNode extends InferenceNode
     public function __construct(
         AIProviderInterface $provider,
         ChatHistoryInterface $chatHistory,
-        bool $memoryAvailable = false,
         protected JsonExtractor $extractor = new JsonExtractor(),
     ) {
-        parent::__construct($provider, $chatHistory, $memoryAvailable);
+        parent::__construct($provider, $chatHistory);
     }
 
     /**
@@ -66,7 +64,7 @@ class StructuredOutputNode extends InferenceNode
      * @throws ReflectionException
      * @throws ChatHistoryException
      */
-    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|AgentOutputEvent|StoreMemoryEvent
+    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|AgentOutputEvent
     {
         $outputClass = $state->request->options->outputClass
             ?? throw new AgentException('Structured inference requires an output class on the request.');
@@ -132,9 +130,7 @@ class StructuredOutputNode extends InferenceNode
                 $state->set('structured_output', $output);
                 $state->setResponse($providerResponse);
 
-                return $this->memoryAvailable && $state->request->options->rememberMemory
-                    ? new StoreMemoryEvent([...$state->request->messages, $message])
-                    : new AgentOutputEvent();
+                return new AgentOutputEvent();
 
             } catch (AgentException|DeserializerException $ex) {
                 $lastException = $ex;

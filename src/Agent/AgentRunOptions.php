@@ -14,8 +14,6 @@ class AgentRunOptions
         public bool $stream = false,
         public ?string $outputClass = null,
         public int $maxRetries = 1,
-        public bool $recallMemory = true,
-        public bool $rememberMemory = true,
     ) {
     }
 }

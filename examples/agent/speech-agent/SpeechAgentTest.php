@@ -20,7 +20,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeMiddleware;
-use NeuronAI\Tests\Agent\Memory\Stub\InspectableMemory;
 use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tests\SpeechExperiment\Nodes\TextToSpeechNode;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
@@ -108,42 +107,6 @@ class SpeechAgentTest extends TestCase
         $this->assertSame(['Rome is sunny.'], $agent->synthesized);
         $this->assertSame(2, $provider->getCallCount());
         $this->assertCount(4, $agent->getChatHistory()->getMessages());
-    }
-
-    public function test_memory_runs_after_transcription_and_before_synthesis(): void
-    {
-        $memory = new InspectableMemory();
-        $agent = DemoSpeechAgent::make(threadId: 'speech-memory');
-        $agent->setMemory($memory);
-        $agent->failSynthesis = true;
-        try {
-            $agent->chat(new UserMessage($this->audio('Remember my name.')));
-            $this->fail('Expected the speech provider to fail.');
-        } catch (RuntimeException $error) {
-            $this->assertSame('Simulated speech provider failure.', $error->getMessage());
-        }
-        $this->assertSame(['Remember my name.'], $memory->recalls);
-        $this->assertCount(1, $memory->remembered);
-        $this->assertSame('Remember my name.', $memory->remembered[0][1]);
-        $this->assertSame(WorkflowStatus::Failed, $agent->getState()->getStatus());
-
-        $agent->failSynthesis = false;
-        $state = $agent->run();
-        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
-        $this->assertCount(1, $memory->remembered);
-        $this->assertCount(1, $agent->transcribed);
-        $this->assertCount(2, $agent->synthesized);
-    }
-
-    public function test_disabling_memory_still_reaches_speech(): void
-    {
-        $memory = new InspectableMemory();
-        $agent = DemoSpeechAgent::make();
-        $agent->setMemory($memory)->setMemoryUsage(false, false);
-        $state = $agent->chat(new UserMessage($this->audio('Hello')));
-        $this->assertSame([], $memory->recalls);
-        $this->assertSame([], $memory->remembered);
-        $this->assertInstanceOf(AudioContent::class, $state->get('speech.audio'));
     }
 
     public function test_fresh_instance_recovers_failed_synthesis_without_repeating_inference_or_transcription(): void

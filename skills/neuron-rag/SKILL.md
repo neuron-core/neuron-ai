@@ -274,6 +274,10 @@ class CustomRetrieval implements RetrievalInterface
 $rag->setRetrieval(new CustomRetrieval());
 ```
 
+## Conversation memory and multiple retrievers
+
+Use `SemanticMemoryRetrieval($store, $embeddings, $authorizedThreadIds)` to recall conversation documents without constructing filters. Combine it with document retrieval through `CompositeRetrieval([$memoryRetrieval, $documentRetrieval])`. Both implement the existing `RetrievalInterface`. Creation is independent: opt into `ConversationIngestionNode` in `exitNodes()`. See [conversation memory](../neuron-agent/references/conversation-memory.md) for complete examples and lifecycle semantics.
+
 ## Filtered similarity search
 
 Similarity search can be constrained by document metadata with a portable filter expression that compiles to each backend's native syntax. Reserve **hybrid search** for retrieval that combines vector similarity with lexical or keyword ranking; metadata constraints are **filters**.

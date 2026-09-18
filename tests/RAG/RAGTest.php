@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG;
 
-use NeuronAI\Agent\Memory\SemanticMemory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
@@ -14,11 +13,9 @@ use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
-use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
-use NeuronAI\Testing\RequestRecord;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
@@ -175,27 +172,4 @@ class RAGTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function test_rag_recalls_and_stores_agent_memory_without_extra_wiring(): void
-    {
-        $provider = new FakeAIProvider(new AssistantMessage('Your preferred city is Paris.'));
-        $memory = new SemanticMemory(
-            new MemoryVectorStore(),
-            new FakeEmbeddingsProvider(),
-            ['thread-1'],
-        );
-        $memory->remember('thread-1', 'I prefer Paris.', 'I will remember that.');
-
-        $rag = RAG::make(threadId: 'thread-1');
-        $rag->setAiProvider($provider);
-        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
-        $rag->setVectorStore(new FakeVectorStore());
-        $rag->setMemory($memory);
-
-        $rag->chat(new UserMessage('Which city do I prefer?'));
-
-        $provider->assertSent(
-            fn (RequestRecord $record): bool => $record->systemPrompt?->contains('I prefer Paris.') ?? false
-        );
-        $this->assertCount(2, $memory->recall('Which city do I prefer?'));
-    }
 }

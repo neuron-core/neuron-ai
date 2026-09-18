@@ -9,7 +9,6 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\StoreMemoryEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
@@ -36,7 +35,7 @@ class ChatNode extends InferenceNode
      * @throws ChatHistoryException
      * @throws Throwable
      */
-    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|AgentOutputEvent|StoreMemoryEvent|ToolCallEvent
+    public function __invoke(AIInferenceEvent $event, AgentState $state): Generator|AgentOutputEvent|ToolCallEvent
     {
         $inbound = $state->request->messages;
         $messages = $this->pendingConversation($inbound);
@@ -67,9 +66,7 @@ class ChatNode extends InferenceNode
 
         $this->addToChatHistory($message, 'history.response');
 
-        return $this->memoryAvailable && $state->request->options->rememberMemory
-            ? new StoreMemoryEvent([...$inbound, $message])
-            : new AgentOutputEvent();
+        return new AgentOutputEvent();
     }
 
     /**

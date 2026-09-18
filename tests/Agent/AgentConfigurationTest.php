@@ -15,7 +15,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronAI\Tests\Agent\Memory\Stub\InspectableMemory;
 use NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware;
 use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
@@ -145,24 +144,6 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame('Handled failure', $call->getResult());
     }
 
-    public function test_memory_can_be_added_and_replaced_after_execution(): void
-    {
-        $first = new InspectableMemory();
-        $second = new InspectableMemory();
-        $agent = Agent::make(threadId: 'thread-config');
-        $agent->setAiProvider(new FakeAIProvider(
-            new AssistantMessage('First reply'),
-            new AssistantMessage('Second reply'),
-            new AssistantMessage('Third reply'),
-        ));
-        $agent->chat(new UserMessage('No memory'));
-        $agent->setMemory($first)->chat(new UserMessage('First memory'));
-        $agent->setMemory($second)->chat(new UserMessage('Second memory'));
-
-        $this->assertSame([['thread-config', 'First memory', 'Second reply']], $first->remembered);
-        $this->assertSame([['thread-config', 'Second memory', 'Third reply']], $second->remembered);
-    }
-
     public function test_parallel_tool_configuration_changes_preserve_added_nodes(): void
     {
         $node = new FirstNode();
@@ -208,47 +189,29 @@ class AgentConfigurationTest extends TestCase
 
     public function test_resume_uses_current_provider_but_preserves_recorded_instructions_and_intent(): void
     {
-        $memory = new InspectableMemory();
         $first = new FakeAIProvider(new ToolCallMessage(null, [
             ToolCall::make('search', 'call_1', ['query' => 'PHP']),
         ]));
         $second = new FakeAIProvider(new AssistantMessage('Resumed reply'), new AssistantMessage('Next reply'));
         $agent = Agent::make(threadId: 'thread-config');
         $agent->setAiProvider($first)->setInstructions('Original instructions')
-            ->setMemory($memory)->addTool((new SearchTool())->requireApproval());
+            ->addTool((new SearchTool())->requireApproval());
         $stream = $agent->stream(new UserMessage('Search PHP'));
         iterator_to_array($stream);
         $this->assertTrue($stream->getReturn()->isInterrupted());
         $runId = $agent->getRunId();
 
-        $agent->setAiProvider($second)->setInstructions('Updated instructions')->setMemoryUsage(false, false);
+        $agent->setAiProvider($second)->setInstructions('Updated instructions');
         $state = $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($runId, $agent->getRunId());
         $this->assertSame('stream', $second->getRecorded()[0]->method);
         $this->assertSame('Original instructions', $second->getRecorded()[0]->systemPrompt->getContent());
-        $this->assertSame([['thread-config', 'Search PHP', 'Resumed reply']], $memory->remembered);
 
         $agent->chat(new UserMessage('Next turn'));
         $this->assertSame('chat', $second->getRecorded()[1]->method);
         $this->assertSame('Updated instructions', $second->getRecorded()[1]->systemPrompt->getContent());
-        $this->assertCount(1, $memory->remembered);
-        $this->assertSame(['Search PHP'], $memory->recalls);
-    }
-
-    public function test_memory_usage_changes_apply_to_a_new_run(): void
-    {
-        $memory = new InspectableMemory();
-        $agent = Agent::make();
-        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply')))
-            ->setMemory($memory);
-        $agent->chat(new UserMessage('Hello'));
-
-        $agent->setMemoryUsage(false, false)->run();
-
-        $this->assertCount(1, $memory->remembered);
-        $this->assertSame(['Hello'], $memory->recalls);
     }
 
 }
