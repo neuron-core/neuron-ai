@@ -20,6 +20,8 @@ use NeuronAI\Providers\ZAI\ZAI;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+
 class ZAITest extends TestCase
 {
     public function test_chat_uses_default_base_uri(): void
@@ -70,6 +72,25 @@ class ZAITest extends TestCase
         $this->assertCount(1, $sentRequests);
         $request = $sentRequests[0]['request'];
         $this->assertSame('chat/completions', (string) $request->getUri());
+    }
+
+    public function test_chat_preserves_reasoning_content_for_continuation(): void
+    {
+        $mockHandler = new MockHandler([
+            new Response(
+                status: 200,
+                body: '{"model":"glm-5.2","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Hello!","reasoning_content":"Greet the user."}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}',
+            ),
+        ]);
+        $provider = (new ZAI('', 'glm-5.2'))->setHttpClient(
+            new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)),
+        );
+
+        $response = $provider->chat(new UserMessage('Hi'));
+
+        $this->assertInstanceOf(AssistantMessage::class, $response);
+        $this->assertSame('Greet the user.', $response->getMetadata('reasoning_content'));
+        $this->assertSame('Greet the user.', $provider->messageMapper()->map([$response])[0]['reasoning_content']);
     }
 
     public function test_stream_preserves_reasoning_content_for_tool_call_continuation(): void

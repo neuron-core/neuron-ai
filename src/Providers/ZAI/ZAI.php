@@ -93,9 +93,11 @@ class ZAI extends OpenAI
         $reasoningContent = $response['choices'][0]['message']['reasoning_content']
             ?? $message->getMetadata('reasoning_content');
 
-        if ($reasoningContent !== null && $message->getReasoning() === null) {
+        if ($reasoningContent !== null) {
             $message->addMetadata('reasoning_content', $reasoningContent);
-            $message->addContent(new ReasoningContent($reasoningContent));
+            if ($message->getReasoning() === null) {
+                $message->addContent(new ReasoningContent($reasoningContent));
+            }
         }
 
         return $message;
