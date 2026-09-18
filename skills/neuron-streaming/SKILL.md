@@ -137,7 +137,7 @@ The Workflow selects the terminal from the segment's outcome, so application cod
 | Suspended | `interrupt($request)` | The current `InterruptRequest` the run waits for |
 | Failed | `error($e)` | A neutral failure text (override the adapter's protected `errorMessage()` to expose more), then the exception is rethrown to the caller |
 
-With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists the pending interrupts; with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call; with `NativeAdapter` it ends with one `interrupt` event carrying the serialized request. Continue native approvals with `$agent->submitApprovalDecisions($decisions)->events()` and deferred tool results with `$agent->submitToolResults($results)->events()`. Both maps use tool call IDs; a result entry contains exactly one `result` value or `error` string. Raw AG-UI and Vercel envelopes still use their protocol translators through `submitInputs()`. See **neuron-tool-approval** and **neuron-frontend-integration** for the inbound round trip.
+With `AGUIAdapter` a suspended stream ends with `RUN_FINISHED` whose `outcome` lists the pending interrupts; with `VercelAIAdapter` it ends with a `tool-approval-request` part per pending call; with `AgentChunkAdapter` it ends with one `interrupt` event carrying the serialized request. Continue native approvals with `$agent->submitApprovalDecisions($decisions)->events()` and deferred tool results with `$agent->submitToolResults($results)->events()`. Both maps use tool call IDs; a result entry contains exactly one `result` value or `error` string. Raw AG-UI and Vercel envelopes still use their protocol translators through `submitInputs()`. See **neuron-tool-approval** and **neuron-frontend-integration** for the inbound round trip.
 
 ### Mapping domain events
 
@@ -170,7 +170,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Native vocabulary
 
-`NativeAdapter` is stateless and one-to-one: each yielded object becomes one event named after its kind, there are no start or end frames, and unknown objects are ignored. A chunk's payload is its own `toArray()`, so it always includes `messageId` (`null` on tool call and result chunks).
+`AgentChunkAdapter` is stateless and one-to-one: each yielded object becomes one event named after its kind, there are no start or end frames, and unknown objects are ignored. A chunk's payload is its own `toArray()`, so it always includes `messageId` (`null` on tool call and result chunks).
 
 | Yielded object | Event `type` | `data` |
 |---|---|---|
@@ -222,7 +222,7 @@ A channel speaks the adapter's protocol, so content delivery needs an adapter:
 | No | Yes | Lazy generator of native objects; channel receives lifecycle during iteration |
 | Yes | Yes | Final state; protocol events are delivered eagerly through `send()` |
 
-The channel encodes for its own transport. Native objects never reach it: a push destination is another system and needs a wire vocabulary, which is exactly what the adapter provides. When the consumer speaks no UI protocol, attach `NativeAdapter`: it is that vocabulary for Neuron's own chunks and events.
+The channel encodes for its own transport. Native objects never reach it: a push destination is another system and needs a wire vocabulary, which is exactly what the adapter provides. When the consumer speaks no UI protocol, attach `AgentChunkAdapter`: it is that vocabulary for Neuron's own chunks and events.
 
 The lifecycle methods fire once per segment after the adapter's terminal frames. `interrupted()` receives a clone of the state so the channel can inspect the pending interrupts. The channel receives lifecycle calls even when nothing was streamed, so a zero-item run still reports completion.
 
@@ -253,7 +253,7 @@ Use `stream()` for provider chunks. `chat()` uses buffered model inference; atta
 For a dedicated transport extend `AbstractChannel` (see *Writing a channel* below). Declare a channel once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter. Declare both: a `channel()` hook alone delivers only the lifecycle.
 
 ```php
-use NeuronAI\Agent\Adapters\NativeAdapter;
+use NeuronAI\Agent\Adapters\AgentChunkAdapter;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
@@ -263,7 +263,7 @@ class MyAgent extends Agent
 {
     protected function streamAdapter(): ?StreamAdapterInterface
     {
-        return new NativeAdapter();
+        return new AgentChunkAdapter();
     }
 
     protected function channel(): ?StreamingChannelInterface

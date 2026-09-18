@@ -9,7 +9,7 @@ use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
-use NeuronAI\Agent\Adapters\NativeAdapter;
+use NeuronAI\Agent\Adapters\AgentChunkAdapter;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -54,7 +54,7 @@ class NativeAdapterTest extends TestCase
     #[DataProvider('chunks')]
     public function test_each_chunk_becomes_one_event_named_after_its_kind(StreamChunk $chunk, string $type): void
     {
-        $events = $this->decode((new NativeAdapter())->transform($chunk));
+        $events = $this->decode((new AgentChunkAdapter())->transform($chunk));
 
         $this->assertSame([['type' => $type, ...json_decode(json_encode($chunk->toArray()), true)]], $events);
     }
@@ -80,7 +80,7 @@ class NativeAdapterTest extends TestCase
     public function test_tool_chunks_carry_the_call_under_the_same_key(): void
     {
         $call = ToolCall::make('get_weather', 'call_1', ['location' => 'Rome']);
-        $adapter = new NativeAdapter();
+        $adapter = new AgentChunkAdapter();
 
         $requested = $this->decode($adapter->transform(new ToolCallChunk($call)))[0];
         $settled = $this->decode($adapter->transform(new ToolResultChunk((clone $call)->setResult('sunny'))))[0];
@@ -93,7 +93,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_portable_events_keep_a_stable_shape(): void
     {
-        $adapter = new NativeAdapter();
+        $adapter = new AgentChunkAdapter();
 
         $events = [
             ...$this->decode($adapter->transform(new StepStartedStreamEvent('indexing', ['queue' => 'high']))),
@@ -116,7 +116,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_empty_maps_stay_json_objects(): void
     {
-        $adapter = new NativeAdapter();
+        $adapter = new AgentChunkAdapter();
 
         $this->assertSame(
             '{"type":"step-finished","name":"indexing","metadata":{}}',
@@ -134,7 +134,7 @@ class NativeAdapterTest extends TestCase
             new Action('call_1', 'get_weather', inputs: ['location' => 'Rome']),
         ]))->withId(1);
 
-        $events = $this->decode((new NativeAdapter())->interrupt($request));
+        $events = $this->decode((new AgentChunkAdapter())->interrupt($request));
 
         $this->assertCount(1, $events);
         $this->assertSame('interrupt', $events[0]['type']);
@@ -144,14 +144,14 @@ class NativeAdapterTest extends TestCase
 
     public function test_error_exposes_only_the_neutral_text(): void
     {
-        $events = $this->decode((new NativeAdapter())->error(new RuntimeException('Provider failed at https://internal')));
+        $events = $this->decode((new AgentChunkAdapter())->error(new RuntimeException('Provider failed at https://internal')));
 
         $this->assertSame([['type' => 'error', 'message' => 'The run failed.']], $events);
     }
 
     public function test_error_message_hook_decides_the_wire_text(): void
     {
-        $adapter = new class () extends NativeAdapter {
+        $adapter = new class () extends AgentChunkAdapter {
             protected function errorMessage(Throwable $error): string
             {
                 return 'Visible: ' . $error->getMessage();
@@ -165,7 +165,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_start_and_end_frame_nothing(): void
     {
-        $adapter = new NativeAdapter();
+        $adapter = new AgentChunkAdapter();
 
         $this->assertSame([], $adapter->start());
         $this->assertSame([], $adapter->end());
@@ -173,7 +173,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_unknown_objects_are_ignored(): void
     {
-        $adapter = new NativeAdapter();
+        $adapter = new AgentChunkAdapter();
         $unknownChunk = new class () extends StreamChunk {
             public function toArray(): array
             {
@@ -187,7 +187,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_exact_class_mapping_converts_domain_events(): void
     {
-        $adapter = (new NativeAdapter())->mapEvent(
+        $adapter = (new AgentChunkAdapter())->mapEvent(
             IndexingProgress::class,
             static fn (IndexingProgress $event): ActivityStreamEvent => new ActivityStreamEvent(
                 id: $event->jobId,
@@ -205,7 +205,7 @@ class NativeAdapterTest extends TestCase
 
     public function test_mapping_can_explicitly_suppress_an_event(): void
     {
-        $adapter = (new NativeAdapter())->mapEvent(
+        $adapter = (new AgentChunkAdapter())->mapEvent(
             SuppressedProgress::class,
             static fn (SuppressedProgress $event): ?StreamEventInterface => null,
         );
@@ -218,14 +218,14 @@ class NativeAdapterTest extends TestCase
         $this->expectException(StreamAdapterException::class);
         $this->expectExceptionMessage(UnsupportedStreamEvent::class);
 
-        (new NativeAdapter())->transform(new UnsupportedStreamEvent());
+        (new AgentChunkAdapter())->transform(new UnsupportedStreamEvent());
     }
 
     public function test_channel_receives_the_native_chunks_of_a_streamed_run(): void
     {
         $channel = new FakeChannel();
         $agent = Agent::make()
-            ->setStreamAdapter(new NativeAdapter())
+            ->setStreamAdapter(new AgentChunkAdapter())
             ->setChannel($channel)
             ->setAiProvider((new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('get_weather', 'call_1', ['location' => 'Rome'])]),
@@ -251,7 +251,7 @@ class NativeAdapterTest extends TestCase
         $channel = new FakeChannel();
         $agent = Agent::make(threadId: 'thread-1')
             ->setPersistence(new InMemoryPersistence())
-            ->setStreamAdapter(new NativeAdapter())
+            ->setStreamAdapter(new AgentChunkAdapter())
             ->setChannel($channel)
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('get_weather', 'call_1', ['location' => 'Rome'])]),

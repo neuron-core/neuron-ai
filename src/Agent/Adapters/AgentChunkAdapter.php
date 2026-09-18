@@ -30,7 +30,7 @@ use Throwable;
  * own data. A one-to-one mapping needs no state and no start or end frames: a
  * channel already reports the segment's end through its lifecycle events.
  */
-class NativeAdapter implements CustomizableStreamAdapterInterface
+class AgentChunkAdapter implements CustomizableStreamAdapterInterface
 {
     use MapsStreamEvents;
 
