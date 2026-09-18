@@ -8,9 +8,11 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use LogicException;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -94,7 +96,12 @@ class ZAITest extends TestCase
         $message = $generator->getReturn();
 
         $this->assertContainsOnlyInstancesOf(ReasoningChunk::class, $chunks);
-        $this->assertSame(['Inspect ', 'schema. '], array_map(fn (ReasoningChunk $chunk): string => $chunk->content, $chunks));
+        $this->assertSame(['Inspect ', 'schema. '], array_map(
+            static fn (StreamChunk $chunk): string => $chunk instanceof ReasoningChunk
+                ? $chunk->content
+                : throw new LogicException('Only reasoning chunks are expected.'),
+            $chunks,
+        ));
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame('Inspect schema. ', $message->getMetadata('reasoning_content'));
         $this->assertInstanceOf(ReasoningContent::class, $message->getReasoning());
