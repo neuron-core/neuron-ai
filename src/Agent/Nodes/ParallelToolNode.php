@@ -101,7 +101,7 @@ class ParallelToolNode extends ToolNode
             ...array_map(
                 fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild, $afterChild): string {
                     try {
-                        if ($beforeChild !== null) {
+                        if ($beforeChild instanceof Closure) {
                             $beforeChild();
                         }
 
@@ -109,7 +109,7 @@ class ParallelToolNode extends ToolNode
                             // Execute the tool - this mutates the tool's internal state
                             $tool->execute();
                         } finally {
-                            if ($afterChild !== null) {
+                            if ($afterChild instanceof Closure) {
                                 $afterChild();
                             }
                         }

@@ -6,7 +6,6 @@ namespace NeuronAI\Classifier;
 
 use InvalidArgumentException;
 
-use function array_is_list;
 use function count;
 use function is_string;
 use function trim;
@@ -30,7 +29,7 @@ class Score
             }
         }
 
-        if (!array_is_list($levels) || count($levels) < 2) {
+        if (count($levels) < 2) {
             throw new InvalidArgumentException('A score requires a list of at least two ordered levels.');
         }
     }

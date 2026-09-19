@@ -219,7 +219,7 @@ class ParallelToolsTest extends TestCase
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
-            beforeChild: static fn () => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
+            beforeChild: static fn (): int|false => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
         );
         $agent->addTool($toolA);
         $agent->addTool($toolB);
@@ -288,7 +288,7 @@ class ParallelToolsTest extends TestCase
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
-            afterChild: static fn () => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
+            afterChild: static fn (): int|false => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
         );
         $agent->addTool($toolA);
         $agent->addTool($toolB);
@@ -325,7 +325,7 @@ class ParallelToolsTest extends TestCase
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
-            afterChild: static fn () => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
+            afterChild: static fn (): int|false => file_put_contents($marker, '1', FILE_APPEND | LOCK_EX),
         );
         $agent->addTool($failingTool);
         $agent->addTool($workingTool);

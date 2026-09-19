@@ -15,6 +15,11 @@ use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\Providers\OpenAI\Audio\OpenAISpeechToText;
 use PHPUnit\Framework\TestCase;
 
+use function file_put_contents;
+use function sys_get_temp_dir;
+use function tempnam;
+use function unlink;
+
 class OpenAISpeechToTextTest extends TestCase
 {
     protected string $audioFile;
