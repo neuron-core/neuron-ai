@@ -28,4 +28,8 @@ return RectorConfig::configure()
             __DIR__ . '/src/Workflow/Workflow.php',
             __DIR__ . '/tests/Stub/ExecutorTestHelpers.php',
         ],
+        Rector\DeadCode\Rector\If_\ReduceAlwaysFalseIfOrRector::class => [
+            // Runtime validation of a docblock-only type (list<string>) that callers can still violate.
+            __DIR__ . '/src/Classifier/Score.php',
+        ],
     ]);
