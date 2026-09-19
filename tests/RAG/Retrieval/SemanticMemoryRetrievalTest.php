@@ -14,6 +14,8 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+
 class SemanticMemoryRetrievalTest extends TestCase
 {
     public function test_only_explicit_threads_and_conversation_documents_are_retrieved(): void
@@ -33,7 +35,8 @@ class SemanticMemoryRetrievalTest extends TestCase
 
         $documents = $retrieval->retrieve($query);
         $this->assertEqualsCanonicalizing(['thread-1', 'thread-2'], array_map(
-            static fn (Document $document): string => $document->getContent(), $documents,
+            static fn (Document $document): string => $document->getContent(),
+            $documents,
         ));
         $this->assertNotNull($documents[0]->getEmbedding());
         $this->assertNotNull($documents[0]->getScore());

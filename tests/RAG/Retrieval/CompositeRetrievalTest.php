@@ -20,6 +20,8 @@ use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tests\RAG\Nodes\Stub\ConversationAgent;
 use PHPUnit\Framework\TestCase;
 
+use function substr_count;
+
 class CompositeRetrievalTest extends TestCase
 {
     public function test_children_preserve_order_and_receive_the_same_query_and_mandatory_filters(): void

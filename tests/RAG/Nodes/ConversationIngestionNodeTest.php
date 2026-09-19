@@ -75,7 +75,8 @@ class ConversationIngestionNodeTest extends TestCase
     {
         $store = new FakeVectorStore();
         $agent = $this->agent($store, new FakeAIProvider(
-            new AssistantMessage('Invalid output'), new AssistantMessage('{"name":"Ada"}'),
+            new AssistantMessage('Invalid output'),
+            new AssistantMessage('{"name":"Ada"}'),
         ));
         $agent->structured(new UserMessage('Create a user'), User::class);
         $store->assertDocumentCount(1);
