@@ -15,3 +15,6 @@ phpunit.xml.local
 CONTEXT.md
 docs/adr
 /tests/Integration/
+node_modules
+artifacts
+packages
