@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\ZAI;
 
+use Generator;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\HandleWithTools;
@@ -52,5 +55,51 @@ class ZAI extends OpenAI
         }
 
         return $response;
+    }
+
+    /**
+     * @return Generator<StreamChunk>
+     */
+    protected function processToolCallDelta(array $choice): Generator
+    {
+        if (isset($choice['delta']['reasoning_content'])) {
+            $reasoningContent = $choice['delta']['reasoning_content'];
+            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
+
+            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+        }
+    }
+
+    /**
+     * @return Generator<StreamChunk>
+     */
+    protected function processContentDelta(array $choice): Generator
+    {
+        yield from parent::processContentDelta($choice);
+
+        if (isset($choice['delta']['reasoning_content'])) {
+            $reasoningContent = $choice['delta']['reasoning_content'];
+            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
+            $this->streamState->updateContentBlock(-1, new ReasoningContent($reasoningContent));
+
+            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
+        }
+    }
+
+    protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
+    {
+        $message = parent::enrichMessage($message);
+
+        $reasoningContent = $response['choices'][0]['message']['reasoning_content']
+            ?? $message->getMetadata('reasoning_content');
+
+        if ($reasoningContent !== null) {
+            $message->addMetadata('reasoning_content', $reasoningContent);
+            if ($message->getReasoning() === null) {
+                $message->addContent(new ReasoningContent($reasoningContent));
+            }
+        }
+
+        return $message;
     }
 }
