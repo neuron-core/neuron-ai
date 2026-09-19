@@ -18,12 +18,9 @@ use NeuronAI\Classifier\Score;
 use NeuronAI\Classifier\TypeSafeAI\TypeSafeAI;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\HttpClient\Curl\CurlHttpClient;
-use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
-use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\GuzzleHttpClient;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 use function array_fill;
 use function file_get_contents;
@@ -134,20 +131,18 @@ class TypeSafeAITest extends TestCase
 
     public function test_structured_state_is_never_inferred_as_multipart(): void
     {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, body: '{"answers":{"check":{"type":"noul","noul":0}}}'),
+        ]));
+        $stack->push(Middleware::history($history));
         $input = ['contents' => 'This is application data, not an upload.'];
-        $stop = new RuntimeException('Stop before networking');
-        $client = (new CurlHttpClient())->onRequest(function (HttpRequest $request) use ($input, $stop): HttpRequest {
-            self::assertFalse($request->isMultipart());
-            self::assertIsString($request->body);
-            self::assertSame($input, json_decode($request->body, true)['state']);
 
-            throw $stop;
-        });
-
-        $this->expectExceptionObject($stop);
-
-        (new TypeSafeAI('test-key', httpClient: $client))
+        (new TypeSafeAI('test-key', httpClient: new GuzzleHttpClient(handler: $stack)))
             ->classify(new ClassificationRequest($input, ['check' => new Boolean('True?')]));
+
+        self::assertSame('application/json', $history[0]['request']->getHeaderLine('Content-Type'));
+        self::assertSame($input, json_decode((string) $history[0]['request']->getBody(), true)['state']);
     }
 
     #[DataProvider('invalid_configuration')]
