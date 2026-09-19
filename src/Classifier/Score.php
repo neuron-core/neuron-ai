@@ -6,6 +6,7 @@ namespace NeuronAI\Classifier;
 
 use InvalidArgumentException;
 
+use function array_is_list;
 use function count;
 use function is_string;
 use function trim;
@@ -21,6 +22,10 @@ class Score
     ) {
         if (trim($instructions) === '') {
             throw new InvalidArgumentException('Score instructions cannot be empty.');
+        }
+
+        if (!array_is_list($levels)) {
+            throw new InvalidArgumentException('Score levels must be a list in ascending order.');
         }
 
         foreach ($levels as $description) {
