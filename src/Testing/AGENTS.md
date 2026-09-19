@@ -19,6 +19,8 @@ $provider->assertSent(fn (RequestRecord $request): bool => $request->messages[0]
 
 An exhausted response queue throws the seam's own exception (`ProviderException`, `McpException`), never a PHPUnit failure: a tool error handler would swallow an assertion failure raised from inside a tool call, and the fakes must not depend on PHPUnit for control flow. Fakes carry no custom serialization either; they hold plain data, so a persisted run round-trips them with their recordings intact.
 
+`FakeClassifier` implements `ClassifierInterface` with a list of answer maps, one per call. It derives real typed results from the request definitions: Choice and Score use distributions, Boolean uses a numeric probability. Record `ClassificationRequest` directly; no extra record wrapper is needed. Record every attempt, including invalid responses and queue exhaustion, and consume each available response once. Reuse the classifier result validation and throw `ProviderException` for invalid queued answers or exhaustion. Keep its `getRecorded()`, `getCallCount()`, `assertCallCount()`, `assertSent()`, and `assertNothingSent()` helpers consistent with the other fakes.
+
 ## Fidelity
 
 A fake is as strict as the seam it stands in: `FakeVectorStore` requires an embedding to store a document and trims search results to the request's `topK`, exactly like a real store, so a test cannot pass on input production would reject.

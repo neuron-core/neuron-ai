@@ -1,0 +1,20 @@
+{
+    "model": "jev-latest",
+    "answers": {
+        "refund": {"type": "noul", "noul": 0.92},
+        "severity": {
+            "type": "score",
+            "score": 1.6,
+            "legend": {"0": "Cosmetic", "1": "Workaround available", "2": "Blocked"},
+            "probabilities": {"2": 0.65, "0": 0.05, "1": 0.3},
+            "confidence": 0.78
+        },
+        "department": {
+            "type": "choice",
+            "choice": "shipping",
+            "probabilities": {"shipping": 0.8, "billing": 0.2},
+            "confidence": 0.6
+        }
+    },
+    "usage": {"input_tokens": 312, "output_tokens": 48}
+}
