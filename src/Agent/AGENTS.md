@@ -136,7 +136,11 @@ $agent->submitApprovalDecisions([
 ])->run();
 ```
 
-A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and ToolNode durably accumulates delivered decisions through step memos, regardless of the continuation entry point (explicit updates to the still-open batch win). A UI re-renders pending approvals from chat history alone (last message, tools with `getApprovalState()`) with no workflow boot; final outcomes are read from the following `ToolResultMessage`. Cross-process flows need workflow persistence **and** a durable chat history.
+A tool runs iff explicitly approved: silence is never consent, an incomplete payload re-suspends, and ToolNode durably accumulates delivered decisions through step memos, regardless of the continuation entry point (explicit updates to the still-open batch win).
+
+To reconstruct the approval UI after a page refresh, rebuild the Agent with the same thread identity and persistence, then call `pendingApprovals()`. It reads the current persisted `ApprovalRequest` through `inspect()` and returns only pending `Action` objects, or an empty array when there is no approval request. Inspection does not execute the workflow. For other interruptions, including deferred tool results, use `inspect()` to read the run's status and current interruption; it returns `null` when no persisted run exists.
+
+The persisted interruption is authoritative for the current UI request. The pre-suspend `ToolCallMessage` in history is an initial approval snapshot and can remain pending after decisions have been submitted or the workflow has advanced to awaiting tool results. Final tool outcomes are read from the following `ToolResultMessage`. Inside `ToolNode`, approval execution continues through `interrupt()` and durable step memos; `inspect()` serves external readers. Cross-process flows need workflow persistence **and** a durable chat history.
 
 `submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and keep its run/attempt fences until `run()` or `events()` consumes the response. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
 

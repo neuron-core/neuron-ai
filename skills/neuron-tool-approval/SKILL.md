@@ -13,7 +13,7 @@ Use `Agent::submitApprovalDecisions($decisions)` for tool approval and `Agent::s
 
 **Approval is owned by `ToolNode` and configured on the tools themselves**. There is no middleware to attach: each tool declares whether it needs approval, you override that per instance when you attach it to the agent, and the node suspends the run before executing anything undecided.
 
-**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — you never inspect workflow state and never boot the agent just to render. Continuing needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread ID alone, stages the decisions with `submitApprovalDecisions($decisions)`, and finishes with `run()` or `events()`. No workflow coordination ID is stored on the side.
+**Chat history is what the application reads; the thread is the workflow ID.** Which tools await a decision and why each one is asking live on the **last message of the thread**, written once at suspend time — a client that renders from the message list needs nothing else. A client that keeps approvals apart from messages (AG-UI, CopilotKit) asks the agent instead: `Agent::pendingApprovals()` (see [Rebuilding the UI after a reload](#rebuilding-the-ui-after-a-reload)). Continuing needs no runId either: the run's durable records live in the partition named by the threadId itself, so the approve endpoint rebuilds the agent from the thread ID alone, stages the decisions with `submitApprovalDecisions($decisions)`, and finishes with `run()` or `events()`. No workflow coordination ID is stored on the side.
 
 Two facts shape the UI:
 
@@ -139,6 +139,41 @@ const isSuspended = pendingTools.length > 0;
 
 If suspended: render one card per `tools[]` entry that **has** an `approval` field (name, `inputs`, `approvalReason`, Approve/Deny actions — Deny with an optional free-text reason), and **lock the message input**. Decide from the tail only — older `tool_call` messages are settled record (read their outcomes from the `tool_call_result` that follows them).
 
+### Rebuilding the UI after a reload
+
+`Agent::pendingApprovals()` returns the `Action[]` still awaiting a decision on the thread's suspended run — an empty array when nothing is pending. It reads the persisted interruption, so it works in a cold process: build the agent from the thread ID and ask.
+
+```php
+/** GET /threads/{threadId}/approvals */
+function pendingApprovalsEndpoint(string $threadId): array
+{
+    return makeAgentForThread($threadId)->pendingApprovals();   // Action is JsonSerializable
+}
+```
+
+```json
+[
+    {
+        "id": "toolu_08G9H0I1J2K3L4",
+        "name": "send_email",
+        "description": "{\n    \"to\": \"team@example.com\", ...}",
+        "decision": "pending",
+        "feedback": null,
+        "reason": "Outbound email reaches people outside this workspace",
+        "inputs": { "to": "team@example.com", "subject": "Logs cleanup" }
+    }
+]
+```
+
+`id` is the `callId` — the key of the decision map. `reason` is the tool's `approvalReason`.
+
+Reach for it when:
+
+- **The client models approvals apart from messages.** AG-UI delivers them as interrupts on `RUN_FINISHED`, not as entries of the message list, so after a page refresh there is no message to restore them from. Serve `pendingApprovals()` on mount and rebuild the interrupt UI from it.
+- **You submit per click.** Unlike the history tail, the persisted request reflects the decisions delivered so far: an action already approved or rejected is no longer returned, so the reloaded page shows only what is still open.
+
+A client that renders from the message list (the JSON above, or Vercel `approval-requested` parts) can keep reading the tail.
+
 ## Submitting Decisions
 
 Decisions travel as a plain map keyed by `callId`. Three value forms are accepted; `submitApprovalDecisions()` rejects other values before execution:
@@ -174,7 +209,7 @@ A good reject reason ("too expensive, find a cheaper option") steers the model's
 - **Partial decisions survive continuation** — each `submitApprovalDecisions()` call may contain only newly decided actions. Finish with `run()` or `events()` and render any remaining approvals.
 - **A typo'd `callId` is rejected** — native decisions must match an action in the current persisted request.
 - **`["approve", "note"]` doesn't exist** — `submitApprovalDecisions()` rejects it before execution. Only rejections carry text.
-- **The tail message won't show partial progress** — it keeps its pending snapshot (append-only history). Render interim progress from your own accumulated map, not from the thread.
+- **The tail message won't show partial progress** — it keeps its pending snapshot (append-only history). Render interim progress from your own accumulated map, or from `pendingApprovals()` after a reload — not from the thread.
 
 ## One Endpoint for the Whole Conversation
 
