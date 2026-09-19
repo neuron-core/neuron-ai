@@ -17,7 +17,7 @@ use NeuronAI\Classifier\Score;
 use NeuronAI\Classifier\ScoreResult;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpMethod;
@@ -53,7 +53,7 @@ class TypeSafeAI implements ClassifierInterface
             throw new InvalidArgumentException('TypeSafeAI requires a non-empty model name.');
         }
 
-        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpClient = $httpClient ?? new GuzzleHttpClient();
     }
 
     /**
