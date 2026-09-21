@@ -104,8 +104,8 @@ class ToolTest extends TestCase
 
     public function test_an_input_of_the_wrong_type_is_never_gated_nor_invoked(): void
     {
-        $tool = (new StrictApprovalTool())
-            ->requireApproval()
+        $tool = new StrictApprovalTool();
+        $tool->requireApproval()
             ->setInputs(['permanent' => true, 'account_id' => 'one']);
 
         $this->assertFalse($tool->requiresApproval());
