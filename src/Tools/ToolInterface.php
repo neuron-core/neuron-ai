@@ -88,9 +88,8 @@ interface ToolInterface extends JsonSerializable
      * Whether this call requires human approval before execution, consulted by
      * ToolNode on every tool call. Returning a string counts as true AND carries
      * the reason shown to the approver (surfaced on the ApprovalRequest actions
-     * and persisted in chat history).
-     *
-     * @param array<string, mixed> $inputs The arguments the model is calling the tool with.
+     * and persisted in chat history). The call's arguments are bound beforehand
+     * and available through getInputs().
      */
-    public function requiresApproval(array $inputs): bool|string;
+    public function requiresApproval(): bool|string;
 }

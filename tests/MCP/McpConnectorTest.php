@@ -430,9 +430,9 @@ class McpConnectorTest extends TestCase
             ->tools();
 
         $this->assertSame(3, $search->getMaxRuns());
-        $this->assertFalse($search->requiresApproval([]));
+        $this->assertFalse($search->requiresApproval());
         $this->assertNull($delete->getMaxRuns());
-        $this->assertTrue($delete->requiresApproval([]));
+        $this->assertTrue($delete->requiresApproval());
     }
 
     public function test_with_callbacks_do_not_break_tool_serialization(): void

@@ -149,7 +149,7 @@ class TestParametrizedTool implements ToolInterface
         return $this->name . ':' . ($this->inputs['key'] ?? '');
     }
 
-    public function requiresApproval(array $inputs): bool|string
+    public function requiresApproval(): bool|string
     {
         return false;
     }

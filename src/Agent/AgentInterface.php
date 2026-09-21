@@ -9,6 +9,7 @@ use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\WorkflowInterface;
@@ -23,6 +24,14 @@ interface AgentInterface extends WorkflowInterface
     public function setInstructions(SystemMessage|string $instructions): AgentInterface;
 
     public function getInstructions(): SystemMessage;
+
+    /**
+     * Replace all tools, including the defaults declared by the agent.
+     * An empty array disables all default and previously added tools.
+     *
+     * @param array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
+     */
+    public function setTools(array $tools): AgentInterface;
 
     /**
      * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools

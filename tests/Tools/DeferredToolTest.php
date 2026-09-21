@@ -134,10 +134,10 @@ class DeferredToolTest extends TestCase
         );
 
         $tool->setInputs(['query' => 'sensitive']);
-        $this->assertSame('Approve access to sensitive information.', $tool->requiresApproval($tool->getInputs()));
+        $this->assertSame('Approve access to sensitive information.', $tool->requiresApproval());
 
         $tool->suppressApproval();
-        $this->assertFalse($tool->requiresApproval($tool->getInputs()));
+        $this->assertFalse($tool->requiresApproval());
         $this->assertInstanceOf(DeferredToolInterface::class, $tool);
     }
 

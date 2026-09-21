@@ -46,6 +46,11 @@ abstract class Tool implements ToolInterface
 
     protected array $inputs = [];
 
+    /**
+     * Why the bound inputs were rejected by their properties' cast(); null when they are valid.
+     */
+    protected ?string $invalidInput = null;
+
     protected ?string $callId = null;
 
     protected string|ToolOutput|null $result = null;
@@ -170,9 +175,37 @@ abstract class Tool implements ToolInterface
         return $this->inputs[$key] ?? null;
     }
 
+    /**
+     * Binding is casting: the approval policy, the run key and __invoke() must all
+     * judge the same typed values, never the model's raw spelling of them.
+     *
+     * @throws DeserializerException
+     * @throws ReflectionException
+     */
     public function setInputs(?array $inputs): self
     {
         $this->inputs = $inputs ?? [];
+        $this->invalidInput = null;
+
+        $cast = $this->inputs;
+
+        foreach ($this->getProperties() as $property) {
+            $name = $property->getName();
+
+            if (!array_key_exists($name, $cast)) {
+                continue;
+            }
+
+            try {
+                $cast[$name] = $property->cast($cast[$name]);
+            } catch (InvalidToolInput $exception) {
+                // A value the model sent in the wrong type is feedback to correct the call, not a bug
+                $this->invalidInput = "Parameter \"{$name}\" {$exception->getMessage()}.";
+                return $this;
+            }
+        }
+
+        $this->inputs = $cast;
         return $this;
     }
 
@@ -240,8 +273,13 @@ abstract class Tool implements ToolInterface
      * the class's own approvalPolicy(). A string counts as true and doubles as the
      * approval reason shown to the approver.
      */
-    public function requiresApproval(array $inputs): bool|string
+    public function requiresApproval(): bool|string
     {
+        // Rejected inputs never reach __invoke(): there is nothing to approve
+        if ($this->invalidInput !== null) {
+            return false;
+        }
+
         if ($this->approvalPolicyOverride instanceof Closure) {
             return ($this->approvalPolicyOverride)($this);
         }
@@ -250,7 +288,7 @@ abstract class Tool implements ToolInterface
             return $this->approvalRequired;
         }
 
-        return $this->approvalPolicy($inputs);
+        return $this->approvalPolicy();
     }
 
     /**
@@ -258,7 +296,7 @@ abstract class Tool implements ToolInterface
      * declare the tool's own risk. A string counts as true AND carries the reason
      * shown to the approver. Attach-time overrides beat this in both directions.
      */
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(): bool|string
     {
         return false;
     }
@@ -299,8 +337,6 @@ abstract class Tool implements ToolInterface
     /**
      * @throws MissingCallbackParameter
      * @throws ToolCallableNotSet
-     * @throws DeserializerException
-     * @throws ReflectionException
      */
     public function execute(): void
     {
@@ -317,19 +353,16 @@ abstract class Tool implements ToolInterface
             }
         }
 
+        if ($this->invalidInput !== null) {
+            $this->setResult(ToolOutput::error($this->invalidInput));
+            return;
+        }
+
         $parameters = [];
 
         foreach ($this->getProperties() as $property) {
-            $name = $property->getName();
-
-            try {
-                // Missing optional properties become explicit nulls for a consistent structure
-                $parameters[$name] = array_key_exists($name, $this->inputs) ? $property->cast($this->inputs[$name]) : null;
-            } catch (InvalidToolInput $exception) {
-                // A value the model sent in the wrong type is feedback to correct the call, not a bug
-                $this->setResult(ToolOutput::error("Parameter \"{$name}\" {$exception->getMessage()}."));
-                return;
-            }
+            // Missing optional properties become explicit nulls for a consistent structure
+            $parameters[$property->getName()] = $this->inputs[$property->getName()] ?? null;
         }
 
         $this->setResult($this->__invoke(...$parameters));

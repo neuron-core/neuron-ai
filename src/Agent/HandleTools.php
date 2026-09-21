@@ -28,6 +28,8 @@ trait HandleTools
      */
     protected array $tools = [];
 
+    protected bool $toolsOverridden = false;
+
     /**
      * @var ToolInterface[]
      */
@@ -87,12 +89,12 @@ trait HandleTools
      */
     public function getTools(): array
     {
-        return array_merge($this->tools, $this->tools());
+        return $this->toolsOverridden ? $this->tools : array_merge($this->tools, $this->tools());
     }
 
     /**
      * Expand toolkits into their tools and inject toolkit guidelines into the
-     * instructions. Cached within a segment and invalidated when tools are added.
+     * instructions. Cached within a segment and invalidated when tools change.
      *
      * @return ToolInterface[]
      */
@@ -154,6 +156,23 @@ trait HandleTools
     }
 
     /**
+     * Replace all tools, including the defaults declared by tools().
+     * Changes apply to the next execution segment.
+     *
+     * @param array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
+     * @throws AgentException
+     */
+    public function setTools(array $tools): AgentInterface
+    {
+        $this->validateTools($tools);
+        $this->tools = $tools;
+        $this->toolsOverridden = true;
+        $this->toolsBootstrapCache = [];
+
+        return $this;
+    }
+
+    /**
      * @param  ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface>  $tools
      * @throws AgentException
      */
@@ -161,16 +180,27 @@ trait HandleTools
     {
         $tools = is_array($tools) ? $tools : [$tools];
 
-        foreach ($tools as $t) {
-            if (! $t instanceof ToolInterface && ! $t instanceof ToolkitInterface && ! $t instanceof ProviderToolInterface) {
-                throw new AgentException('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface');
-            }
-            $this->tools[] = $t;
+        $this->validateTools($tools);
+        foreach ($tools as $tool) {
+            $this->tools[] = $tool;
         }
 
         // Empty the cache for the next turn.
         $this->toolsBootstrapCache = [];
 
         return $this;
+    }
+
+    /**
+     * @param array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
+     * @throws AgentException
+     */
+    protected function validateTools(array $tools): void
+    {
+        foreach ($tools as $tool) {
+            if (!$tool instanceof ToolInterface && !$tool instanceof ToolkitInterface && !$tool instanceof ProviderToolInterface) {
+                throw new AgentException('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface');
+            }
+        }
     }
 }

@@ -25,7 +25,7 @@ final class FileDeleteTool extends Tool
         ];
     }
 
-    protected function approvalPolicy(array $inputs): string
+    protected function approvalPolicy(): string
     {
         return 'Deleting a file is irreversible';
     }

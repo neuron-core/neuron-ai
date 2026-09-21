@@ -124,7 +124,7 @@ class PushAdapterDeliveryTest extends TestCase
 
             protected ?string $description = 'Get the browser geolocation';
 
-            protected function approvalPolicy(array $inputs): string
+            protected function approvalPolicy(): string
             {
                 return 'Location access needs consent';
             }

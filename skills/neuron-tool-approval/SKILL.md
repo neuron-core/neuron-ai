@@ -42,9 +42,9 @@ That's all the agent-side setup — the gate itself is always active and asks ea
 ```php
 class TransferMoneyTool extends Tool
 {
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(): bool|string
     {
-        return ($inputs['amount'] ?? 0) > 100
+        return ($this->inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
             : false;
     }

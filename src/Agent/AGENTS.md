@@ -34,7 +34,7 @@ $state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://you
 echo $state->getMessage()->getContent();
 ```
 
-Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `addTool()`, `setChatHistory()`, `setPersistence()`), and an explicit setter wins over the hook. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
+Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `setTools()`, `setChatHistory()`, `setPersistence()`), and an explicit setter wins over the hook. `setTools([...])` replaces the entire tool set, including defaults from `tools()` and earlier additions; `setTools([])` clears it. `addTool()` appends to the chosen set, retaining hook defaults only when `setTools()` has never been called. Tool changes apply to the next execution segment. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
 
 | Verb | Nature |
 |---|---|
@@ -110,7 +110,7 @@ Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/th
 
 ## Tool approval
 
-`ToolNode` gates execution: on every call it asks each tool `requiresApproval(inputs)` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
+`ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
 ```php
 protected function tools(): array

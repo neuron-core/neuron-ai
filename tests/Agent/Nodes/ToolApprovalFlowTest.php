@@ -15,6 +15,7 @@ use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tests\Support\WorkflowTestStore;
+use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
@@ -29,6 +30,9 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 use function iterator_to_array;
+use function json_encode;
+
+use const JSON_PRETTY_PRINT;
 
 /**
  * The tool approval flow owned by ToolNode: the node gates by asking
@@ -43,7 +47,7 @@ class ToolApprovalFlowTest extends TestCase
     private function gatedTool(string $name): Tool
     {
         $tool = new class () extends Tool {
-            protected function approvalPolicy(array $inputs): bool
+            protected function approvalPolicy(): bool
             {
                 return true;
             }
@@ -201,6 +205,19 @@ class ToolApprovalFlowTest extends TestCase
         $this->assertEquals(ApprovalState::Pending, $last->getToolCalls()[0]->getApprovalState());
     }
 
+    public function test_approver_sees_the_inputs_the_tool_would_run_with(): void
+    {
+        $node = $this->node([new StrictApprovalTool()]);
+
+        $call = ToolCall::make('delete_account', 'call_a', ['permanent' => 'true', 'account_id' => ' 7']);
+
+        $request = $this->assertSuspends($node, $this->createToolCallEvent([$call]), new AgentState());
+        $action = $this->actionsById($request)['call_a'];
+
+        $this->assertSame(['permanent' => true, 'account_id' => 7], $action->inputs);
+        $this->assertSame(json_encode($action->inputs, JSON_PRETTY_PRINT), $action->description);
+    }
+
     public function test_plain_tools_execute_without_suspension(): void
     {
         $node = $this->node([$this->plainTool('read_file')]);
@@ -308,7 +325,7 @@ class ToolApprovalFlowTest extends TestCase
     public function test_policy_reason_string_gates_and_is_recorded_in_history(): void
     {
         $tool = new class () extends Tool {
-            protected function approvalPolicy(array $inputs): string
+            protected function approvalPolicy(): string
             {
                 return 'Deleting files is irreversible';
             }

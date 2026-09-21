@@ -18,6 +18,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware;
 use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Agent\Stub\WeatherAgent;
 use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tests\Workflow\Stub\FirstNode;
@@ -108,6 +109,58 @@ class AgentConfigurationTest extends TestCase
         $this->assertCount(1, $provider->getRecorded()[0]->tools);
         $this->assertCount(2, $provider->getRecorded()[1]->tools);
         $this->assertSame(1, substr_count($provider->getRecorded()[1]->systemPrompt->getContent(), '<TOOLS-GUIDELINES>'));
+    }
+
+    #[DataProvider('modes')]
+    public function test_replaced_tools_are_advertised_and_executed_on_the_next_turn(string $mode): void
+    {
+        $call = ToolCall::make('search', 'call_1', ['query' => 'PHP']);
+        $provider = new FakeAIProvider(
+            new AssistantMessage('{"name":"First"}'),
+            new ToolCallMessage(null, [$call]),
+            new AssistantMessage('{"name":"Second"}'),
+            new AssistantMessage('{"name":"Third"}'),
+        );
+        $agent = new WeatherAgent();
+        $agent->setAiProvider($provider)->setInstructions('Application instructions');
+        $this->interact($agent, $mode);
+
+        $search = (new SearchTool())->setDescription('Search application documents');
+        $agent->setTools([$search]);
+        $this->interact($agent, $mode);
+
+        $this->assertSame('Results for: PHP', $call->getResult());
+        $this->assertSame([$search], $provider->getRecorded()[1]->tools);
+        $this->assertSame([$search], $provider->getRecorded()[2]->tools);
+        $this->assertSame('Application instructions', $provider->getRecorded()[1]->systemPrompt->getContent());
+
+        $agent->setTools([]);
+        $this->interact($agent, $mode);
+        $this->assertSame([], $provider->getRecorded()[3]->tools);
+    }
+
+    public function test_replacing_tools_during_streaming_preserves_the_current_tool_loop(): void
+    {
+        $call = ToolCall::make('search', 'call_1', ['query' => 'PHP']);
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [$call]),
+            new AssistantMessage('Found PHP'),
+            new AssistantMessage('Next turn'),
+        );
+        $agent = new WeatherAgent();
+        $search = new SearchTool();
+        $agent->setAiProvider($provider)->setTools([$search]);
+        $stream = $agent->stream(new UserMessage('Search PHP'));
+        $stream->rewind();
+
+        $agent->setTools([]);
+        iterator_to_array($stream);
+
+        $this->assertSame('Results for: PHP', $call->getResult());
+        $this->assertSame([$search], $provider->getRecorded()[1]->tools);
+
+        $agent->chat(new UserMessage('Next turn'));
+        $this->assertSame([], $provider->getRecorded()[2]->tools);
     }
 
     public function test_tool_run_limit_changes_apply_on_the_next_turn(): void

@@ -341,7 +341,7 @@ vendor/bin/neuron make:agent MyCustomAgent
 
 ### Tool Approval
 Human oversight of tool execution is built into `ToolNode` — nothing to attach.
-Each tool declares its own risk via the protected `approvalPolicy(array $inputs): bool|string`
+Each tool declares its own risk via the protected `approvalPolicy(): bool|string`
 hook (a string counts as `true` and doubles as the approval reason shown to the approver),
 and you override the declaration per tool where you attach it:
 

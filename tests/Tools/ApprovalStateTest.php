@@ -14,7 +14,7 @@ class ApprovalStateTest extends TestCase
 {
     public function test_default_tool_does_not_require_approval(): void
     {
-        $this->assertFalse($this->plainTool('x')->requiresApproval([]));
+        $this->assertFalse($this->plainTool('x')->requiresApproval());
         $this->assertNull(ToolCall::make('x')->getApprovalState());
     }
 
@@ -63,9 +63,9 @@ class ApprovalStateTest extends TestCase
         $tool = new class () extends Tool {
             protected string $name = 'transfer_money';
 
-            protected function approvalPolicy(array $inputs): bool
+            protected function approvalPolicy(): bool
             {
-                return ($inputs['amount'] ?? 0) > 100;
+                return ($this->inputs['amount'] ?? 0) > 100;
             }
 
             public function __invoke(mixed ...$arguments): mixed
@@ -74,9 +74,9 @@ class ApprovalStateTest extends TestCase
             }
         };
 
-        $this->assertTrue($tool->requiresApproval(['amount' => 200]));
-        $this->assertFalse($tool->requiresApproval(['amount' => 50]));
-        $this->assertFalse($tool->requiresApproval([]));
+        $this->assertTrue($tool->setInputs(['amount' => 200])->requiresApproval());
+        $this->assertFalse($tool->setInputs(['amount' => 50])->requiresApproval());
+        $this->assertFalse($tool->setInputs([])->requiresApproval());
     }
 
     public function test_approval_policy_can_return_a_reason_string(): void
@@ -84,7 +84,7 @@ class ApprovalStateTest extends TestCase
         $tool = new class () extends Tool {
             protected string $name = 'delete_file';
 
-            protected function approvalPolicy(array $inputs): string
+            protected function approvalPolicy(): string
             {
                 return 'Deleting files is irreversible';
             }
@@ -95,7 +95,7 @@ class ApprovalStateTest extends TestCase
             }
         };
 
-        $this->assertSame('Deleting files is irreversible', $tool->requiresApproval([]));
+        $this->assertSame('Deleting files is irreversible', $tool->requiresApproval());
     }
 
     public function test_require_approval_forces_the_gate_in_both_directions(): void
@@ -103,13 +103,13 @@ class ApprovalStateTest extends TestCase
         // Force approval onto a tool whose policy declares false.
         $plain = $this->plainTool('plain');
         $plain->requireApproval();
-        $this->assertTrue($plain->requiresApproval([]));
+        $this->assertTrue($plain->requiresApproval());
 
         // Waive a tool whose policy declares true.
         $declaring = $this->declaringTool();
-        $this->assertTrue($declaring->requiresApproval([]));
+        $this->assertTrue($declaring->requiresApproval());
         $declaring->suppressApproval();
-        $this->assertFalse($declaring->requiresApproval([]));
+        $this->assertFalse($declaring->requiresApproval());
     }
 
     public function test_with_approval_policy_replaces_the_declaration(): void
@@ -120,10 +120,10 @@ class ApprovalStateTest extends TestCase
             : false);
 
         $tool->setInputs(['amount' => 500]);
-        $this->assertSame('Transfers above $100 require a human sign-off', $tool->requiresApproval($tool->getInputs()));
+        $this->assertSame('Transfers above $100 require a human sign-off', $tool->requiresApproval());
 
         $tool->setInputs(['amount' => 50]);
-        $this->assertFalse($tool->requiresApproval($tool->getInputs()));
+        $this->assertFalse($tool->requiresApproval());
     }
 
     public function test_last_configured_override_wins(): void
@@ -132,11 +132,11 @@ class ApprovalStateTest extends TestCase
 
         $tool->withApprovalPolicy(fn (ToolInterface $t): bool => true);
         $tool->suppressApproval();
-        $this->assertFalse($tool->requiresApproval([]), 'suppressApproval() clears an earlier policy callback');
+        $this->assertFalse($tool->requiresApproval(), 'suppressApproval() clears an earlier policy callback');
 
         $tool->requireApproval();
         $tool->withApprovalPolicy(fn (ToolInterface $t): bool => false);
-        $this->assertFalse($tool->requiresApproval([]), 'withApprovalPolicy() clears an earlier flat override');
+        $this->assertFalse($tool->requiresApproval(), 'withApprovalPolicy() clears an earlier flat override');
     }
 
     protected function plainTool(string $name): Tool
@@ -158,7 +158,7 @@ class ApprovalStateTest extends TestCase
         return new class () extends Tool {
             protected string $name = 'declaring';
 
-            protected function approvalPolicy(array $inputs): bool
+            protected function approvalPolicy(): bool
             {
                 return true;
             }

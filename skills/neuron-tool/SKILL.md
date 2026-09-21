@@ -389,9 +389,9 @@ Human oversight of tool execution is built into the agent: before running a tool
 ```php
 class TransferMoneyTool extends Tool
 {
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(): bool|string
     {
-        return ($inputs['amount'] ?? 0) > 100
+        return ($this->inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
             : false;
     }

@@ -20,7 +20,7 @@ breaking change to four areas:
 If a class `implements ToolInterface` directly (instead of extending `Tool`), add:
 
 ```php
-public function requiresApproval(array $inputs): bool|string { return false; }
+public function requiresApproval(): bool|string { return false; }
 ```
 
 Two distinct reasons exist on the tool entry in chat history — don't conflate them:
@@ -43,9 +43,9 @@ itself (section 1):
 ```php
 class TransferMoneyTool extends Tool
 {
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(): bool|string
     {
-        return ($inputs['amount'] ?? 0) > 100
+        return ($this->inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
             : false;
     }

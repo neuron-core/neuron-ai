@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Tools;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
+use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
 use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructor;
 use NeuronAI\Tests\Tools\Stub\TestToolClassOnlyParentConstructorFluent;
 use NeuronAI\Tests\Tools\Stub\TestToolClassWithParentConstructor;
@@ -19,6 +20,9 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Error;
+
+use function array_map;
+use function array_unique;
 
 class ToolTest extends TestCase
 {
@@ -61,6 +65,64 @@ class ToolTest extends TestCase
         $tool->setInputs(['n' => 'five'])->execute();
 
         $this->assertToolError('Parameter "n" must be of type integer, string given.', $tool->getResult());
+    }
+
+    public function test_bound_inputs_are_the_cast_values(): void
+    {
+        $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'true', 'account_id' => ' 1']);
+
+        $this->assertSame(['permanent' => true, 'account_id' => 1], $tool->getInputs());
+    }
+
+    public function test_approval_policy_reads_the_cast_inputs(): void
+    {
+        $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'true', 'account_id' => '1']);
+
+        $this->assertSame('Permanent deletion', $tool->requiresApproval());
+    }
+
+    public function test_approval_policy_override_reads_the_cast_inputs(): void
+    {
+        $tool = (new StrictApprovalTool())
+            ->withApprovalPolicy(fn (ToolInterface $tool): bool => $tool->getInputs()['account_id'] === 1)
+            ->setInputs(['permanent' => false, 'account_id' => '1']);
+
+        $this->assertTrue($tool->requiresApproval());
+    }
+
+    public function test_run_key_is_the_same_for_every_spelling_of_an_input(): void
+    {
+        $tool = new StrictApprovalTool();
+
+        $keys = array_map(
+            fn (mixed $accountId): string => $tool->setInputs(['permanent' => true, 'account_id' => $accountId])->getRunKey(),
+            [1, '1', " 1\n"],
+        );
+
+        $this->assertCount(1, array_unique($keys));
+    }
+
+    public function test_an_input_of_the_wrong_type_is_never_gated_nor_invoked(): void
+    {
+        $tool = (new StrictApprovalTool())
+            ->requireApproval()
+            ->setInputs(['permanent' => true, 'account_id' => 'one']);
+
+        $this->assertFalse($tool->requiresApproval());
+
+        $tool->execute();
+
+        $this->assertSame(0, $tool->invocations);
+        $this->assertToolError('Parameter "account_id" must be of type integer, string given.', $tool->getResult());
+    }
+
+    public function test_binding_valid_inputs_clears_a_previous_rejection(): void
+    {
+        $tool = (new StrictApprovalTool())->setInputs(['permanent' => true, 'account_id' => 'one']);
+
+        $tool->setInputs(['permanent' => true, 'account_id' => 1])->execute();
+
+        $this->assertSame('deleted', $tool->getResult());
     }
 
     protected function doublingTool(): Tool

@@ -69,26 +69,26 @@ The split falls on the natural boundary of the language:
 
 - **A return value is a conversational outcome.** A tool returns a string, an array (JSON-encoded) or a `ToolOutput`: a multimodal result built from the Chat module's content blocks (`ToolOutput::text/image/file/audio/video()`, or a block array). A failure the model should see and recover from is *returned*: `ToolOutput::error('Rate limited, retry after 60s')` carries the feedback as a text block with `isError()` true. Catch your own exceptions at the tool boundary and convert them visibly.
 - **An escaped exception is a bug.** It propagates and aborts the run (fail-fast; history stays consistent). No exception escaping `__invoke()` is converted into a result. The agent-level `toolErrorHandler(fn (Throwable $e, ToolCall $call): string|ToolOutput|null)` is the cross-cutting override: a returned value settles as the call's result and the loop continues, `null` declines and the exception propagates.
-- **Inputs are cast before `__invoke()` runs.** `Tool::execute()` passes each input through its property's `cast()`, which converts what PHP's coercive mode would (`"5"` or `5.0` for an integer, `"true"` for a boolean, array elements through the items property, objects through the deserializer) and rejects the rest. A rejection is settled as `ToolOutput::error('Parameter "n" must be of type integer, string given.')` without calling `__invoke()`: a wrong type is the model's mistake to correct, not a bug. A missing required input still throws `MissingCallbackParameter`.
+- **Binding is casting.** `Tool::setInputs()` passes each input through its property's `cast()`, which converts what PHP's coercive mode would (`"5"` or `5.0` for an integer, `"true"` for a boolean, array elements through the items property, objects through the deserializer) and rejects the rest. A bound tool therefore only holds typed values: `approvalPolicy()`, a `withApprovalPolicy()` callback, `getRunKey()` and `__invoke()` all judge the same inputs, so a strict comparison in a policy cannot be sidestepped by the model spelling `true` as `"true"`. The `ToolCall` keeps the model's raw spelling. A rejection is remembered and settled by `execute()` as `ToolOutput::error('Parameter "n" must be of type integer, string given.')` without calling `__invoke()`, and such a call never requires approval: a wrong type is the model's mistake to correct, not a bug. A missing required input still throws `MissingCallbackParameter`.
 
 Consumers detect multimodality on the **value** (`$call->getResult() instanceof ToolOutput`), never on the tool type. Providers whose API accepts content blocks map them natively and set their native error flag where one exists; text-only consumers (Ollama, stream adapters, token counting) fall back to `ToolOutput::getText()`, so include a `TextContent` in outputs meant to work everywhere (`ToolOutput` is `Stringable` for the same reason). `ToolNode`'s durable memo records the full `ToolOutput`, so a crash-replay restores multimodal results without re-running the tool.
 
 ## Approval
 
-A tool declares its own intrinsic risk through the protected `approvalPolicy(array $inputs): bool|string` hook (default `false`); a string counts as `true` and doubles as the approval reason shown to the approver. Declarations are live: `ToolNode` asks every tool on every call, with the call's inputs bound, so the answer cannot drift across a suspend/resume boundary. There is no middleware and no agent-level switch to attach.
+A tool declares its own intrinsic risk through the protected `approvalPolicy(): bool|string` hook (default `false`); a string counts as `true` and doubles as the approval reason shown to the approver. Declarations are live: `ToolNode` asks every tool on every call, with the call's inputs bound, so the answer cannot drift across a suspend/resume boundary. There is no middleware and no agent-level switch to attach.
 
 ```php
 class TransferMoneyTool extends Tool
 {
-    protected function approvalPolicy(array $inputs): bool|string
+    protected function approvalPolicy(): bool|string
     {
-        return ($inputs['amount'] ?? 0) > 100
+        return ($this->inputs['amount'] ?? 0) > 100
             ? 'Transfers above $100 require a human sign-off'
             : false;
     }
 }
 ```
 
-The agent developer overrides the declaration per instance at attach time, in both directions: `requireApproval()` forces the gate, `suppressApproval()` waives a declared one, `withApprovalPolicy(fn (ToolInterface $tool): bool|string)` replaces the policy. The last override wins. `ToolInterface::requiresApproval(array $inputs)` is the resolution point the node consults: override first, then declaration.
+The agent developer overrides the declaration per instance at attach time, in both directions: `requireApproval()` forces the gate, `suppressApproval()` waives a declared one, `withApprovalPolicy(fn (ToolInterface $tool): bool|string)` replaces the policy. The last override wins. `ToolInterface::requiresApproval()` is the resolution point the node consults: override first, then declaration.
 
 Per-call approval state (`ApprovalState`: pending / approved / rejected) is stamped on the `ToolCall` entries of the `ToolCallMessage` and persisted in **chat history**, the system of record for approvals; workflow state holds none of it. Two reasons travel with it in opposite directions: `approvalReason` (outbound, why the tool asked) and `rejectReason` (inbound, the approver's feedback, recorded on rejection only). The resume flow is described in `src/Agent/AGENTS.md`.
