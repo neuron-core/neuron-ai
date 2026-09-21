@@ -232,9 +232,78 @@ $this->assert(new AgentJudge(
 ), $output);
 ```
 
+#### ClassifierJudge
+Use a classifier for explicit yes/no criteria or ordered grading rubrics. It depends on
+`ClassifierInterface`, so it works with TypeSafeAI or another implementation without an
+Agent. Use `AgentJudge` when generated reasoning is needed; compare judge quality,
+latency, and cost on representative labeled outputs before choosing a default.
+
+```php
+use NeuronAI\Classifier\Boolean;
+use NeuronAI\Classifier\Score as ClassifierScore;
+use NeuronAI\Classifier\TypeSafeAI\TypeSafeAI;
+use NeuronAI\Evaluation\Assertions\ClassifierJudge;
+
+$classifier = new TypeSafeAI(key: $_ENV['TYPESAFE_API_KEY']);
+
+$this->assert(new ClassifierJudge(
+    classifier: $classifier,
+    criteria: new Boolean('Does actual directly answer the question in reference?'),
+    threshold: 0.9,
+    reference: $datasetItem['question'],
+), $output, 'relevance');
+
+$this->assert(new ClassifierJudge(
+    classifier: $classifier,
+    criteria: new ClassifierScore(
+        instructions: 'How correct is actual compared with the expected answer in reference?',
+        levels: ['Incorrect.', 'Partially correct.', 'Fully correct and complete.'],
+    ),
+    threshold: 0.8,
+    reference: $datasetItem['expected_answer'],
+), $output, 'correctness');
+```
+
+- `criteria` accepts `Boolean` or `Classifier\Score`, not a string or `Choice`.
+  Boolean records the probability of true; Score records the expected level position
+  divided by `count(levels) - 1`. Define levels from worst to best. A probability of
+  `0.8` does not mean 80% completeness, and a normalized score is not a probability.
+- Both pass when the value is **greater than or equal to** `threshold` (default `0.7`,
+  finite and in `[0, 1]`). Calibrate thresholds for the rubric and dataset; they do not
+  inherit the meaning of an AgentJudge threshold.
+- Accepts `string|Trajectory`; a trajectory uses its full `toTranscript()` rendering.
+  To judge only the final answer, pass `$trajectory->finalAnswer()`.
+- Each evaluation sends one question named `judgment`. Input contains `actual` and,
+  when supplied, `reference`. Use reference for the question, expected answer, or
+  supporting evidence, and explain its role in the criterion.
+- Assertion context contains `type`, `criteria`, `threshold`, `reference`,
+  `probabilities`, and Score `levels`. Messages describe the value and threshold,
+  without generated reasoning. The runner retains context for failed assertions;
+  passing score records retain only the metric label, value, and verdict.
+- Invalid input and provider failures propagate as evaluation errors, not failed
+  judgments. Separate assertions make separate classifier calls, including when
+  `--cache` reuses the output of `run()`.
+
+For tests without network access, inject `FakeClassifier`. Queue one answer map per
+call using the `judgment` identifier; Score answers require the full distribution:
+
+```php
+use NeuronAI\Testing\FakeClassifier;
+
+$classifier = new FakeClassifier([['judgment' => [0.0, 0.5, 0.5]]]);
+$judge = new ClassifierJudge(
+    classifier: $classifier,
+    criteria: new ClassifierScore('How complete is actual?', ['None.', 'Partial.', 'Full.']),
+    threshold: 0.75,
+);
+$result = $judge->evaluate('Some output'); // score = 0.75, passed = true
+$classifier->assertCallCount(1);
+```
+
 #### Pre-configured Judges
 
-Built-in judges for common evaluation scenarios:
+These judges extend `AgentJudge` and require an `AgentInterface`; use `ClassifierJudge`
+with an explicit definition for classifier-backed criteria:
 
 ```php
 use NeuronAI\Evaluation\Assertions\Judges\{FaithfulnessJudge, CorrectnessJudge, RelevanceJudge, HelpfulnessJudge};
@@ -1031,6 +1100,8 @@ When helping users with evaluations:
     - Pattern matching → `MatchesRegex`
     - Semantic similarity → `StringSimilarity` (embeddings)
     - Fuzzy matching → `StringDistance`
+    - Boolean criteria or ordered quality rubrics → `ClassifierJudge`
+    - Custom quality criteria with generated reasoning → `AgentJudge`
     - Tool calls / HITL / call sequences → trajectory assertions (`ToolWasCalled`,
       `TrajectoryMatches`, `ToolWasApproved`/`ToolWasRejected`) on a `Trajectory`
     - Whole-conversation quality → `TaskCompletionJudge` (and other judges) on a `Trajectory`

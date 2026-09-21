@@ -110,6 +110,42 @@ For mixed questions, an answer map can contain `['department' => ['billing' => 0
 
 `getRecorded()` returns requests in call order; `getCallCount()` includes failed attempts. `assertNothingSent()` verifies an unused fake. Invalid queued answers and queue exhaustion throw `ProviderException`. Each attempted call consumes one available response, even if that response is invalid. The fake never repeats the final response automatically.
 
+## Evaluation judge
+
+Use `ClassifierJudge` in an evaluator's `evaluate()` method to judge output with a classifier:
+
+```php
+use NeuronAI\Classifier\Boolean;
+use NeuronAI\Classifier\Score;
+use NeuronAI\Evaluation\Assertions\ClassifierJudge;
+
+$this->assert(new ClassifierJudge(
+    classifier: $classifier,
+    criteria: new Score(
+        instructions: 'How correctly does actual answer the question in reference?',
+        levels: [
+            'Incorrect or unrelated answer.',
+            'Partially correct, with significant omissions or errors.',
+            'Fully correct and complete answer.',
+        ],
+    ),
+    threshold: 0.8,
+    reference: $item['question'],
+), $output, 'correctness');
+
+$this->assert(new ClassifierJudge(
+    classifier: $classifier,
+    criteria: new Boolean('Does actual politely decline the request?'),
+    threshold: 0.9,
+), $output, 'polite_refusal');
+```
+
+`ClassifierJudge` accepts a string or an evaluation `Trajectory`, rendered with `toTranscript()`. Each evaluation sends one question named `judgment`, with input containing `actual` and an optional `reference`. Use the reference for an expected answer, the original question, or supporting evidence, and describe its role in the criterion.
+
+Boolean assertions record the probability of true. Score assertions record the expected level position divided by `count(levels) - 1`, so higher levels must mean better performance. Both pass when the value meets or exceeds the threshold (default `0.7`). These are different metrics: a Boolean probability of `0.8` does not mean 80% completion. Choose thresholds for your rubric and dataset.
+
+The assertion context retains the criterion, reference, threshold, result type, probabilities, and Score level descriptions. Messages report the value and threshold, without generated reasoning. The existing runner retains context for failed assertions; passing score records contain only the metric label, value, and verdict. Invalid input and provider failures are reported as evaluation errors, not failed judgments.
+
 ## Implementing the contract
 
 Implement `ClassifierInterface::classify(ClassificationRequest): ClassificationResult`. Evaluate each question against the same input without depending on another answer. Providers may batch questions or execute them separately; the interface promises neither concurrency nor statistical independence.
