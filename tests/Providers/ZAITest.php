@@ -79,18 +79,18 @@ class ZAITest extends TestCase
         $mockHandler = new MockHandler([
             new Response(
                 status: 200,
-                body: '{"model":"glm-5.2","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Hello!","reasoning_content":"Greet the user."}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}',
+                body: '{"model":"glm-5.2","choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"reasoning_content":"Inspect schema. ","tool_calls":[{"id":"call-123","type":"function","function":{"name":"inspect_schema","arguments":"{}"}}]}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}',
             ),
         ]);
-        $provider = (new ZAI('', 'glm-5.2'))->setHttpClient(
-            new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)),
-        );
+        $provider = (new ZAI('', 'glm-5.2'))
+            ->setTools([Tool::make('inspect_schema', 'Inspect the database schema.')])
+            ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
 
-        $response = $provider->chat(new UserMessage('Hi'));
+        $response = $provider->chat(new UserMessage('Inspect the database schema.'));
 
-        $this->assertInstanceOf(AssistantMessage::class, $response);
-        $this->assertSame('Greet the user.', $response->getMetadata('reasoning_content'));
-        $this->assertSame('Greet the user.', $provider->messageMapper()->map([$response])[0]['reasoning_content']);
+        $this->assertInstanceOf(ToolCallMessage::class, $response);
+        $this->assertSame('Inspect schema. ', $response->getReasoning()?->content);
+        $this->assertSame('Inspect schema. ', $provider->messageMapper()->map([$response])[0]['reasoning_content']);
     }
 
     public function test_stream_preserves_reasoning_content_for_tool_call_continuation(): void
@@ -124,8 +124,8 @@ class ZAITest extends TestCase
             $chunks,
         ));
         $this->assertInstanceOf(ToolCallMessage::class, $message);
-        $this->assertSame('Inspect schema. ', $message->getMetadata('reasoning_content'));
         $this->assertInstanceOf(ReasoningContent::class, $message->getReasoning());
+        $this->assertSame('Inspect schema. ', $message->getReasoning()->content);
 
         $messages = $provider->messageMapper()->map([$message]);
         $this->assertSame('Inspect schema. ', $messages[0]['reasoning_content']);

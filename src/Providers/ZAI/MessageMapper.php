@@ -8,6 +8,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
@@ -23,8 +24,8 @@ class MessageMapper extends OpenAIMessageMapper
             'content' => $this->mapBlocks($message->getContentBlocks()),
         ];
 
-        if ($message->getMetadata('reasoning_content')) {
-            $result['reasoning_content'] = $message->getMetadata('reasoning_content');
+        if (($reasoning = $message->getReasoning()) instanceof ReasoningContent) {
+            $result['reasoning_content'] = $reasoning->content;
         }
 
         return $result;
@@ -34,8 +35,8 @@ class MessageMapper extends OpenAIMessageMapper
     {
         $result = parent::mapToolCall($message);
 
-        if ($message->getMetadata('reasoning_content')) {
-            $result['reasoning_content'] = $message->getMetadata('reasoning_content');
+        if (($reasoning = $message->getReasoning()) instanceof ReasoningContent) {
+            $result['reasoning_content'] = $reasoning->content;
         }
 
         return $result;

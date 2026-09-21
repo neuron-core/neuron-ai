@@ -64,7 +64,7 @@ class ZAI extends OpenAI
     {
         if (isset($choice['delta']['reasoning_content'])) {
             $reasoningContent = $choice['delta']['reasoning_content'];
-            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
+            $this->streamState->updateContentBlock(-1, new ReasoningContent($reasoningContent));
 
             yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
         }
@@ -79,7 +79,6 @@ class ZAI extends OpenAI
 
         if (isset($choice['delta']['reasoning_content'])) {
             $reasoningContent = $choice['delta']['reasoning_content'];
-            $this->streamState->accumulateMetadata('reasoning_content', $reasoningContent);
             $this->streamState->updateContentBlock(-1, new ReasoningContent($reasoningContent));
 
             yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
@@ -90,14 +89,10 @@ class ZAI extends OpenAI
     {
         $message = parent::enrichMessage($message);
 
-        $reasoningContent = $response['choices'][0]['message']['reasoning_content']
-            ?? $message->getMetadata('reasoning_content');
+        $reasoningContent = $response['choices'][0]['message']['reasoning_content'] ?? null;
 
-        if ($reasoningContent !== null) {
-            $message->addMetadata('reasoning_content', $reasoningContent);
-            if ($message->getReasoning() === null) {
-                $message->addContent(new ReasoningContent($reasoningContent));
-            }
+        if ($reasoningContent !== null && $message->getReasoning() === null) {
+            $message->addContent(new ReasoningContent($reasoningContent));
         }
 
         return $message;
