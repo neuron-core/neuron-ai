@@ -28,7 +28,8 @@ $events = $agent->submitInputs($payload, new AGUIInputTranslator())->events();
 Use `VercelAIInputTranslator` for Vercel requests, or any implementation of
 `InputTranslatorInterface`. For a non-streaming continuation, finish with `run()`.
 `submitInputs()` is inherited from Workflow, so custom workflows use the same
-translator contract. It reads the current persisted request and stages its translated response;
+translator contract. The translator is optional: `submitInputs($response)->run()`
+accepts an already-native interruption response. It reads the current persisted request and prepares the response;
 it does not execute nodes or write persistence. Missing runs, unmatched payloads,
 and invalid translations fail before execution. The helper returns a `PendingExecution` holding the workflow and its independent
 `ExecutionRequest`; chain `->run()` or `->events()` on the result. Constructing

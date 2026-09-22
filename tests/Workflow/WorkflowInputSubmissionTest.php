@@ -79,6 +79,40 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertSame($state->getRunId(), $completed->getRunId());
     }
 
+    /** @return iterable<string, array{array<string, mixed>, bool}> */
+    public static function nativeInputs(): iterable
+    {
+        foreach ([false, true] as $streaming) {
+            $terminal = $streaming ? 'events' : 'run';
+            yield $terminal . '-values' => [['email' => 'user@example.com', 'optional' => null, 'enabled' => false], $streaming];
+            yield $terminal . '-empty' => [[], $streaming];
+        }
+    }
+
+    #[DataProvider('nativeInputs')]
+    public function test_native_inputs_resume_without_a_translator(array $payload, bool $streaming): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = $this->workflow($persistence);
+        $started = $workflow->run();
+        $before = serialize($persistence);
+        $pending = $workflow->submitInputs($payload);
+        $this->assertSame($before, serialize($persistence));
+
+        if ($streaming) {
+            $events = $pending->events();
+            $this->assertSame($before, serialize($persistence));
+            iterator_to_array($events);
+            $completed = $events->getReturn();
+        } else {
+            $completed = $pending->run();
+        }
+
+        $this->assertFalse($completed->isInterrupted());
+        $this->assertSame($started->getRunId(), $completed->getRunId());
+        $this->assertSame($payload, $completed->get('received_payload'));
+    }
+
     public function test_an_unbound_submission_retains_its_address_and_idempotency_key(): void
     {
         $persistence = new InMemoryPersistence();

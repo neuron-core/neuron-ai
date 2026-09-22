@@ -251,14 +251,14 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Translate inputs into a pending execution with a fenced continuation request.
+     * Prepare a fenced continuation, optionally translating an external payload.
      *
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
+    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
     {
 
         $run = $this->inspect($workflowId);
@@ -269,7 +269,7 @@ class Workflow implements WorkflowInterface
         if (!$run->interrupt instanceof InterruptRequest) {
             throw new InputTranslationException('There is no current interruption to answer.');
         }
-        $response = $translator->translate($payload, $run->interrupt);
+        $response = $translator?->translate($payload, $run->interrupt) ?? $payload;
 
         // Keep the inspected identity: another continuation may advance the run
         // between submission and execution, making these inputs stale.
