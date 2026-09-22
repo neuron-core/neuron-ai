@@ -260,8 +260,8 @@ class Workflow implements WorkflowInterface
      */
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
     {
-
         $run = $this->inspect($workflowId);
+
         if (!$run instanceof WorkflowRunSnapshot) {
             throw new InputTranslationException('There is no persisted run to continue.');
         }
@@ -288,15 +288,11 @@ class Workflow implements WorkflowInterface
     public function events(?ExecutionRequest $request = null): Generator
     {
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
+
         if ($request->starting && $request->event() === null) {
             $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->idempotencyKey, $request->recoverFailed, $request->workflowId);
         }
-        return $this->executeRequest($request);
-    }
 
-    /** @return Generator<int, object, mixed, TState> */
-    protected function executeRequest(ExecutionRequest $request): Generator
-    {
         return yield from $this->getExecutor()->execute($this, $request);
     }
 
