@@ -269,6 +269,7 @@ class Workflow implements WorkflowInterface
         if (!$run->interrupt instanceof InterruptRequest) {
             throw new InputTranslationException('There is no current interruption to answer.');
         }
+
         $response = $translator?->translate($payload, $run->interrupt) ?? $payload;
 
         // Keep the inspected identity: another continuation may advance the run
