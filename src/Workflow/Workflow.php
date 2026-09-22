@@ -189,6 +189,8 @@ class Workflow implements WorkflowInterface
      * slow provider or tool call): a too-short lease revives runs that are merely
      * slow. Null disables the lease; the default comes from leaseTimeout():
      * null for a plain Workflow, ten minutes for an Agent.
+     *
+     * @throws WorkflowException
      */
     public function setLeaseTimeout(?int $seconds): static
     {
@@ -197,6 +199,9 @@ class Workflow implements WorkflowInterface
         return $this;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     final public function getLeaseTimeout(): ?int
     {
         if (!$this->leaseTimeoutConfigured) {
@@ -211,6 +216,9 @@ class Workflow implements WorkflowInterface
         return null;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function validateLeaseTimeout(?int $seconds): ?int
     {
         if ($seconds !== null && $seconds < 1) {
@@ -239,6 +247,7 @@ class Workflow implements WorkflowInterface
      * Execute one request eagerly, including delivery to a configured channel.
      *
      * @return TState
+     * @throws WorkflowException
      */
     public function run(?ExecutionRequest $request = null): WorkflowState
     {
@@ -256,7 +265,6 @@ class Workflow implements WorkflowInterface
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      * @throws InputTranslationException
-     * @throws WorkflowException
      */
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
     {
@@ -284,6 +292,7 @@ class Workflow implements WorkflowInterface
      * Lazily execute one request. Iteration also delivers to a configured channel.
      *
      * @return Generator<int, object, mixed, TState>
+     * @throws WorkflowException
      */
     public function events(?ExecutionRequest $request = null): Generator
     {
@@ -304,6 +313,9 @@ class Workflow implements WorkflowInterface
         return $execution;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function buildGraph(ExecutionContext $context): WorkflowExecution
     {
         $execution = $this->execution($context);
