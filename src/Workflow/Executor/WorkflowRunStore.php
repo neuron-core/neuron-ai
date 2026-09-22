@@ -13,6 +13,7 @@ use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function array_key_exists;
+use function hash;
 
 /**
  * Persistence protocol for one Workflow run partition.
@@ -33,6 +34,10 @@ final class WorkflowRunStore
      */
     protected const CHECKPOINT_KEY = '__checkpoint';
     protected const OUTCOME_KEY = '__outcome';
+
+    protected ?string $operationKey = null;
+    protected ?string $operationFingerprint = null;
+    protected ?WorkflowOperation $operation = null;
 
     protected ?WorkflowControl $control = null;
 
@@ -63,17 +68,53 @@ final class WorkflowRunStore
     ) {
     }
 
+    /** Read control before the receipt so a concurrent claim invalidates our fence. */
+    public function prepareOperation(string $key, string $fingerprint): ?WorkflowOperation
+    {
+        if ($key === '') {
+            throw new WorkflowException('An idempotency key must not be empty.');
+        }
+        $this->loadControl();
+        $this->operationKey = '__operation/' . hash('sha256', $key);
+        $this->operationFingerprint = $fingerprint;
+        $raw = $this->persistence->get($this->workflowId, $this->operationKey);
+        if ($raw === null) {
+            return null;
+        }
+        $operation = $this->serializer->unserialize($raw);
+        if (!$operation instanceof WorkflowOperation) {
+            throw new WorkflowException('Invalid workflow operation receipt.');
+        }
+        if ($operation->fingerprint !== $fingerprint) {
+            throw new WorkflowException('Idempotency key was already used for a different workflow operation.');
+        }
+        return $this->operation = $operation;
+    }
+
+    public function assertOperationOwnership(): void
+    {
+        if (!$this->hasControl() || $this->operation === null
+            || $this->control()->runId !== $this->operation->ignition->runId
+            || $this->control()->operationKey !== $this->operationKey) {
+            throw new WorkflowException('The pending operation no longer owns this workflow execution.');
+        }
+    }
+
     public function initialize(WorkflowControl $control, Ignition $ignition): bool
     {
+        $records = [self::IGNITION_KEY => $this->serializer->serialize($ignition)];
+        if ($this->operationKey !== null) {
+            $control = $control->withOperation($this->operationKey);
+            $this->operation = new WorkflowOperation($this->operationFingerprint, $ignition);
+            $records[$this->operationKey] = $this->serializer->serialize($this->operation);
+        }
         $controlSnapshot = $this->serializer->serialize($control);
 
         if (!$this->persistence->initializeIfAbsent(
             $this->workflowId,
             self::CONTROL_KEY,
             $controlSnapshot,
-            [
-                self::IGNITION_KEY => $this->serializer->serialize($ignition),
-            ],
+            $records,
         )) {
             return false;
         }
@@ -91,6 +132,8 @@ final class WorkflowRunStore
 
         $raw = $this->persistence->get($this->workflowId, self::CONTROL_KEY);
         if ($raw === null) {
+            $this->control = null;
+            $this->controlSnapshot = null;
             return null;
         }
 
@@ -132,7 +175,7 @@ final class WorkflowRunStore
 
     public function replaceControl(WorkflowControl $control): void
     {
-        $this->commit([], $control);
+        $this->commit([], $control->withOperation($this->operationKey));
     }
 
     public function commitStep(StepResult $step, ?WorkflowControl $control = null): void
@@ -141,15 +184,26 @@ final class WorkflowRunStore
     }
 
     /** The suspended run's state, committed together with its suspension. */
-    public function commitCheckpoint(WorkflowState $checkpoint, WorkflowControl $control): void
+    public function commitCheckpoint(WorkflowState $checkpoint, WorkflowControl $control, ?WorkflowState $outcome = null): void
     {
-        $this->commit([$this->recordKey(self::CHECKPOINT_KEY) => $checkpoint], $control);
+        $this->commit(
+            [$this->recordKey(self::CHECKPOINT_KEY) => $checkpoint],
+            $control,
+            $outcome,
+        );
     }
 
     /** The retained terminal state, committed together with its completion. */
     public function commitOutcome(WorkflowState $outcome, WorkflowControl $control): void
     {
-        $this->commit([$this->recordKey(self::OUTCOME_KEY) => $outcome], $control);
+        $this->commit([$this->recordKey(self::OUTCOME_KEY) => $outcome], $control, $outcome);
+    }
+
+    public function settleOperation(WorkflowState $state, WorkflowControl $control, ?string $failure = null): void
+    {
+        if ($this->operation?->outcome === null) {
+            $this->commit([], $control, $state, $failure);
+        }
     }
 
     /**
@@ -273,8 +327,26 @@ final class WorkflowRunStore
     }
 
     /** @param array<string, mixed> $records */
-    protected function commit(array $records, ?WorkflowControl $control = null): void
-    {
+    protected function commit(
+        array $records,
+        ?WorkflowControl $control = null,
+        ?WorkflowState $outcome = null,
+        ?string $failure = null,
+    ): void {
+        if ($this->operationKey !== null) {
+            $control = ($control ?? $this->control())->withOperation($this->operationKey);
+            if ($this->operation === null) {
+                $ignition = $this->loadIgnition();
+                if (!$ignition instanceof Ignition || $ignition->runId !== $control->runId) {
+                    throw new WorkflowException('Cannot bind an operation to a missing or replaced ignition.');
+                }
+                $this->operation = new WorkflowOperation($this->operationFingerprint, $ignition);
+                $records[$this->operationKey] = $this->operation;
+            }
+            if ($outcome !== null) {
+                $records[$this->operationKey] = $this->operation->settled($outcome, $failure);
+            }
+        }
         $committed = $this->serializeRecords($records);
         $writes = $committed;
         $controlSnapshot = $this->expectedControlValue();
@@ -295,6 +367,9 @@ final class WorkflowRunStore
             );
         }
 
+        if ($this->operationKey !== null && isset($records[$this->operationKey])) {
+            $this->operation = $records[$this->operationKey];
+        }
         $this->control = $control ?? $this->control;
         $this->controlSnapshot = $controlSnapshot;
         foreach ($committed as $key => $value) {

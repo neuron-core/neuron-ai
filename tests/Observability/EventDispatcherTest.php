@@ -43,7 +43,7 @@ class EventDispatcherTest extends TestCase
     {
         $received = [];
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->subscribe(WorkflowStart::class, function (WorkflowStart $event) use (&$received): void {
                 $received[] = $event;
@@ -60,7 +60,7 @@ class EventDispatcherTest extends TestCase
     {
         $names = [];
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$names): void {
                 $names[] = $event->name();
@@ -78,7 +78,7 @@ class EventDispatcherTest extends TestCase
     {
         $observer = new RecordingObserver();
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->observe($observer);
 
@@ -99,7 +99,7 @@ class EventDispatcherTest extends TestCase
     {
         $received = [];
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new EmittingNode()])
             ->subscribe(CustomTestEvent::class, function (CustomTestEvent $event) use (&$received): void {
                 $received[] = $event;
@@ -118,13 +118,13 @@ class EventDispatcherTest extends TestCase
         $first = [];
         $second = [];
 
-        $workflowA = Workflow::make()
+        $workflowA = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$first): void {
                 $first[] = $event;
             });
 
-        Workflow::make()
+        Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$second): void {
                 $second[] = $event;
@@ -140,7 +140,7 @@ class EventDispatcherTest extends TestCase
     {
         $starts = 0;
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->subscribe(WorkflowStart::class, function () use (&$starts): void {
                 $starts++;
@@ -167,7 +167,7 @@ class EventDispatcherTest extends TestCase
 
         $local = [];
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes($this->linearNodes())
             ->setEventDispatcher($external)
             ->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$local): void {
@@ -187,7 +187,7 @@ class EventDispatcherTest extends TestCase
         $interrupted = [];
         $errors = [];
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()])
             ->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event) use (&$interrupted): void {
                 $interrupted[] = $event;
@@ -200,14 +200,14 @@ class EventDispatcherTest extends TestCase
 
         $this->assertTrue($state->isInterrupted());
         $this->assertCount(1, $interrupted);
-        $this->assertSame($state, $interrupted[0]->state);
+        $this->assertEquals($state, $interrupted[0]->state);
         $this->assertInstanceOf(ApprovalRequest::class, $interrupted[0]->state->getInterruptRequest());
         $this->assertSame($workflow, $interrupted[0]->source);
         $this->assertSame('workflow-interrupted', $interrupted[0]->name());
         $this->assertSame([], $errors);
 
         // Resuming to completion fires no further interruption event.
-        $state = $workflow->resume(['approved' => true])->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['approved' => true]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $interrupted);

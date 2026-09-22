@@ -59,7 +59,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('thread_1', $workflow->getWorkflowId());
         $this->assertNotNull($persistence->get('thread_1', '__ignition'));
-        $this->assertNotNull($workflow->getRunId());
+        $this->assertNotNull($workflow->inspect()?->runId);
     }
 
     public function test_blank_instance_continues_by_workflow_id(): void
@@ -75,7 +75,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('completed', $state->get('received_feedback'));
         $this->assertTrue($state->get('node_three_executed'));
-        $this->assertSame($suspended->getRunId(), $resumed->getRunId());
+        $this->assertSame($suspended->inspect()?->runId, $resumed->inspect()?->runId);
     }
 
     public function test_inputless_resume_keeps_an_unanswered_interruption(): void
@@ -86,8 +86,7 @@ class WorkflowIdentityTest extends TestCase
 
         $duplicate = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
-            ->setPersistence($persistence)
-            ->resume()->run();
+            ->setPersistence($persistence)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertSame($first->getExecutionAttempt(), $duplicate->getExecutionAttempt());
         $this->assertTrue($duplicate->isInterrupted());
@@ -115,8 +114,7 @@ class WorkflowIdentityTest extends TestCase
         try {
             Workflow::make('failed-run')
             ->setPersistence($persistence)
-            ->addNode(new NodeOne())
-            ->resume([])->run();
+            ->addNode(new NodeOne())->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
             $this->fail('There is no interruption to answer.');
         } catch (WorkflowException) {
@@ -128,18 +126,20 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $suspendedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($suspended);
         $this->execute($suspended, $persistence);
 
         $resumed = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $resumedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($resumed);
         $state = $this->resume(
             $resumed,
             $persistence,
             [],
-            expectedRunId: $suspended->getRunId(),
+            expectedRunId: $suspendedRecord->context?->runId,
         );
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame($suspended->getRunId(), $resumed->getRunId());
+        $this->assertSame($suspendedRecord->context?->runId, $resumedRecord->context?->runId);
     }
 
     public function test_foreign_run_fence_is_rejected_without_mutation(): void
@@ -161,7 +161,7 @@ class WorkflowIdentityTest extends TestCase
         } catch (StaleWorkflowRunException $e) {
             $this->assertSame('thread_1', $e->workflowId);
             $this->assertSame('run_foreign', $e->expectedRunId);
-            $this->assertSame($suspended->getRunId(), $e->actualRunId);
+            $this->assertSame($suspended->inspect()?->runId, $e->actualRunId);
         }
 
         $this->assertSame($ignition, $persistence->get('thread_1', '__ignition'));
@@ -189,6 +189,7 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $suspended = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $suspendedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($suspended);
         $this->execute($suspended, $persistence);
 
         try {
@@ -196,16 +197,16 @@ class WorkflowIdentityTest extends TestCase
             $this->fail('A suspended generation should refuse a fresh ignition.');
         } catch (RunInFlightException $e) {
             $this->assertSame('thread_1', $e->workflowId);
-            $this->assertSame($suspended->getRunId(), $e->runId);
+            $this->assertSame($suspendedRecord->context?->runId, $e->runId);
             $this->assertSame(WorkflowStatus::Suspended, $e->status);
             $this->assertSame(1, $e->executionAttempt);
             $this->assertNull($e->leaseExpiresAt);
             $this->assertInstanceOf(ApprovalRequest::class, $e->interrupt);
             $this->assertStringContainsString(
-                "run '{$suspended->getRunId()}' (attempt 1) is suspended, waiting on #1 wait_for_event 'approval'.",
+                "run '{$suspendedRecord->context?->runId}' (attempt 1) is suspended, waiting on #1 wait_for_event 'approval'.",
                 $e->getMessage(),
             );
-            $this->assertStringContainsString('signal()', $e->getMessage());
+            $this->assertStringContainsString('ExecutionRequest::resume', $e->getMessage());
         }
     }
 
@@ -213,6 +214,7 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $first = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $this->execute($first, $persistence);
         $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
 
@@ -221,11 +223,12 @@ class WorkflowIdentityTest extends TestCase
 
         // The workflow ID is free: a new run ignites with a fresh generation.
         $second = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $secondRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($second);
         $state = $this->execute($second, $persistence);
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('thread_1', $second->getWorkflowId());
-        $this->assertNotSame($first->getRunId(), $second->getRunId());
+        $this->assertNotSame($firstRecord->context?->runId, $secondRecord->context?->runId);
     }
 
     public function test_retained_completion_is_replayable_until_acknowledged(): void
@@ -237,14 +240,14 @@ class WorkflowIdentityTest extends TestCase
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
 
         $completed = $workflow->run();
-        $runId = (string) $workflow->getRunId();
+        $runId = (string) $workflow->inspect()?->runId;
 
         $this->assertSame(WorkflowStatus::Completed, $completed->getStatus());
         $this->assertNotNull($persistence->get('retained-completion', '__control'));
         $this->assertNotNull($persistence->get('retained-completion', '__ignition'));
 
         $retry = Workflow::make('retained-completion')->setPersistence($persistence);
-        $replayed = $retry->resume(null, expectedRunId: $runId)->run();
+        $replayed = $retry->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedRunId: $runId));
 
         $this->assertSame($completed->all(), $replayed->all());
         $retry->acknowledgeCompletion($runId);
@@ -358,9 +361,10 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
-        $this->execute($workflow, $persistence);
+        $state = $this->execute($workflow, $persistence);
 
-        $workflowId = $workflow->getWorkflowId();
+        $workflowId = $state->getWorkflowId();
+        $this->assertNull($workflow->getWorkflowId());
         $this->assertNotNull($workflowId);
 
         $resumed = Workflow::make($workflowId)
@@ -460,7 +464,7 @@ class WorkflowIdentityTest extends TestCase
         $this->assertFalse($state->has('__runId'));
         $this->assertFalse($state->has('__executionAttempt'));
         $this->assertSame('thread_1', $state->getWorkflowId());
-        $this->assertSame($workflow->getRunId(), $state->getRunId());
+        $this->assertSame($workflow->inspect()?->runId, $state->getRunId());
         $this->assertSame(1, $state->getExecutionAttempt());
     }
 
@@ -468,6 +472,7 @@ class WorkflowIdentityTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $crashed = Workflow::make('thread_1')->addNodes([new MemoizingNode(shouldCrash: true)]);
+        $crashedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($crashed);
         try {
             $this->execute($crashed, $persistence);
             $this->fail('The workflow should fail.');
@@ -479,14 +484,15 @@ class WorkflowIdentityTest extends TestCase
         // A new run at the same key is a deliberate statement: the dead
         // generation is swept and replaced, not replayed.
         $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $freshRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($fresh);
         $this->configure($fresh, $persistence);
-        iterator_to_array((new WorkflowExecutor())->execute($fresh, fresh: true));
-        $state = $fresh->getState();
+        iterator_to_array((new WorkflowExecutor())->execute($fresh, \NeuronAI\Workflow\Executor\ExecutionRequest::start()));
+        $state = $freshRecord->state;
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertNotSame($crashed->getRunId(), $fresh->getRunId());
+        $this->assertNotSame($crashedRecord->context?->runId, $freshRecord->context?->runId);
         $this->assertNull($persistence->get('thread_1', $failedStepKey));
-        $this->assertSame($fresh->getRunId(), $this->loadControl($persistence)->runId);
+        $this->assertSame($freshRecord->context?->runId, $this->loadControl($persistence)->runId);
     }
 
     public function test_failed_generation_stays_replayable_by_inputless_continuation(): void
@@ -520,11 +526,11 @@ class WorkflowIdentityTest extends TestCase
 
         // Recovery keeps the generation: same run ID, only the failed step runs again.
         $recovered = Workflow::make('thread_1')->addNode($flaky)->setPersistence($persistence);
-        $state = $recovered->resume()->run();
+        $state = $recovered->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertTrue($state->get('recovered'));
-        $this->assertSame($crashed->getRunId(), $recovered->getRunId());
+        $this->assertSame($crashed->inspect()?->runId, $recovered->inspect()?->runId);
         $this->assertNull($persistence->get('thread_1', '__control'));
     }
 
@@ -572,11 +578,12 @@ class WorkflowIdentityTest extends TestCase
         $this->seedRunningGeneration($persistence, leaseExpiresAt: time() - 1);
 
         $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
+        $freshRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($fresh);
         $state = $this->execute($fresh, $persistence);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertNotSame('run_stale', $fresh->getRunId());
-        $this->assertSame($fresh->getRunId(), $this->loadControl($persistence)->runId);
+        $this->assertNotSame('run_stale', $freshRecord->context?->runId);
+        $this->assertSame($freshRecord->context?->runId, $this->loadControl($persistence)->runId);
     }
 
     public function test_ignition_refuses_a_retained_completed_generation(): void
@@ -587,15 +594,16 @@ class WorkflowIdentityTest extends TestCase
             ->setPersistence($persistence)
             ->retainCompletionUntilAcknowledged()
             ->addNodes($nodes());
+        $completedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($completed);
         $completed->run();
 
         try {
             Workflow::make('thread_1')->setPersistence($persistence)->addNodes($nodes())->run();
             $this->fail('A retained completion should refuse a fresh ignition.');
         } catch (RunInFlightException $e) {
-            $this->assertSame($completed->getRunId(), $e->runId);
+            $this->assertSame($completedRecord->context?->runId, $e->runId);
             $this->assertSame(WorkflowStatus::Completed, $e->status);
-            $this->assertStringContainsString("acknowledgeCompletion('{$completed->getRunId()}')", $e->getMessage());
+            $this->assertStringContainsString("acknowledgeCompletion('{$completedRecord->context?->runId}')", $e->getMessage());
         }
     }
 
@@ -621,6 +629,7 @@ class WorkflowIdentityTest extends TestCase
         };
 
         $crashed = Workflow::make('thread_1')->addNodes([new MemoizingNode(shouldCrash: true)]);
+        $crashedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($crashed);
         try {
             $this->execute($crashed, $persistence);
             $this->fail('The workflow should fail.');
@@ -631,10 +640,10 @@ class WorkflowIdentityTest extends TestCase
         // decision, and says the sweep lost; no second read is made.
         try {
             $fresh = $this->configure(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
-            iterator_to_array((new WorkflowExecutor())->execute($fresh, fresh: true));
+            iterator_to_array((new WorkflowExecutor())->execute($fresh, \NeuronAI\Workflow\Executor\ExecutionRequest::start()));
             $this->fail('The igniter should lose the fenced sweep.');
         } catch (RunInFlightException $e) {
-            $this->assertSame($crashed->getRunId(), $e->runId);
+            $this->assertSame($crashedRecord->context?->runId, $e->runId);
             $this->assertSame(WorkflowStatus::Failed, $e->status);
             $this->assertSame(1, $e->executionAttempt);
             $this->assertStringContainsString(
@@ -645,7 +654,7 @@ class WorkflowIdentityTest extends TestCase
 
         // The claimant keeps the generation: same run ID, advanced attempt.
         $control = $this->loadControl($persistence);
-        $this->assertSame($crashed->getRunId(), $control->runId);
+        $this->assertSame($crashedRecord->context?->runId, $control->runId);
         $this->assertSame(2, $control->executionAttempt);
     }
 

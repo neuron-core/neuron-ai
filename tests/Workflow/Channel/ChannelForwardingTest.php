@@ -46,7 +46,7 @@ class ChannelForwardingTest extends TestCase
     public function test_wired_channel_receives_every_yielded_item_in_order_via_run(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(3)])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
@@ -65,15 +65,47 @@ class ChannelForwardingTest extends TestCase
         $this->assertSame([], $channel->getFailures());
     }
 
-    public function test_wired_channel_consumes_events_and_returns_the_final_state(): void
+    public function test_output_changes_during_streaming_apply_to_the_next_execution(): void
+    {
+        $firstChannel = new FakeChannel();
+        $nextChannel = new FakeChannel();
+        $workflow = Workflow::make('test-workflow')
+            ->addNode(new ChunkStreamingNode(2))
+            ->setStreamAdapter(new ChunkAdapter())
+            ->setChannel($firstChannel);
+
+        $stream = $workflow->events();
+        $stream->rewind();
+
+        $workflow->setChannel($nextChannel)->setStreamAdapter(null);
+
+        $events = iterator_to_array($stream, false);
+        $this->assertEquals([
+            new ProtocolEvent('chunk', ['payload' => 'chunk-1']),
+            new ProtocolEvent('chunk', ['payload' => 'chunk-2']),
+        ], $events);
+        $this->assertSame($events, $firstChannel->getSent());
+        $this->assertCount(1, $firstChannel->getCompletions());
+        $this->assertSame([], $nextChannel->getRecorded());
+
+        $nextEvents = iterator_to_array($workflow->events(), false);
+        $this->assertCount(2, $nextEvents);
+        $this->assertContainsOnlyInstancesOf(ChunkEvent::class, $nextEvents);
+        $this->assertSame([], $nextChannel->getSent());
+        $this->assertCount(1, $nextChannel->getCompletions());
+        $this->assertSame($events, $firstChannel->getSent());
+        $this->assertCount(1, $firstChannel->getCompletions());
+    }
+
+    public function test_run_delivers_to_a_channel_and_returns_the_final_state(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(2)])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
 
-        $state = $workflow->events();
+        $state = $workflow->run();
 
         $this->assertInstanceOf(WorkflowState::class, $state);
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
@@ -82,13 +114,13 @@ class ChannelForwardingTest extends TestCase
             $channel->getSent(),
         ));
         $this->assertCount(1, $channel->getCompletions());
-        $this->assertSame($state, $channel->getCompletions()[0]->state);
+        $this->assertEquals($state, $channel->getCompletions()[0]->state);
     }
 
-    public function test_events_remain_lazy_without_a_complete_channel_pipeline(): void
+    public function test_events_remain_lazy_with_every_channel_configuration(): void
     {
-        foreach ([[false, false], [true, false], [false, true]] as [$adapter, $channel]) {
-            $workflow = Workflow::make()
+        foreach ([[false, false], [true, false], [false, true], [true, true]] as [$adapter, $channel]) {
+            $workflow = Workflow::make('test-workflow')
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
                 ->setStreamAdapter($adapter ? new ChunkAdapter() : null)
                 ->setChannel($channel ? new FakeChannel() : null);
@@ -96,7 +128,7 @@ class ChannelForwardingTest extends TestCase
             $stream = $workflow->events();
 
             $this->assertInstanceOf(Generator::class, $stream);
-            $this->assertNull($workflow->getState()->get('node_one_executed'));
+            $this->assertNull($workflow->inspect());
             iterator_to_array($stream);
             $this->assertTrue($stream->getReturn()->get('node_one_executed'));
         }
@@ -105,14 +137,14 @@ class ChannelForwardingTest extends TestCase
     public function test_signal_eagerly_delivers_the_continuation_to_the_channel(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new PreStreamNode(), new WaitForEventNode(), new PostStreamNode()])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
 
-        $this->assertTrue($workflow->events()->isInterrupted());
+        $this->assertTrue($workflow->run()->isInterrupted());
 
-        $state = $workflow->signal('user.signup', ['user' => 42])->events();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('user.signup', ['user' => 42]));
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertSame(['user' => 42], $state->get('received_payload'));
@@ -130,7 +162,7 @@ class ChannelForwardingTest extends TestCase
         $channel = FakeChannel::make()->setThrowOnSend($failure);
 
         $errors = [];
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(5)])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel);
@@ -155,7 +187,7 @@ class ChannelForwardingTest extends TestCase
     public function test_channel_without_adapter_receives_only_the_lifecycle(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(3)])
             ->setChannel($channel);
 
@@ -179,7 +211,7 @@ class ChannelForwardingTest extends TestCase
     {
         $request = new ApprovalRequest('needs a human');
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request)])
             ->setChannel($channel);
 
@@ -210,13 +242,13 @@ class ChannelForwardingTest extends TestCase
     public function test_re_interruption_delivers_a_new_state_snapshot(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new NodeOne(), new TwoStageInterruptNode(), new NodeThree()])
             ->setChannel($channel);
 
         $workflow->run();
         // An incomplete payload interrupts again with a new active request.
-        $workflow->resume(['partial' => true])->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['partial' => true]));
 
         $this->assertCount(2, $channel->getSuspensions());
         $this->assertInstanceOf(ApprovalRequest::class, $channel->getSuspensions()[0]->state->getInterruptRequest());
@@ -229,19 +261,19 @@ class ChannelForwardingTest extends TestCase
         );
         $this->assertCount(0, $channel->getCompletions());
 
-        $state = $workflow->resume(['complete' => true])->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['complete' => true]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(2, $channel->getSuspensions());
         $this->assertCount(1, $channel->getCompletions());
         $this->assertSame($workflow->getWorkflowId(), $channel->getCompletions()[0]->workflowId);
-        $this->assertSame($state, $channel->getCompletions()[0]->state);
+        $this->assertEquals($state, $channel->getCompletions()[0]->state);
     }
 
     public function test_node_failure_fires_failed_with_the_exception_and_still_propagates(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ThrowingNode()])
             ->setChannel($channel);
 
@@ -266,12 +298,12 @@ class ChannelForwardingTest extends TestCase
     public function test_resume_segment_receives_only_post_resume_items(): void
     {
         $firstSegment = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new PreStreamNode(), new InterruptableNode(), new PostStreamNode()])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($firstSegment);
 
-        $this->assertTrue($workflow->events()->isInterrupted());
+        $this->assertTrue($workflow->run()->isInterrupted());
 
         $this->assertCount(1, $firstSegment->getSent());
         $this->assertSame('pre', $firstSegment->getSent()[0]->data['payload']);
@@ -281,7 +313,7 @@ class ChannelForwardingTest extends TestCase
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
         $workflow->setChannel($resumeSegment);
-        $state = $workflow->resume([])->events();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertCount(1, $resumeSegment->getSent());
@@ -299,7 +331,7 @@ class ChannelForwardingTest extends TestCase
         );
 
         $errors = [];
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(1)])
             ->setChannel($channel);
         $workflow->subscribe(ChannelError::class, function (ChannelError $error) use (&$errors): void {
@@ -319,7 +351,7 @@ class ChannelForwardingTest extends TestCase
         $listenerFailure = new LogicException('error reporter down');
 
         $reported = [];
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(2)])
             ->setStreamAdapter(new ChunkAdapter())
             ->setChannel($channel)

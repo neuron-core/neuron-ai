@@ -39,7 +39,7 @@ class StreamSuspensionDeliveryTest extends TestCase
             ->setStreamAdapter(new AGUIAdapter('thread_test', 'run_test'))
             ->setChannel($channel);
 
-        $state = $workflow->events();
+        $state = $workflow->run();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertCount(1, $channel->getSuspensions());
@@ -75,7 +75,7 @@ class StreamSuspensionDeliveryTest extends TestCase
             ->willReturn([$pauseFrame]);
         $paused->expects($this->never())->method('end');
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-execution')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request), new NodeThree()])
             ->setStreamAdapter($paused)
             ->setChannel($channel);
@@ -95,8 +95,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         $completed->expects($this->once())->method('end')->willReturn([$doneFrame]);
 
         $state = $workflow
-            ->setStreamAdapter($completed)
-            ->resume([])->run();
+            ->setStreamAdapter($completed)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame([$pauseFrame, $doneFrame], $channel->getSent());
@@ -117,7 +116,7 @@ class StreamSuspensionDeliveryTest extends TestCase
             new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']),
         ]);
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-execution')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request), new NodeThree()])
             ->setStreamAdapter($adapter)
             ->setChannel($channel);
@@ -130,7 +129,7 @@ class StreamSuspensionDeliveryTest extends TestCase
         // The instance is reset at the segment boundary, so the continuation
         // is framed again instead of being silently suppressed.
         $delivered = count($channel->getSent());
-        $state = $workflow->resume([])->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($continuation, $this->types(array_slice($channel->getSent(), $delivered)));

@@ -12,7 +12,7 @@ use NeuronAI\Workflow\Events\Event;
  * the run currently holding the workflow ID — this record IS the generation
  * head), the start event (the run's cause and the entry key for step replay),
  * and the workflow's context bag — an opaque section populated and consumed
- * by workflow subclasses via ignitionContext()/applyIgnitionContext(), never
+ * by workflow subclasses via ignitionContext() and ExecutionContext::domain(), never
  * interpreted by the engine.
  */
 class Ignition
@@ -24,6 +24,7 @@ class Ignition
         public readonly string $runId,
         public readonly Event $startEvent,
         public readonly array $context = [],
+        public readonly ?string $inputFingerprint = null,
     ) {
     }
 
@@ -36,6 +37,7 @@ class Ignition
             'runId' => $this->runId,
             'startEvent' => $this->startEvent,
             'context' => $this->context,
+            'inputFingerprint' => $this->inputFingerprint,
         ];
     }
 
@@ -47,5 +49,6 @@ class Ignition
         $this->runId = $data['runId'];
         $this->startEvent = $data['startEvent'];
         $this->context = $data['context'] ?? [];
+        $this->inputFingerprint = $data['inputFingerprint'] ?? null;
     }
 }

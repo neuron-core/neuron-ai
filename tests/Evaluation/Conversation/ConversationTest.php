@@ -25,6 +25,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
+use function count;
 
 class ConversationTest extends TestCase
 {
@@ -248,14 +249,12 @@ class ConversationTest extends TestCase
         $agent = $this->createMock(AgentInterface::class);
         $agent->method('getChatHistory')->willReturn($history);
         $agent->expects($this->once())->method('chat')->willReturn($first);
-        $agent->expects($this->exactly(2))
-            ->method('resume')
-            ->willReturnCallback(function (array $inputs) use (&$responses, $agent): AgentInterface {
-                $this->assertSame([], $inputs);
-                $responses[] = $inputs;
-                return $agent;
+        $agent->expects($this->exactly(2))->method('run')
+            ->willReturnCallback(function (\NeuronAI\Workflow\Executor\ExecutionRequest $request) use (&$responses, $second, $completed): AgentState {
+                $this->assertSame([], $request->payload());
+                $responses[] = $request->payload();
+                return count($responses) === 1 ? $second : $completed;
             });
-        $agent->expects($this->exactly(2))->method('run')->willReturn($second, $completed);
 
         $policyInterrupts = [];
 

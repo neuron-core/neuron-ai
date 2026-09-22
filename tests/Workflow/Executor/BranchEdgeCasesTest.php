@@ -33,7 +33,7 @@ class BranchEdgeCasesTest extends TestCase
 
     public function test_multi_step_branch_executes_all_nodes(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -52,7 +52,7 @@ class BranchEdgeCasesTest extends TestCase
 
     public function test_streaming_node_inside_branch_completes_successfully(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -71,7 +71,7 @@ class BranchEdgeCasesTest extends TestCase
 
     public function test_streamed_nodes_in_both_branches_complete(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -91,7 +91,7 @@ class BranchEdgeCasesTest extends TestCase
     public function test_async_multi_step_branch_completes_all_nodes(): void
     {
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -112,8 +112,8 @@ class BranchEdgeCasesTest extends TestCase
     {
         $middleware = new RecordingMiddleware();
 
-        $workflow = Workflow::make()
-            ->addGlobalMiddleware($middleware)
+        $workflow = Workflow::make('test-workflow')
+            ->addGlobalMiddleware(fn () => $middleware)
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -162,8 +162,8 @@ class BranchEdgeCasesTest extends TestCase
     {
         $middleware = new RecordingMiddleware();
 
-        $workflow = Workflow::make()
-            ->addGlobalMiddleware($middleware)
+        $workflow = Workflow::make('test-workflow')
+            ->addGlobalMiddleware(fn () => $middleware)
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),
@@ -194,7 +194,7 @@ class BranchEdgeCasesTest extends TestCase
     {
         $observer = new RecordingObserver();
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->observe($observer)
             ->addNodes([
                 new DocumentParallelProcessing(),

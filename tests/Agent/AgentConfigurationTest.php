@@ -10,10 +10,12 @@ use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\ToolNode;
+use NeuronAI\Chat\History\InMemoryChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware;
 use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
@@ -163,38 +165,49 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame([], $provider->getRecorded()[2]->tools);
     }
 
-    public function test_tool_run_limit_changes_apply_on_the_next_turn(): void
+    public function test_tool_run_limit_changes_during_streaming_apply_on_the_next_turn(): void
     {
+        $firstCall = ToolCall::make('search', 'call_1', ['query' => 'PHP']);
         $provider = new FakeAIProvider(
-            new AssistantMessage('First reply'),
-            new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'PHP'])]),
-            new AssistantMessage('Should not be reached'),
+            new ToolCallMessage(null, [$firstCall]),
+            new AssistantMessage('Found PHP'),
+            new ToolCallMessage(null, [ToolCall::make('search', 'call_2', ['query' => 'PHP'])]),
         );
         $agent = Agent::make();
         $agent->setAiProvider($provider)->addTool(new SearchTool());
-        $agent->chat(new UserMessage('Hello'));
+        $stream = $agent->stream(new UserMessage('Search PHP'));
+        $stream->rewind();
+
         $agent->toolMaxRuns(0);
+        iterator_to_array($stream);
+        $this->assertSame('Results for: PHP', $firstCall->getResult());
 
         $this->expectException(ToolRunsExceededException::class);
-        $agent->chat(new UserMessage('Search PHP'));
+        $agent->chat(new UserMessage('Search PHP again'));
     }
 
-    public function test_tool_error_handler_changes_apply_on_the_next_turn(): void
+    public function test_tool_error_handler_changes_during_streaming_apply_on_the_next_turn(): void
     {
-        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'test']);
+        $firstCall = ToolCall::make('failing_tool', 'call_1', ['input' => 'test']);
+        $secondCall = ToolCall::make('failing_tool', 'call_2', ['input' => 'test']);
         $provider = new FakeAIProvider(
-            new AssistantMessage('First reply'),
-            new ToolCallMessage(null, [$call]),
+            new ToolCallMessage(null, [$firstCall]),
             new AssistantMessage('Recovered'),
+            new ToolCallMessage(null, [$secondCall]),
+            new AssistantMessage('Recovered again'),
         );
         $agent = Agent::make();
         $agent->setAiProvider($provider)->addTool(new AgentFailingTool());
-        $agent->chat(new UserMessage('Hello'));
-        $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Handled failure');
+        $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Original handler');
+        $stream = $agent->stream(new UserMessage('Use the tool'));
+        $stream->rewind();
 
-        $agent->chat(new UserMessage('Use the tool'));
+        $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Updated handler');
+        iterator_to_array($stream);
+        $this->assertSame('Original handler', $firstCall->getResult());
 
-        $this->assertSame('Handled failure', $call->getResult());
+        $agent->chat(new UserMessage('Use the tool again'));
+        $this->assertSame('Updated handler', $secondCall->getResult());
     }
 
     public function test_parallel_tool_configuration_changes_preserve_added_nodes(): void
@@ -208,17 +221,26 @@ class AgentConfigurationTest extends TestCase
             new AssistantMessage('Second reply'),
             new AssistantMessage('Third reply'),
         ));
-        $agent->chat(new UserMessage('Hello'));
-        $agent->addMiddleware(ChatNode::class, $middleware);
-        $agent->parallelToolCalls(true)->chat(new UserMessage('Parallel'));
-        $this->assertInstanceOf(ParallelToolNode::class, $agent->getNodeForEvent(ToolCallEvent::class));
-        $this->assertSame($node, $agent->getNodeForEvent(StartEvent::class));
+        $toolNodes = [];
+        $agent->subscribe(WorkflowStart::class, function (WorkflowStart $event) use (&$toolNodes): void {
+            $toolNodes[] = $event->eventNodeMap[ToolCallEvent::class]::class;
+        });
+        $stream = $agent->stream(new UserMessage('Hello'));
+        $stream->rewind();
+        $agent->parallelToolCalls(true);
+        iterator_to_array($stream);
+
+        $agent->addMiddleware(ChatNode::class, fn () => $middleware);
+        $agent->chat(new UserMessage('Parallel'));
+        $this->assertInstanceOf(ParallelToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(ToolCallEvent::class));
+        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(StartEvent::class));
 
         $agent->parallelToolCalls(false)->chat(new UserMessage('Sequential'));
-        $this->assertSame(ToolNode::class, $agent->getNodeForEvent(ToolCallEvent::class)::class);
+        $this->assertSame(ToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(ToolCallEvent::class)::class);
         $this->assertSame(2, $middleware->agentCalls);
         $this->assertSame(2, $middleware->afterCalls);
-        $this->assertSame($node, $agent->getNodeForEvent(StartEvent::class));
+        $this->assertSame([ToolNode::class, ParallelToolNode::class, ToolNode::class], $toolNodes);
+        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(StartEvent::class));
     }
     public function test_configuration_changes_during_streaming_apply_to_the_next_segment(): void
     {
@@ -240,6 +262,36 @@ class AgentConfigurationTest extends TestCase
         $second->assertToolsConfigured(['search']);
     }
 
+    public function test_history_changes_during_streaming_preserve_the_active_conversation(): void
+    {
+        $firstHistory = new InMemoryChatHistory('first-thread');
+        $nextHistory = new InMemoryChatHistory('next-thread');
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'PHP'])]),
+            new AssistantMessage('Found PHP'),
+            new AssistantMessage('New conversation'),
+        );
+        $agent = Agent::make();
+        $agent->setAiProvider($provider)->addTool(new SearchTool());
+        $agent->setChatHistory($firstHistory);
+        $stream = $agent->stream(new UserMessage('Search PHP'));
+        $stream->rewind();
+
+        $agent->setChatHistory($nextHistory);
+        iterator_to_array($stream);
+
+        $this->assertSame('first-thread', $stream->getReturn()->getWorkflowId());
+        $this->assertCount(4, $firstHistory->getMessages());
+        $this->assertSame([], $nextHistory->getMessages());
+        $this->assertNull(Agent::make(threadId: 'first-thread')->setPersistence($agent->getPersistence())->inspect());
+
+        $state = $agent->chat(new UserMessage('Hello'));
+        $this->assertSame('next-thread', $state->getWorkflowId());
+        $this->assertCount(2, $nextHistory->getMessages());
+        $this->assertCount(4, $firstHistory->getMessages());
+        $this->assertSame('first-thread', $firstHistory->getThreadId());
+    }
+
     public function test_resume_uses_current_provider_but_preserves_recorded_instructions_and_intent(): void
     {
         $first = new FakeAIProvider(new ToolCallMessage(null, [
@@ -252,13 +304,13 @@ class AgentConfigurationTest extends TestCase
         $stream = $agent->stream(new UserMessage('Search PHP'));
         iterator_to_array($stream);
         $this->assertTrue($stream->getReturn()->isInterrupted());
-        $runId = $agent->getRunId();
+        $runId = $agent->inspect()?->runId;
 
         $agent->setAiProvider($second)->setInstructions('Updated instructions');
-        $state = $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
+        $state = $agent->run($agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame($runId, $agent->getRunId());
+        $this->assertSame($runId, $state->getRunId());
         $this->assertSame('stream', $second->getRecorded()[0]->method);
         $this->assertSame('Original instructions', $second->getRecorded()[0]->systemPrompt->getContent());
 

@@ -52,12 +52,12 @@ class ParallelInterruptTest extends TestCase
         $this->assertSame(1, $first->getExecutionAttempt());
         $this->assertSame(1, $first->getInterruptRequest()->getId());
 
-        $partial = $workflow->resume([])->run();
+        $partial = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertSame(2, $partial->getExecutionAttempt());
         $this->assertTrue($partial->isInterrupted());
         $this->assertSame(2, $partial->getInterruptRequest()->getId());
 
-        $completed = $workflow->resume([])->run();
+        $completed = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(3, $completed->getExecutionAttempt());
@@ -79,11 +79,11 @@ class ParallelInterruptTest extends TestCase
             ->addNodes([$fork, new InterruptableTextProcessNode(), new MergeNode()]);
 
         $workflow->run();
-        $state = $workflow->signal('approval')->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval'));
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame(2, $state->getInterruptRequest()->getId());
-        $this->assertFalse($workflow->signal('approval')->run()->isInterrupted());
+        $this->assertFalse($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval'))->isInterrupted());
     }
 
     public function test_partial_resume_does_not_rerun_unaddressed_interrupts(): void
@@ -123,7 +123,7 @@ class ParallelInterruptTest extends TestCase
             }
 
             $workflow->run();
-            $workflow->resume([])->run();
+            $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
             $this->assertSame(3, $counter->runs);
         }

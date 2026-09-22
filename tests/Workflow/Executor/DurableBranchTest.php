@@ -59,7 +59,7 @@ class DurableBranchTest extends TestCase
             self::assertSame('Branch failed after its state was persisted.', $e->getMessage());
         }
 
-        $state = $make(false)->resume()->run();
+        $state = $make(false)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         self::assertSame(42, $state->get('analysis')['text']);
         self::assertFalse($state->has('branch_value'));

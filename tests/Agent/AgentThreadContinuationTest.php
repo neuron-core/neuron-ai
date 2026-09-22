@@ -92,25 +92,27 @@ class AgentThreadContinuationTest extends TestCase
             new AssistantMessage('Search results'),
         );
         $agent = $this->makeSuspendedRun($first, $persistence, $provider, $searchTool);
-        $firstRunId = $agent->getRunId();
+        $agentRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($agent);
+        $firstRunId = $agent->inspect()?->runId;
         $firstControl = $persistence->get('thread-a', '__control');
-        $agent->getState()->set('conversation_marker', 'thread-a');
+        $previous = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
+        $previous->set('conversation_marker', 'thread-a');
         $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
 
         $agent->setChatHistory($second);
-        $this->assertNull($agent->getState()->get('conversation_marker'));
+        $this->assertSame('thread-a', $previous->get('conversation_marker'));
         $agent->chat(new UserMessage('Second conversation'));
 
         $this->assertSame('thread-b', $agent->getWorkflowId());
         $this->assertSame($firstControl, $persistence->get('thread-a', '__control'));
         $this->assertCount(1, $provider->getRecorded()[1]->messages);
 
-        $state = $agent->setChatHistory($first)->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
+        $state = $agent->setChatHistory($first)->run($agent->setChatHistory($first)->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('Search results', $state->getMessage()->getContent());
         $this->assertSame('thread-a', $agent->getWorkflowId());
-        $this->assertSame($firstRunId, $agent->getRunId());
+        $this->assertSame($firstRunId, $agentRecord->context?->runId);
         $this->assertCount(2, $second->getMessages());
         $this->assertCount(4, $first->getMessages());
         $this->assertSame('Search for PHP frameworks', $provider->getRecorded()[2]->messages[0]->getContent());
@@ -133,9 +135,9 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => 'approve'])->run()->getMessage();
+        $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();
 
-        $this->assertSame($agent1->getRunId(), $agent2->getRunId());
+        $this->assertSame($agent1->inspect()?->runId, $agent2->inspect()?->runId);
         $this->assertSame('Here are the search results...', $message->getContent());
         // ChatNode:0 was memoized under the resolved workflow ID — the first inference is not re-billed.
         $this->assertSame(2, $provider->getCallCount());
@@ -171,9 +173,9 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $message = $agent2->resume(['call_1' => 'approve'])->run()->getMessage();
+        $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();
 
-        $this->assertSame($agent1->getRunId(), $agent2->getRunId());
+        $this->assertSame($agent1->inspect()?->runId, $agent2->inspect()?->runId);
         $this->assertSame('Here are the search results...', $message->getContent());
     }
 
@@ -191,7 +193,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
-        $agent2->resume(['call_1' => 'approve'])->run();
+        $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
 
         // Completion swept the thread's partition: nothing survives, and a
         // further thread-first continuation has nothing to continue.
@@ -206,7 +208,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No run in flight for workflow ID');
 
-        $agent3->resume(['call_1' => 'approve'])->run();
+        $agent3->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
     }
 
     public function test_conflicting_explicit_workflow_id_throws(): void
@@ -214,21 +216,14 @@ class AgentThreadContinuationTest extends TestCase
         // The thread is the declared workflow ID; an explicit workflow ID that
         // disagrees is a misidentified run and must fail loudly, never
         // silently pick one of the two identities.
-        $history = new InMemoryChatHistory();
+        $history = new InMemoryChatHistory('thread-1');
         $persistence = new InMemoryPersistence();
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent = Agent::make(workflowId: 'someplace_else');
-        $agent->setChatHistory($history);
-        $agent->setAiProvider($provider);
-        $agent->addTool($searchTool);
-        $agent->setPersistence($persistence);
-
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('Misidentified run');
-
-        $agent->chat(new UserMessage('Search for PHP frameworks'));
+        $this->expectException(\NeuronAI\Exceptions\AgentException::class);
+        $this->expectExceptionMessage('Conflicting workflow and thread identity');
+        Agent::make(workflowId: 'someplace_else', threadId: 'thread-1');
     }
 
     public function test_resume_with_nothing_in_flight_fails_loudly(): void
@@ -244,7 +239,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No run in flight for workflow ID');
 
-        $agent->resume(['call_1' => 'approve'])->run();
+        $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
     }
 
     public function test_explicit_workflow_id_resume_fails_on_missing_ignition(): void
@@ -258,7 +253,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'my_explicit_run'");
 
-        $agent->resume(['call_1' => 'approve'])->run();
+        $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
     }
 
     public function test_same_instance_resume_keeps_own_run_id(): void
@@ -269,13 +264,14 @@ class AgentThreadContinuationTest extends TestCase
         $provider = $this->makeProvider($searchTool);
 
         $agent = $this->makeSuspendedRun($history, $persistence, $provider, $searchTool);
-        $runId = $agent->getRunId();
+        $runId = $agent->inspect()?->runId;
 
         // Resume on the SAME instance: its already-resolved identity is
         // non-null, so it wins — no re-resolution happens at all.
-        $message = $agent->resume(['call_1' => 'approve'])->run()->getMessage();
+        $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
+        $message = $state->getMessage();
 
-        $this->assertSame($runId, $agent->getRunId());
+        $this->assertSame($runId, $state->getRunId());
         $this->assertSame('Here are the search results...', $message->getContent());
     }
 
@@ -301,7 +297,7 @@ class AgentThreadContinuationTest extends TestCase
             $this->fail('A pending approval should refuse a new turn.');
         } catch (RunInFlightException $e) {
             $this->assertSame($history->getThreadId(), $e->workflowId);
-            $this->assertSame($suspended->getRunId(), $e->runId);
+            $this->assertSame($suspended->inspect()?->runId, $e->runId);
             $this->assertSame(WorkflowStatus::Suspended, $e->status);
             $this->assertInstanceOf(ApprovalRequest::class, $e->interrupt);
             $this->assertStringContainsString("wait_for_event 'approval'", $e->getMessage());
@@ -314,7 +310,7 @@ class AgentThreadContinuationTest extends TestCase
         $agent3->addTool($searchTool);
         $agent3->setPersistence($persistence);
 
-        $message = $agent3->resume(['call_1' => 'approve'])->run()->getMessage();
+        $message = $agent3->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());
     }

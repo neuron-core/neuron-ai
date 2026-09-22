@@ -11,7 +11,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class [classname] extends RAG
 {
-    protected function provider(): AIProviderInterface
+    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
     {
         /*return new Anthropic(
             config('services.anthropic.api_key'),
@@ -19,7 +19,7 @@ class [classname] extends RAG
         );*/
     }
 
-    protected function instructions(): string
+    protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): string
     {
         return (string) new SystemPrompt(
             background: ["You are a friendly AI Agent created with Neuron AI framework."],
@@ -45,7 +45,7 @@ class [classname] extends RAG
     /**
      * @return ToolInterface[]|ToolkitInterface[]
      */
-    protected function tools(): array
+    protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
     {
         return [];
     }

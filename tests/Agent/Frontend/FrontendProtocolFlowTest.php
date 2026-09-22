@@ -96,7 +96,7 @@ class FrontendProtocolFlowTest extends TestCase
         }
         $agent = $factory();
         $agent->setStreamAdapter($agui ? new AGUIAdapter('frontend-flow', 'wire-2', $messages) : new VercelAIAdapter($messageId, $parts));
-        $stream = $agent->submitInputs($payload, $translator)->events();
+        $stream = $agent->events($agent->submitInputs($payload, $translator));
         $second = [];
         foreach ($stream as $frame) {
             foreach ($this->decode([$frame]) as $event) {
@@ -129,7 +129,7 @@ class FrontendProtocolFlowTest extends TestCase
         }
         $agent = $factory();
         $agent->setStreamAdapter($agui ? new AGUIAdapter('frontend-flow', 'wire-3', $messages) : new VercelAIAdapter($messageId, $parts));
-        $stream = $agent->submitInputs($payload, $translator)->events();
+        $stream = $agent->events($agent->submitInputs($payload, $translator));
         $last = $this->decode($stream);
         $this->assertFalse($stream->getReturn()->isInterrupted());
         $this->assertNotContains('TOOL_CALL_RESULT', array_column($last, 'type'));

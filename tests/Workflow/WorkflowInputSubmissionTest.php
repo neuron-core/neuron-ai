@@ -18,6 +18,7 @@ use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
 use function serialize;
+use function method_exists;
 
 use const INF;
 use const NAN;
@@ -60,16 +61,16 @@ class WorkflowInputSubmissionTest extends TestCase
 
         $workflow = $this->workflow($persistence);
         $submitted = $this->submit($workflow, $translator);
-        $this->assertSame($workflow, $submitted);
+        $this->assertInstanceOf(\NeuronAI\Workflow\Executor\ExecutionRequest::class, $submitted);
         $this->assertSame($before, serialize($persistence));
-        $this->assertNull($workflow->getRunId());
+        self::assertFalse(method_exists($workflow, "getRunId"));
 
         if ($streaming) {
-            $events = $submitted->events();
+            $events = $workflow->events($submitted);
             iterator_to_array($events);
             $completed = $events->getReturn();
         } else {
-            $completed = $submitted->run();
+            $completed = $workflow->run($submitted);
         }
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(['registered' => 'user@example.com'], $completed->get('received_payload'));
@@ -90,17 +91,17 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->workflow($persistence)->run();
         $before = serialize($persistence);
         $workflow = $this->workflow($persistence);
-        $this->assertSame($workflow, $workflow->resume($inputs));
+        $request = \NeuronAI\Workflow\Executor\ExecutionRequest::resume($inputs);
         $this->assertSame($before, serialize($persistence));
         try {
-            $workflow->run();
+            $workflow->run($request);
             $this->fail('Invalid payloads must fail before acceptance.');
         } catch (\NeuronAI\Exceptions\WorkflowException) {
             $this->assertSame($before, serialize($persistence));
         }
     }
 
-    protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): WorkflowInterface
+    protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): \NeuronAI\Workflow\Executor\ExecutionRequest
     {
         return $workflow->submitInputs(['email' => 'user@example.com'], $translator);
     }

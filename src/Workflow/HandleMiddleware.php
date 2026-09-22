@@ -6,8 +6,8 @@ namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use Closure;
 
-use function array_merge;
 use function is_array;
 
 trait HandleMiddleware
@@ -46,12 +46,12 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware
      * @throws WorkflowException
      */
-    public function addGlobalMiddleware(WorkflowMiddleware|array $middleware): static
+    public function addGlobalMiddleware(WorkflowMiddleware|Closure|array $middleware): static
     {
         $middlewareArray = is_array($middleware) ? $middleware : [$middleware];
 
         foreach ($middlewareArray as $m) {
-            if (! $m instanceof WorkflowMiddleware) {
+            if (!$m instanceof WorkflowMiddleware && !$m instanceof Closure) {
                 throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
             }
 
@@ -66,7 +66,7 @@ trait HandleMiddleware
      * @param WorkflowMiddleware|WorkflowMiddleware[] $middleware
      * @throws WorkflowException
      */
-    public function addMiddleware(string|array $node, WorkflowMiddleware|array $middleware): static
+    public function addMiddleware(string|array $node, WorkflowMiddleware|Closure|array $middleware): static
     {
         $nodeClasses = is_array($node) ? $node : [$node];
         $middlewareList = is_array($middleware) ? $middleware : [$middleware];
@@ -75,7 +75,7 @@ trait HandleMiddleware
             $this->nodeMiddleware[$class] ??= [];
 
             foreach ($middlewareList as $m) {
-                if (! $m instanceof WorkflowMiddleware) {
+                if (!$m instanceof WorkflowMiddleware && !$m instanceof Closure) {
                     throw new WorkflowException('Middleware must be an instance of WorkflowMiddleware');
                 }
 
@@ -86,23 +86,4 @@ trait HandleMiddleware
         return $this;
     }
 
-    /**
-     * Matching is subclass-aware (instanceof), so callers can target a shared
-     * base class (e.g. InferenceNode) and fire on every node extending it.
-     * Global middleware runs first, then node-specific in registration order.
-     *
-     * @return WorkflowMiddleware[]
-     */
-    public function getMiddlewareForNode(NodeInterface $node): array
-    {
-        $middlewares = $this->globalMiddleware;
-
-        foreach ($this->nodeMiddleware as $class => $list) {
-            if ($node instanceof $class) {
-                $middlewares = array_merge($middlewares, $list);
-            }
-        }
-
-        return $middlewares;
-    }
 }

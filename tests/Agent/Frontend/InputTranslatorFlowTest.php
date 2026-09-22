@@ -28,6 +28,7 @@ use function array_filter;
 use function array_values;
 use function iterator_to_array;
 use function serialize;
+use function method_exists;
 
 class InputTranslatorFlowTest extends TestCase
 {
@@ -72,17 +73,17 @@ class InputTranslatorFlowTest extends TestCase
         $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
         $agent = $this->agent();
         $before = serialize($this->persistence);
-        $agent->submitInputs($this->approvalPayload($translator), $translator);
+        $request = $agent->submitInputs($this->approvalPayload($translator), $translator);
         $this->assertSame($before, serialize($this->persistence));
-        $this->assertNull($agent->getRunId());
-        $events = $agent->events();
+        self::assertFalse(method_exists($agent, "getRunId"));
+        $events = $agent->events($request);
         iterator_to_array($events);
         $this->assertInstanceOf(ToolResultsRequest::class, $events->getReturn()->getInterruptRequest());
         $this->assertSame(1, $this->provider->getCallCount());
 
         foreach ([['a' => 'Page title'], ['a' => 'Page title', 'b' => 'Page URL']] as $results) {
             $agent = $this->agent();
-            $events = $agent->submitInputs($this->resultPayload($translator, $results), $translator)->events();
+            $events = $agent->events($agent->submitInputs($this->resultPayload($translator, $results), $translator));
             iterator_to_array($events);
         }
         $this->assertFalse($events->getReturn()->isInterrupted());

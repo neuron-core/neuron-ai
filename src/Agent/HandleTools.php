@@ -4,22 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
-use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
-use ReflectionClass;
 
-use function array_map;
 use function array_merge;
-use function implode;
-use function in_array;
 use function is_array;
-
-use const PHP_EOL;
 
 trait HandleTools
 {
@@ -29,11 +21,6 @@ trait HandleTools
     protected array $tools = [];
 
     protected bool $toolsOverridden = false;
-
-    /**
-     * @var ToolInterface[]
-     */
-    protected array $toolsBootstrapCache = [];
 
     /**
      * Global max runs for all tools.
@@ -79,7 +66,7 @@ trait HandleTools
      *
      * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
-    protected function tools(): array
+    protected function tools(ExecutionContext $context): array
     {
         return [];
     }
@@ -87,72 +74,9 @@ trait HandleTools
     /**
      * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
-    public function getTools(): array
+    public function getTools(ExecutionContext $context): array
     {
-        return $this->toolsOverridden ? $this->tools : array_merge($this->tools, $this->tools());
-    }
-
-    /**
-     * Expand toolkits into their tools and inject toolkit guidelines into the
-     * instructions. Cached within a segment and invalidated when tools change.
-     *
-     * @return ToolInterface[]
-     */
-    public function bootstrapTools(): array
-    {
-        if (!empty($this->toolsBootstrapCache)) {
-            return $this->toolsBootstrapCache;
-        }
-
-        $guidelines = [];
-
-        foreach ($this->getTools() as $tool) {
-            if ($tool instanceof ToolkitInterface) {
-                $kitGuidelines = $tool->guidelines();
-                if ($kitGuidelines !== null && $kitGuidelines !== '') {
-                    $name = (new ReflectionClass($tool))->getShortName();
-                    $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
-                }
-                $innerTools = $tool->tools();
-                $this->toolsBootstrapCache = array_merge($this->toolsBootstrapCache, $innerTools);
-
-                if (!in_array($kitGuidelines, [null, '', '0'], true)) {
-                    $kitGuidelines .= PHP_EOL.implode(
-                        PHP_EOL.'- ',
-                        array_map(
-                            fn (ToolInterface $tool): string => $tool->getName(),
-                            $innerTools
-                        )
-                    );
-
-                    $guidelines[] = $kitGuidelines;
-                }
-            } elseif ($tool->isVisible()) {
-                $this->toolsBootstrapCache[] = $tool;
-            }
-        }
-
-        // Remove guidelines injected by a previous bootstrap, dropping blocks left empty.
-        $blocks = [];
-        foreach ($this->getInstructions()->getContentBlocks() as $block) {
-            if ($block instanceof TextContent) {
-                $block->content = ContentHelper::removeDelimitedContent($block->content, '<TOOLS-GUIDELINES>', '</TOOLS-GUIDELINES>');
-                if ($block->content === '') {
-                    continue;
-                }
-            }
-            $blocks[] = $block;
-        }
-
-        if ($guidelines !== []) {
-            $blocks[] = new SystemContent(
-                '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
-            );
-        }
-
-        $this->setInstructions(new SystemMessage($blocks));
-
-        return $this->toolsBootstrapCache;
+        return $this->toolsOverridden ? $this->tools : array_merge($this->tools, $this->tools($context));
     }
 
     /**
@@ -167,7 +91,6 @@ trait HandleTools
         $this->validateTools($tools);
         $this->tools = $tools;
         $this->toolsOverridden = true;
-        $this->toolsBootstrapCache = [];
 
         return $this;
     }
@@ -184,9 +107,6 @@ trait HandleTools
         foreach ($tools as $tool) {
             $this->tools[] = $tool;
         }
-
-        // Empty the cache for the next turn.
-        $this->toolsBootstrapCache = [];
 
         return $this;
     }

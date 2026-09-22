@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
 
@@ -23,11 +24,11 @@ trait HandleProvider
 
     /**
      * Provide the default AI provider. Subclasses override this hook —
-     * never resolveProvider(), which memoizes the resolved instance.
+     * the runtime resolves it once per admitted segment.
      *
      * @throws AgentException
      */
-    protected function provider(): AIProviderInterface
+    protected function provider(ExecutionContext $context): AIProviderInterface
     {
         throw new AgentException(
             'No AI provider configured: override the provider() method in your agent, or call setAiProvider().'
@@ -37,8 +38,8 @@ trait HandleProvider
     /**
      * Get the current provider instance.
      */
-    final public function getProvider(): AIProviderInterface
+    final public function getProvider(ExecutionContext $context): AIProviderInterface
     {
-        return $this->provider ??= $this->provider();
+        return $this->provider ?? $this->provider($context);
     }
 }

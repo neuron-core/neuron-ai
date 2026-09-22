@@ -26,6 +26,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\Tool;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 
 use function array_map;
 use function iterator_to_array;
@@ -36,7 +37,7 @@ class AgentInstructionsTest extends TestCase
 {
     public function test_default_instructions_are_not_cached(): void
     {
-        $blocks = Agent::make()->getInstructions()->getTextBlocks();
+        $blocks = ($agent = Agent::make())->getInstructions(ExecutionTestFactory::context($agent))->getTextBlocks();
 
         $this->assertCount(1, $blocks);
         $this->assertInstanceOf(SystemContent::class, $blocks[0]);
@@ -90,7 +91,7 @@ class AgentInstructionsTest extends TestCase
         $middleware->before($node, new AIInferenceEvent(), $state);
         $restored = unserialize(serialize($state));
         $this->assertInstanceOf(AgentState::class, $restored);
-        Agent::make()->restoreState($restored);
+        ExecutionTestFactory::runtime(Agent::make()->setAiProvider(new FakeAIProvider()))->restoreState($restored);
         $this->assertSame([], $restored->request->tools);
 
         $todos = [['content' => 'Check the result', 'status' => 'pending']];

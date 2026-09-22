@@ -42,8 +42,8 @@ class RunInFlightException extends WorkflowException
 
         return match ($this->status) {
             WorkflowStatus::Suspended => "{$run} is suspended, waiting on {$this->describeInterrupt($this->interrupt)}. "
-                . 'Deliver the awaited input with signal() or resume($payload)->run(), or evaluate due deadlines '
-                . 'with resume()->run(), before igniting again.',
+                . 'Deliver the awaited input with run(ExecutionRequest::resume($payload)), or evaluate due deadlines '
+                . 'with run(ExecutionRequest::resume()), before igniting again.',
             WorkflowStatus::Completed => "{$run} completed and its outcome is retained. "
                 . "Call acknowledgeCompletion('{$this->runId}') to release the workflow ID.",
             WorkflowStatus::Running => $this->describeRunning($run),
@@ -56,7 +56,7 @@ class RunInFlightException extends WorkflowException
     {
         if ($this->leaseExpiresAt === null) {
             return "{$run} is marked running with no lease, so a crashed process cannot be told apart "
-                . 'from a live one. If it died, resume()->run() takes the run over; setLeaseTimeout() lets a '
+                . 'from a live one. If it died, run(ExecutionRequest::resume()) takes the run over; setLeaseTimeout() lets a '
                 . 'later ignition supersede dead runs automatically.';
         }
 

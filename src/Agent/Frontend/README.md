@@ -10,7 +10,7 @@ public function translate(array $payload, InterruptRequest $request): array;
 ```
 
 The payload is decoded request JSON. The request is the authoritative current `InterruptRequest` from a returned workflow state or a persisted run snapshot. The return
-value is one plain response payload, ready for `resume()`. Translation never executes an agent,
+value is one plain response payload, ready for `ExecutionRequest::resume()`. Translation never executes an agent,
 changes persistence, or adds messages to chat history.
 
 ## Continuing through an application endpoint
@@ -22,7 +22,7 @@ Then it can use either built-in translator or its own interface implementation:
 ```php
 use NeuronAI\Agent\Frontend\AGUIInputTranslator;
 
-$events = $agent->submitInputs($payload, new AGUIInputTranslator())->events();
+$events = $agent->events($agent->submitInputs($payload, new AGUIInputTranslator()));
 ```
 
 Use `VercelAIInputTranslator` for Vercel requests, or any implementation of
@@ -30,51 +30,51 @@ Use `VercelAIInputTranslator` for Vercel requests, or any implementation of
 `submitInputs()` is inherited from Workflow, so custom workflows use the same
 translator contract. It reads the current persisted request and stages its translated response;
 it does not execute nodes or write persistence. Missing runs, unmatched payloads,
-and invalid translations fail before execution. Inputs are consumed by the next
-terminal call. A second submission, `signal()`, or `resume()` cannot be combined
-with an already staged operation. Switching the agent's chat history to a
-different thread clears its staged inputs.
+and invalid translations fail before execution. The helper returns an independent `ExecutionRequest`; pass it to
+`run($request)` or `events($request)`. Constructing another request does not overwrite
+it. Authorize and retain the same workflow/thread identity when executing it.
 
 Configure the corresponding outbound stream adapter before consuming the generator.
 The endpoint owns HTTP headers and error responses, including protocol error frames
 if translation fails before streaming begins. Read the generator's returned state
 to determine whether the run completed or suspended again.
 
-Workflow retains the inspected run identity and execution attempt internally.
+The returned request carries the inspected run identity and execution attempt.
 If another request advances the run before execution, the continuation is rejected
 as stale. This protects the gap between submission and execution; it does not
 identify an original browser request submitted again later. Applications managing
 durable retries can retain the request, run identity and execution attempt returned by a previous
-execution and use the fenced `resume($response, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->run()` API for redelivery. AG-UI's
+execution and use the fenced `run(ExecutionRequest::resume($response, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` API for redelivery. AG-UI's
 per-request `runId` is not Neuron's durable run ID.
 
-`run()` and `events()` take no arguments. Without a staged operation they start
-or automatically recover a failed execution. Agent's `chat()`, `stream()`, and
-`structured()` explicitly start new turns, preserving newly supplied messages.
-For durable delivery, use `resume($response, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->events()`.
+`run($request)` always consumes execution and returns state; `events($request)`
+always returns a lazy generator. Both accept an optional per-invocation `prepare`
+closure for runtime dependencies. Without a request they start or recover a failed
+execution. Agent `chat()`, `stream()` and `structured()` construct fresh start requests.
+Import `ExecutionRequest` from `NeuronAI\Workflow\Executor`.
 
 ## Native application inputs
 
 Replace native `toolApprovalDecisions()` and `toolResults()` calls with
 `submitApprovalDecisions($decisions)` and `submitToolResults($results)`, respectively.
-These methods validate the native maps and stage continuation without exposing
+These methods validate the native maps and return a continuation request without exposing
 translator classes or internal event names:
 
 ```php
-$state = $agent->submitApprovalDecisions([
+$state = $agent->run($agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'Too expensive'],
-])->run();
+]));
 
 // When the agent subsequently waits for the approved frontend tool's result:
-$events = $agent->submitToolResults([
+$events = $agent->events($agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
-])->events();
+]));
 ```
 
 Both methods accept maps keyed by tool call ID. Each result entry contains exactly
-one JSON-compatible `result` or string `error`. Finish with `run()` for an
-`AgentState` or `events()` for streaming; these methods do not start a new turn. The approval node durably
+one JSON-compatible `result` or string `error`. Pass the request to `run($request)` for an
+`AgentState` or `events($request)` for streaming; these methods do not start a new turn. The approval node durably
 accumulates decisions, so successive submissions can carry only newly decided
 actions through `submitApprovalDecisions()`. Explicit changes to an already-decided action in a
 still-open batch retain the engine's latest-delivery behavior. Tool results keep

@@ -21,6 +21,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 
 class StaticGraphTest extends TestCase
 {
@@ -32,7 +33,7 @@ class StaticGraphTest extends TestCase
 
         $agent->chat(new UserMessage('hello'));
 
-        $map = $agent->getEventNodeMap();
+        $map = ExecutionTestFactory::runtime($agent)->getEventNodeMap();
 
         $this->assertInstanceOf(AgentStartNode::class, $map[AgentStartEvent::class] ?? null);
         $this->assertInstanceOf(ChatNode::class, $map[AIInferenceEvent::class] ?? null);

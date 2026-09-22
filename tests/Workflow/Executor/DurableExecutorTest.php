@@ -212,7 +212,7 @@ class DurableExecutorTest extends TestCase
 
     public function test_default_in_memory_persistence(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -321,7 +321,7 @@ class DurableExecutorTest extends TestCase
         $state = $this->execute($workflow, $persistence);
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertSame([], $workflow->restored);
+        $this->assertSame([StartEvent::class], $workflow->restored);
 
         // Resume in a fresh instance: exactly the deserialized events are
         // restored — the adopted ignition start event and node A's recalled

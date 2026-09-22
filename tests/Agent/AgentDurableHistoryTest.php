@@ -116,10 +116,10 @@ class AgentDurableHistoryTest extends TestCase
         $agent->addTool($searchTool);
         $agent->setPersistence($recorder);
 
-        $agent->chat(new UserMessage('Loop'))->getMessage();
+        $state = $agent->chat(new UserMessage('Loop'));
 
-        $first = $recorder->blobSizes[$this->stepKey($agent, ChatNode::class . '-1')];
-        $last = $recorder->blobSizes[$this->stepKey($agent, ToolNode::class . '-' . (2 * $rounds))];
+        $first = $recorder->blobSizes[$state->getRunId() . '/' . ChatNode::class . '-1'];
+        $last = $recorder->blobSizes[$state->getRunId() . '/' . ToolNode::class . '-' . (2 * $rounds)];
 
         $this->assertLessThan(
             $first * 2,
@@ -166,7 +166,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        $state2 = $agent2->resume(['call_1' => 'approve'])->run();
+        $state2 = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
 
         $steps2 = $state2->getSteps();
         $this->assertCount(3, $steps2, 'The resume cycle reports its own messages: tool call, tool result, final response');
@@ -254,7 +254,7 @@ class AgentDurableHistoryTest extends TestCase
         $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
         $agent2->setPersistence(new FilePersistence($dir));
 
-        $message = $agent2->resume(['call_1' => 'approve'])->run()->getMessage();
+        $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
 

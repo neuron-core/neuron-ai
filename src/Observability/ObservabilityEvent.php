@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Observability;
 
+use NeuronAI\Workflow\ExecutionContext;
+
 use function preg_replace;
 use function strrpos;
 use function strtolower;
@@ -22,6 +24,8 @@ abstract class ObservabilityEvent
      * Stamped at dispatch time.
      */
     public ?object $source = null;
+
+    public ?ExecutionContext $execution = null;
 
     /**
      * The parallel-branch identifier when the event originates from a

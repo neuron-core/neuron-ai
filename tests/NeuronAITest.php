@@ -38,14 +38,14 @@ class NeuronAITest extends TestCase
         $this->assertEquals("# IDENTITY AND PURPOSE".PHP_EOL."Agent", $system);
 
         $agent = new class () extends Agent {
-            public function instructions(): string
+            public function instructions(\NeuronAI\Workflow\ExecutionContext $context): string
             {
                 return 'Hello';
             }
         };
-        $this->assertEquals('Hello', $agent->getInstructions()->getContent());
+        $this->assertEquals('Hello', $agent->getInstructions(\NeuronAI\Tests\Support\ExecutionTestFactory::context($agent))->getContent());
         $agent->setInstructions('Hello2');
-        $this->assertEquals('Hello2', $agent->getInstructions()->getContent());
+        $this->assertEquals('Hello2', $agent->getInstructions(\NeuronAI\Tests\Support\ExecutionTestFactory::context($agent))->getContent());
     }
 
     public function test_message_instance(): void

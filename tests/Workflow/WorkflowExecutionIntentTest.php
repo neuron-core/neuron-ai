@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -36,6 +35,7 @@ class WorkflowExecutionIntentTest extends TestCase
         } catch (RuntimeException) {
         }
 
+        $failedRunId = $failed->inspect()->runId;
         $workflow = Workflow::make('intent')->setPersistence($persistence)->addNode(new MemoizingNode());
         if ($streaming) {
             $events = $workflow->events();
@@ -45,7 +45,7 @@ class WorkflowExecutionIntentTest extends TestCase
             $state = $workflow->run();
         }
 
-        $this->assertSame($failed->getRunId(), $state->getRunId());
+        $this->assertSame($failedRunId, $state->getRunId());
         $this->assertSame(1, MemoizingNode::getOperationCount());
         $this->assertSame('computed_1', $state->get('memo_result'));
     }
@@ -58,9 +58,9 @@ class WorkflowExecutionIntentTest extends TestCase
         $completed = $workflow->run();
         $reader = Workflow::make('intent')->setPersistence($persistence);
         $before = serialize($persistence);
-        $this->assertSame($reader, $reader->resume(expectedRunId: $completed->getRunId()));
+        $request = \NeuronAI\Workflow\Executor\ExecutionRequest::resume(expectedRunId: $completed->getRunId());
         $this->assertSame($before, serialize($persistence));
-        $this->assertSame($completed->get('memo_result'), $reader->run()->get('memo_result'));
+        $this->assertSame($completed->get('memo_result'), $reader->run($request)->get('memo_result'));
     }
 
     /** @return iterable<string, array{string, string}> */
@@ -74,11 +74,12 @@ class WorkflowExecutionIntentTest extends TestCase
     }
 
     #[DataProvider('conflictingOperations')]
-    public function test_staged_operations_cannot_be_combined(string $first, string $second): void
+    public function test_requests_do_not_overwrite_each_other(string $first, string $second): void
     {
-        $workflow = Workflow::make();
-        $workflow->$first(...($first === 'signal' ? ['event'] : []));
-        $this->expectException(WorkflowException::class);
-        $workflow->$second(...($second === 'signal' ? ['event'] : []));
+        $one = \NeuronAI\Workflow\Executor\ExecutionRequest::$first(...($first === 'signal' ? ['first'] : []));
+        $two = \NeuronAI\Workflow\Executor\ExecutionRequest::$second(...($second === 'signal' ? ['second'] : []));
+        $this->assertNotSame($one, $two);
+        $this->assertSame($first === 'signal' ? 'first' : null, $one->signal);
+        $this->assertSame($second === 'signal' ? 'second' : null, $two->signal);
     }
 }

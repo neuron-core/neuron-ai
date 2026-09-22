@@ -180,7 +180,7 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->resume($payload)->run();
+            $state = $this->agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($payload));
         }
     }
 

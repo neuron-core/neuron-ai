@@ -100,7 +100,7 @@ class WorkflowTest extends TestCase
             ]);
 
         $this->execute($workflow);
-        $eventNodeMap = $workflow->getEventNodeMap();
+        $eventNodeMap = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow)->getEventNodeMap();
 
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
         $this->assertArrayHasKey(FirstEvent::class, $eventNodeMap);
@@ -225,14 +225,15 @@ class WorkflowTest extends TestCase
         // Identity is assigned by the executor's identity phase, never
         // defaulted at construction.
         $this->assertNull($workflow->getWorkflowId());
-        $this->assertNull($workflow->getRunId());
+        $this->assertNull($workflow->inspect()?->runId);
 
-        $this->execute($workflow, new InMemoryPersistence());
+        $state = $this->execute($workflow, new InMemoryPersistence());
 
-        $this->assertNotEmpty($workflow->getWorkflowId());
-        $this->assertStringStartsWith('workflow_', (string) $workflow->getWorkflowId());
-        $this->assertNotEmpty($workflow->getRunId());
-        $this->assertStringStartsWith('run_', (string) $workflow->getRunId());
+        $this->assertNull($workflow->getWorkflowId());
+        $this->assertNotEmpty($state->getWorkflowId());
+        $this->assertStringStartsWith('workflow_', (string) $state->getWorkflowId());
+        $this->assertNotEmpty($state->getRunId());
+        $this->assertStringStartsWith('run_', (string) $state->getRunId());
     }
 
     public function test_interrupt_state_is_resumable_from_token(): void
@@ -248,8 +249,9 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $request = $this->execute($workflow, $persistence)->getInterruptRequest();
-        $token = $workflow->getWorkflowId();
+        $state = $this->execute($workflow, $persistence);
+        $request = $state->getInterruptRequest();
+        $token = $state->getWorkflowId();
 
         $this->assertNotNull($request);
         $this->assertNotNull($token);

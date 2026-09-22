@@ -109,7 +109,7 @@ class RedisChannelTest extends TestCase
         $response = 'Hello world from Redis';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
 
-        $state = $agent->stream(new UserMessage('Hi'));
+        $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $envelopes = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $this->redis->published);
         $this->assertSame($response, $state->getMessage()->getContent());

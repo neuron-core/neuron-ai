@@ -39,7 +39,7 @@ class WorkflowSegmentOverlapTest extends TestCase
 
         $live = $workflow->events();
         $live->current();
-        $runId = $workflow->getRunId();
+        $runId = $workflow->inspect()?->runId;
 
         try {
             $workflow->events()->current();
@@ -71,7 +71,7 @@ class WorkflowSegmentOverlapTest extends TestCase
         }
 
         try {
-            $workflow->acknowledgeCompletion((string) $workflow->getRunId());
+            $workflow->acknowledgeCompletion((string) $workflow->inspect()?->runId);
             $this->fail('Acknowledging under a live segment should be refused.');
         } catch (WorkflowException $e) {
             $this->assertStringContainsString('already in flight', $e->getMessage());
@@ -88,7 +88,7 @@ class WorkflowSegmentOverlapTest extends TestCase
 
         // The run it left behind is still marked running with no lease, so an
         // inputless continuation on the same instance takes it over.
-        $state = $workflow->resume()->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
     }

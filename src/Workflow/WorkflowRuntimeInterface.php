@@ -4,128 +4,35 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use Closure;
+use Generator;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Executor\Ignition;
-use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Persistence\Serializer;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Throwable;
 
-/**
- * The workflow as the execution machinery sees it. Executors type against
- * THIS interface, never against {@see WorkflowInterface}: keeping engine
- * collaboration points off the user contract means application code cannot
- * call machinery methods by accident. `Workflow` implements both.
- */
+/** Live segment capabilities consumed by traversal. Implemented by WorkflowExecution. @internal */
 interface WorkflowRuntimeInterface
 {
-    /**
-     * The event traversal begins from. Rebuilt fresh on every run:
-     * start events are never recalled from persistence.
-     */
     public function getStartEvent(): Event;
-
     public function getState(): WorkflowState;
-
-    /**
-     * Follow a completed step's persisted state so a replayed (cached) step
-     * restores exactly what it recorded.
-     */
     public function setState(WorkflowState $state): static;
-
     public function getNodeForEvent(string $eventClass): NodeInterface;
-
-    /**
-     * @return array<string, NodeInterface>
-     */
+    /** @return array<class-string, NodeInterface> */
     public function getEventNodeMap(): array;
-
-    /**
-     * The middleware to wrap around one node's execution, resolved with
-     * subclass-aware matching.
-     *
-     * @return array<int, Middleware\WorkflowMiddleware>
-     */
+    /** @return WorkflowMiddleware[] */
     public function getMiddlewareForNode(NodeInterface $node): array;
-
-    /**
-     * The workflow ID — the persistence partition this workflow's durable
-     * records live under. Null until the executor's identity phase assigns
-     * it.
-     */
-    public function getWorkflowId(): ?string;
-
-    /**
-     * The current run's generation stamp. Null until the executor's identity
-     * phase assigns it; a fresh ignition under a reused workflow ID stamps a
-     * new one.
-     */
-    public function getRunId(): ?string;
-
-    /**
-     * Adopt the identity the executor resolved: the workflow ID the records
-     * live under and the generation stamp of the run holding it.
-     */
-    public function adoptIdentity(string $workflowId, string $runId): void;
-
-    /**
-     * The business key this workflow wants as its workflow ID (e.g. the
-     * Agent's threadId), or null to let the engine generate one.
-     */
-    public function workflowId(): ?string;
-
+    public function getWorkflowId(): string;
+    public function getRunId(): string;
     public function getEventDispatcher(): EventDispatcherInterface;
-
-    /**
-     * Restore the transient capability persistence stripped from a recalled
-     * event (objects that must not serialize — e.g. the agent's live tools).
-     * The engine calls it exactly at its deserialization sites, never on a
-     * live result, so implementations restore unconditionally: an event
-     * arriving here always crossed the serializer.
-     */
     public function restoreEvent(Event $event): Event;
-
-    /** Restore transient dependencies on a state recalled from persistence. */
     public function restoreState(WorkflowState $state): WorkflowState;
-
-    /**
-     * The state store this run's durable records live in (steps, memos,
-     * the ignition record).
-     */
-    public function getPersistence(): PersistenceInterface;
-
-    /**
-     * The codec for this run's durable records. The executor performs all
-     * record serialization itself — backends store opaque strings.
-     */
-    public function getSerializer(): Serializer;
-
-    /**
-     * The execution-lease timeout in seconds; null disables the lease.
-     * See {@see \NeuronAI\Workflow\Workflow::setLeaseTimeout()}.
-     */
-    public function getLeaseTimeout(): ?int;
-
-    /** Whether completion must remain durable until an explicit acknowledgement. */
     public function shouldRetainCompletionUntilAcknowledged(): bool;
 
     /**
-     * Prepare the definition for traversal. Called once per segment, AFTER
-     * ignition is resolved — subclasses construct collaborators from
-     * ignition context (e.g. thread identity) here.
+     * @param Generator<int, object, mixed, WorkflowState> $generator
+     * @param Closure(Throwable): void $onFailure
+     * @return Generator<int, object, mixed, WorkflowState>
      */
-    public function bootstrap(): void;
-
-    /**
-     * Build the run's trigger envelope, stamped with the generation the
-     * executor assigned. Called by the executor exactly once, on the first
-     * segment, to register the run.
-     */
-    public function makeIgnition(string $runId): Ignition;
-
-    /**
-     * Offer a persisted trigger envelope for adoption on a continuation
-     * segment. A workflow whose start event is already set keeps its local
-     * state (same-instance segment — the two are identical).
-     */
-    public function adoptIgnition(Ignition $ignition): void;
+    public function streamExecution(Generator $generator, Closure $onFailure): Generator;
 }

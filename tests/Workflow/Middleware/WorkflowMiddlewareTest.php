@@ -32,8 +32,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addGlobalMiddleware($middleware)
+            Workflow::make('test-workflow')
+                ->addGlobalMiddleware(fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -47,8 +47,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addMiddleware(NodeOne::class, $middleware)
+            Workflow::make('test-workflow')
+                ->addMiddleware(NodeOne::class, fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -79,7 +79,7 @@ class WorkflowMiddlewareTest extends TestCase
             });
 
         $this->execute(
-            Workflow::make()
+            Workflow::make('test-workflow')
                 ->addGlobalMiddleware([$first, $second])
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
@@ -98,8 +98,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addGlobalMiddleware($middleware)
+            Workflow::make('test-workflow')
+                ->addGlobalMiddleware(fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -115,8 +115,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addGlobalMiddleware($middleware)
+            Workflow::make('test-workflow')
+                ->addGlobalMiddleware(fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -132,9 +132,9 @@ class WorkflowMiddlewareTest extends TestCase
         $nodeSpecific = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addGlobalMiddleware($global)
-                ->addMiddleware(NodeTwo::class, $nodeSpecific)
+            Workflow::make('test-workflow')
+                ->addGlobalMiddleware(fn () => $global)
+                ->addMiddleware(NodeTwo::class, fn () => $nodeSpecific)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -167,9 +167,9 @@ class WorkflowMiddlewareTest extends TestCase
             });
 
         $this->execute(
-            Workflow::make()
-                ->addGlobalMiddleware($global)
-                ->addMiddleware(NodeOne::class, $nodeSpecific)
+            Workflow::make('test-workflow')
+                ->addGlobalMiddleware(fn () => $global)
+                ->addMiddleware(NodeOne::class, fn () => $nodeSpecific)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -187,8 +187,8 @@ class WorkflowMiddlewareTest extends TestCase
             });
 
         $finalState = $this->execute(
-            Workflow::make()
-                ->addMiddleware(NodeOne::class, $middleware)
+            Workflow::make('test-workflow')
+                ->addMiddleware(NodeOne::class, fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -200,8 +200,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addMiddleware([NodeOne::class, NodeThree::class], $middleware)
+            Workflow::make('test-workflow')
+                ->addMiddleware([NodeOne::class, NodeThree::class], fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -217,9 +217,9 @@ class WorkflowMiddlewareTest extends TestCase
         $middlewareForThree = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addMiddleware(NodeTwo::class, $middlewareForTwo)
-                ->addMiddleware(NodeThree::class, $middlewareForThree)
+            Workflow::make('test-workflow')
+                ->addMiddleware(NodeTwo::class, fn () => $middlewareForTwo)
+                ->addMiddleware(NodeThree::class, fn () => $middlewareForThree)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -235,8 +235,8 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $this->execute(
-            Workflow::make()
-                ->addMiddleware(NodeTwo::class, $middleware)
+            Workflow::make('test-workflow')
+                ->addMiddleware(NodeTwo::class, fn () => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -251,14 +251,14 @@ class WorkflowMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make();
-        $workflow->addMiddleware(NodeOne::class, $middleware);
+        $workflow = Workflow::make('test-workflow');
+        $workflow->addMiddleware(NodeOne::class, fn () => $middleware);
 
         // A subclass of NodeOne inherits the middleware registered against its parent.
         $child = new class () extends NodeOne {
         };
 
-        $resolved = $workflow->getMiddlewareForNode($child);
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode($child);
 
         $this->assertCount(1, $resolved);
         $this->assertSame($middleware, $resolved[0]);
@@ -268,11 +268,11 @@ class WorkflowMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make();
-        $workflow->addMiddleware(NodeTwo::class, $middleware);
+        $workflow = Workflow::make('test-workflow');
+        $workflow->addMiddleware(NodeTwo::class, fn () => $middleware);
 
         // NodeOne is a sibling of NodeTwo, not a subclass — no match.
-        $resolved = $workflow->getMiddlewareForNode(new NodeOne());
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode(new NodeOne());
 
         $this->assertSame([], $resolved);
     }
@@ -284,10 +284,10 @@ class WorkflowMiddlewareTest extends TestCase
         // execution-mode switch (see CONTEXT.md).
         $middleware = FakeMiddleware::make();
 
-        $workflow = Workflow::make();
-        $workflow->addMiddleware(ToolNode::class, $middleware);
+        $workflow = Workflow::make('test-workflow');
+        $workflow->addMiddleware(ToolNode::class, fn () => $middleware);
 
-        $resolved = $workflow->getMiddlewareForNode(new ParallelToolNode(new InMemoryChatHistory()));
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode(new ParallelToolNode(new InMemoryChatHistory()));
 
         $this->assertCount(1, $resolved);
         $this->assertSame($middleware, $resolved[0]);

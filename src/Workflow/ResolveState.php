@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use function serialize;
+use function unserialize;
+
 /** @template TState of WorkflowState */
 trait ResolveState
 {
     /** @param TState $state */
     public function setState(WorkflowState $state): static
     {
-        $this->state = $state;
+        $this->initialState = $state;
         return $this;
     }
 
@@ -21,12 +24,12 @@ trait ResolveState
     }
 
     /**
-     * Get the current workflow state, creating the default if none was set.
+     * Build fresh working state. A configured seed is serializable data; the hook returns a new live instance.
      *
      * @return TState
      */
-    final public function getState(): WorkflowState
+    final public function newState(): WorkflowState
     {
-        return $this->state ??= $this->state();
+        return $this->initialState === null ? $this->state() : unserialize(serialize($this->initialState));
     }
 }

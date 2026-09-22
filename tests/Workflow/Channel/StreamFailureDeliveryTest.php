@@ -56,7 +56,7 @@ class StreamFailureDeliveryTest extends TestCase
         $caught = null;
         try {
             if ($push) {
-                $workflow->events();
+                $workflow->run();
             } else {
                 foreach ($workflow->events() as $line) {
                     $pulled[] = $line;

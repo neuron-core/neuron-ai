@@ -14,6 +14,7 @@ final class WorkflowRunSnapshot
         public readonly WorkflowStatus $status,
         public readonly int $executionAttempt,
         public readonly ?InterruptRequest $interrupt,
+        public readonly string $workflowId,
     ) {
     }
 }

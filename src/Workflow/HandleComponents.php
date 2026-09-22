@@ -15,10 +15,11 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Persistence\Serializer;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
+use Closure;
 
 /**
- * Each component pairs a setter with a memoizing getX() and a protected
- * default hook: subclasses override the hook, never the getter. An executor
+ * Definitions hold configured services and resource recipes. Persistence and
+ * serializer defaults are shared services; output factories resolve per segment. An executor
  * carries no configuration of its own, so choosing an execution model never
  * affects where state lives.
  */
@@ -36,16 +37,16 @@ trait HandleComponents
 
     protected bool $retainCompletion = false;
 
-    protected ?StreamingChannelInterface $channel = null;
+    protected StreamingChannelInterface|Closure|null $channel = null;
 
     /** Optional transform from native stream objects to protocol events. */
-    protected ?StreamAdapterInterface $streamAdapter = null;
+    protected StreamAdapterInterface|Closure|null $streamAdapter = null;
 
     protected ExporterInterface $exporter;
 
     final protected function getExecutor(): WorkflowExecutorInterface
     {
-        return $this->executor ??= $this->executor();
+        return $this->executor === null ? $this->executor() : clone $this->executor;
     }
 
     protected function executor(): WorkflowExecutorInterface
@@ -101,20 +102,21 @@ trait HandleComponents
     /**
      * Where in-flight output is delivered (a websocket, a broadcast, ...).
      * Content needs a stream adapter: without one the channel receives only
-     * the segment lifecycle. Null means no channel is attached.
+     * the segment lifecycle. Null falls back to the channel hook.
+     * Changing this setting leaves an execution's resolved channel unchanged.
      */
-    public function setChannel(?StreamingChannelInterface $channel): static
+    public function setChannel(StreamingChannelInterface|Closure|null $channel): static
     {
         $this->channel = $channel;
         return $this;
     }
 
-    final protected function getChannel(): ?StreamingChannelInterface
+    final protected function resolveChannel(ExecutionContext $context): ?StreamingChannelInterface
     {
-        return $this->channel ??= $this->channel();
+        return $this->channel instanceof Closure ? ($this->channel)($context) : ($this->channel ?? $this->channel($context));
     }
 
-    protected function channel(): ?StreamingChannelInterface
+    protected function channel(ExecutionContext $context): ?StreamingChannelInterface
     {
         return null;
     }
@@ -123,19 +125,20 @@ trait HandleComponents
      * Attach the stream transform used by both pull iteration and channel
      * delivery. Adapter and channel compose — the adapter decides the shape,
      * the channel the destination. An adapter is stateful for one stream.
+     * Changing this setting leaves an execution's resolved adapter unchanged.
      */
-    public function setStreamAdapter(?StreamAdapterInterface $adapter): static
+    public function setStreamAdapter(StreamAdapterInterface|Closure|null $adapter): static
     {
         $this->streamAdapter = $adapter;
         return $this;
     }
 
-    final protected function getStreamAdapter(): ?StreamAdapterInterface
+    final protected function resolveStreamAdapter(ExecutionContext $context): ?StreamAdapterInterface
     {
-        return $this->streamAdapter ??= $this->streamAdapter();
+        return $this->streamAdapter instanceof Closure ? ($this->streamAdapter)($context) : ($this->streamAdapter ?? $this->streamAdapter($context));
     }
 
-    protected function streamAdapter(): ?StreamAdapterInterface
+    protected function streamAdapter(ExecutionContext $context): ?StreamAdapterInterface
     {
         return null;
     }
@@ -143,18 +146,11 @@ trait HandleComponents
     /**
      * @throws WorkflowException
      */
-    public function export(): string
+    public function export(?ExecutionContext $context = null): string
     {
-        if ($this->eventNodeMap === []) {
-            $this->bootstrap();
-        }
-
-        $graph = (new WorkflowGraphBuilder())->build(
-            $this->getStartEvent()::class,
-            $this->eventNodeMap,
-        );
-
-        return $this->exporter->export($graph);
+        $context ??= new ExecutionContext($this->getWorkflowId() ?? 'preview', 'preview', 0, $this->makeIgnition('preview', $this->getStartEvent()));
+        $execution = $this->buildGraph($context);
+        return $this->exporter->export((new WorkflowGraphBuilder())->build($execution->getStartEvent()::class, $execution->getEventNodeMap()));
     }
 
     public function setExporter(ExporterInterface $exporter): static

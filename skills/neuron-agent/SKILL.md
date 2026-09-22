@@ -22,7 +22,7 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 class MyAgent extends Agent
 {
-    protected function provider(): AIProviderInterface
+    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
@@ -30,7 +30,7 @@ class MyAgent extends Agent
         );
     }
 
-    protected function instructions(): SystemMessage|string
+    protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
     {
         return new SystemMessage("You are a helpful AI assistant.");
     }
@@ -57,13 +57,15 @@ AgentStartEvent → AgentStartNode → inference ⇄ tools
 For example, an Agent subclass can own speech synthesis without replacing inference nodes:
 
 ```php
-protected function exitNodes(): array
+protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
 {
     return [new TextToSpeechNode($this->textToSpeech())];
 }
 ```
 
 Read [references/workflow-extension.md](references/workflow-extension.md) when implementing custom output nodes. It contains the complete TTS node, protected provider hook, and an executable example with fake providers, plus input-extension and recovery considerations.
+
+Agent provider, history, instructions, tools and tool-execution settings may change while streaming. Changes configure subsequent segments; the active segment retains its resolved resources, graph and conversation address. Resume still restores recorded input and instructions.
 
 Provider/toolkit hooks are lazy; explicit setters take precedence over their corresponding default hooks. Construct graph collaborators in the hooks so reconstructed runs receive live dependencies. Some fluent setters return `AgentInterface` or `Agent`; keep the concrete instance in a separate variable when static analysis needs its Workflow methods or subclass members.
 
@@ -98,7 +100,7 @@ calling `chat()` instead explicitly starts a new turn and supersedes it. Agent t
 Neither method starts a new user turn.
 
 `Agent` specializes the generic `Workflow<AgentState>` contract, so inherited
-`run()`, `events()`, `getState()`, and `setState()` retain the concrete
+`run()`, `events()`, and configured `setState()` seeds retain the concrete
 `AgentState` type without Agent forwarding methods or local type assertions.
 
 ### Chat Mode (Synchronous)
@@ -177,7 +179,7 @@ use NeuronAI\Tools\Toolkits\Calendar\CalendarToolkit;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 use NeuronAI\Tools\Toolkits\FileSystem\FileSystemToolkit;
 
-protected function tools(): array
+protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
 {
     return [
         FileSystemToolkit::make(scope: '/srv/agent-workspace'),
@@ -260,7 +262,7 @@ Agent instructions are a `SystemMessage` (`instructions()` returns `SystemMessag
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 
-protected function instructions(): SystemMessage|string
+protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
 {
     return new SystemMessage([
         // Large static context: cache it to reduce cost and latency.
@@ -291,9 +293,9 @@ $agent->setChatHistory(new SQLChatHistory(pdo: $pdo, contextWindow: 50000));
 $state = $agent->chat(new UserMessage($input));
 ```
 
-A pre-bound history supplied by `chatHistory()` must agree with an explicitly configured thread. Calling `setChatHistory()` with another pre-bound thread intentionally switches conversations and clears local run context; it is refused during execution. `getThreadId(): ?string` reads the resolved conversation identity.
+A pre-bound history supplied by `chatHistory()` must agree with an explicitly configured thread. Calling `setChatHistory()` with another pre-bound thread intentionally switches the configured conversation while prior results remain independent; it is refused during execution. `getThreadId(): ?string` reads the resolved conversation identity.
 
-The default `InMemoryChatHistory` generates an ephemeral backend key, so simple `MyAgent::make()->chat(...)` needs no explicit thread ID. This is not a durable conversation handle: for later-process continuation, declare the thread before ignition and configure durable history and workflow persistence. A workflow-ID-first recovery can instead restore the thread from persisted ignition context. A history hook that first supplies an identity during graph bootstrap is too late to key that run by the thread.
+The default `InMemoryChatHistory` generates an ephemeral backend key, so simple `MyAgent::make()->chat(...)` needs no explicit thread ID. This is not a durable conversation handle: for later-process continuation, declare the thread before ignition and configure durable history and workflow persistence. A workflow-ID-first constructor configures the thread immediately. History factories must agree with the configured address and cannot adopt another one during graph construction.
 
 ### Conversation memory
 
@@ -346,7 +348,7 @@ hook (a string counts as `true` and doubles as the approval reason shown to the 
 and you override the declaration per tool where you attach it:
 
 ```php
-protected function tools(): array
+protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
 {
     return [
         DeleteFileTool::make()->requireApproval(),        // force the gate

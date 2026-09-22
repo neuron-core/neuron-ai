@@ -26,9 +26,13 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\ExecutionContext;
+use NeuronAI\Workflow\WorkflowExecution;
+use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -36,7 +40,7 @@ use function array_filter;
 use function array_values;
 use function end;
 use function is_array;
-use function is_string;
+use function hash;
 
 /**
  * @extends Workflow<AgentState>
@@ -50,14 +54,10 @@ class Agent extends Workflow implements AgentInterface
     use HandleTools;
     use HandleInstructions;
 
-    protected ChatHistoryInterface $chatHistory;
+    protected ?ChatHistoryInterface $chatHistory = null;
+    protected InMemoryChatHistory $defaultHistory;
 
-    /**
-     * The conversation this run belongs to, and the run's declared workflow
-     * ID. Adopted from configuration or persistence, and NEVER generated —
-     * identity is always a developer statement. Null means the run is not
-     * findable by its thread.
-     */
+    /** Configured conversation address, independent of run identity. */
     protected ?string $threadId = null;
 
     protected bool $parallelToolCalls = false;
@@ -66,22 +66,18 @@ class Agent extends Workflow implements AgentInterface
 
     protected ?Closure $afterParallelToolChild = null;
 
-    protected bool $executing = false;
-
     /**
      * @throws WorkflowException
      * @throws AgentException
      */
-    public function __construct(
-        ?string $workflowId = null,
-        ?AgentState $state = null,
-        ?string $threadId = null,
-    ) {
-        parent::__construct($workflowId, $state);
-
-        if ($threadId !== null) {
-            $this->adoptThreadId($threadId);
+    public function __construct(?string $workflowId = null, ?AgentState $state = null, ?string $threadId = null)
+    {
+        if ($workflowId !== null && $threadId !== null && $workflowId !== $threadId) {
+            throw new AgentException('Conflicting workflow and thread identity.');
         }
+        $this->defaultHistory = new InMemoryChatHistory($threadId ?? $workflowId);
+        $this->threadId = $threadId ?? $workflowId ?? $this->defaultHistory->getThreadId();
+        parent::__construct($workflowId, $state);
     }
 
     /**
@@ -125,91 +121,60 @@ class Agent extends Workflow implements AgentInterface
     /**
      * @throws ChatHistoryException
      */
-    protected function chatHistory(): ChatHistoryInterface
+    protected function chatHistory(string $threadId): ChatHistoryInterface
     {
-        // With no explicit threadId the history self-keys, and its key is
-        // adopted as the run's identity by the lazy fallback.
-        return new InMemoryChatHistory($this->threadId);
+        return $this->defaultHistory;
     }
 
     /**
      * A pre-bound history explicitly selects the conversation; an unbound
-     * one receives the current thread identity. Swapping conversations clears
-     * local run context while preserving their histories and durable runs.
+     * one receives the current thread identity. Swapping conversations changes
+     * configuration while preserving previous results and durable runs.
      *
      * @throws AgentException
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        if ($this->executing) {
-            throw new AgentException('Cannot replace chat history while the agent is executing.');
-        }
-
-        $threadId = $chatHistory->getThreadId();
-
-        if ($threadId !== null && $this->threadId !== null && $threadId !== $this->threadId) {
-            $this->threadId = $threadId;
-            $this->workflowId = null;
-            $this->runId = null;
-            $this->state = null;
-            $this->stagedSignalName = null;
-            $this->stagedSignalPayload = [];
-            $this->stagedInputs = null;
-            $this->forceNewRun = false;
-            $this->startEvent = null;
-        }
-
-        $this->attachChatHistory($chatHistory);
-
+        $this->threadId = $chatHistory->getThreadId() ?? $this->threadId;
+        $this->workflowId = null;
+        $chatHistory->setThreadId($this->threadId);
+        $this->chatHistory = $chatHistory;
         return $this;
     }
 
     /**
-     * Reconcile identity between the history and the agent. When both are
-     * unresolved the history is stored as-is and adoptThreadId() binds it
-     * the moment identity arrives.
-     */
-    protected function attachChatHistory(ChatHistoryInterface $chatHistory): void
-    {
-        $threadId = $chatHistory->getThreadId();
-
-        if ($threadId !== null) {
-            $this->adoptThreadId($threadId);
-        } elseif ($this->threadId !== null) {
-            $chatHistory->setThreadId($this->threadId);
-        }
-
-        $this->chatHistory = $chatHistory;
-    }
-
-    /**
-     * Implicit identity adoption validates the selected conversation. Only
+     * History factories must agree with the configured conversation. Only
      * an explicit setChatHistory() call may select a different conversation.
      *
      * @throws AgentException
      */
-    protected function adoptThreadId(string $threadId): void
-    {
-        if ($this->threadId !== null && $this->threadId !== $threadId) {
-            throw new AgentException(
-                "Conflicting thread identity: '{$threadId}' does not match the agent's '{$this->threadId}'."
-            );
-        }
-
-        $this->threadId = $threadId;
-
-        if (isset($this->chatHistory) && $this->chatHistory->getThreadId() === null) {
-            $this->chatHistory->setThreadId($threadId);
-        }
-    }
 
     public function getChatHistory(): ChatHistoryInterface
     {
-        if (!isset($this->chatHistory)) {
-            $this->attachChatHistory($this->chatHistory());
+        $history = $this->chatHistory ?? $this->chatHistory($this->getWorkflowId());
+        $threadId = $history->getThreadId();
+        if ($threadId !== null && $threadId !== $this->getWorkflowId()) {
+            throw new AgentException('Chat history conflicts with the configured conversation.');
         }
+        if ($threadId === null) {
+            $history->setThreadId($this->getWorkflowId());
+        }
+        return $history;
+    }
 
-        return $this->chatHistory;
+    protected function execution(ExecutionContext $context): WorkflowExecution
+    {
+        return new AgentExecution(
+            $context,
+            $this,
+            $this->newState(),
+            $this->executionMiddleware(),
+            $this->executionGlobalMiddleware(),
+            $this->getProvider($context),
+            $this->getChatHistory(),
+            $this->getInstructions($context),
+            $this->getTools($context),
+        );
     }
 
     /**
@@ -235,7 +200,7 @@ class Agent extends Workflow implements AgentInterface
      *
      * @throws AgentException
      */
-    public function abandonRun(?string $expectedRunId = null): bool
+    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool
     {
         $messages = $this->getChatHistory()->getMessages();
         $lastMessage = end($messages);
@@ -246,30 +211,17 @@ class Agent extends Workflow implements AgentInterface
             );
         }
 
-        return parent::abandonRun($expectedRunId);
+        return parent::abandonRun($expectedRunId, $expectedExecutionAttempt, $workflowId);
     }
 
     /**
-     * Rebuild the live tool registry after restoring request data. Middleware
-     * reapply their contributions before execution; live state is never reset.
-     */
-    public function restoreState(WorkflowState $state): WorkflowState
-    {
-        if ($state instanceof AgentState && isset($state->request)) {
-            $state->request->tools = $this->bootstrapTools();
-        }
-
-        return $state;
-    }
-
-    /**
+     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function nodes(): array
+    protected function nodes(WorkflowExecution $execution): array
     {
-        $this->toolsBootstrapCache = [];
 
-        $chatHistory = $this->getChatHistory();
+        $chatHistory = $execution->getChatHistory();
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode(
@@ -282,20 +234,21 @@ class Agent extends Workflow implements AgentInterface
             : new ToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler());
 
         $nodes = [
-            ...$this->entryNodes(),
-            new ChatNode($this->getProvider(), $chatHistory),
-            new StructuredOutputNode($this->getProvider(), $chatHistory),
+            ...$this->entryNodes($execution),
+            new ChatNode($execution->getProvider(), $chatHistory),
+            new StructuredOutputNode($execution->getProvider(), $chatHistory),
             $toolNode,
             new AwaitToolResultsNode($chatHistory),
         ];
 
-        return [...$nodes, ...$this->exitNodes()];
+        return [...$nodes, ...$this->exitNodes($execution)];
     }
 
     /**
+     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function exitNodes(): array
+    protected function exitNodes(WorkflowExecution $execution): array
     {
         return [new AgentEndNode()];
     }
@@ -303,17 +256,16 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Hook method for child classes.
      *
+     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function entryNodes(): array
+    protected function entryNodes(WorkflowExecution $execution): array
     {
-        // Bootstrap first: it rewrites the instructions (toolkit guidelines),
-        // so resolving them earlier would hand the node the stale message.
-        $tools = $this->bootstrapTools();
+        $tools = $execution->getTools();
 
         return [
             new AgentStartNode(
-                $this->getInstructions(),
+                $execution->getInstructions(),
                 $tools,
             ),
         ];
@@ -329,27 +281,22 @@ class Agent extends Workflow implements AgentInterface
         return $threadId === null ? [] : ['threadId' => $threadId];
     }
 
-    /**
-     * @param array<string, mixed> $context
-     * @throws AgentException
-     */
-    protected function applyIgnitionContext(array $context): void
+    /** @param array<string, mixed> $context */
+    protected function ignitionFingerprint(Event $event, array $context): string
     {
-        $threadId = $context['threadId'] ?? null;
-
-        if (is_string($threadId)) {
-            // A record contradicting an explicitly given identity is a
-            // misidentified continuation — adoption throws.
-            $this->adoptThreadId($threadId);
+        if (!$event instanceof AgentStartEvent) {
+            return parent::ignitionFingerprint($event, $context);
         }
+        $event = clone $event;
+        foreach ($event->messages as $index => $message) {
+            $event->messages[$index] = clone $message;
+            // Message construction assigns a fresh display ID on every retry.
+            $event->messages[$index]->addMetadata('__id', null);
+        }
+        return hash('sha256', $this->getSerializer()->serialize([$event, $context]));
     }
 
-    /**
-     * Thread-findability requires identity declared BEFORE the run starts —
-     * identity discovered later (a pre-bound hook history materializing
-     * during bootstrap) is adopted and validated, but arrives after the
-     * ignition record and pointer are written.
-     */
+    /** The configured conversation address; no active run is needed. */
     public function getThreadId(): ?string
     {
         return $this->threadId;
@@ -370,66 +317,38 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param Generator<int, object, mixed, AgentState> $generator
-     * @return Generator<int, object, mixed, AgentState>
-     */
-    protected function forwardEvents(Generator $generator): Generator
-    {
-        $wasExecuting = $this->executing;
-        $this->executing = true;
-
-        try {
-            return yield from parent::forwardEvents($generator);
-        } finally {
-            $this->executing = $wasExecuting;
-        }
-    }
-
-    /**
-     * @throws WorkflowException
-     */
-    protected function prepareNewTurn(): void
-    {
-        $this->assertNoStagedOperation();
-        $this->setStartEvent($this->startEvent());
-        $this->forceNewRun = true;
-    }
-
-    /**
      * A new turn starts a new run — to continue a suspended run use
      * {@see run()}. Runs eagerly to completion; the returned state
      * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
      *
      * @param Message|Message[] $messages
-     * @throws AgentException
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function chat(Message|array $messages = []): AgentState
+    public function chat(Message|array $messages = [], ?string $idempotencyKey = null): AgentState
     {
-        $this->prepareNewTurn();
-        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
+        $event = $this->startEvent();
+        $event->messages = is_array($messages) ? $messages : [$messages];
 
-        return $this->run();
+        return $this->run(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
     }
 
     /**
-     * With an adapter and channel, stream eagerly and return the final AgentState.
-     * Otherwise, return a lazy generator of native chunks or adapted protocol events;
+     * Return a lazy generator of native chunks or adapted protocol events.
+     * Iteration also delivers to a configured channel;
      * {@see Generator::getReturn()} is the final {@see AgentState}.
      *
      * @param Message|Message[] $messages
-     * @return Generator<int, object, mixed, AgentState>|AgentState
-     * @throws AgentException
+     * @return Generator<int, object, mixed, AgentState>
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function stream(Message|array $messages = []): Generator|AgentState
+    public function stream(Message|array $messages = [], ?string $idempotencyKey = null): Generator
     {
-        $this->prepareNewTurn();
-        $this->getStartEvent()->options->stream = true;
-        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
-        return $this->events();
+        $event = $this->startEvent();
+        $event->options->stream = true;
+        $event->messages = is_array($messages) ? $messages : [$messages];
+        return $this->events(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
     }
 
     /**
@@ -441,13 +360,14 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?string $class = null,
         int $maxRetries = 1,
+        ?string $idempotencyKey = null,
     ): mixed {
-        $this->prepareNewTurn();
-        $this->getStartEvent()->options->outputClass = $class ?? $this->getOutputClass();
-        $this->getStartEvent()->options->maxRetries = $maxRetries;
-        $this->getStartEvent()->messages = is_array($messages) ? $messages : [$messages];
+        $event = $this->startEvent();
+        $event->options->outputClass = $class ?? $this->getOutputClass();
+        $event->options->maxRetries = $maxRetries;
+        $event->messages = is_array($messages) ? $messages : [$messages];
 
-        $finalState = $this->run();
+        $finalState = $this->run(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
 
         return $finalState->get('structured_output');
     }
@@ -483,17 +403,17 @@ class Agent extends Workflow implements AgentInterface
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitApprovalDecisions(array $decisions): static
+    public function submitApprovalDecisions(array $decisions, ?string $idempotencyKey = null): ExecutionRequest
     {
-        return $this->submitInputs($decisions, new ApprovalTranslator());
+        return $this->submitInputs($decisions, new ApprovalTranslator(), $idempotencyKey);
     }
 
     /**
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitToolResults(array $results): static
+    public function submitToolResults(array $results, ?string $idempotencyKey = null): ExecutionRequest
     {
-        return $this->submitInputs($results, new ToolResultsTranslator());
+        return $this->submitInputs($results, new ToolResultsTranslator(), $idempotencyKey);
     }
 }

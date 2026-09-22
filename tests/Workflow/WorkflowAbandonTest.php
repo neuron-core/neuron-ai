@@ -77,6 +77,7 @@ class WorkflowAbandonTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $suspended = $this->suspended($persistence);
+        $suspendedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($suspended);
 
         $this->assertTrue($this->abandon($persistence));
         $this->assertNull($persistence->get('thread_1', '__control'));
@@ -85,7 +86,7 @@ class WorkflowAbandonTest extends TestCase
         // The ID is free: a new generation ignites instead of being refused.
         $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $this->execute($fresh, $persistence);
-        $this->assertNotSame($suspended->getRunId(), $fresh->getRunId());
+        $this->assertNotSame($suspendedRecord->context?->runId, $fresh->inspect()?->runId);
     }
 
     public function test_abandon_discards_a_failed_generation(): void
@@ -155,7 +156,7 @@ class WorkflowAbandonTest extends TestCase
         $persistence = new InMemoryPersistence();
         $suspended = $this->suspended($persistence);
 
-        $this->assertTrue($this->abandon($persistence, (string) $suspended->getRunId()));
+        $this->assertTrue($this->abandon($persistence, (string) $suspended->inspect()?->runId));
         $this->assertNull($persistence->get('thread_1', '__control'));
     }
 
@@ -170,7 +171,7 @@ class WorkflowAbandonTest extends TestCase
             $this->fail('A stale generation should not be abandoned.');
         } catch (StaleWorkflowRunException $e) {
             $this->assertSame('run_foreign', $e->expectedRunId);
-            $this->assertSame($suspended->getRunId(), $e->actualRunId);
+            $this->assertSame($suspended->inspect()?->runId, $e->actualRunId);
         }
 
         $this->assertSame($control, $persistence->get('thread_1', '__control'));

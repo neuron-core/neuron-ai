@@ -36,12 +36,13 @@ class AgentRequestStateTest extends TestCase
         $middleware = new RequestEditingMiddleware($tool);
         $firstProvider = new FakeAIProvider(new ToolCallMessage(null, [ToolCall::make('count_users', 'call_1')]));
         $first = Agent::make(threadId: 'request-state');
+        $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setPersistence($persistence)
             ->setChatHistory($history)
             ->setAiProvider($firstProvider)
             ->setInstructions('Agent defaults')
             ->addTool(new SearchTool());
-        $first->addGlobalMiddleware($middleware);
+        $first->addGlobalMiddleware(fn () => $middleware);
 
         $question = new UserMessage('Original question');
         if ($mode === 'stream') {
@@ -52,7 +53,7 @@ class AgentRequestStateTest extends TestCase
             $first->chat($question);
         }
 
-        $this->assertTrue($first->getState()->isInterrupted());
+        $this->assertTrue($firstRecord->state->isInterrupted());
         $this->assertSame(1, $middleware->entryCalls);
         $firstProvider->assertSystemPrompt('Middleware instructions');
         $firstProvider->assertToolsConfigured(['count_users']);
@@ -67,10 +68,10 @@ class AgentRequestStateTest extends TestCase
             ->setAiProvider($freshProvider)
             ->setInstructions('Changed agent defaults')
             ->addTool(new SearchTool());
-        $resumed->addGlobalMiddleware($freshMiddleware);
+        $resumed->addGlobalMiddleware(fn () => $freshMiddleware);
 
-        $resumed->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
-        $state = $resumed->run();
+        $reply = $resumed->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
+        $state = $resumed->run($reply);
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(0, $freshMiddleware->entryCalls, 'The recorded entry step and its middleware are skipped.');

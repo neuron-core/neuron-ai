@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use Generator;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -13,54 +14,28 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  *
  * The application-facing contract of a workflow. Configuration is
  * concrete-class API on {@see Workflow}; the engine-facing collaboration
- * points live on {@see WorkflowRuntimeInterface}. getWorkflowId() appears on
- * both contracts deliberately: applications hold the continuation handle,
- * the engine reads the same identity as its persistence partition.
+ * points live on {@see WorkflowRuntimeInterface}, implemented by the per-segment runtime.
  */
 interface WorkflowInterface
 {
     /**
-     * Execute the staged operation, or start/recover a failed run by default.
-     *
      * @return TState
      */
-    public function run(): WorkflowState;
+    public function run(?ExecutionRequest $request = null): WorkflowState;
 
-    /**
-     * Answer the current interruption; omit the payload to recover or process its deadline.
-     * An empty array is an answer, while null supplies no answer.
-     *
-     * @param array<string, mixed>|null $payload
-     */
-    public function resume(
-        ?array $payload = null,
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): static;
-
-    /**
-     * Translate against the current persisted request and stage its response for run() or events().
-     *
-     * @param array<array-key, mixed> $payload
-     */
-    public function submitInputs(array $payload, InputTranslatorInterface $translator): static;
-
-    /**
-     * Answer the current interruption only if its event name matches.
-     *
-     * @param array<string, mixed> $payload
-     */
-    public function signal(string $event, array $payload = []): static;
+    /** @param array<array-key, mixed> $payload */
+    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): ExecutionRequest;
 
     /** Conditionally purge a retained completed generation. */
-    public function acknowledgeCompletion(string $expectedRunId): void;
+    public function acknowledgeCompletion(string $expectedRunId, ?string $workflowId = null): void;
 
     /**
      * Discard the run holding the workflow ID so a new one can ignite: a
      * paused, failed, or unleased run is deleted; a retained completion or a
-     * run under a fresh lease is refused. False when nothing is in flight.
+     * run under a fresh lease is refused. Optional run and attempt fences
+     * protect explicit replacement. False when nothing is in flight.
      */
-    public function abandonRun(?string $expectedRunId = null): bool;
+    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool;
 
     /**
      * Keep the terminal result until the coordinating caller acknowledges it.
@@ -69,25 +44,15 @@ interface WorkflowInterface
     public function retainCompletionUntilAcknowledged(bool $retain = true): static;
 
     /**
-     * Stream the staged operation, or start/recover a failed run by default.
-     * With an adapter and channel, deliver eagerly and return the final state.
-     *
-     * @return Generator<int, object|string, mixed, TState>|TState
+     * @return Generator<int, object, mixed, TState>
      */
-    public function events(): Generator|WorkflowState;
+    public function events(?ExecutionRequest $request = null): Generator;
 
     /**
-     * The workflow ID, also the continuation handle: pass it back to the
-     * constructor to reattach to a run in flight. Null before the first run
-     * segment: identity is assigned by the executor.
+     * The configured/declared default address. Generated execution addresses
+     * are returned in state and are never adopted by the definition.
      */
     public function getWorkflowId(): ?string;
-
-    /**
-     * The current run's generation stamp — observability identity, never the
-     * continuation handle. Null before the first run segment.
-     */
-    public function getRunId(): ?string;
 
     /**
      * Register a PSR-14 listener for a specific event class.

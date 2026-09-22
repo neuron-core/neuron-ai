@@ -42,7 +42,7 @@ class AsyncExecutorTest extends TestCase
 
     public function test_async_executor_with_normal_nodes(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -58,7 +58,7 @@ class AsyncExecutorTest extends TestCase
 
     public function test_parallel_branches_run_with_default_executor(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new SlowTextProcessNode(),
@@ -77,7 +77,7 @@ class AsyncExecutorTest extends TestCase
 
     public function test_async_executor_runs_branches_concurrently(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new SlowTextProcessNode(),
@@ -95,7 +95,7 @@ class AsyncExecutorTest extends TestCase
 
     public function test_branch_state_is_isolated_and_merged(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new TextProcessNode(),
@@ -131,7 +131,7 @@ class AsyncExecutorTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-workflow')
             ->addNodes([$fork, $sharedNode, new MergeNode()]);
 
         $result = $this->execute($workflow);
@@ -162,7 +162,7 @@ class AsyncExecutorTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('test-workflow')->addNodes([
             new DocumentParallelProcessing(),
             $streamingNode,
             new ImageProcessNode(),
@@ -171,7 +171,8 @@ class AsyncExecutorTest extends TestCase
         $this->configure($workflow);
 
         $payloads = [];
-        foreach ($workflow->events() as $event) {
+        $stream = $workflow->events();
+        foreach ($stream as $event) {
             if (!$event instanceof ChunkEvent) {
                 continue;
             }
@@ -184,6 +185,6 @@ class AsyncExecutorTest extends TestCase
 
         $this->assertSame(['first', 'second'], $payloads);
         $this->assertTrue($progress->advancedPastFirstEvent);
-        $this->assertTrue($workflow->getState()->get('merge_node_executed'));
+        $this->assertTrue($stream->getReturn()->get('merge_node_executed'));
     }
 }

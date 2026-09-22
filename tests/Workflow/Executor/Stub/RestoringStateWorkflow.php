@@ -21,7 +21,7 @@ class RestoringStateWorkflow extends Workflow
         return $state;
     }
 
-    public function restoreState(WorkflowState $state): WorkflowState
+    public function restoreState(WorkflowState $state, \NeuronAI\Workflow\ExecutionContext $context): WorkflowState
     {
         if ($state instanceof RestorableState) {
             $this->restorations[] = $state->get('__branchId', 'main') . ($state->get('paused', false) ? ':paused' : '');

@@ -233,7 +233,7 @@ class AgentChunkAdapterTest extends TestCase
             ))->setStreamChunkSize(5))
             ->addTool(GetWeatherTool::make());
 
-        $agent->stream(new UserMessage('Weather in Rome?'));
+        $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Weather in Rome?')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $sent = $this->decode($channel->getSent());
 
@@ -258,7 +258,7 @@ class AgentChunkAdapterTest extends TestCase
             ))
             ->addTool(GetWeatherTool::make()->requireApproval());
 
-        $state = $agent->stream(new UserMessage('Weather in Rome?'));
+        $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Weather in Rome?')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $interrupts = $this->ofType($this->decode($channel->getSent()), 'interrupt');
 

@@ -34,7 +34,9 @@ trait HandleDispatcher
      */
     public function subscribe(string $eventClass, callable $listener): static
     {
-        $this->listenerRegistry()->listen($eventClass, $listener);
+        $this->listeners = clone $this->listenerRegistry();
+        $this->listeners->listen($eventClass, $listener);
+        $this->dispatcher = null;
         return $this;
     }
 

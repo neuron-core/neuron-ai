@@ -34,7 +34,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class MyChatBot extends RAG
 {
-    protected function provider(): AIProviderInterface
+    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
@@ -61,6 +61,8 @@ class MyChatBot extends RAG
 ```
 
 Fluent alternatives exist for every hook: `setEmbeddingsProvider()`, `setVectorStore()`, `setRetrieval()`, `setPreProcessors()`, `setPostProcessors()`.
+
+Configuration setters may be called during execution. Each segment keeps its resolved processors, retrieval strategy and scope. The default retrieval strategy is constructed per segment from the currently configured embeddings provider and vector store. An explicit `setRetrieval()` strategy remains an application-supplied service and takes precedence over that default.
 
 ## Vector Stores
 

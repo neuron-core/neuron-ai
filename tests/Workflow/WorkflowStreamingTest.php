@@ -37,7 +37,7 @@ class WorkflowStreamingTest extends TestCase
      */
     public function test_streamed_events_reach_caller(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('test-workflow')->addNodes([
             new NodeOne(),
             new NodeTwo(),
             new NodeThree(),
@@ -62,7 +62,7 @@ class WorkflowStreamingTest extends TestCase
      */
     public function test_streamed_chunk_events_reach_caller(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('test-workflow')->addNodes([
             // StartEvent → Step2Event
             new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): Step2Event
@@ -104,7 +104,7 @@ class WorkflowStreamingTest extends TestCase
      */
     public function test_streamed_events_are_delivered_before_the_node_completes(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('test-workflow')->addNodes([
             new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): Generator
                 {
@@ -116,9 +116,10 @@ class WorkflowStreamingTest extends TestCase
             },
         ]);
 
+        $workflowRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($workflow);
         $chunkSeenBeforeCompletion = false;
         foreach ($workflow->events() as $event) {
-            if ($event instanceof ChunkEvent && $workflow->getState()->get('node_completed') !== true) {
+            if ($event instanceof ChunkEvent && $workflowRecord->state?->get('node_completed') !== true) {
                 $chunkSeenBeforeCompletion = true;
             }
         }
@@ -135,7 +136,7 @@ class WorkflowStreamingTest extends TestCase
      */
     public function test_memoized_steps_do_not_re_emit_streamed_events(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('test-workflow')->addNodes([
             new NodeOne(),
             new NodeTwo(),
             new NodeThree(),
@@ -164,8 +165,7 @@ class WorkflowStreamingTest extends TestCase
 
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-resume')
-            ->setPersistence($persistence)
-            ->resume([])->events();
+            ->setPersistence($persistence)->events(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         iterator_to_array($generator);
 
@@ -183,8 +183,7 @@ class WorkflowStreamingTest extends TestCase
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-signal')
             ->setPersistence($persistence)
-            ->signal('approval')
-            ->events();
+            ->events(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval'));
 
         iterator_to_array($generator);
 
@@ -201,12 +200,7 @@ class WorkflowStreamingTest extends TestCase
 
         $generator = KeyedWorkflow::make()
             ->withDeclaredWorkflowId('streamed-replay')
-            ->setPersistence($persistence)
-            ->resume(
-                null,
-                expectedRunId: $first->getRunId(),
-                expectedExecutionAttempt: $first->getExecutionAttempt(),
-            )->events();
+            ->setPersistence($persistence)->events(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedRunId: $first->getRunId(), expectedExecutionAttempt: $first->getExecutionAttempt()));
 
         iterator_to_array($generator);
         $state = $generator->getReturn();

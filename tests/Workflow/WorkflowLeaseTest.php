@@ -93,7 +93,7 @@ class WorkflowLeaseTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("The run for workflow ID 'thread_1' appears to be executing");
 
-        $this->leasedWorkflow(300)->setPersistence($persistence)->resume()->run();
+        $this->leasedWorkflow(300)->setPersistence($persistence)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
     }
 
     public function test_expired_running_lease_allows_recovery_claim(): void
@@ -107,7 +107,7 @@ class WorkflowLeaseTest extends TestCase
             '__control' => $serializer->serialize($running),
         ]);
 
-        $state = $this->leasedWorkflow(300)->setPersistence($persistence)->resume()->run();
+        $state = $this->leasedWorkflow(300)->setPersistence($persistence)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertTrue($state->isInterrupted());
         $this->assertGreaterThan($running->executionAttempt, $this->control($persistence)->executionAttempt);
@@ -122,8 +122,7 @@ class WorkflowLeaseTest extends TestCase
         $this->expectExceptionMessage("Stale continuation for workflow ID 'thread_1'");
 
         $this->leasedWorkflow(300)
-            ->setPersistence($persistence)
-            ->resume(null, expectedExecutionAttempt: $attempt - 1)->run();
+            ->setPersistence($persistence)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedExecutionAttempt: $attempt - 1));
     }
 
     public function test_caught_failure_clears_the_lease_deadline(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Workflow\ExecutionContext;
 use Generator;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
@@ -19,11 +20,11 @@ interface AgentInterface extends WorkflowInterface
 {
     public function setAiProvider(AIProviderInterface $provider): AgentInterface;
 
-    public function getProvider(): AIProviderInterface;
+    public function getProvider(ExecutionContext $context): AIProviderInterface;
 
     public function setInstructions(SystemMessage|string $instructions): AgentInterface;
 
-    public function getInstructions(): SystemMessage;
+    public function getInstructions(ExecutionContext $context): SystemMessage;
 
     /**
      * Replace all tools, including the defaults declared by the agent.
@@ -41,7 +42,7 @@ interface AgentInterface extends WorkflowInterface
     /**
      * @return ToolInterface[]
      */
-    public function getTools(): array;
+    public function getTools(ExecutionContext $context): array;
 
     /**
      * A pre-bound history explicitly selects the conversation between
@@ -66,16 +67,16 @@ interface AgentInterface extends WorkflowInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function chat(Message|array $messages = []): AgentState;
+    public function chat(Message|array $messages = [], ?string $idempotencyKey = null): AgentState;
 
     /**
      * @param Message|Message[] $messages
-     * @return Generator<int, object|string, mixed, AgentState>|AgentState
+     * @return Generator<int, object|string, mixed, AgentState>
      */
-    public function stream(Message|array $messages = []): Generator|AgentState;
+    public function stream(Message|array $messages = [], ?string $idempotencyKey = null): Generator;
 
     /**
      * @param Message|Message[] $messages
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?string $idempotencyKey = null): mixed;
 }

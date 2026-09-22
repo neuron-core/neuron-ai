@@ -54,7 +54,7 @@ class TransferMoneyTool extends Tool
 **The agent developer overrides the declaration per tool, at attach time** — deployment policy beats tool default, in both directions:
 
 ```php
-protected function tools(): array
+protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
 {
     return [
         DeleteFileTool::make()->requireApproval(),        // force the gate, even if it declares false

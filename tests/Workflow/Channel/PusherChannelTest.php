@@ -226,7 +226,7 @@ class PusherChannelTest extends TestCase
         $agent = Agent::make()->setStreamAdapter(new VercelAIAdapter())->setChannel($channel);
         $response = 'Hello world from Pusher, streamed in small chunks';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
-        $state = $agent->stream(new UserMessage('Hi'));
+        $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $envelopes = array_map(
             static fn (array $item): array => json_decode($item['data'], true),

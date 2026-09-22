@@ -19,6 +19,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 use stdClass;
 
 use function serialize;
@@ -121,7 +122,7 @@ class InferenceIntentTest extends TestCase
 
         $agent = Agent::make();
         $agent->addTool($tool);
-        $agent->restoreState($restored);
+        ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($restored);
         $this->assertSame([$tool], $restored->request->tools);
         $this->assertSame([$tool], $state->request->tools);
     }

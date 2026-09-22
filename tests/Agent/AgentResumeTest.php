@@ -64,6 +64,7 @@ class AgentResumeTest extends TestCase
         $provider1->setStreamChunkSize(5);
 
         $agent1 = Agent::make();
+        $agent1Record = new \NeuronAI\Tests\Support\ExecutionRecorder($agent1);
         $agent1->setAiProvider($provider1)
             ->setInstructions('You are a search assistant.');
         $agent1->addTool($searchTool);
@@ -77,7 +78,7 @@ class AgentResumeTest extends TestCase
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
         iterator_to_array($handler1);
 
-        $this->assertTrue($agent1->getState()->isInterrupted());
+        $this->assertTrue($agent1Record->state->isInterrupted());
 
         // ── Resume: a BLANK factory — the thread's workflow ID only, no threadId set.
         $wakeTool = new SearchTool();
@@ -99,9 +100,9 @@ class AgentResumeTest extends TestCase
         $agent2->setChannel($channel);
         $agent2->setStreamAdapter(new ParityAdapter());
 
-        // The approval wrapper hides the signal name; events() selects streaming.
-        $state = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
-            ->events();
+        // The approval wrapper hides the signal name; run() consumes the persisted stream intent.
+        $state = $agent2
+            ->run($agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
 
         // The run completed, on the right thread, in the right mode.
         $this->assertFalse($state->isInterrupted());
@@ -158,8 +159,8 @@ class AgentResumeTest extends TestCase
 
         // Continuation is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
-        $user = $agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())
-            ->run()
+        $user = $agent2
+            ->run($agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()))
             ->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
@@ -191,12 +192,12 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($state1->isInterrupted());
 
         // One decision out of two: the resume re-suspends (silence is never consent).
-        $partial = $agent1->resume(['call_a' => 'approve'])->run();
+        $partial = $agent1->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_a' => 'approve']));
         $this->assertTrue($partial->isInterrupted());
         $this->assertNotNull($partial->getInterruptRequest());
 
         // Only the remaining decision is needed to complete the run.
-        $complete = $agent1->resume(['call_b' => 'approve'])->run();
+        $complete = $agent1->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_b' => 'approve']));
         $this->assertSame('Both searches done.', $complete->getMessage()->getContent());
     }
 
@@ -241,7 +242,7 @@ class AgentResumeTest extends TestCase
         $rag2->setPersistence($persistence);
         $rag2->setChatHistory($history);
 
-        $user = $rag2->resume(['call_1' => 'approve'])->run()->get('structured_output');
+        $user = $rag2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
@@ -269,7 +270,7 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($suspended->isInterrupted());
 
         // PHP converts a numeric-string JSON object key to an integer array key.
-        $completed = $agent->submitInputs([123 => 'approve'], new ApprovalTranslator())->run();
+        $completed = $agent->run($agent->submitInputs([123 => 'approve'], new ApprovalTranslator()));
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame('Search complete.', $completed->getMessage()->getContent());

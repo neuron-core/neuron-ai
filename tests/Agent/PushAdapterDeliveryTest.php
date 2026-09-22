@@ -30,9 +30,9 @@ use function json_encode;
 
 class PushAdapterDeliveryTest extends TestCase
 {
-    public function test_stream_remains_lazy_without_a_complete_channel_pipeline(): void
+    public function test_stream_remains_lazy_with_every_channel_configuration(): void
     {
-        foreach ([[false, false], [true, false], [false, true]] as [$adapter, $channel]) {
+        foreach ([[false, false], [true, false], [false, true], [true, true]] as [$adapter, $channel]) {
             $provider = new FakeAIProvider(new AssistantMessage('Hello'));
             $agent = Agent::make()
                 ->setStreamAdapter($adapter ? new ParityAdapter() : null)
@@ -76,7 +76,7 @@ class PushAdapterDeliveryTest extends TestCase
             },
         ));
 
-        $state = $pushAgent->stream(new UserMessage('Hi'));
+        $state = $pushAgent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $this->assertInstanceOf(AgentState::class, $state);
         $this->assertSame('Hello world, streaming bytes', $state->getMessage()->getContent());
@@ -145,7 +145,7 @@ class PushAdapterDeliveryTest extends TestCase
         ])));
         $agent->addTool($tool);
 
-        $state = $agent->stream(new UserMessage('Where am I?'));
+        $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Where am I?')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
         $this->assertTrue($state->isInterrupted());
         $this->assertCount(1, $channel->getSuspensions());

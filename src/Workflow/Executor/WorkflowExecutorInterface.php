@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Generator;
-use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\WorkflowRuntimeInterface;
+use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 
@@ -17,54 +16,30 @@ use NeuronAI\Workflow\WorkflowState;
  * concurrent branches with Amp fibers, or something else entirely. An
  * executor owns no configuration — it reads the run's full context
  * (definition, state store, and run identity) from the
- * WorkflowRuntimeInterface it is handed, so one executor strategy composes
+ * Workflow it is handed, so one executor strategy composes
  * with any persistence backend or external coordination platform.
  */
 interface WorkflowExecutorInterface
 {
     /** Read the run's coordination state without claiming or executing it. */
-    public function inspect(WorkflowRuntimeInterface $workflow): ?WorkflowRunSnapshot;
+    public function inspect(Workflow $workflow, ?string $workflowId = null): ?WorkflowRunSnapshot;
 
     /**
-     * Start a run or recover a failed one, yielding events and returning the
-     * final state.
-     *
-     * Set fresh to replace a failed generation instead of recovering it.
-     * The executor drives the full segment lifecycle: it resolves the
-     * workflow ID, resolves ignition (register / adopt / refuse) and calls
-     * the workflow's bootstrap() before traversal begins.
-     *
-     * @return Generator<int, Event, mixed, WorkflowState>
+     * Admit one request and execute its owned segment, or return its saved outcome.
+     * @template TWorkflow of Workflow
+     * @param TWorkflow $workflow
+     * @return Generator<int, object, mixed, WorkflowState>
      */
-    public function execute(WorkflowRuntimeInterface $workflow, bool $fresh = false): Generator;
-
-    /**
-     * Continue an existing run, optionally delivering addressed inputs.
-     *
-     * @param array<string, mixed>|null $payload
-     * @return Generator<int, Event, mixed, WorkflowState>
-     */
-    public function resume(
-        WorkflowRuntimeInterface $workflow,
-        ?array $payload = null,
-        ?string $expectedRunId = null,
-        ?int $expectedExecutionAttempt = null,
-    ): Generator;
-
-    /** @return Generator<int, Event, mixed, WorkflowState> */
-    public function signal(
-        WorkflowRuntimeInterface $workflow,
-        string $name,
-        array $payload = [],
-    ): Generator;
+    public function execute(Workflow $workflow, ExecutionRequest $request): Generator;
 
     /**
      * Conditionally remove a retained completed generation after its outcome
      * has been durably acknowledged by the caller/platform.
      */
     public function acknowledgeCompletion(
-        WorkflowRuntimeInterface $workflow,
+        Workflow $workflow,
         string $expectedRunId,
+        ?string $workflowId = null,
     ): void;
 
     /**
@@ -72,5 +47,5 @@ interface WorkflowExecutorInterface
      * it waits for, so the ID is free again. Refuses a retained completion
      * and a run under a fresh lease. False when nothing is in flight.
      */
-    public function abandonRun(WorkflowRuntimeInterface $workflow, ?string $expectedRunId = null): bool;
+    public function abandonRun(Workflow $workflow, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool;
 }

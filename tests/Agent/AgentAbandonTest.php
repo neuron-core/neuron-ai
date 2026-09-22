@@ -77,8 +77,7 @@ class AgentAbandonTest extends TestCase
         $this->assertNotNull($persistence->get($threadId, '__control'));
         $this->assertCount(2, $history->getMessages());
 
-        $message = $this->makeAgent($provider, $history, $persistence, $tool)
-            ->resume(['call_1' => 'approve'])->run()
+        $message = $this->makeAgent($provider, $history, $persistence, $tool)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());
     }

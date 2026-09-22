@@ -98,7 +98,7 @@ class SSEEncoderTest extends TestCase
 
     public function test_an_unencodable_stream_event_closes_the_protocol_and_fails_the_run(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('test-execution')
             ->addNodes([new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): Generator
                 {

@@ -25,6 +25,7 @@ use function str_repeat;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+use function hash;
 
 use const JSON_THROW_ON_ERROR;
 use const PHP_OS_FAMILY;
@@ -343,4 +344,22 @@ class PersistenceContractTest extends TestCase
 
         rmdir($directory);
     }
+    /**
+     * @dataProvider backendProvider
+     * @param callable(string): PersistenceInterface $factory
+     */
+    public function test_operation_receipts_follow_the_run_lifetime(callable $factory): void
+    {
+        $store = $factory($this->directory);
+        $make = static fn (): \NeuronAI\Workflow\Workflow => \NeuronAI\Tests\Workflow\Stub\KeyedWorkflow::make('idempotent')
+            ->setPersistence($store)->retainCompletionUntilAcknowledged();
+        $started = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Workflow\Events\StartEvent(), 'reserved-backend', idempotencyKey: 'start'));
+        self::assertSame('reserved-backend', $started->getRunId());
+        $completed = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $started->getRunId(), $started->getExecutionAttempt(), idempotencyKey: 'answer'));
+        self::assertEquals($started, $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Workflow\Events\StartEvent(), 'reserved-backend', idempotencyKey: 'start')));
+        self::assertEquals($completed, $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $started->getRunId(), $started->getExecutionAttempt(), idempotencyKey: 'answer')));
+        $make()->acknowledgeCompletion($started->getRunId());
+        self::assertNull($store->get('idempotent', '__operation/' . hash('sha256', 'start')));
+    }
+
 }

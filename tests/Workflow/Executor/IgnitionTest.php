@@ -65,7 +65,7 @@ class IgnitionTest extends TestCase
         $workflow->run();
         $this->assertNotNull($persistence->get('ign_sweep', '__ignition'));
 
-        $state = $workflow->resume(['answer' => 42])->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['answer' => 42]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(42, $state->get('answer'));
@@ -84,7 +84,7 @@ class IgnitionTest extends TestCase
 
             // A blank instance: same factory shape, workflow ID only — no start event set.
             $second = $this->workflow('ign_roundtrip', new FilePersistence($dir));
-            $state = $second->resume(['answer' => 42])->run();
+            $state = $second->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['answer' => 42]));
 
             $this->assertFalse($state->isInterrupted());
             // The node replayed with the ADOPTED event: without adoption the
@@ -108,7 +108,7 @@ class IgnitionTest extends TestCase
         // instance adopts the record, delivers nothing, and re-suspends at
         // the same step.
         $second = $this->workflow('ign_replay', $persistence);
-        $state = $second->resume()->run();
+        $state = $second->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame('recovered', $state->get('ignited_with'));
@@ -121,7 +121,7 @@ class IgnitionTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("No run in flight for workflow ID 'ign_unknown'");
 
-        $workflow->resume(['answer' => 1])->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['answer' => 1]));
     }
 
     public function test_ignition_and_steps_share_the_workflow_persistence_under_a_custom_executor(): void

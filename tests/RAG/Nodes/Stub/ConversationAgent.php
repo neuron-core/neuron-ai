@@ -16,7 +16,7 @@ class ConversationAgent extends Agent
     public EmbeddingsProviderInterface $conversationEmbeddings;
 
     /** @return Node[] */
-    protected function exitNodes(): array
+    protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [new ConversationIngestionNode(
             $this->conversationStore,

@@ -48,16 +48,16 @@ class WorkflowContinuationReportingTest extends TestCase
             ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
         $workflow->subscribe(WorkflowStart::class, function (WorkflowStart $event) use ($workflow, &$starts): void {
             $this->assertSame($workflow, $event->source);
-            $state = $workflow->getState();
+            $context = $event->execution;
             $starts[] = [
-                $state->getWorkflowId(), $state->getRunId(), $state->getExecutionAttempt(),
-                $state->getStatus(), $state->getInterruptRequest(),
+                $context->workflowId, $context->runId, $context->executionAttempt,
+                WorkflowStatus::Running, null,
             ];
         });
 
         $first = $workflow->run();
         $runId = $first->getRunId();
-        $workflow->resume([])->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertSame([
             ['reporting', $runId, 1, WorkflowStatus::Running, null],
@@ -100,20 +100,20 @@ class WorkflowContinuationReportingTest extends TestCase
         ], $events);
 
         $submissions = [
-            fn (): Agent => $agent->submitApprovalDecisions(['a' => 'approve']),
-            fn (): Agent => $agent->submitApprovalDecisions(['b' => 'approve']),
-            fn (): Agent => $agent->submitToolResults(['a' => ['result' => 'First page']]),
-            fn (): Agent => $agent->submitToolResults(['b' => ['result' => 'Second page']]),
+            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitApprovalDecisions(['a' => 'approve']),
+            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitApprovalDecisions(['b' => 'approve']),
+            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitToolResults(['a' => ['result' => 'First page']]),
+            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitToolResults(['b' => ['result' => 'Second page']]),
         ];
         $expectedRequests = [ApprovalRequest::class, ToolResultsRequest::class, ToolResultsRequest::class];
         foreach ($submissions as $index => $submit) {
             $events = [];
-            $submit();
+            $request = $submit();
             $this->assertSame([], $events, 'Staging input must not report execution.');
             if ($streaming) {
-                iterator_to_array($agent->events());
+                iterator_to_array($agent->events($request));
             } else {
-                $agent->run();
+                $agent->run($request);
             }
             $this->assertSame($index < 3 ? [
                 ['start'],
@@ -141,7 +141,7 @@ class WorkflowContinuationReportingTest extends TestCase
         };
         $trace = (object) ['events' => []];
         $events = [];
-        $workflow = Workflow::make()->setExecutor(new AsyncExecutor())
+        $workflow = Workflow::make('test-workflow')->setExecutor(new AsyncExecutor())
             ->addNodes([$fork, new ConcurrentWaitNode($trace), $join]);
         $workflow->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$events): void {
             if ($event instanceof WorkflowInterrupted) {
@@ -158,11 +158,11 @@ class WorkflowContinuationReportingTest extends TestCase
         $workflow->run();
         $this->assertSame(['b.started', 'a.started', 'a.waiting', 'b.waiting'], $trace->events);
         $this->assertSame(['a', 'suspended'], $events);
-        $workflow->resume()->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
         $this->assertSame(['a', 'suspended'], $events, 'Reading an unanswered request does not report another suspension.');
-        $workflow->resume([])->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertSame(['a', 'suspended', 'b', 'suspended'], $events);
-        $workflow->resume([])->run();
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertSame(['a', 'suspended', 'b', 'suspended', 'completed'], $events);
     }
 }

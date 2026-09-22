@@ -27,6 +27,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 
 use function str_starts_with;
 
@@ -92,11 +93,11 @@ class ToolResolutionTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest('instructions');
 
-        $this->assertSame($state, $agent->restoreState($state));
+        $this->assertSame($state, ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($state));
         $this->assertSame([$tool], $state->request->tools);
 
         $emptyState = new AgentState();
-        $this->assertSame($emptyState, $agent->restoreState($emptyState));
+        $this->assertSame($emptyState, ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($emptyState));
         $this->assertFalse(isset($emptyState->request));
     }
 
@@ -188,7 +189,7 @@ class ToolResolutionTest extends TestCase
         $agent1->setChatHistory(new InMemoryChatHistory($workflowId));
         $agent1->setAiProvider($provider1);
         $agent1->addTool($searchTool);
-        $agent1->setPersistence($persistence);
+        $agent1->setPersistence($persistence)->setLeaseTimeout(null);
 
         $agent1->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
@@ -214,11 +215,8 @@ class ToolResolutionTest extends TestCase
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
 
-        // The simulated crash left the default lease fresh; this test is about
-        // tool resolution on replay, so take the run over without waiting.
-        $agent2->setLeaseTimeout(null);
-
-        $message = $agent2->resume()->run()->getMessage();
+        // The original run has no lease, so recovery can claim it immediately.
+        $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume())->getMessage();
 
         $this->assertSame('Recovered answer.', $message->getContent());
 

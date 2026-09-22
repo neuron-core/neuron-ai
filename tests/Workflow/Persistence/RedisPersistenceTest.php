@@ -269,4 +269,16 @@ class RedisPersistenceTest extends TestCase
             }
         }
     }
+    public function test_operation_receipts_replay_and_are_deleted_with_the_run(): void
+    {
+        $make = fn (): \NeuronAI\Workflow\Workflow => \NeuronAI\Tests\Workflow\Stub\KeyedWorkflow::make('idempotent')
+            ->setPersistence($this->store)->retainCompletionUntilAcknowledged();
+        $started = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(idempotencyKey: 'start', recoverFailed: true));
+        $completed = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $started->getRunId(), $started->getExecutionAttempt(), idempotencyKey: 'answer'));
+        self::assertEquals($started, $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(idempotencyKey: 'start', recoverFailed: true)));
+        self::assertEquals($completed, $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $started->getRunId(), $started->getExecutionAttempt(), idempotencyKey: 'answer')));
+        $make()->acknowledgeCompletion($started->getRunId());
+        self::assertSame([], $this->client->keys($this->prefix . '*'));
+    }
+
 }

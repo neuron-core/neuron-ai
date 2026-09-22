@@ -43,7 +43,7 @@ class RememberingAssistant extends RAG
     // Define the usual provider(), vectorStore(), and embeddings() hooks.
     // This example uses the configured RAG store for conversation documents.
 
-    protected function exitNodes(): array
+    protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [new ConversationIngestionNode(
             vectorStore: $this->resolveVectorStore(),

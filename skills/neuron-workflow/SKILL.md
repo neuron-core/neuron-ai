@@ -7,6 +7,8 @@ description: Build or modify Neuron AI Workflow graphs, including nodes, events,
 
 This skill helps you build custom event-driven workflows in Neuron AI. Workflows are the foundation of the entire framework - Agent and RAG are built on top of Workflow.
 
+Setters configure the reusable definition, including while a segment is running. An execution retains its resolved graph, resources, completion policy and event dispatcher. New listener registrations apply to subsequent segments. The executor still rejects overlapping execution and cleanup operations.
+
 ## Core Concepts
 
 ### Event-Driven Architecture
@@ -111,7 +113,7 @@ class MyWorkflow extends Workflow
     /**
      * @return NodeInterface[]
      */
-    protected function nodes(): array
+    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [
             new ValidationNode(),
@@ -123,34 +125,27 @@ class MyWorkflow extends Workflow
 
 ### Execution API
 
-`run()` and `events()` are the only execution terminals. Staged operations
-distinguish a fresh execution from continuation:
+Import `NeuronAI\Workflow\Executor\ExecutionRequest`. Execution is explicit:
 
 | Call | Meaning |
 |---|---|
-| `run()` | Start or recover a failed run and return its final `TState` (`WorkflowState` by default). |
-| `resume()->run()` | Continue without external input: evaluate due waits or recover a crashed/failed attempt. |
-| `resume($payload, $expectedRunId?, $expectedExecutionAttempt?)->run()` | Answer the current interruption with one plain payload. |
-| `events()` | Start or recover a failed run and yield intermediate output; `getReturn()` is the final `TState`. |
-| `resume()->events()` / `resume($payload, ...)->events()` | Stream an inputless continuation or one response. |
-| `signal($name, $payload)->run()` | Deliver an application event, then continue eagerly. |
-| `signal($name, $payload)->events()` | Deliver an application event, then stream the continued segment. |
-| `abandonRun($expectedRunId?)` | Discard the run holding the workflow ID so a new one can ignite; `false` when nothing is in flight. Refuses a retained completion and a run under a fresh lease. |
+| `run(ExecutionRequest::start($event, runId: $id, idempotencyKey: $key))` | Fresh input with an optional caller-reserved generation. |
+| `run()` | Start or recover a failed run and return state. |
+| `run(ExecutionRequest::resume())` | Recover, process a due deadline, or retrieve a retained outcome. |
+| `run(ExecutionRequest::resume($answer, expectedRunId: $id, expectedExecutionAttempt: $attempt))` | Deliver a fenced answer. |
+| `run(ExecutionRequest::signal($name, $payload))` | Require the current interruption's event name to match. |
+| `events($request)` | Always a lazy generator, including when a channel is configured. |
+| `abandonRun($runId, $attempt)` | Fenced cleanup, subject to lease/completion protections. |
 
-`resume($payload)` answers the current interruption. `resume([])` is an empty
-answer; `resume()` supplies no answer and handles recovery or due deadlines.
-Timer and expiry inputs are constructed internally.
+`run()` always consumes execution; iteration over `events()` also delivers to any
+configured channel. Requests are independent values and are never staged on the
+workflow. Empty resume payloads are answers; null is inputless continuation.
+Signals are neither queued nor broadcast.
 
-`signal($name, $payload)` answers that same current interruption only when its
-event name matches. A mismatch throws. Signals are not queued or broadcast.
-Only one continuation may be staged before the following terminal call.
-
-Continuation fences belong to `resume()`, including inputless continuations.
-Only one operation may be staged: `resume()`, `signal()`, or `submitInputs()`.
-For Agent tool approval and deferred tool results, use
-`submitApprovalDecisions($decisions)` and `submitToolResults($results)` instead,
-followed by `run()` or `events()`. The generic Workflow examples below remain
-useful for custom interruptions.
+`submitInputs()`, Agent `submitApprovalDecisions()` and `submitToolResults()` return
+fenced requests. Pass the result to `run($request)` or `events($request)`. These
+helpers optionally accept an `idempotencyKey`; retain the request for retries.
+Use resource hooks or factories receiving `ExecutionContext` for run-dependent resources. They return resources and never mutate a running definition. See `src/Workflow/AGENTS.md` for execution ownership and hook signatures.
 
 ## Workflow State
 
@@ -187,7 +182,7 @@ $all = $state->all();
 ### Typed Workflow State
 
 `Workflow` is generic in PHPDoc. Bind a custom state once on the subclass;
-`run()`, `events()->getReturn()`, `getState()`, and `setState()` then retain
+`run()`, `events()->getReturn()`, and configured `setState()` seeds then retain
 that concrete type without forwarding methods or inline assertions:
 
 ```php
@@ -221,10 +216,12 @@ After a caught failure, reconstruct the workflow with the same persistence and
 workflow ID and call `run()` or `events()`. A persisted failed execution is recovered
 automatically, reusing completed steps and memoized operations.
 
-Use `resume()->run()` for explicit inputless continuation, including due timers,
+Use `run(ExecutionRequest::resume())` for explicit inputless continuation, including due timers,
 recovery of a process that died without recording failure, and retained outcomes.
-Use `resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->run()` for fenced delivery.
-All staging methods are lazy; `run()` and `events()` take no arguments.
+Use `run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` for fenced delivery.
+All staging methods are inert; `run()` and `events()` accept an optional operation idempotency key.
+Configure context-aware resource factories on the definition before invoking the terminal.
+See [reserved starts and runtime preparation](../../docs/workflow-idempotency.md#reserved-starts-and-runtime-preparation) for ordering and constraints.
 
 ### Persistence Backends
 
@@ -287,7 +284,7 @@ $workflow->setLeaseTimeout(300);
 
 Every step commit renews a deadline inside the control record at no extra
 write. A run whose deadline has passed is treated as dead: the next `run()`
-supersedes it and `resume()->run()` may take it over. Without a lease only `resume()->run()`
+supersedes it and `run(ExecutionRequest::resume())` may take it over. Without a lease only `run(ExecutionRequest::resume())`
 can take over a `running` record. Pick a value above the longest single node
 (a slow provider or tool call). Plain workflows are opt-in; `Agent` holds a
 ten-minute lease by default, and `setLeaseTimeout(null)` disables it. A
@@ -416,11 +413,10 @@ if ($state->isInterrupted()) {
     $state = Workflow::make(workflowId: $workflowId)
         ->setPersistence($persistence)
         ->addNodes([...])
-        ->signal('approval', [
+        ->run(ExecutionRequest::signal('approval', [
             'delete_files' => 'approve',
             'send_email' => ['reject', 'Do not notify anyone'],
-        ])
-        ->run();
+        ]));
 }
 
 $result = $state->get('result');
@@ -430,18 +426,18 @@ Application-controlled event delivery normally uses the event name and workflow
 ID; `signal()` checks the current request's event name:
 
 ```php
-$state = $workflow->signal('payment.received', $payload)->run();
+$state = $workflow->run(ExecutionRequest::signal('payment.received', $payload));
 ```
 
 Delayed, queued, or platform delivery supplies the observed run ID and execution
 attempt so a stale response cannot reach a later request:
 
 ```php
-$state = $workflow->resume(
+$state = $workflow->run(ExecutionRequest::resume(
     $payload,
     expectedRunId: $suspendedState->getRunId(),
     expectedExecutionAttempt: $suspendedState->getExecutionAttempt(),
-)->run();
+));
 ```
 
 ### Continuing by business key — the workflow ID
@@ -471,13 +467,12 @@ class OrderWorkflow extends Workflow
 // requests without delivering an answer:
 $workflow = OrderWorkflow::make(orderId: $orderId)
     ->setPersistence($persistence);
-$pending = $workflow->resume()->run();
+$pending = $workflow->run(ExecutionRequest::resume());
 $request = $pending->getInterruptRequest();
 
 // Or deliver a known application signal directly.
 $state = $workflow
-    ->signal('approval', ['delete_files' => 'approve'])
-    ->run();
+    ->run(ExecutionRequest::signal('approval', ['delete_files' => 'approve']));
 ```
 
 Rules: **one live run per workflow ID** — a plain `run()` starts or recovers a
@@ -487,13 +482,13 @@ expired. The exception carries `runId`, `status`, `executionAttempt`,
 `leaseExpiresAt`, and the current `interrupt`, and its message names the verb
 that settles the state. A failed generation is recovered automatically.
 A running generation whose lease expired is swept on a new start. Settle a pending run with
-`signal(...)->run()` or `resume($payload)->run()`, or discard it with `abandonRun()`.
+`run(ExecutionRequest::signal(...))` or `run(ExecutionRequest::resume($payload))`, or discard it with `abandonRun()`.
 Completed records are swept by default,
-so a later explicit continuation such as `resume()->run()` throws "No run in flight";
+so a later explicit continuation such as `run(ExecutionRequest::resume())` throws "No run in flight";
 a no-input `run()` may start a new generation. A continuation with no workflow
 ID at all throws. A declared `workflowId()` wins over an explicit
 `make($workflowId)`; a disagreement throws (misidentified run). Plain workflows
-that declare no key get a generated workflow ID (`getWorkflowId()` after the
+that declare no key get a generated workflow ID (read it from the returned state after the
 first segment) and are otherwise unaffected. The `Agent` uses exactly this
 mechanism, with the Agent thread ID used as the workflow ID.
 
@@ -541,11 +536,10 @@ A signal delivers the matched event data as the inbound payload; the node's
 $state = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([...])
-    ->signal('payment.received', $paymentPayload)
-    ->run();
+    ->run(ExecutionRequest::signal('payment.received', $paymentPayload));
 ```
 
-When the deadline elapses, a timer worker invokes `resume()->run()`. Workflow validates
+When the deadline elapses, a timer worker invokes `run(ExecutionRequest::resume())`. Workflow validates
 the clock, resolves every currently due wait, and `awaitEvent()` returns `null`.
 Branch on the node result rather than comparing clocks inside the node;
 expiry is determined internally by the executor.
@@ -557,7 +551,7 @@ expiry is determined internally by the executor.
 $this->sleepUntil($wakeAt);
 ```
 
-When an external timer fires, reconstruct the workflow and call `resume()->run()`;
+When an external timer fires, reconstruct the workflow and call `run(ExecutionRequest::resume())`;
 Workflow checks whether the wake time is actually due. Timer jobs do not
 construct inputs or need interruption IDs.
 
@@ -822,7 +816,7 @@ class SequentialWorkflow extends Workflow
     /**
      * @return NodeInterface[]
      */
-    protected function nodes(): array
+    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [
             new ValidationNode(),
@@ -1071,7 +1065,7 @@ $state = $workflow->run();
 if ($state->isInterrupted()) {
     $request = $state->getInterruptRequest();
     // Collect an answer for this request, then continue the same workflow.
-    $state = $workflow->resume(['answer' => $decision])->run();
+    $state = $workflow->run(ExecutionRequest::resume(['answer' => $decision]));
     // The result may expose the next request.
 }
 ```

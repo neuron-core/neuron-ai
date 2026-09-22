@@ -49,13 +49,13 @@ class StateRestorationTest extends TestCase
         }
 
         $resumed = $make(false);
-        $state = $resumed->resume()->run();
+        $state = $resumed->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
         $this->assertSame('restored:42', $state->get('analysis')['text']);
         $this->assertContains('text', $resumed->restorations);
         $this->assertFalse($state->has('branch_value'));
     }
 
-    public function test_retained_outcome_restores_dependencies_without_running_nodes(): void
+    public function test_retained_outcome_returns_data_without_constructing_execution_dependencies(): void
     {
         $persistence = new InMemoryPersistence();
         $first = RestoringStateWorkflow::make('restorable-outcome');
@@ -70,12 +70,12 @@ class StateRestorationTest extends TestCase
 
         $resumed = RestoringStateWorkflow::make('restorable-outcome');
         $resumed->setPersistence($persistence)->retainCompletionUntilAcknowledged();
-        $restored = $resumed->resume()->run();
-        $this->assertSame('restored', ($restored->operation)());
-        $this->assertSame(['main'], $resumed->restorations);
+        $restored = $resumed->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
+        $this->assertNull($restored->operation);
+        $this->assertSame([], $resumed->restorations);
     }
 
-    public function test_resumed_branch_and_unanswered_checkpoint_restore_dependencies(): void
+    public function test_resumed_branches_restore_dependencies_but_unanswered_checkpoint_is_data_only(): void
     {
         $persistence = new InMemoryPersistence();
         $make = function () use ($persistence): RestoringStateWorkflow {
@@ -95,20 +95,18 @@ class StateRestorationTest extends TestCase
         $this->assertNotNull($textRequest);
 
         $partial = $make();
-        $partial->signal('text', []);
-        $state = $partial->run();
+        $state = $partial->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('text', []));
         $this->assertTrue($state->isInterrupted());
         $this->assertContains('text', $partial->restorations);
 
         $stale = $make();
-        $checkpoint = $stale->resume()->run();
+        $checkpoint = $stale->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
         $this->assertTrue($checkpoint->isInterrupted());
-        $this->assertSame('restored', ($checkpoint->operation)());
-        $this->assertSame(['main'], $stale->restorations);
+        $this->assertNull($checkpoint->operation);
+        $this->assertSame([], $stale->restorations);
 
         $last = $make();
-        $last->signal('image', []);
-        $completed = $last->run();
+        $completed = $last->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('image', []));
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(['text' => 'restored:42', 'image' => 'restored:42'], $completed->get('analysis'));
     }

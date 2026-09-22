@@ -68,10 +68,10 @@ class SequentialInterruptionTest extends TestCase
         $first = $this->workflow($persistence, $trace)->run();
         $this->assertSame('a', $this->request($first)->getEventName());
         $this->assertSame(['b.started', 'a.started', 'a.waiting', 'b.waiting'], $trace->events);
-        $second = $this->workflow($persistence, $trace)->resume(['value' => 'A'])->run();
+        $second = $this->workflow($persistence, $trace)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['value' => 'A']));
         $this->assertSame('b', $this->request($second)->getEventName());
         $this->assertSame(['b.started', 'a.started', 'a.waiting', 'b.waiting', 'a.finished'], $trace->events);
-        $last = $this->workflow($persistence, $trace)->resume(['value' => 'B'])->run();
+        $last = $this->workflow($persistence, $trace)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['value' => 'B']));
         $this->assertFalse($last->isInterrupted());
         $this->assertSame(['value' => 'A'], $last->get('results')['a']);
         $this->assertSame(['value' => 'B'], $last->get('results')['b']);
@@ -82,11 +82,11 @@ class SequentialInterruptionTest extends TestCase
         $persistence = new InMemoryPersistence();
         $trace = (object) ['events' => []];
         $this->workflow($persistence, $trace, repeat: true)->run();
-        $second = $this->workflow($persistence, $trace, repeat: true)->resume(['value' => 'A'])->run();
+        $second = $this->workflow($persistence, $trace, repeat: true)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['value' => 'A']));
         $this->assertSame('b', $this->request($second)->getEventName());
-        $third = $this->workflow($persistence, $trace, repeat: true)->resume(['value' => 'B'])->run();
+        $third = $this->workflow($persistence, $trace, repeat: true)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['value' => 'B']));
         $this->assertSame('a.again', $this->request($third)->getEventName());
-        $last = $this->workflow($persistence, $trace, repeat: true)->resume([])->run();
+        $last = $this->workflow($persistence, $trace, repeat: true)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertFalse($last->isInterrupted());
         $this->assertSame(['value' => 'A'], $last->get('results')['a']);
     }
@@ -97,12 +97,12 @@ class SequentialInterruptionTest extends TestCase
         $trace = (object) ['events' => []];
         $expiresAt = new DateTimeImmutable('-1 minute');
         $this->workflow($persistence, $trace, expiresAt: $expiresAt)->run();
-        $waiting = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->resume()->run();
+        $waiting = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
         $this->assertSame('a', $this->request($waiting)->getEventName());
-        $second = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->resume([])->run();
+        $second = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertSame('b', $this->request($second)->getEventName());
         $this->assertEquals($expiresAt, $this->request($second)->getExpiresAt());
-        $last = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->resume()->run();
+        $last = $this->workflow($persistence, $trace, expiresAt: $expiresAt)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
         $this->assertFalse($last->isInterrupted());
         $this->assertNull($last->get('results')['b']);
     }
@@ -114,7 +114,7 @@ class SequentialInterruptionTest extends TestCase
         $this->workflow($persistence, $trace)->run();
         $before = serialize($persistence);
         try {
-            $this->workflow($persistence, $trace)->signal('b', [])->run();
+            $this->workflow($persistence, $trace)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('b', []));
             $this->fail('A deferred request must wait its turn.');
         } catch (WorkflowException) {
             $this->assertSame($before, serialize($persistence));
@@ -164,7 +164,7 @@ class SequentialInterruptionTest extends TestCase
         $events = iterator_to_array($make()->events());
         $this->assertSame([ChunkEvent::class, ChunkEvent::class, InterruptEvent::class], array_map(fn (Event $event): string => $event::class, $events));
         $this->assertSame(['started', 'memoized', 'finished'], $trace->events);
-        $state = $make()->resume([])->run();
+        $state = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(['started', 'memoized', 'finished', 'next'], $trace->events);
         $this->assertSame(['text' => 'done', 'image' => 'done'], $state->get('analysis'));
@@ -177,8 +177,8 @@ class SequentialInterruptionTest extends TestCase
         $workflow = $this->workflow($persistence, $trace)->setExecutor(new WorkflowExecutor());
         $this->assertSame('b', $this->request($workflow->run())->getEventName());
         $this->assertSame(['b.started', 'b.waiting'], $trace->events);
-        $this->assertSame('a', $this->request($workflow->resume([])->run())->getEventName());
+        $this->assertSame('a', $this->request($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([])))->getEventName());
         $this->assertSame(['b.started', 'b.waiting', 'b.finished', 'a.started', 'a.waiting'], $trace->events);
-        $this->assertFalse($workflow->resume([])->run()->isInterrupted());
+        $this->assertFalse($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]))->isInterrupted());
     }
 }

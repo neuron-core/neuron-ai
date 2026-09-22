@@ -21,7 +21,7 @@ A tool result is `string|ToolOutput`. Mappers detect multimodality on the **valu
 ```php
 class MyAgent extends Agent
 {
-    protected function provider(): AIProviderInterface
+    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
     {
         return new Anthropic(key: env('ANTHROPIC_API_KEY'), model: 'claude-sonnet-4-6');
     }

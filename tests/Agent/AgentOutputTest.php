@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 use RuntimeException;
 
 use function iterator_to_array;
@@ -41,6 +42,7 @@ class AgentOutputTest extends TestCase
         $text = $mode === 'structured' ? '{"name":"Ada"}' : 'Hello Ada.';
         $provider = new FakeAIProvider(new AssistantMessage($text));
         $agent = OutputAgent::make(threadId: 'output-test');
+        $agentRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($agent);
         $agent->setAiProvider($provider);
         $input = new UserMessage('Hello');
         if ($mode === 'structured') {
@@ -48,15 +50,15 @@ class AgentOutputTest extends TestCase
         } elseif ($mode === 'stream') {
             $stream = $agent->stream($input);
             iterator_to_array($stream);
-            $this->assertSame($agent->getState(), $stream->getReturn());
+            $this->assertEquals($agentRecord->state, $stream->getReturn());
         } else {
             $agent->chat($input);
         }
-        $state = $agent->getState();
+        $state = $agentRecord->state;
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertSame($text, $state->get('output'));
         $this->assertSame(1, $state->get('output_runs'));
-        $this->assertSame(OutputNode::class, $agent->getEventNodeMap()[AgentOutputEvent::class]::class);
+        $this->assertSame(OutputNode::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap()[AgentOutputEvent::class]::class);
         $this->assertSame(1, $provider->getCallCount());
     }
 
@@ -71,7 +73,7 @@ class AgentOutputTest extends TestCase
         $state = $agent->chat(new UserMessage('Weather?'));
         $this->assertTrue($state->isInterrupted());
         $this->assertFalse($state->has('output'));
-        $state = $agent->submitApprovalDecisions(['weather-1' => 'approve'])->run();
+        $state = $agent->run($agent->submitApprovalDecisions(['weather-1' => 'approve']));
         $this->assertSame('Sunny.', $state->get('output'));
         $this->assertSame(1, $state->get('output_runs'));
     }
@@ -80,6 +82,7 @@ class AgentOutputTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
         $first = OutputAgent::make(threadId: 'output-recovery');
+        $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setAiProvider($provider);
         $first->addMiddleware(OutputNode::class, (new FakeMiddleware())->setThrowOnBefore(new RuntimeException('Output failed.')));
         try {
@@ -88,13 +91,13 @@ class AgentOutputTest extends TestCase
         } catch (RuntimeException $error) {
             $this->assertSame('Output failed.', $error->getMessage());
         }
-        $this->assertSame(WorkflowStatus::Failed, $first->getState()->getStatus());
+        $this->assertSame(WorkflowStatus::Failed, $firstRecord->state->getStatus());
         $second = OutputAgent::make(workflowId: $first->getWorkflowId());
         $second->setAiProvider($provider);
         $second->setPersistence($first->getPersistence());
         $second->setChatHistory($first->getChatHistory());
         $state = $second->run();
-        $this->assertSame($first->getRunId(), $second->getRunId());
+        $this->assertSame($firstRecord->context?->runId, $state->getRunId());
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertSame('Hello.', $state->get('output'));
         $this->assertSame(1, $provider->getCallCount());
@@ -105,9 +108,9 @@ class AgentOutputTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setAiProvider(new FakeAIProvider());
-        $agent->bootstrap();
-        $this->assertInstanceOf(AgentEndNode::class, $agent->getEventNodeMap()[AgentOutputEvent::class]);
-        $graph = (new WorkflowGraphBuilder())->build($agent->getStartEvent()::class, $agent->getEventNodeMap());
+        $runtime = ExecutionTestFactory::runtime($agent);
+        $this->assertInstanceOf(AgentEndNode::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap()[AgentOutputEvent::class]);
+        $graph = (new WorkflowGraphBuilder())->build($agent->getStartEvent()::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap());
         $edges = [];
         foreach ($graph->getEdges() as $edge) {
             $edges[] = [$graph->getVertex($edge->from)->label, $graph->getVertex($edge->to)->label];

@@ -47,7 +47,7 @@ class NodeTest extends TestCase
     public function test_node_checkpoint(): void
     {
 
-        $workflow = Workflow::make()->addNode(new NodeCheckpoint());
+        $workflow = Workflow::make('test-execution')->addNode(new NodeCheckpoint());
 
         $state = $this->execute($workflow);
 

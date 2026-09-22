@@ -11,12 +11,12 @@ use NeuronAI\Agent\Agent;
 
 class YouTubeAgent extends Agent
 {
-    protected function provider(): AIProviderInterface
+    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
     {
         return new Anthropic(key: env('ANTHROPIC_API_KEY'), model: 'claude-sonnet-4-6');
     }
 
-    protected function instructions(): SystemMessage|string
+    protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
     {
         return new SystemMessage(<<<PROMPT
             You are an AI agent specialized in writing YouTube video summaries.
@@ -24,7 +24,7 @@ class YouTubeAgent extends Agent
             PROMPT);
     }
 
-    protected function tools(): array
+    protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
     {
         return [GetTranscriptionTool::make(env('SUPADATA_API_KEY'))];
     }
@@ -39,12 +39,14 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | Verb | Nature |
 |---|---|
 | `chat($messages)` | Eager: runs to completion and returns `AgentState` |
-| `stream($messages)` | With adapter + channel, streams eagerly and returns `AgentState`; otherwise returns a lazy `Generator` of native chunks or adapted `ProtocolEvent`s, with `AgentState` from `getReturn()` |
+| `stream($messages)` | Always returns a lazy `Generator`; iteration also delivers to a configured channel. `getReturn()` is the `AgentState`. |
 | `structured($messages, $class)` | Eager: returns the typed output |
-| `run()` / `events()` | Execute staged intent; otherwise start or automatically recover a failed execution |
-| `resume($payload = null, ...)` | Stage a generic Workflow continuation or inputless recovery |
-| `submitApprovalDecisions($decisions)` | Stage approval decisions keyed by tool call ID; finish with `run()` or `events()` |
-| `submitToolResults($results)` | Stage deferred tool results keyed by tool call ID; finish with `run()` or `events()` |
+| `run()` / `events()` | Execute an explicit `ExecutionRequest`; without one, start or recover a failed execution |
+| `ExecutionRequest::resume($payload = null, ...)` | Build a generic continuation or inputless recovery request |
+| `submitApprovalDecisions($decisions)` | Return a fenced approval request to pass to `run($request)` or `events($request)` |
+| `submitToolResults($results)` | Return a fenced tool-result request to pass to `run($request)` or `events($request)` |
+
+`chat()`, `stream()`, and `structured()` also accept an optional `idempotencyKey`, included in the execution request. Reconstructed messages with identical content/options can reuse the key: generated message display IDs are excluded from the start fingerprint. Saved outcomes replay without provider calls; receipts last only as long as the stored run.
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
@@ -59,11 +61,11 @@ AgentStartEvent ─► StartNode ─► AIInferenceEvent ─► ChatNode ──�
                                                                                      AgentOutputEvent ─► EndNode ─► Stop
 ```
 
-- Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`), so inference settings never leak between turns. Configuration changes during a segment apply to the next one.
+- Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`), so inference settings never leak between turns. Agent provider, instructions, history, tools, tool limits, error handlers and parallel-tool settings can change during streaming. The active segment keeps its resolved resources and graph; subsequent segments use the new configuration.
 - `AgentStartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
 - Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
 - The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
-- The effective tool list is shared by inference and tool execution. Executable tools are excluded from request serialization (they may hold closures or connections): `Agent::restoreState()` re-seeds `bootstrapTools()` on recalled state, and tool-contributing middleware reapply their changes in `before()`. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
+- The effective tool list is shared by inference and tool execution. Executable tools are excluded from request serialization (they may hold closures or connections): `AgentExecution::restoreState()` re-seeds the execution-local tool registry on recalled state, and tool-contributing middleware reapply their changes in `before()`. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
 
 Middleware edits the working request directly:
 
@@ -79,7 +81,7 @@ Every final response converges on `AgentOutputEvent`. The response remains in `A
 `exitNodes()` supplies `[new EndNode()]` by default. Override it to replace the default ending with application nodes:
 
 ```php
-protected function exitNodes(): array
+protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
 {
     return [new TextToSpeechNode($this->textToSpeech())];
 }
@@ -113,7 +115,7 @@ Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/th
 `ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
 ```php
-protected function tools(): array
+protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
 {
     return [
         DeleteFileTool::make()->requireApproval(),
@@ -172,10 +174,10 @@ $request = $state->getInterruptRequest();
 // Expose the pending ToolResultsRequest to the external executor.
 
 // A later request reconstructs the agent with the same thread, persistence and history.
-$state = $agent->submitToolResults([
+$state = $agent->run($agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
     'call_456' => ['error' => 'User cancelled the browser operation'],
-])->run(); // Or events() to stream the continuation.
+])); // Or events($request) to stream the continuation.
 ```
 
 Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.
@@ -195,16 +197,23 @@ The Agent declares its `threadId` as the run's workflow ID (`workflowId()`), so 
 SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
-SupportAgent::make(threadId: $threadId)
-    ->submitApprovalDecisions(['call_123' => 'approve'])
-    ->run();
+$agent = SupportAgent::make(threadId: $threadId);
+$agent->run($agent->submitApprovalDecisions(['call_123' => 'approve']));
 
-// WorkflowId-first resume (background wake): the ignition record supplies the thread.
+// WorkflowId-first resume (background wake): the configured workflow address is the thread.
 SupportAgent::make(workflowId: $ticket->workflowId)
-    ->resume($ticket->payload, expectedRunId: $ticket->runId, expectedExecutionAttempt: $ticket->executionAttempt)->run();
+    ->run(ExecutionRequest::resume($ticket->payload, expectedRunId: $ticket->runId, expectedExecutionAttempt: $ticket->executionAttempt));
 ```
 
-Identity is **always a developer statement; the framework never generates one**. It resolves from `make(threadId:)`, from adoption of a pre-bound history passed to `setChatHistory()` (which selects that conversation), or from the ignition record on a workflowId-first resume. Disagreeing non-null claims throw `AgentException`: a record contradicting an explicit claim is a misidentified continuation. Once resolved, the Agent binds the identity into an unbound history (`setThreadId()`, itself assign-once). A run without identity lives under an engine-generated workflow ID and is simply not findable by its thread; a hook-provided history that self-keys materializes after the ignition record is written, so it does not make a run thread-findable either.
+Identity is configuration, never adopted from an active run. Explicit constructor
+IDs must agree. `setChatHistory()` can deliberately select another conversation
+for subsequent segments, including while a stream is active. The active segment keeps its original history and execution address. When neither ID is supplied, the default in-memory history chooses a
+conversation address at construction, so the ordinary reusable Agent keeps its
+history between turns. This local convenience is not cross-process storage.
+`chatHistory(string $threadId)` is a conversation-scoped factory: it can also be
+resolved for history inspection/reset without inventing run identity. A returned
+pre-bound history must agree with the configured thread; an unbound history is bound
+to it before use. Declare the address before executing a custom history hook.
 
 One live run per thread has these consequences:
 
@@ -213,6 +222,30 @@ One live run per thread has these consequences:
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
 - `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
-**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread clears local run identity and staged signals and submitted inputs while persisted runs stay intact, and replacing it during an active execution throws.
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread selects a new definition default while prior results and persisted runs stay intact, and replacing it during an active execution configures subsequent segments without redirecting the current history or durable writes.
 
 **Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.
+
+
+## Caller-managed execution
+
+Build an `ExecutionRequest::start(new AgentStartEvent($messages, $options),
+runId: $reservedRunId, idempotencyKey: $key)` and call `run($request)` for eager
+execution or `events($request)` for lazy output. Both use the same engine as chat,
+stream and structured conveniences. Run/thread/attempt identity is available in
+`ExecutionContext` before resources are constructed; original input comes from
+`$context->startEvent()` on both starts and continuations.
+
+`provider()`, `tools()` and `instructions()` receive `ExecutionContext`. Their
+explicit fluent instance overrides still win. Graph hooks `nodes()`, `entryNodes()`
+and `exitNodes()` receive the runtime; Agent compositions use AgentExecution's
+`getProvider()`, `getChatHistory()`, `getInstructions()` and `getTools()` to reuse
+resources resolved for that segment. Toolkit guidelines are derived once on the
+runtime and never appended to definition instructions.
+
+Use `streamAdapter(ExecutionContext $context)` / `channel(ExecutionContext $context)`
+or fluent factories returning adapters/channels for application-managed push output.
+There is no preparation callback or Cloud trait. Saved results do not construct
+resources or replay chunks. Returned states keep their own metadata and data when
+the same definition runs again. `getRunId()` and `getState()` are runtime/result
+operations, not definition getters.

@@ -11,16 +11,25 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use NeuronAI\Workflow\WorkflowState;
+use LogicException;
+
+use function spl_object_id;
 
 trait ExecutorTestHelpers
 {
+    /** @var array<int, ExecutionRecorder> */
+    protected array $executionRecords = [];
     /**
      * The storage key of a node step — the engine's runId-prefixed record
      * layout, stated once for every test that reads the store directly.
      */
     protected function stepKey(WorkflowInterface $workflow, string $stepId): string
     {
-        return $workflow->getRunId() . '/' . $stepId;
+        $runId = $this->executionRecords[spl_object_id($workflow)]->context?->runId ?? $workflow->inspect()?->runId;
+        if ($runId === null) {
+            throw new LogicException('Record an execution before addressing its steps.');
+        }
+        return $runId . '/' . $stepId;
     }
 
     /**
@@ -36,6 +45,7 @@ trait ExecutorTestHelpers
         Workflow $workflow,
         ?PersistenceInterface $persistence = null,
     ): Workflow {
+        $this->executionRecords[spl_object_id($workflow)] ??= new ExecutionRecorder($workflow);
         $executor = $this->executor();
         if ($executor instanceof WorkflowExecutorInterface) {
             $workflow->setExecutor($executor);
@@ -69,7 +79,7 @@ trait ExecutorTestHelpers
     ): WorkflowState {
         $workflow = $this->configure($workflow, $persistence);
         if ($payload === null) {
-            return $workflow->resume(null, expectedRunId: $expectedRunId)->run();
+            return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedRunId: $expectedRunId));
         }
 
         $raw = $workflow->getPersistence()->get(
@@ -78,7 +88,7 @@ trait ExecutorTestHelpers
         );
         $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
         if (!$control instanceof WorkflowControl || !$control->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt) {
-            return $workflow->resume($payload, $expectedRunId)->run();
+            return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($payload, $expectedRunId));
         }
 
         $active = $control->interrupt;
@@ -87,7 +97,7 @@ trait ExecutorTestHelpers
             ? null
             : $payload;
 
-        return $workflow->resume($inputs, $expectedRunId)->run();
+        return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($inputs, $expectedRunId));
     }
 
     /**

@@ -196,6 +196,7 @@ class DurableTurnRecoveryTest extends TestCase
     {
         $provider = new FakeAIProvider();
         $failed = $this->fileAgent($provider);
+        $failedRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($failed);
         try {
             $failed->chat(new UserMessage('first message'));
             $this->fail('Expected the provider failure.');
@@ -203,6 +204,7 @@ class DurableTurnRecoveryTest extends TestCase
         }
         $provider->addResponses(new AssistantMessage('{"name":"Recovered"}'));
         $agent = $this->fileAgent($provider);
+        $agentRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($agent);
         $newTurn = in_array($method, ['chat', 'stream', 'structured'], true);
         $arguments = $newTurn ? [new UserMessage('second message')] : [];
         if ($method === 'structured') {
@@ -217,9 +219,9 @@ class DurableTurnRecoveryTest extends TestCase
             $this->contents($provider->getRecorded()[0]->messages),
         );
         if ($newTurn) {
-            $this->assertNotSame($failed->getRunId(), $agent->getRunId());
+            $this->assertNotSame($failedRecord->context?->runId, $agentRecord->context?->runId);
         } else {
-            $this->assertSame($failed->getRunId(), $agent->getRunId());
+            $this->assertSame($failedRecord->context?->runId, $agentRecord->context?->runId);
         }
     }
 
@@ -241,13 +243,12 @@ class DurableTurnRecoveryTest extends TestCase
             $this->fileAgent($provider, $tool)->chat(new UserMessage('Never mind'));
             $this->fail('A pending approval should refuse a new turn.');
         } catch (RunInFlightException $e) {
-            $this->assertSame($suspended->getRunId(), $e->runId);
+            $this->assertSame($suspended->inspect()?->runId, $e->runId);
             $this->assertStringContainsString("wait_for_event 'approval'", $e->getMessage());
         }
 
         // Process 3: the approval is delivered from a cold start and the run completes.
-        $message = $this->fileAgent($provider, $tool)
-            ->resume(['call_1' => 'approve'])->run()
+        $message = $this->fileAgent($provider, $tool)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))
             ->getMessage();
 
         $this->assertSame('Here are the search results...', $message->getContent());

@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Node;
 class OutputAgent extends Agent
 {
     /** @return Node[] */
-    protected function exitNodes(): array
+    protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [new OutputNode()];
     }

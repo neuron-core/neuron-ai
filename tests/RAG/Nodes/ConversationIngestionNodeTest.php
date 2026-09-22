@@ -49,6 +49,7 @@ class ConversationIngestionNodeTest extends TestCase
         $store = new FakeVectorStore();
         $answer = $mode === 'structured' ? '{"name":"Ada"}' : 'Hello Ada.';
         $agent = $this->agent($store, new FakeAIProvider(new AssistantMessage($answer)));
+        $agentRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($agent);
         $question = new UserMessage('Hello');
         if ($mode === 'stream') {
             iterator_to_array($agent->stream($question));
@@ -64,7 +65,7 @@ class ConversationIngestionNodeTest extends TestCase
         $this->assertSame(SemanticMemoryRetrieval::SOURCE_TYPE, $document->getSourceType());
         $this->assertSame('current-thread', $document->getSourceName());
         $this->assertNotNull($document->getEmbedding());
-        $this->assertSame(WorkflowStatus::Completed, $agent->getState()->getStatus());
+        $this->assertSame(WorkflowStatus::Completed, $agentRecord->state->getStatus());
 
         $agent->resetConversation();
         $this->assertSame([], $agent->getChatHistory()->getMessages());
@@ -96,7 +97,7 @@ class ConversationIngestionNodeTest extends TestCase
         $second = $this->agent($store, new FakeAIProvider(new AssistantMessage('Sunny.')));
         $second->setPersistence($first->getPersistence())->setChatHistory($first->getChatHistory());
         $second->addTool(GetWeatherTool::make()->requireApproval());
-        $second->submitApprovalDecisions(['call-1' => 'approve'])->run();
+        $second->run($second->submitApprovalDecisions(['call-1' => 'approve']));
         $store->assertDocumentCount(1);
         $store->assertHasDocumentWithContent("User: Weather?\nAssistant: Sunny.");
     }

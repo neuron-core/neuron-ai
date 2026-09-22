@@ -13,6 +13,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
 use function serialize;
+use function method_exists;
 
 class WorkflowInspectionTest extends TestCase
 {
@@ -20,7 +21,7 @@ class WorkflowInspectionTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $before = serialize($persistence);
-        $this->assertNull((new WorkflowExecutor())->inspect(Workflow::make()->setPersistence($persistence)));
+        $this->assertNull((new WorkflowExecutor())->inspect(Workflow::make('test-workflow')->setPersistence($persistence)));
         $this->assertNull((new WorkflowExecutor())->inspect(Workflow::make('missing')->setPersistence($persistence)));
         $this->assertSame($before, serialize($persistence));
     }
@@ -39,8 +40,8 @@ class WorkflowInspectionTest extends TestCase
         $this->assertSame($state->getExecutionAttempt(), $run->executionAttempt);
         $this->assertSame(WorkflowStatus::Suspended, $run->status);
         $this->assertSame($before, serialize($persistence));
-        $this->assertNull($reader->getRunId());
-        $workflow->resume([], $run->runId, $run->executionAttempt)->run();
+        $this->assertFalse(method_exists($reader, 'getRunId'));
+        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $run->runId, $run->executionAttempt));
         $completed = (new WorkflowExecutor())->inspect($reader);
         $this->assertNotNull($completed);
         $this->assertSame(WorkflowStatus::Completed, $completed->status);
