@@ -11,6 +11,7 @@ use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -61,20 +62,50 @@ class WorkflowInputSubmissionTest extends TestCase
 
         $workflow = $this->workflow($persistence);
         $submitted = $this->submit($workflow, $translator);
-        $this->assertInstanceOf(\NeuronAI\Workflow\Executor\ExecutionRequest::class, $submitted);
+        $this->assertInstanceOf(PendingExecution::class, $submitted);
         $this->assertSame($before, serialize($persistence));
         self::assertFalse(method_exists($workflow, "getRunId"));
 
         if ($streaming) {
-            $events = $workflow->events($submitted);
+            $events = $submitted->events();
+            $this->assertSame($before, serialize($persistence));
             iterator_to_array($events);
             $completed = $events->getReturn();
         } else {
-            $completed = $workflow->run($submitted);
+            $completed = $submitted->run();
         }
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame(['registered' => 'user@example.com'], $completed->get('received_payload'));
         $this->assertSame($state->getRunId(), $completed->getRunId());
+    }
+
+    public function test_an_unbound_submission_retains_its_address_and_idempotency_key(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $started = $this->workflow($persistence)->run();
+        $workflow = Workflow::make()->setPersistence($persistence)
+            ->addNodes([new NodeOne(), new WaitForEventNode(), new NodeThree()])
+            ->retainCompletionUntilAcknowledged();
+        $translator = $this->createMock(InputTranslatorInterface::class);
+        $translator->expects($this->once())->method('translate')->willReturn(['registered' => 'user@example.com']);
+
+        $pending = $workflow->submitInputs(
+            ['email' => 'user@example.com'],
+            $translator,
+            idempotencyKey: 'signup-response',
+            workflowId: 'signup',
+        );
+        $completed = $pending->run();
+        $this->assertFalse($completed->isInterrupted());
+        $this->assertSame('signup', $completed->getWorkflowId());
+        $this->assertSame($started->getRunId(), $completed->getRunId());
+        $this->assertSame(['registered' => 'user@example.com'], $completed->get('received_payload'));
+
+        $before = serialize($persistence);
+        $events = $pending->events();
+        $this->assertSame([], iterator_to_array($events));
+        $this->assertEquals($completed, $events->getReturn());
+        $this->assertSame($before, serialize($persistence));
     }
 
     /** @return iterable<string, array{array}> */
@@ -101,7 +132,7 @@ class WorkflowInputSubmissionTest extends TestCase
         }
     }
 
-    protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): \NeuronAI\Workflow\Executor\ExecutionRequest
+    protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): PendingExecution
     {
         return $workflow->submitInputs(['email' => 'user@example.com'], $translator);
     }

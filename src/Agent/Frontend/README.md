@@ -22,7 +22,7 @@ Then it can use either built-in translator or its own interface implementation:
 ```php
 use NeuronAI\Agent\Frontend\AGUIInputTranslator;
 
-$events = $agent->events($agent->submitInputs($payload, new AGUIInputTranslator()));
+$events = $agent->submitInputs($payload, new AGUIInputTranslator())->events();
 ```
 
 Use `VercelAIInputTranslator` for Vercel requests, or any implementation of
@@ -30,20 +30,20 @@ Use `VercelAIInputTranslator` for Vercel requests, or any implementation of
 `submitInputs()` is inherited from Workflow, so custom workflows use the same
 translator contract. It reads the current persisted request and stages its translated response;
 it does not execute nodes or write persistence. Missing runs, unmatched payloads,
-and invalid translations fail before execution. The helper returns an independent `ExecutionRequest`; pass it to
-`run($request)` or `events($request)`. Constructing another request does not overwrite
-it. Authorize and retain the same workflow/thread identity when executing it.
+and invalid translations fail before execution. The helper returns a `PendingExecution` holding the workflow and its independent
+`ExecutionRequest`; chain `->run()` or `->events()` on the result. Constructing
+another submission does not overwrite it. Authorize and retain the same workflow/thread identity when executing it.
 
 Configure the corresponding outbound stream adapter before consuming the generator.
 The endpoint owns HTTP headers and error responses, including protocol error frames
 if translation fails before streaming begins. Read the generator's returned state
 to determine whether the run completed or suspended again.
 
-The returned request carries the inspected run identity and execution attempt.
+The pending execution holds the inspected workflow address, run identity and execution attempt.
 If another request advances the run before execution, the continuation is rejected
 as stale. This protects the gap between submission and execution; it does not
 identify an original browser request submitted again later. Applications managing
-durable retries can retain the request, run identity and execution attempt returned by a previous
+durable retries can retain the response payload and the workflow address, run identity and execution attempt returned by a previous
 execution and use the fenced `run(ExecutionRequest::resume($response, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` API for redelivery. AG-UI's
 per-request `runId` is not Neuron's durable run ID.
 
@@ -57,24 +57,24 @@ Import `ExecutionRequest` from `NeuronAI\Workflow\Executor`.
 
 Replace native `toolApprovalDecisions()` and `toolResults()` calls with
 `submitApprovalDecisions($decisions)` and `submitToolResults($results)`, respectively.
-These methods validate the native maps and return a continuation request without exposing
+These methods validate the native maps and return a pending execution without exposing
 translator classes or internal event names:
 
 ```php
-$state = $agent->run($agent->submitApprovalDecisions([
+$state = $agent->submitApprovalDecisions([
     'call_123' => 'approve',
     'call_456' => ['reject', 'Too expensive'],
-]));
+])->run();
 
 // When the agent subsequently waits for the approved frontend tool's result:
-$events = $agent->events($agent->submitToolResults([
+$events = $agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
-]));
+])->events();
 ```
 
 Both methods accept maps keyed by tool call ID. Each result entry contains exactly
-one JSON-compatible `result` or string `error`. Pass the request to `run($request)` for an
-`AgentState` or `events($request)` for streaming; these methods do not start a new turn. The approval node durably
+one JSON-compatible `result` or string `error`. Chain `->run()` for an
+`AgentState` or `->events()` for streaming; these methods do not start a new turn. The approval node durably
 accumulates decisions, so successive submissions can carry only newly decided
 actions through `submitApprovalDecisions()`. Explicit changes to an already-decided action in a
 still-open batch retain the engine's latest-delivery behavior. Tool results keep

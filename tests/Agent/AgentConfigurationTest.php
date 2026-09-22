@@ -307,7 +307,7 @@ class AgentConfigurationTest extends TestCase
         $runId = $agent->inspect()?->runId;
 
         $agent->setAiProvider($second)->setInstructions('Updated instructions');
-        $state = $agent->run($agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
+        $state = $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame($runId, $state->getRunId());

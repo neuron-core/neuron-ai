@@ -73,7 +73,7 @@ class AgentOutputTest extends TestCase
         $state = $agent->chat(new UserMessage('Weather?'));
         $this->assertTrue($state->isInterrupted());
         $this->assertFalse($state->has('output'));
-        $state = $agent->run($agent->submitApprovalDecisions(['weather-1' => 'approve']));
+        $state = $agent->submitApprovalDecisions(['weather-1' => 'approve'])->run();
         $this->assertSame('Sunny.', $state->get('output'));
         $this->assertSame(1, $state->get('output_runs'));
     }

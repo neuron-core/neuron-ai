@@ -71,7 +71,7 @@ class AgentRequestStateTest extends TestCase
         $resumed->addGlobalMiddleware(fn () => $freshMiddleware);
 
         $reply = $resumed->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
-        $state = $resumed->run($reply);
+        $state = $reply->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(0, $freshMiddleware->entryCalls, 'The recorded entry step and its middleware are skipped.');

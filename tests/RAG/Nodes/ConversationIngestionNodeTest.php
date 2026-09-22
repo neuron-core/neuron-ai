@@ -97,7 +97,7 @@ class ConversationIngestionNodeTest extends TestCase
         $second = $this->agent($store, new FakeAIProvider(new AssistantMessage('Sunny.')));
         $second->setPersistence($first->getPersistence())->setChatHistory($first->getChatHistory());
         $second->addTool(GetWeatherTool::make()->requireApproval());
-        $second->run($second->submitApprovalDecisions(['call-1' => 'approve']));
+        $second->submitApprovalDecisions(['call-1' => 'approve'])->run();
         $store->assertDocumentCount(1);
         $store->assertHasDocumentWithContent("User: Weather?\nAssistant: Sunny.");
     }

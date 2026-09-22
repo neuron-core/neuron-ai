@@ -251,13 +251,14 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * Translate inputs into an explicit, fenced continuation request.
+     * Translate inputs into a pending execution with a fenced continuation request.
      *
      * @param array<array-key, mixed> $payload
+     * @return PendingExecution<TState>
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): ExecutionRequest
+    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
     {
 
         $run = $this->inspect($workflowId);
@@ -272,7 +273,10 @@ class Workflow implements WorkflowInterface
 
         // Keep the inspected identity: another continuation may advance the run
         // between submission and execution, making these inputs stale.
-        return ExecutionRequest::resume($response, $run->runId, $run->executionAttempt, $idempotencyKey, workflowId: $run->workflowId);
+        return new PendingExecution(
+            $this,
+            ExecutionRequest::resume($response, $run->runId, $run->executionAttempt, $idempotencyKey, workflowId: $run->workflowId),
+        );
     }
 
     /**

@@ -107,7 +107,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertSame($firstControl, $persistence->get('thread-a', '__control'));
         $this->assertCount(1, $provider->getRecorded()[1]->messages);
 
-        $state = $agent->setChatHistory($first)->run($agent->setChatHistory($first)->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
+        $state = $agent->setChatHistory($first)->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('Search results', $state->getMessage()->getContent());

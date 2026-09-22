@@ -69,7 +69,7 @@ class ToolRunLimitTest extends TestCase
         $this->assertSame(1, $state->getToolRuns('browser'));
         $this->expectException(ToolRunsExceededException::class);
         $invocationAgent = $this->agent($tools);
-        $invocationAgent->run($invocationAgent->submitInputs(['a' => ['result' => 'ok']], new ToolResultsTranslator()));
+        $invocationAgent->submitInputs(['a' => ['result' => 'ok']], new ToolResultsTranslator())->run();
     }
 
     public function test_partial_results_preserve_the_batch_count_without_consuming_more_slots(): void
@@ -81,11 +81,11 @@ class ToolRunLimitTest extends TestCase
         $tools = [new FrontendTool('browser')];
         $this->agent($tools, 2)->chat(new UserMessage('Go'));
         $invocationAgent = $this->agent([], 2);
-        $state = $invocationAgent->run($invocationAgent->submitInputs(['a' => ['result' => 'ok']], new ToolResultsTranslator()));
+        $state = $invocationAgent->submitInputs(['a' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertTrue($state->isInterrupted());
         $this->assertSame(2, $state->getToolRuns('browser'));
         $invocationAgent = $this->agent([], 2);
-        $state = $invocationAgent->run($invocationAgent->submitInputs(['b' => ['result' => 'ok']], new ToolResultsTranslator()));
+        $state = $invocationAgent->submitInputs(['b' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertFalse($state->isInterrupted());
         $this->assertSame(2, $state->getToolRuns('browser'));
     }
@@ -107,7 +107,7 @@ class ToolRunLimitTest extends TestCase
         $this->agent($tools, $limit, $parallel)->chat(new UserMessage('Go'));
         $this->expectException(ToolRunsExceededException::class);
         $invocationAgent = $this->agent($tools, $limit, $parallel);
-        $invocationAgent->run($invocationAgent->submitInputs(['external' => ['result' => 'ok']], new ToolResultsTranslator()));
+        $invocationAgent->submitInputs(['external' => ['result' => 'ok']], new ToolResultsTranslator())->run();
     }
 
     public static function executionModes(): array
@@ -125,15 +125,15 @@ class ToolRunLimitTest extends TestCase
         $tools = [(new CountingTool())->requireApproval()];
         $this->agent($tools)->chat(new UserMessage('Go'));
         $invocationAgent = $this->agent($tools);
-        $state = $invocationAgent->run($invocationAgent->submitInputs(['a' => 'approve'], new ApprovalTranslator()));
+        $state = $invocationAgent->submitInputs(['a' => 'approve'], new ApprovalTranslator())->run();
         $this->assertSame(1, $state->getToolRuns('lookup'));
         $invocationAgent = $this->agent($tools);
-        $state = $invocationAgent->run($invocationAgent->submitInputs(['b' => 'reject'], new ApprovalTranslator()));
+        $state = $invocationAgent->submitInputs(['b' => 'reject'], new ApprovalTranslator())->run();
         $this->assertSame(1, $state->getToolRuns('lookup'));
         $this->assertSame(1, CountingTool::$executions);
         $this->expectException(ToolRunsExceededException::class);
         $invocationAgent = $this->agent($tools);
-        $invocationAgent->run($invocationAgent->submitInputs(['c' => 'approve'], new ApprovalTranslator()));
+        $invocationAgent->submitInputs(['c' => 'approve'], new ApprovalTranslator())->run();
     }
 
     public function test_new_runs_on_the_same_agent_start_with_fresh_counters(): void

@@ -100,10 +100,10 @@ class WorkflowContinuationReportingTest extends TestCase
         ], $events);
 
         $submissions = [
-            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitApprovalDecisions(['a' => 'approve']),
-            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitApprovalDecisions(['b' => 'approve']),
-            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitToolResults(['a' => ['result' => 'First page']]),
-            fn (): \NeuronAI\Workflow\Executor\ExecutionRequest => $agent->submitToolResults(['b' => ['result' => 'Second page']]),
+            fn (): \NeuronAI\Workflow\PendingExecution => $agent->submitApprovalDecisions(['a' => 'approve']),
+            fn (): \NeuronAI\Workflow\PendingExecution => $agent->submitApprovalDecisions(['b' => 'approve']),
+            fn (): \NeuronAI\Workflow\PendingExecution => $agent->submitToolResults(['a' => ['result' => 'First page']]),
+            fn (): \NeuronAI\Workflow\PendingExecution => $agent->submitToolResults(['b' => ['result' => 'Second page']]),
         ];
         $expectedRequests = [ApprovalRequest::class, ToolResultsRequest::class, ToolResultsRequest::class];
         foreach ($submissions as $index => $submit) {
@@ -111,9 +111,11 @@ class WorkflowContinuationReportingTest extends TestCase
             $request = $submit();
             $this->assertSame([], $events, 'Staging input must not report execution.');
             if ($streaming) {
-                iterator_to_array($agent->events($request));
+                $stream = $request->events();
+                $this->assertSame([], $events, 'Creating the stream must not report execution.');
+                iterator_to_array($stream);
             } else {
-                $agent->run($request);
+                $request->run();
             }
             $this->assertSame($index < 3 ? [
                 ['start'],

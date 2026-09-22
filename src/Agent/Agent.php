@@ -28,6 +28,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\ExecutionContext;
@@ -400,19 +401,21 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * @return PendingExecution<AgentState>
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitApprovalDecisions(array $decisions, ?string $idempotencyKey = null): ExecutionRequest
+    public function submitApprovalDecisions(array $decisions, ?string $idempotencyKey = null): PendingExecution
     {
         return $this->submitInputs($decisions, new ApprovalTranslator(), $idempotencyKey);
     }
 
     /**
+     * @return PendingExecution<AgentState>
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitToolResults(array $results, ?string $idempotencyKey = null): ExecutionRequest
+    public function submitToolResults(array $results, ?string $idempotencyKey = null): PendingExecution
     {
         return $this->submitInputs($results, new ToolResultsTranslator(), $idempotencyKey);
     }

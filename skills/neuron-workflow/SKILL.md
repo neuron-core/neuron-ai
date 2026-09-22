@@ -143,8 +143,9 @@ workflow. Empty resume payloads are answers; null is inputless continuation.
 Signals are neither queued nor broadcast.
 
 `submitInputs()`, Agent `submitApprovalDecisions()` and `submitToolResults()` return
-fenced requests. Pass the result to `run($request)` or `events($request)`. These
-helpers optionally accept an `idempotencyKey`; retain the request for retries.
+`PendingExecution` objects holding a workflow and its immutable fenced request.
+Chain `->run()` or `->events()` on the result. These helpers optionally accept an
+`idempotencyKey`; retain the pending execution for retries in the same process.
 Use resource hooks or factories receiving `ExecutionContext` for run-dependent resources. They return resources and never mutate a running definition. See `src/Workflow/AGENTS.md` for execution ownership and hook signatures.
 
 ## Workflow State

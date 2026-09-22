@@ -43,8 +43,8 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `structured($messages, $class)` | Eager: returns the typed output |
 | `run()` / `events()` | Execute an explicit `ExecutionRequest`; without one, start or recover a failed execution |
 | `ExecutionRequest::resume($payload = null, ...)` | Build a generic continuation or inputless recovery request |
-| `submitApprovalDecisions($decisions)` | Return a fenced approval request to pass to `run($request)` or `events($request)` |
-| `submitToolResults($results)` | Return a fenced tool-result request to pass to `run($request)` or `events($request)` |
+| `submitApprovalDecisions($decisions)` | Return `PendingExecution<AgentState>`; chain `->run()` or `->events()` |
+| `submitToolResults($results)` | Return `PendingExecution<AgentState>`; chain `->run()` or `->events()` |
 
 `chat()`, `stream()`, and `structured()` also accept an optional `idempotencyKey`, included in the execution request. Reconstructed messages with identical content/options can reuse the key: generated message display IDs are excluded from the start fingerprint. Saved outcomes replay without provider calls; receipts last only as long as the stored run.
 
@@ -144,7 +144,7 @@ To reconstruct the approval UI after a page refresh, rebuild the Agent with the 
 
 The persisted interruption is authoritative for the current UI request. The pre-suspend `ToolCallMessage` in history is an initial approval snapshot and can remain pending after decisions have been submitted or the workflow has advanced to awaiting tool results. Final tool outcomes are read from the following `ToolResultMessage`. Inside `ToolNode`, approval execution continues through `interrupt()` and durable step memos; `inspect()` serves external readers. Cross-process flows need workflow persistence **and** a durable chat history.
 
-`submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and keep its run/attempt fences until `run()` or `events()` consumes the response. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
+`submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and return a `PendingExecution` holding its address/run/attempt fences. Chain `->run()` or `->events()` to consume the response. Each submission owns its immutable request; creating another submission cannot overwrite it. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
 
 ## Tool run limits
 
@@ -174,10 +174,10 @@ $request = $state->getInterruptRequest();
 // Expose the pending ToolResultsRequest to the external executor.
 
 // A later request reconstructs the agent with the same thread, persistence and history.
-$state = $agent->run($agent->submitToolResults([
+$state = $agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
     'call_456' => ['error' => 'User cancelled the browser operation'],
-])); // Or events($request) to stream the continuation.
+])->run(); // Or ->events() to stream the continuation.
 ```
 
 Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.
@@ -198,7 +198,7 @@ SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
 $agent = SupportAgent::make(threadId: $threadId);
-$agent->run($agent->submitApprovalDecisions(['call_123' => 'approve']));
+$agent->submitApprovalDecisions(['call_123' => 'approve'])->run();
 
 // WorkflowId-first resume (background wake): the configured workflow address is the thread.
 SupportAgent::make(workflowId: $ticket->workflowId)

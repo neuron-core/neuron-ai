@@ -21,8 +21,10 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -65,14 +67,14 @@ class AgentInputSubmissionTest extends TestCase
         $request = $agent->submitInputs(['a' => 'approve'], new ApprovalTranslator());
         $this->assertSame($before, serialize($this->persistence));
         $this->assertSame(1, $this->provider->getCallCount());
-        $state = $agent->run($request);
+        $state = $request->run();
         $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
         $this->assertTrue($state->getInterruptRequest()->getActions()[0]->isApproved());
 
         $invocationAgent = $this->agent(true);
-        $invocationAgent->run($invocationAgent->submitInputs(['b' => ['reject', 'Cancelled']], new ApprovalTranslator()));
+        $invocationAgent->submitInputs(['b' => ['reject', 'Cancelled']], new ApprovalTranslator())->run();
         $invocationAgent = $this->agent();
-        $state = $invocationAgent->run($invocationAgent->submitInputs(['a' => ['result' => 'Title']], new ToolResultsTranslator()));
+        $state = $invocationAgent->submitInputs(['a' => ['result' => 'Title']], new ToolResultsTranslator())->run();
         $this->assertSame('Finished', $state->getMessage()->getContent());
         $this->assertSame(2, $this->provider->getCallCount());
     }
@@ -90,11 +92,11 @@ class AgentInputSubmissionTest extends TestCase
         $this->assertSame(['a', 'b'], $this->pendingApprovalIds());
 
         $invocationAgent = $this->agent(true);
-        $invocationAgent->run($invocationAgent->submitApprovalDecisions(['a' => 'approve']));
+        $invocationAgent->submitApprovalDecisions(['a' => 'approve'])->run();
         $this->assertSame(['b'], $this->pendingApprovalIds());
 
         $invocationAgent = $this->agent(true);
-        $invocationAgent->run($invocationAgent->submitApprovalDecisions(['b' => ['reject', 'Cancelled']]));
+        $invocationAgent->submitApprovalDecisions(['b' => ['reject', 'Cancelled']])->run();
         $this->assertSame([], $this->agent(true)->pendingApprovals());
     }
 
@@ -128,17 +130,17 @@ class AgentInputSubmissionTest extends TestCase
         foreach ([[$first, ['a' => 'approve']], [$second, ['b' => ['reject', 'Cancelled']]]] as [$source, $decisions]) {
             $agent = $this->agent(true);
             $request = match ($source) {
-                'signal' => \NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval', $decisions),
-                'resume' => \NeuronAI\Workflow\Executor\ExecutionRequest::resume($decisions),
+                'signal' => new PendingExecution($agent, \NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval', $decisions)),
+                'resume' => new PendingExecution($agent, \NeuronAI\Workflow\Executor\ExecutionRequest::resume($decisions)),
                 'translator' => $agent->submitApprovalDecisions($decisions),
                 default => $this->fail('Unknown approval delivery source.'),
             };
             if ($streaming) {
-                $events = $agent->events($request);
+                $events = $request->events();
                 iterator_to_array($events);
                 $state = $events->getReturn();
             } else {
-                $state = $agent->run($request);
+                $state = $request->run();
             }
         }
 
@@ -155,7 +157,7 @@ class AgentInputSubmissionTest extends TestCase
         $this->agent(true)->chat(new UserMessage('Read the page'));
         $this->agent(true)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval', ['a' => 'approve']));
         $invocationAgent = $this->agent(true);
-        $state = $invocationAgent->run($invocationAgent->submitApprovalDecisions(['a' => ['reject', 'Changed my mind']]));
+        $state = $invocationAgent->submitApprovalDecisions(['a' => ['reject', 'Changed my mind']])->run();
         $this->assertInstanceOf(ApprovalRequest::class, $state->getInterruptRequest());
         $this->assertTrue($state->getInterruptRequest()->getActions()[0]->isRejected());
 
@@ -180,7 +182,7 @@ class AgentInputSubmissionTest extends TestCase
                 $this->assertSame($before, serialize($this->persistence));
             }
         }
-        $state = $agent->run($agent->submitInputs(['a' => ['result' => null], 'b' => ['result' => false]], new ToolResultsTranslator()));
+        $state = $agent->submitInputs(['a' => ['result' => null], 'b' => ['result' => false]], new ToolResultsTranslator())->run();
         $this->assertFalse($state->isInterrupted());
     }
 
@@ -211,27 +213,33 @@ class AgentInputSubmissionTest extends TestCase
             },
         );
         $invocationAgent = $this->agent();
-        $stream = $invocationAgent->events($invocationAgent->submitInputs(['custom' => 'Title'], $translator));
+        $stream = $invocationAgent->submitInputs(['custom' => 'Title'], $translator)->events();
         iterator_to_array($stream);
         $this->assertFalse($stream->getReturn()->isInterrupted());
     }
 
-    public function test_staged_inputs_cannot_be_rematched_after_another_request_advances_the_run(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_staged_inputs_cannot_be_rematched_after_another_request_advances_the_run(bool $streaming): void
     {
         $this->agent()->chat(new UserMessage('Read the page'));
         $agent = $this->agent();
         $request = $agent->submitInputs(['b' => ['result' => 'URL']], new ToolResultsTranslator());
         $invocationAgent = $this->agent();
-        $invocationAgent->run($invocationAgent->submitInputs(['a' => ['result' => 'Title']], new ToolResultsTranslator()));
+        $invocationAgent->submitInputs(['a' => ['result' => 'Title']], new ToolResultsTranslator())->run();
         $before = serialize($this->persistence);
         try {
-            $agent->run($request);
+            if ($streaming) {
+                iterator_to_array($request->events());
+            } else {
+                $request->run();
+            }
             $this->fail('An intervening continuation must invalidate the inspected snapshot.');
         } catch (WorkflowException $exception) {
             $this->assertStringContainsString('Stale continuation', $exception->getMessage());
         }
         $this->assertSame($before, serialize($this->persistence));
-        $this->assertFalse($agent->run($agent->submitInputs(['b' => ['result' => 'URL']], new ToolResultsTranslator()))->isInterrupted());
+        $this->assertFalse($agent->submitInputs(['b' => ['result' => 'URL']], new ToolResultsTranslator())->run()->isInterrupted());
     }
 
     /** @return iterable<string, array{string}> */
@@ -257,7 +265,7 @@ class AgentInputSubmissionTest extends TestCase
             default => $this->fail('Unknown request source.'),
         };
         $this->assertNotSame($original, $other);
-        $this->assertFalse($agent->run($original)->isInterrupted());
+        $this->assertFalse($original->run()->isInterrupted());
     }
 
     public function test_submission_does_not_replace_an_existing_signal_request(): void

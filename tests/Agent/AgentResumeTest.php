@@ -102,7 +102,7 @@ class AgentResumeTest extends TestCase
 
         // The approval wrapper hides the signal name; run() consumes the persisted stream intent.
         $state = $agent2
-            ->run($agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()));
+            ->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         // The run completed, on the right thread, in the right mode.
         $this->assertFalse($state->isInterrupted());
@@ -160,7 +160,7 @@ class AgentResumeTest extends TestCase
         // Continuation is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
         $user = $agent2
-            ->run($agent2->submitInputs(['call_1' => 'approve'], new ApprovalTranslator()))
+            ->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run()
             ->get('structured_output');
 
         $this->assertInstanceOf(User::class, $user);
@@ -270,7 +270,7 @@ class AgentResumeTest extends TestCase
         $this->assertTrue($suspended->isInterrupted());
 
         // PHP converts a numeric-string JSON object key to an integer array key.
-        $completed = $agent->run($agent->submitInputs([123 => 'approve'], new ApprovalTranslator()));
+        $completed = $agent->submitInputs([123 => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame('Search complete.', $completed->getMessage()->getContent());

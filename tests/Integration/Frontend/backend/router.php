@@ -82,7 +82,7 @@ function agui(Fixture $fixture, array $payload): void
 
     $continuation = ($payload['resume'] ?? []) !== [] || ($last['role'] ?? null) === 'tool';
     $frames = match (true) {
-        $continuation => $agent->events($agent->submitInputs($payload, $translator)),
+        $continuation => $agent->submitInputs($payload, $translator)->events(),
         ($last['role'] ?? null) === 'user' => $agent->stream(new UserMessage((string) $last['content'])),
         default => badRequest('AG-UI input must end with a user message or carry a continuation.'),
     };
@@ -103,7 +103,7 @@ function vercel(Fixture $fixture, array $payload): void
     $agent->setStreamAdapter($adapter);
 
     $frames = $last['role'] === 'assistant'
-        ? $agent->events($agent->submitInputs($payload, new VercelAIInputTranslator()))
+        ? $agent->submitInputs($payload, new VercelAIInputTranslator())->events()
         : $agent->stream(new UserMessage(\implode('', \array_map(
             fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '',
             $last['parts'] ?? [],

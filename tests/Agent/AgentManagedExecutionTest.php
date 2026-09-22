@@ -88,7 +88,7 @@ class AgentManagedExecutionTest extends TestCase
         $first = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Question')], new AgentRunOptions(stream: true)), 'reserved', idempotencyKey: 'start'));
         self::assertTrue($first->isInterrupted());
         $resumed = $make()->setStartEvent(new AgentStartEvent([new UserMessage('Wrong local intent')]));
-        $reply = $resumed->run($resumed->submitApprovalDecisions(['call_1' => 'approve'], idempotencyKey: 'answer'));
+        $reply = $resumed->submitApprovalDecisions(['call_1' => 'approve'], idempotencyKey: 'answer')->run();
         self::assertSame('reserved', $reply->getRunId());
         self::assertSame(2, $reply->getExecutionAttempt());
         self::assertSame(WorkflowStatus::Completed, $reply->getStatus());

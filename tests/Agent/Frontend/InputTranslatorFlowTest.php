@@ -76,14 +76,14 @@ class InputTranslatorFlowTest extends TestCase
         $request = $agent->submitInputs($this->approvalPayload($translator), $translator);
         $this->assertSame($before, serialize($this->persistence));
         self::assertFalse(method_exists($agent, "getRunId"));
-        $events = $agent->events($request);
+        $events = $request->events();
         iterator_to_array($events);
         $this->assertInstanceOf(ToolResultsRequest::class, $events->getReturn()->getInterruptRequest());
         $this->assertSame(1, $this->provider->getCallCount());
 
         foreach ([['a' => 'Page title'], ['a' => 'Page title', 'b' => 'Page URL']] as $results) {
             $agent = $this->agent();
-            $events = $agent->events($agent->submitInputs($this->resultPayload($translator, $results), $translator));
+            $events = $agent->submitInputs($this->resultPayload($translator, $results), $translator)->events();
             iterator_to_array($events);
         }
         $this->assertFalse($events->getReturn()->isInterrupted());

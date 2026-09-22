@@ -23,8 +23,11 @@ interface WorkflowInterface
      */
     public function run(?ExecutionRequest $request = null): WorkflowState;
 
-    /** @param array<array-key, mixed> $payload */
-    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): ExecutionRequest;
+    /**
+     * @param array<array-key, mixed> $payload
+     * @return PendingExecution<TState>
+     */
+    public function submitInputs(array $payload, InputTranslatorInterface $translator, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution;
 
     /** Conditionally purge a retained completed generation. */
     public function acknowledgeCompletion(string $expectedRunId, ?string $workflowId = null): void;

@@ -16,8 +16,9 @@ $state = $workflow->run(ExecutionRequest::resume(
 
 `ExecutionRequest::signal($name, $payload, idempotencyKey: $key)` adds an event-name
 check. Request factories perform no persistence I/O and do not mutate a workflow.
-`submitInputs($payload, $translator, idempotencyKey: $key)` returns a fenced request;
-pass it to `run($request)` or `events($request)`. Preserve that request for retries:
+`submitInputs($payload, $translator, idempotencyKey: $key)` returns a `PendingExecution`
+holding the fenced request; chain `->run()` or `->events()`. Preserve that pending
+execution for retries in the same process:
 translating again inspects the current interruption, not the original one.
 
 Agent `chat()`, `stream()`, and `structured()` accept the same optional named argument:
