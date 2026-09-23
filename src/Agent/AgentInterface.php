@@ -45,11 +45,12 @@ interface AgentInterface extends WorkflowInterface
     public function getTools(ExecutionContext $context): array;
 
     /**
-     * A pre-bound history explicitly selects the conversation between
-     * interactions; an unbound one receives the current thread identity.
+     * A pre-bound history can identify an unbound Agent. Otherwise its
+     * identity must agree with the Agent's fixed conversation identity.
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): AgentInterface;
 
+    /** Requires a conversation identity configured or established by execution. */
     public function getChatHistory(): ChatHistoryInterface;
 
     /**
@@ -58,11 +59,11 @@ interface AgentInterface extends WorkflowInterface
     public function resetConversation(): AgentInterface;
 
     /**
-     * The agent's thread identity — the conversation this run belongs to and
-     * the run's declared workflow ID — or null when the run is not
-     * findable by its thread.
+     * The conversation identity, or null until configured or first executed.
      */
     public function getThreadId(): ?string;
+
+    public function setThreadId(string $threadId): static;
 
     /**
      * @param Message|Message[] $messages

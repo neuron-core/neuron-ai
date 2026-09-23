@@ -89,7 +89,7 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
     {
         return $this->threadId ?? throw new ChatHistoryException(
             'This chat history is thread-scoped and no thread identity was given: '
-            . 'pass threadId: to Agent::make(), or bind it via setThreadId().'
+            . 'pass workflowId: to Agent::make(), or bind it via setThreadId().'
         );
     }
 

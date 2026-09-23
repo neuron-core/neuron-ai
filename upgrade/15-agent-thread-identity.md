@@ -10,10 +10,12 @@ before first use. Identity never appears in wiring code.
 
 What changed:
 
-1. **New constructor parameter**: `Agent::make(threadId: 'thread-42')` — the
-   one front door for declaring which conversation a run belongs to.
-2. **New reader**: `Agent::getThreadId(): ?string` (null = the run is not
-   findable by its thread). `workflowId()` delegates to it — the threadId IS the run's workflow ID.
+1. **One constructor identity**: Agent inherits Workflow's constructor, accepting
+   optional `workflowId` and initial state. Use `Agent::make(workflowId: 'thread-42')`
+   or call `setThreadId('thread-42')` after container resolution. The redundant
+   `threadId` constructor alias is removed.
+2. **Identity reader**: `Agent::getThreadId(): ?string` delegates to
+   `getWorkflowId()` — the thread ID and workflow ID are one stored address.
 3. **`ChatHistoryInterface` gains binding**:
 
    ```php
@@ -40,7 +42,7 @@ What changed:
    the threadId was known; binding makes deferral unnecessary (and no
    thread-scoped channel exists in core — pass a concrete channel).
 6. **Conflicting identity claims throw** (`AgentException` on the agent,
-   `ChatHistoryException` on the history): explicit `threadId:` vs a
+   `ChatHistoryException` on the history): explicit `workflowId:` vs a
    pre-bound history with a different key; the ignition record vs an
    explicitly claimed identity on a resume; re-binding a bound history.
 7. **No generation**: the framework never fabricates a thread identity.
@@ -52,7 +54,7 @@ What changed:
    consult it (null on anonymous runs), but the recommended pattern remains
    constructing the history without identity — the framework binds it.
    Being findable by its thread requires identity declared before the run
-   starts (`make(threadId:)` or a pre-bound history at the setter); identity
+   starts (`make(workflowId:)` or a pre-bound history at the setter); identity
    arriving later (a self-keyed hook default) is adopted but does not make
    the run findable by its thread.
 
@@ -64,14 +66,14 @@ construction:
 
 ```php
 // Fresh turn (controller)
-SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
+SupportAgent::make(workflowId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint)
-SupportAgent::make(threadId: $threadId)
+SupportAgent::make(workflowId: $threadId)
     ->submitApprovalDecisions(['call_123' => 'approve'])->run();
 
 // Thread-first continuation after frontend execution
-SupportAgent::make(threadId: $threadId)
+SupportAgent::make(workflowId: $threadId)
     ->submitToolResults(['call_123' => ['result' => 'Page title']])->run();
 
 // workflowId-first resume (background wake): the ignition record supplies it
@@ -111,7 +113,7 @@ Agent::make(workflowId: $workflowId)
 
 Pre-bound histories (`new SQLChatHistory($pdo, $threadId)`) remain a legal
 identity declaration — the Agent adopts the key; a disagreement with an
-explicit `threadId:` throws.
+explicit `workflowId:` throws.
 
 ## What to search for
 

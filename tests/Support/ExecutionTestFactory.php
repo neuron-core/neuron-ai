@@ -18,6 +18,7 @@ final class ExecutionTestFactory
 
     public static function runtime(Workflow $definition): WorkflowExecution
     {
+        $definition->setWorkflowId($definition->getWorkflowId() ?? 'test');
         return $definition->createExecution(self::context($definition));
     }
 }

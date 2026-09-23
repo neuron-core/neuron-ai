@@ -25,6 +25,7 @@ class NeuronAITest extends TestCase
     {
         $neuron = new Agent();
         $this->assertInstanceOf(AgentInterface::class, $neuron);
+        $neuron->setThreadId('conversation');
         $this->assertInstanceOf(ChatHistoryInterface::class, $neuron->getChatHistory());
         $this->assertInstanceOf(InMemoryChatHistory::class, $neuron->getChatHistory());
 

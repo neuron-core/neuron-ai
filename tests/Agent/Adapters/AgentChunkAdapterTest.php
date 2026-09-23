@@ -249,7 +249,7 @@ class AgentChunkAdapterTest extends TestCase
     public function test_channel_learns_what_a_suspended_run_waits_for(): void
     {
         $channel = new FakeChannel();
-        $agent = Agent::make(threadId: 'thread-1')
+        $agent = Agent::make(workflowId: 'thread-1')
             ->setPersistence(new InMemoryPersistence())
             ->setStreamAdapter(new AgentChunkAdapter())
             ->setChannel($channel)

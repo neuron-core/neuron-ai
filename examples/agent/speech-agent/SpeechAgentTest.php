@@ -112,7 +112,7 @@ class SpeechAgentTest extends TestCase
     public function test_fresh_instance_recovers_failed_synthesis_without_repeating_inference_or_transcription(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
-        $first = DemoSpeechAgent::make(threadId: 'speech-recovery');
+        $first = DemoSpeechAgent::make(workflowId: 'speech-recovery');
         $first->setAiProvider($provider);
         $first->failSynthesis = true;
         try {

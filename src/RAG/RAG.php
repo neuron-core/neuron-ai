@@ -23,7 +23,7 @@ use NeuronAI\Workflow\Node;
 use function array_chunk;
 
 /**
- * @method static static make(?string $workflowId = null, ?WorkflowState $state = null, ?string $threadId = null)
+ * @method static static make(?string $workflowId = null, ?WorkflowState $state = null)
  */
 class RAG extends Agent
 {

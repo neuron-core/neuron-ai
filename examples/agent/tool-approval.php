@@ -50,7 +50,7 @@ $threadId = 'tool-approval-demo-' . \bin2hex(\random_bytes(4));
  * ToolCallMessage used by the approval UI.
  */
 $makeAgent = function () use ($storage, $threadId, $apiKey): Agent {
-    $agent = Agent::make(threadId: $threadId);
+    $agent = Agent::make(workflowId: $threadId);
     $agent->setPersistence(new FilePersistence($storage . \DIRECTORY_SEPARATOR . 'workflow'));
     $agent->setChatHistory(new FileChatHistory($storage . \DIRECTORY_SEPARATOR . 'chat'));
     $agent->setAiProvider(new Anthropic($apiKey, 'claude-sonnet-5'));

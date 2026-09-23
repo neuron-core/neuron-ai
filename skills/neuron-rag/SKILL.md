@@ -473,7 +473,7 @@ A `RAG` is an `Agent` — all verbs work, in every mode:
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 
-$rag = MyChatBot::make(threadId: $threadId);   // thread identity: same model as Agent
+$rag = MyChatBot::make(workflowId: $threadId);   // thread identity: same model as Agent
 
 // Chat (eager → AgentState)
 echo $rag->chat(new UserMessage('What are the main features?'))->getMessage()->getContent();

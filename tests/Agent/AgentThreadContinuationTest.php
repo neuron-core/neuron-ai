@@ -77,7 +77,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertNotNull($persistence->get((string) $history->getThreadId(), '__ignition'));
     }
 
-    public function test_swapping_threads_preserves_a_suspended_run_and_allows_resuming_it(): void
+    public function test_separate_agents_preserve_a_suspended_conversation_while_another_runs(): void
     {
         $first = new InMemoryChatHistory('thread-a');
         $second = new InMemoryChatHistory('thread-b');
@@ -99,15 +99,16 @@ class AgentThreadContinuationTest extends TestCase
         $previous->set('conversation_marker', 'thread-a');
         $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
 
-        $agent->setChatHistory($second);
+        $otherAgent = Agent::make()->setPersistence($persistence)->setChatHistory($second);
+        $otherAgent->setAiProvider($provider);
         $this->assertSame('thread-a', $previous->get('conversation_marker'));
-        $agent->chat(new UserMessage('Second conversation'));
+        $otherAgent->chat(new UserMessage('Second conversation'));
 
-        $this->assertSame('thread-b', $agent->getWorkflowId());
+        $this->assertSame('thread-b', $otherAgent->getWorkflowId());
         $this->assertSame($firstControl, $persistence->get('thread-a', '__control'));
         $this->assertCount(1, $provider->getRecorded()[1]->messages);
 
-        $state = $agent->setChatHistory($first)->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
+        $state = $agent->submitInputs(['call_1' => 'approve'], new ApprovalTranslator())->run();
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('Search results', $state->getMessage()->getContent());
@@ -146,7 +147,7 @@ class AgentThreadContinuationTest extends TestCase
     public function test_thread_first_resume_with_explicit_thread_id_and_unbound_history(): void
     {
         // The binding model's one-wiring-expression promise: identical
-        // make(threadId:) + unbound-history wiring for the fresh run and the
+        // make(workflowId:) + unbound-history wiring for the fresh run and the
         // thread-first resume — identity never appears in wiring code.
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE chat_messages (
@@ -157,7 +158,7 @@ class AgentThreadContinuationTest extends TestCase
         $searchTool = new SearchTool();
         $provider = $this->makeProvider($searchTool);
 
-        $agent1 = Agent::make(threadId: 'thread-cont');
+        $agent1 = Agent::make(workflowId: 'thread-cont');
         $agent1->setChatHistory(new SQLChatHistory($pdo));
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
@@ -167,7 +168,7 @@ class AgentThreadContinuationTest extends TestCase
         $this->assertSame('thread-cont', $agent1->getWorkflowId());
         $this->assertNotNull($persistence->get('thread-cont', '__ignition'));
 
-        $agent2 = Agent::make(threadId: 'thread-cont');
+        $agent2 = Agent::make(workflowId: 'thread-cont');
         $agent2->setChatHistory(new SQLChatHistory($pdo));
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
@@ -211,19 +212,11 @@ class AgentThreadContinuationTest extends TestCase
         $agent3->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']));
     }
 
-    public function test_conflicting_explicit_workflow_id_throws(): void
+    public function test_constructor_identity_cannot_be_changed_through_the_thread_setter(): void
     {
-        // The thread is the declared workflow ID; an explicit workflow ID that
-        // disagrees is a misidentified run and must fail loudly, never
-        // silently pick one of the two identities.
-        $history = new InMemoryChatHistory('thread-1');
-        $persistence = new InMemoryPersistence();
-        $searchTool = new SearchTool();
-        $provider = $this->makeProvider($searchTool);
-
-        $this->expectException(\NeuronAI\Exceptions\AgentException::class);
-        $this->expectExceptionMessage('Conflicting workflow and thread identity');
-        Agent::make(workflowId: 'someplace_else', threadId: 'thread-1');
+        $agent = Agent::make(workflowId: 'conversation');
+        $this->expectException(WorkflowException::class);
+        $agent->setThreadId('another-conversation');
     }
 
     public function test_resume_with_nothing_in_flight_fails_loudly(): void

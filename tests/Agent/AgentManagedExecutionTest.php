@@ -95,11 +95,11 @@ class AgentManagedExecutionTest extends TestCase
         $provider->assertCallCount(2);
     }
 
-    public function test_output_setup_can_select_the_next_conversation_without_redirecting_the_active_run(): void
+    public function test_output_setup_can_replace_same_thread_history_without_redirecting_the_active_run(): void
     {
-        $agent = Agent::make(threadId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
+        $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
         $originalHistory = $agent->getChatHistory();
-        $nextHistory = new InMemoryChatHistory('other');
+        $nextHistory = new InMemoryChatHistory('thread');
         $agent->setStreamAdapter(function () use ($agent, $nextHistory): AgentChunkAdapter {
             $agent->setChatHistory($nextHistory);
             return new AgentChunkAdapter();
@@ -110,14 +110,14 @@ class AgentManagedExecutionTest extends TestCase
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
         self::assertSame('thread', $state->getWorkflowId());
         self::assertSame('reserved', $state->getRunId());
-        self::assertSame('other', $agent->getWorkflowId());
+        self::assertSame('thread', $agent->getWorkflowId());
         self::assertCount(2, $originalHistory->getMessages());
         self::assertSame([], $nextHistory->getMessages());
     }
 
     public function test_runtime_setup_cannot_mutate_persisted_inference_intent(): void
     {
-        $agent = Agent::make(threadId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
+        $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
         $agent->setStreamAdapter(function (\NeuronAI\Workflow\ExecutionContext $context): AgentChunkAdapter {
             $context->startEvent()->options->stream = true;
             self::assertFalse($context->startEvent()->options->stream);
@@ -128,7 +128,7 @@ class AgentManagedExecutionTest extends TestCase
     }
     public function test_staged_structured_output_runs_through_the_state_terminal(): void
     {
-        $agent = Agent::make(threadId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name":"Ada"}')));
+        $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name":"Ada"}')));
         $result = $agent->run(ExecutionRequest::start(new AgentStartEvent(
             [new UserMessage('Name?')],
             new AgentRunOptions(outputClass: \NeuronAI\Tests\StructuredOutput\Stub\User::class)
@@ -141,10 +141,10 @@ class AgentManagedExecutionTest extends TestCase
     {
         $store = new InMemoryPersistence();
         $input = fn (): AgentStartEvent => new AgentStartEvent([new UserMessage('Hello')]);
-        Agent::make(threadId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
+        Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Saved')))
             ->run(ExecutionRequest::start($input(), 'reserved', idempotencyKey: 'key'));
-        $agent = Agent::make(threadId: 'thread')->setPersistence($store)
+        $agent = Agent::make(workflowId: 'thread')->setPersistence($store)
             ->setStreamAdapter(function (): never {
                 self::fail('Saved outcomes must not resolve resources.');
             });
@@ -157,7 +157,7 @@ class AgentManagedExecutionTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('One answer'), new AssistantMessage('Two answer'));
         $history = new InMemoryChatHistory('thread');
-        $agent = Agent::make(threadId: 'thread')->setAiProvider($provider)->setChatHistory($history);
+        $agent = Agent::make(workflowId: 'thread')->setAiProvider($provider)->setChatHistory($history);
         $first = $agent->stream(new UserMessage('One'));
         $second = $agent->stream(new UserMessage('Two'));
         $provider->assertCallCount(0);

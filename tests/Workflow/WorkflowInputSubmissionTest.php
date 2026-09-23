@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Exceptions\StaleWorkflowRunException;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
@@ -113,7 +115,7 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertSame($payload, $completed->get('received_payload'));
     }
 
-    public function test_an_unbound_submission_retains_its_address_and_idempotency_key(): void
+    public function test_submission_uses_the_bound_identity_and_retains_its_idempotency_key(): void
     {
         $persistence = new InMemoryPersistence();
         $started = $this->workflow($persistence)->run();
@@ -123,11 +125,11 @@ class WorkflowInputSubmissionTest extends TestCase
         $translator = $this->createMock(InputTranslatorInterface::class);
         $translator->expects($this->once())->method('translate')->willReturn(['registered' => 'user@example.com']);
 
+        $workflow->setWorkflowId('signup');
         $pending = $workflow->submitInputs(
             ['email' => 'user@example.com'],
             $translator,
             idempotencyKey: 'signup-response',
-            workflowId: 'signup',
         );
         $completed = $pending->run();
         $this->assertFalse($completed->isInterrupted());
@@ -147,6 +149,40 @@ class WorkflowInputSubmissionTest extends TestCase
     {
         yield 'non-JSON payload' => [['value' => NAN]];
         yield 'infinite value' => [['value' => INF]];
+    }
+
+    public function test_pending_submissions_keep_their_payload_and_reject_a_replaced_run(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = $this->workflow($persistence);
+        $firstRun = $workflow->run();
+        $first = $workflow->submitInputs(['value' => 'first']);
+        $second = $workflow->submitInputs(['value' => 'second']);
+
+        $completed = $first->run();
+        self::assertSame(['value' => 'first'], $completed->get('received_payload'));
+        self::assertSame($firstRun->getRunId(), $completed->getRunId());
+
+        $nextRun = $workflow->run();
+        $before = serialize($persistence);
+        try {
+            $second->run();
+            self::fail('A pending submission must not target a replacement run.');
+        } catch (StaleWorkflowRunException) {
+            self::assertSame($before, serialize($persistence));
+            self::assertSame($nextRun->getRunId(), $workflow->inspect()?->runId);
+        }
+    }
+
+    public function test_unbound_submission_does_not_generate_an_identity(): void
+    {
+        $workflow = Workflow::make();
+        try {
+            $workflow->submitInputs([]);
+            self::fail('A submission needs a bound workflow with a persisted run.');
+        } catch (InputTranslationException) {
+            self::assertNull($workflow->getWorkflowId());
+        }
     }
 
     #[DataProvider('invalidInputs')]

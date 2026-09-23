@@ -69,7 +69,7 @@ class WorkflowContinuationReportingTest extends TestCase
     #[TestWith([true])]
     public function test_native_agent_submissions_report_approval_then_results_then_completion(bool $streaming): void
     {
-        $agent = Agent::make(threadId: 'reporting-agent');
+        $agent = Agent::make(workflowId: 'reporting-agent');
         $agent
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [

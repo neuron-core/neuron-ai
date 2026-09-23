@@ -33,7 +33,7 @@ class AgentIdempotencyTest extends TestCase
         $persistence = new InMemoryPersistence();
         $provider = new FakeAIProvider(new AssistantMessage('{"name":"Ada"}'));
         $make = static function () use ($persistence, $provider): Agent {
-            $agent = Agent::make(threadId: 'thread')->setPersistence($persistence)->retainCompletionUntilAcknowledged();
+            $agent = Agent::make(workflowId: 'thread')->setPersistence($persistence)->retainCompletionUntilAcknowledged();
             $agent->setAiProvider($provider);
             return $agent;
         };
@@ -67,7 +67,7 @@ class AgentIdempotencyTest extends TestCase
         $persistence = new InMemoryPersistence();
         $provider = new FakeAIProvider(new AssistantMessage('Hello'));
         $make = static function () use ($persistence, $provider): Agent {
-            $agent = Agent::make(threadId: 'thread')->setPersistence($persistence)->retainCompletionUntilAcknowledged();
+            $agent = Agent::make(workflowId: 'thread')->setPersistence($persistence)->retainCompletionUntilAcknowledged();
             $agent->setAiProvider($provider);
             return $agent;
         };

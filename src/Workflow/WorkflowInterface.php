@@ -27,10 +27,10 @@ interface WorkflowInterface
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      */
-    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution;
+    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null): PendingExecution;
 
     /** Conditionally purge a retained completed generation. */
-    public function acknowledgeCompletion(string $expectedRunId, ?string $workflowId = null): void;
+    public function acknowledgeCompletion(string $expectedRunId): void;
 
     /**
      * Discard the run holding the workflow ID so a new one can ignite: a
@@ -38,7 +38,7 @@ interface WorkflowInterface
      * run under a fresh lease is refused. Optional run and attempt fences
      * protect explicit replacement. False when nothing is in flight.
      */
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool;
+    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool;
 
     /**
      * Keep the terminal result until the coordinating caller acknowledges it.
@@ -52,8 +52,7 @@ interface WorkflowInterface
     public function events(?ExecutionRequest $request = null): Generator;
 
     /**
-     * The configured/declared default address. Generated execution addresses
-     * are returned in state and are never adopted by the definition.
+     * The instance address, or null until configured or first executed.
      */
     public function getWorkflowId(): ?string;
 

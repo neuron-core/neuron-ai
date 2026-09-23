@@ -28,7 +28,7 @@ A workflow exposes one current interruption through `$state->getInterruptRequest
 
 - `run(ExecutionRequest::resume($payload))` answers the current interruption with one plain array. `resume([])` supplies an empty answer; `resume()` supplies no answer and handles recovery or a due deadline.
 - `run(ExecutionRequest::signal('order.approved', $payload))` answers the same current interruption, additionally requiring its event name to match. A mismatch throws without persisting the payload. Signals are neither broadcast nor queued for future or deferred waits.
-- `submitInputs($payload, $translator, idempotencyKey: $key)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and the observed address/run/attempt fences. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
+- `submitInputs($payload, $translator, idempotencyKey: $key)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and observed run/attempt fences; the Workflow supplies its fixed address. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
 
 
 Parallel branches expose interruptions sequentially. The normal executor stops at the first interruption. AsyncExecutor stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
@@ -102,7 +102,7 @@ Nodes may `yield` live output while a segment streams; `setStreamAdapter()` conv
 Workflow retains configuration and resource recipes. Each owned segment creates an
 `ExecutionContext` (workflow ID, run ID, attempt and detached original input) and a
 `WorkflowExecution` containing the state, nodes, middleware and output pipeline.
-There is no `prepare:` callback, adopted run identity, live state getter or graph
+There is no `prepare:` callback, adopted run ID, live state getter or graph
 cache on the definition. Read result identity from returned state and live metadata
 from observability events' `execution` property; `source` retains the definition.
 
@@ -111,11 +111,26 @@ channels receive `ExecutionContext $context`. `setStreamAdapter()` and `setChann
 also accept factories returning the resource. Factories never receive a Workflow
 to patch. They run only under ownership; saved outcomes and idle polls are passive.
 
-`getWorkflowId()` returns only the configured/declared default. An unbound start
-returns its generated address in state. Requests accept `workflowId:`; conflicting
-bound addresses fail before writes. Unbound `inspect()`, `submitInputs()`,
-`acknowledgeCompletion()` and `abandonRun()` accept an explicit workflow address.
-Translated requests freeze the inspected address as well as run and attempt.
+`getWorkflowId()` returns the instance address, or null before binding.
+`setWorkflowId()` binds an unbound instance and accepts the same ID again, but
+rejects a different ID. The optional constructor ID and the `workflowId()`
+declaration hook remain supported. When its `events()` generator starts, Workflow
+generates and retains an ID for an unbound start before handing execution to the
+executor. A continuation requires an already bound Workflow. Later runs share the
+workflow ID and have separate run IDs; executors do not generate or bind the
+instance identity.
+
+`ExecutionRequest` carries execution input, run/attempt fences and idempotency,
+not the workflow address. `inspect()`, `submitInputs()`, `acknowledgeCompletion()`
+and `abandonRun()` use the instance identity and accept no address override.
+Inspection and lazy generator creation do not bind an instance; unbound inspection
+returns null. Pending submissions retain the bound Workflow and an independent
+request capturing the inspected run and attempt, so later submissions cannot
+overwrite their input and another worker's continuation cannot silently retarget it.
+Generated identities support idempotent retries on the same instance. Queue jobs
+must transport the workflow address separately and bind their reconstructed
+Workflow before submitting a continuation. Execution contexts, results, snapshots
+and persistence retain identity metadata.
 
 Requests serialize input data at creation. `event()` and `payload()` return detached
 copies; context `startEvent()` and `domain()` do likewise. Lazy calls capture input
@@ -129,8 +144,9 @@ contract must detach owned mutable fields while retaining explicitly shared clie
 Use node factories (`fn (ExecutionContext $context): NodeInterface => ...`) or
 middleware factories (`fn (): WorkflowMiddleware => ...`) for uncloneable services.
 Hook-created nodes/middleware are already fresh and are used directly. Factories
-that deliberately return shared objects must support sequential reuse. All setters
-configure the definition without checking whether a segment is active. Once resolved,
+that deliberately return shared objects must support sequential reuse. Resource setters
+configure the definition without checking whether a segment is active. Identity
+setters always enforce the fixed instance address. Once resolved,
 resources, graph, middleware, completion policy and dispatcher stay with that segment.
 Listener registration preserves earlier dispatcher snapshots. The executor captures
 storage, serializer and lease settings before admission. Its local usage gate only

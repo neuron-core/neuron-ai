@@ -112,6 +112,7 @@ class AgentTest extends TestCase
         $agent = Agent::make();
         $agent->setAiProvider($provider);
 
+        $agent->setThreadId('stream-failure');
         // The default history starts empty for a fresh turn.
         $this->assertSame([], $agent->getChatHistory()->getMessages());
 

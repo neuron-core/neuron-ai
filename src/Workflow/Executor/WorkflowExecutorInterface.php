@@ -22,10 +22,11 @@ use NeuronAI\Workflow\WorkflowState;
 interface WorkflowExecutorInterface
 {
     /** Read the run's coordination state without claiming or executing it. */
-    public function inspect(Workflow $workflow, ?string $workflowId = null): ?WorkflowRunSnapshot;
+    public function inspect(Workflow $workflow): ?WorkflowRunSnapshot;
 
     /**
      * Admit one request and execute its owned segment, or return its saved outcome.
+     * Workflow binds its instance address before handing execution to this method.
      * @template TWorkflow of Workflow
      * @param TWorkflow $workflow
      * @return Generator<int, object, mixed, WorkflowState>
@@ -39,7 +40,6 @@ interface WorkflowExecutorInterface
     public function acknowledgeCompletion(
         Workflow $workflow,
         string $expectedRunId,
-        ?string $workflowId = null,
     ): void;
 
     /**
@@ -47,5 +47,5 @@ interface WorkflowExecutorInterface
      * it waits for, so the ID is free again. Refuses a retained completion
      * and a run under a fresh lease. False when nothing is in flight.
      */
-    public function abandonRun(Workflow $workflow, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool;
+    public function abandonRun(Workflow $workflow, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool;
 }

@@ -27,7 +27,6 @@ final class ExecutionRequest
         public readonly ?string $signal = null,
         public readonly ?string $idempotencyKey = null,
         public readonly bool $recoverFailed = false,
-        public readonly ?string $workflowId = null,
     ) {
         $this->input = $event === null ? null : serialize($event);
         $this->response = $payload === null ? null : serialize($payload);
@@ -49,12 +48,11 @@ final class ExecutionRequest
         ?string $runId = null,
         ?string $idempotencyKey = null,
         bool $recoverFailed = false,
-        ?string $workflowId = null,
     ): self {
         if ($runId !== null && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/D', $runId) !== 1) {
             throw new WorkflowException('Invalid reserved run ID: use 1-128 ASCII letters, digits, underscores or hyphens, starting with a letter or digit.');
         }
-        return new self(true, event: $event, runId: $runId, idempotencyKey: $idempotencyKey, recoverFailed: $recoverFailed, workflowId: $workflowId);
+        return new self(true, event: $event, runId: $runId, idempotencyKey: $idempotencyKey, recoverFailed: $recoverFailed);
     }
 
     /** @param array<string, mixed>|null $payload */
@@ -63,9 +61,8 @@ final class ExecutionRequest
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
         ?string $idempotencyKey = null,
-        ?string $workflowId = null,
     ): self {
-        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, idempotencyKey: $idempotencyKey, workflowId: $workflowId);
+        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, idempotencyKey: $idempotencyKey);
     }
 
     /** @param array<string, mixed> $payload */
@@ -75,8 +72,7 @@ final class ExecutionRequest
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
         ?string $idempotencyKey = null,
-        ?string $workflowId = null,
     ): self {
-        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, signal: $event, idempotencyKey: $idempotencyKey, workflowId: $workflowId);
+        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, signal: $event, idempotencyKey: $idempotencyKey);
     }
 }

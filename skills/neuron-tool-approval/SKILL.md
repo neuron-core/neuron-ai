@@ -28,7 +28,7 @@ Two requirements for cross-process flows: **workflow persistence** (the suspensi
 use NeuronAI\Chat\History\SQLChatHistory;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
-$agent = MyAgent::make(threadId: $threadId)
+$agent = MyAgent::make(workflowId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))       // identity-free: the framework binds the thread
     ->setPersistence(new DatabasePersistence($pdo));
 ```
@@ -227,7 +227,7 @@ use NeuronAI\Exceptions\RunInFlightException;
  */
 function chatEndpoint(string $threadId, array $body): array
 {
-    $agent = makeAgentForThread($threadId);   // MyAgent::make(threadId: $threadId) + persistence + tools
+    $agent = makeAgentForThread($threadId);   // MyAgent::make(workflowId: $threadId) + persistence + tools
 
     try {
         $state = isset($body['decisions'])

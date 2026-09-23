@@ -99,7 +99,7 @@ class DurableTurnRecoveryTest extends TestCase
      */
     protected function fileAgent(FakeAIProvider $provider, ?SearchTool $tool = null): Agent
     {
-        $agent = Agent::make(threadId: 'thread-file');
+        $agent = Agent::make(workflowId: 'thread-file');
         $agent->setChatHistory(new FileChatHistory($this->directory));
         $agent->setAiProvider($provider);
         $agent->setPersistence(new FilePersistence($this->directory));

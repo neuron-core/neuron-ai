@@ -25,7 +25,7 @@ The durable backends (SQL, Eloquent, File) keep the messages trimmed out of the 
 
 ### Identity: histories are bound, not identity-constructed
 
-A history is thread-scoped by nature but constructible *without* its thread: loading is lazy, so the Agent can bind the resolved thread ID into an unbound history before it is ever touched (`new SQLChatHistory($pdo)` in a hook, identity supplied once by `Agent::make(threadId:)`). The rules, implemented in `AbstractChatHistory`:
+A history is thread-scoped by nature but constructible *without* its thread: loading is lazy, so the Agent can bind the resolved thread ID into an unbound history before it is ever touched (`new SQLChatHistory($pdo)` in a hook, identity supplied once by `Agent::make(workflowId:)`). The rules, implemented in `AbstractChatHistory`:
 
 - `setThreadId()` is assign-once: the same id is a no-op, a different id throws `ChatHistoryException`. Re-pointing a conversation at another thread is never legitimate.
 - A durable backend *used* while unbound throws loudly, never a silent read of a wrong, empty thread.

@@ -47,7 +47,6 @@ use DateTimeImmutable;
 use function hash;
 use function in_array;
 use function time;
-use function preg_match;
 
 /**
  * Durable Workflow lifecycle and replay traversal. Every mutation is fenced
@@ -65,16 +64,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected bool $pauseRequested = false;
     protected Ignition $ignition;
 
-    public function inspect(Workflow $workflow, ?string $workflowId = null): ?WorkflowRunSnapshot
+    public function inspect(Workflow $workflow): ?WorkflowRunSnapshot
     {
-        if ($workflow->getWorkflowId() === null && $workflowId === null) {
+        $workflowId = $workflow->getWorkflowId();
+        if ($workflowId === null) {
             return null;
         }
         // Use an independent store: inspection cannot replace an in-flight segment's fence.
         $store = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
-            $this->resolveWorkflowId($workflow, continuing: true, explicit: $workflowId),
+            $workflowId,
         );
         $control = $store->loadControl();
         return $control instanceof WorkflowControl ? new WorkflowRunSnapshot(
@@ -82,7 +82,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             $control->status,
             $control->executionAttempt,
             $control->interrupt?->request,
-            $this->resolveWorkflowId($workflow, true, $workflowId),
+            $workflowId,
         ) : null;
     }
 
@@ -104,7 +104,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $this->pauseRequested = false;
         try {
             $this->leaseTimeout = $workflow->getLeaseTimeout();
-            $this->workflowId = $this->resolveWorkflowId($workflow, !$request->starting, $request->workflowId);
+            $this->workflowId = $this->requireWorkflowId($workflow);
             $this->store = new WorkflowRunStore($workflow->getPersistence(), $workflow->getSerializer(), $this->workflowId);
             $terminal = $this->admit($workflow, $request);
             if ($terminal instanceof WorkflowState) {
@@ -222,9 +222,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         if ($request->idempotencyKey === null) {
             return null;
         }
-        if ($workflow->getWorkflowId() === null && $request->workflowId === null) {
-            throw new WorkflowException('Idempotent execution requires a stable workflow ID.');
-        }
         $ignition = $request->starting ? $workflow->makeIgnition('', $request->event() ?? $workflow->getStartEvent()) : null;
         $intent = $request->starting
             ? ['start', $request->runId, $ignition->inputFingerprint ?? $ignition]
@@ -253,11 +250,10 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     public function acknowledgeCompletion(
         Workflow $workflow,
         string $expectedRunId,
-        ?string $workflowId = null,
     ): void {
         $this->assertNoSegmentInFlight();
         ExecutionGate::assertAvailable($workflow);
-        $this->workflowId = $this->resolveWorkflowId($workflow, true, $workflowId);
+        $this->workflowId = $this->requireWorkflowId($workflow);
         $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
@@ -294,11 +290,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      * @throws StaleWorkflowRunException
      * @throws WorkflowException
      */
-    public function abandonRun(Workflow $workflow, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool
+    public function abandonRun(Workflow $workflow, ?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
         $this->assertNoSegmentInFlight();
         ExecutionGate::assertAvailable($workflow);
-        $this->workflowId = $this->resolveWorkflowId($workflow, true, $workflowId);
+        $this->workflowId = $this->requireWorkflowId($workflow);
         $this->store = new WorkflowRunStore(
             $workflow->getPersistence(),
             $workflow->getSerializer(),
@@ -560,31 +556,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     /**
      * @throws WorkflowException
      */
-    protected function resolveWorkflowId(Workflow $workflow, bool $continuing, ?string $explicit = null): string
+    protected function requireWorkflowId(Workflow $workflow): string
     {
-        $workflowId = $workflow->getWorkflowId();
-        if ($explicit !== null && $workflowId !== null && $explicit !== $workflowId) {
-            throw new WorkflowException('Request workflow ID conflicts with the configured definition.');
-        }
-        $workflowId = $explicit ?? $workflowId;
-        if ($workflowId === null) {
-            if ($continuing) {
-                throw new WorkflowException(
-                    'Cannot identify the run to continue: no workflow ID was provided '
-                    . 'and the workflow declares none.'
-                );
-            }
-            return UniqueIdGenerator::generateId('workflow_');
-        }
-
-        if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/u', $workflowId) !== 1) {
-            throw new WorkflowException(
-                "Invalid workflow ID '{$workflowId}': a workflow ID must be a non-empty "
-                . "string and must not start with '__'."
-            );
-        }
-
-        return $workflowId;
+        return $workflow->getWorkflowId() ?? throw new WorkflowException(
+            'Cannot identify the run: no workflow ID was provided '
+            . 'and the workflow declares none.'
+        );
     }
 
     /**

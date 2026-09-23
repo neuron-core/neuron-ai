@@ -41,7 +41,7 @@ class AgentOutputTest extends TestCase
     {
         $text = $mode === 'structured' ? '{"name":"Ada"}' : 'Hello Ada.';
         $provider = new FakeAIProvider(new AssistantMessage($text));
-        $agent = OutputAgent::make(threadId: 'output-test');
+        $agent = OutputAgent::make(workflowId: 'output-test');
         $agentRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($agent);
         $agent->setAiProvider($provider);
         $input = new UserMessage('Hello');
@@ -81,7 +81,7 @@ class AgentOutputTest extends TestCase
     public function test_failed_exit_recovers_on_a_fresh_instance_without_repeating_inference(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
-        $first = OutputAgent::make(threadId: 'output-recovery');
+        $first = OutputAgent::make(workflowId: 'output-recovery');
         $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setAiProvider($provider);
         $first->addMiddleware(OutputNode::class, (new FakeMiddleware())->setThrowOnBefore(new RuntimeException('Output failed.')));

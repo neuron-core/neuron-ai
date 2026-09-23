@@ -283,12 +283,12 @@ $agent->setInstructions('You are a helpful assistant.');
 
 ## Chat History & Thread Identity
 
-Declare durable conversation identity before execution with `make(threadId:)` or attach a pre-bound history with `setChatHistory()`. An unbound SQL/file history receives that identity from Agent:
+Declare durable conversation identity before execution with `make(workflowId:)` or attach a pre-bound history with `setChatHistory()`. An unbound SQL/file history receives that identity from Agent:
 
 ```php
 use NeuronAI\Chat\History\SQLChatHistory;
 
-$agent = MyAgent::make(threadId: $threadId);
+$agent = MyAgent::make(workflowId: $threadId);
 $agent->setChatHistory(new SQLChatHistory(pdo: $pdo, contextWindow: 50000));
 $state = $agent->chat(new UserMessage($input));
 ```
@@ -401,7 +401,7 @@ later continuation built from the threadId alone finds the pending run — no
 workflow coordination ID needs to be stored by the application:
 
 ```php
-$state = MyAgent::make(threadId: $threadId)
+$state = MyAgent::make(workflowId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence(new FilePersistence('/path/to/storage'))
     ->chat(new UserMessage('Delete file /tmp/old.log'));
@@ -412,7 +412,7 @@ if ($state->isInterrupted()) {
 
     // A new execution cycle (e.g. the approve endpoint): the thread alone
     // identifies the run; decisions are keyed by tool callId.
-    $state = MyAgent::make(threadId: $threadId)
+    $state = MyAgent::make(workflowId: $threadId)
         ->setChatHistory(new SQLChatHistory($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
         ->submitApprovalDecisions(['call_123' => 'approve'])
@@ -430,7 +430,7 @@ continued segment must stream.
 Deferred tools continue through the same thread identity:
 
 ```php
-$state = MyAgent::make(threadId: $threadId)
+$state = MyAgent::make(workflowId: $threadId)
     ->submitToolResults([
         'call_123' => ['result' => ['title' => 'Example']],
         'call_456' => ['error' => 'Browser operation cancelled'],

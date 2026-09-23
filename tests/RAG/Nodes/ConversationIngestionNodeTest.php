@@ -34,7 +34,7 @@ class ConversationIngestionNodeTest extends TestCase
 {
     protected function agent(FakeVectorStore $store, FakeAIProvider $provider): ConversationAgent
     {
-        $agent = ConversationAgent::make(threadId: 'current-thread');
+        $agent = ConversationAgent::make(workflowId: 'current-thread');
         $agent->conversationStore = $store;
         $agent->conversationEmbeddings = new FakeEmbeddingsProvider();
         $agent->setAiProvider($provider);

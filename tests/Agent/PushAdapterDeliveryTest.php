@@ -136,7 +136,7 @@ class PushAdapterDeliveryTest extends TestCase
         };
 
         $channel = new FakeChannel();
-        $agent = Agent::make(threadId: 'thread-1')
+        $agent = Agent::make(workflowId: 'thread-1')
             ->setPersistence(new InMemoryPersistence())
             ->setStreamAdapter(new AGUIAdapter('thread-1', 'run-1'))
             ->setChannel($channel);

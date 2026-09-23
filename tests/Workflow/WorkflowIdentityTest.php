@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use Closure;
 use DateTimeInterface;
+use Generator;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
@@ -22,6 +23,8 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -36,6 +39,7 @@ use function date;
 use function time;
 use function iterator_to_array;
 use function serialize;
+use function str_repeat;
 
 /**
  * Key-based identity: a run's durable records live in the partition named
@@ -48,6 +52,72 @@ use function serialize;
 class WorkflowIdentityTest extends TestCase
 {
     use ExecutorTestHelpers;
+
+    public function test_workflow_binds_identity_before_handing_execution_to_a_custom_executor(): void
+    {
+        foreach ([null, 'explicit-address'] as $address) {
+            $executor = $this->createMock(WorkflowExecutorInterface::class);
+            $executor->expects(self::once())->method('execute')->willReturnCallback(
+                function (Workflow $workflow, ExecutionRequest $request) use ($address): Generator {
+                    self::assertNotNull($workflow->getWorkflowId());
+                    if ($address !== null) {
+                        self::assertSame($address, $workflow->getWorkflowId());
+                    }
+                    return (new WorkflowExecutor())->execute($workflow, $request);
+                },
+            );
+            $workflow = Workflow::make()->addNode(new MemoizingNode())->setExecutor($executor);
+            if ($address !== null) {
+                $workflow->setWorkflowId($address);
+            }
+            $stream = $workflow->events(ExecutionRequest::start());
+            self::assertSame($address, $workflow->getWorkflowId());
+
+            iterator_to_array($stream);
+            self::assertSame($stream->getReturn()->getWorkflowId(), $workflow->getWorkflowId());
+        }
+    }
+
+    public function test_setter_binds_once_and_preserves_identity_after_rejection(): void
+    {
+        $workflow = Workflow::make();
+        self::assertSame($workflow, $workflow->setWorkflowId('conversation'));
+        self::assertSame($workflow, $workflow->setWorkflowId('conversation'));
+        try {
+            $workflow->setWorkflowId('other');
+            self::fail('An instance cannot change its workflow identity.');
+        } catch (WorkflowException) {
+            self::assertSame('conversation', $workflow->getWorkflowId());
+        }
+    }
+
+    public function test_invalid_setter_identity_leaves_the_workflow_unbound(): void
+    {
+        foreach (['', '__reserved', "invalid\naddress", str_repeat('a', 256)] as $id) {
+            $workflow = Workflow::make();
+            try {
+                $workflow->setWorkflowId($id);
+                self::fail('Invalid identity should be rejected.');
+            } catch (WorkflowException) {
+                self::assertNull($workflow->getWorkflowId());
+            }
+        }
+    }
+
+    public function test_setter_respects_the_subclass_declared_identity(): void
+    {
+        $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('declared');
+        $this->expectException(WorkflowException::class);
+        $workflow->setWorkflowId('other');
+    }
+
+    public function test_inspection_does_not_bind_an_unbound_instance(): void
+    {
+        $workflow = Workflow::make();
+
+        self::assertNull($workflow->inspect());
+        self::assertNull($workflow->getWorkflowId());
+    }
 
     public function test_records_live_under_the_declared_workflow_id(): void
     {
@@ -364,7 +434,7 @@ class WorkflowIdentityTest extends TestCase
         $state = $this->execute($workflow, $persistence);
 
         $workflowId = $state->getWorkflowId();
-        $this->assertNull($workflow->getWorkflowId());
+        $this->assertSame($workflowId, $workflow->getWorkflowId());
         $this->assertNotNull($workflowId);
 
         $resumed = Workflow::make($workflowId)

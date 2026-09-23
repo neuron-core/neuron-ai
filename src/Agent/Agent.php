@@ -45,7 +45,7 @@ use function hash;
 
 /**
  * @extends Workflow<AgentState>
- * @method static static make(?string $workflowId = null, ?AgentState $state = null, ?string $threadId = null)
+ * @method static static make(?string $workflowId = null, ?AgentState $state = null)
  * @method AgentStartEvent getStartEvent()
  * @method static setStreamAdapter(?StreamAdapterInterface $adapter) Configure Workflow-owned stream adaptation.
  */
@@ -56,30 +56,13 @@ class Agent extends Workflow implements AgentInterface
     use HandleInstructions;
 
     protected ?ChatHistoryInterface $chatHistory = null;
-    protected InMemoryChatHistory $defaultHistory;
-
-    /** Configured conversation address, independent of run identity. */
-    protected ?string $threadId = null;
+    protected ?InMemoryChatHistory $defaultHistory = null;
 
     protected bool $parallelToolCalls = false;
 
     protected ?Closure $beforeParallelToolChild = null;
 
     protected ?Closure $afterParallelToolChild = null;
-
-    /**
-     * @throws WorkflowException
-     * @throws AgentException
-     */
-    public function __construct(?string $workflowId = null, ?AgentState $state = null, ?string $threadId = null)
-    {
-        if ($workflowId !== null && $threadId !== null && $workflowId !== $threadId) {
-            throw new AgentException('Conflicting workflow and thread identity.');
-        }
-        $this->defaultHistory = new InMemoryChatHistory($threadId ?? $workflowId);
-        $this->threadId = $threadId ?? $workflowId ?? $this->defaultHistory->getThreadId();
-        parent::__construct($workflowId, $state);
-    }
 
     /**
      * Determines whether tools should be executed in parallel and optionally
@@ -124,41 +107,41 @@ class Agent extends Workflow implements AgentInterface
      */
     protected function chatHistory(string $threadId): ChatHistoryInterface
     {
-        return $this->defaultHistory;
+        return $this->defaultHistory ??= new InMemoryChatHistory($threadId);
     }
 
     /**
-     * A pre-bound history explicitly selects the conversation; an unbound
-     * one receives the current thread identity. Swapping conversations changes
-     * configuration while preserving previous results and durable runs.
-     *
-     * @throws AgentException
+     * A pre-bound history can identify an unbound Agent. Once bound, the
+     * Agent and its history must refer to the same conversation.
      */
     public function setChatHistory(ChatHistoryInterface $chatHistory): self
     {
-        $this->threadId = $chatHistory->getThreadId() ?? $this->threadId;
-        $this->workflowId = null;
-        $chatHistory->setThreadId($this->threadId);
+        $threadId = $this->getThreadId();
+        $historyThreadId = $chatHistory->getThreadId();
+        if ($threadId !== null && $historyThreadId !== null && $threadId !== $historyThreadId) {
+            throw new AgentException('Chat history conflicts with the configured conversation.');
+        }
+        if ($historyThreadId !== null) {
+            $this->setThreadId($historyThreadId);
+        } elseif ($threadId !== null) {
+            $chatHistory->setThreadId($threadId);
+        }
         $this->chatHistory = $chatHistory;
         return $this;
     }
 
-    /**
-     * History factories must agree with the configured conversation. Only
-     * an explicit setChatHistory() call may select a different conversation.
-     *
-     * @throws AgentException
-     */
-
     public function getChatHistory(): ChatHistoryInterface
     {
-        $history = $this->chatHistory ?? $this->chatHistory($this->getWorkflowId());
-        $threadId = $history->getThreadId();
-        if ($threadId !== null && $threadId !== $this->getWorkflowId()) {
+        $threadId = $this->getThreadId() ?? throw new AgentException(
+            'Chat history requires a conversation identity: call setThreadId() or execute the Agent first.'
+        );
+        $history = $this->chatHistory ?? $this->chatHistory($threadId);
+        $historyThreadId = $history->getThreadId();
+        if ($historyThreadId !== null && $historyThreadId !== $threadId) {
             throw new AgentException('Chat history conflicts with the configured conversation.');
         }
-        if ($threadId === null) {
-            $history->setThreadId($this->getWorkflowId());
+        if ($historyThreadId === null) {
+            $history->setThreadId($threadId);
         }
         return $history;
     }
@@ -201,7 +184,7 @@ class Agent extends Workflow implements AgentInterface
      *
      * @throws AgentException
      */
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool
+    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
         $messages = $this->getChatHistory()->getMessages();
         $lastMessage = end($messages);
@@ -212,7 +195,7 @@ class Agent extends Workflow implements AgentInterface
             );
         }
 
-        return parent::abandonRun($expectedRunId, $expectedExecutionAttempt, $workflowId);
+        return parent::abandonRun($expectedRunId, $expectedExecutionAttempt);
     }
 
     /**
@@ -297,19 +280,27 @@ class Agent extends Workflow implements AgentInterface
         return hash('sha256', $this->getSerializer()->serialize([$event, $context]));
     }
 
-    /** The configured conversation address; no active run is needed. */
     public function getThreadId(): ?string
     {
-        return $this->threadId;
+        return $this->getWorkflowId();
     }
 
-    /**
-     * The Agent's business identity is the conversation: the threadId IS the
-     * workflow ID, so a continuation holding only the thread finds the run.
-     */
-    public function workflowId(): ?string
+    public function setThreadId(string $threadId): static
     {
-        return $this->getThreadId();
+        return $this->setWorkflowId($threadId);
+    }
+
+    public function setWorkflowId(string $workflowId): static
+    {
+        $historyThreadId = $this->chatHistory?->getThreadId();
+        if ($historyThreadId !== null && $historyThreadId !== $workflowId) {
+            throw new AgentException('Chat history conflicts with the configured conversation.');
+        }
+        parent::setWorkflowId($workflowId);
+        if ($this->chatHistory !== null && $historyThreadId === null) {
+            $this->chatHistory->setThreadId($workflowId);
+        }
+        return $this;
     }
 
     protected function startEvent(): AgentStartEvent

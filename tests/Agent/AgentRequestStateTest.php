@@ -35,7 +35,7 @@ class AgentRequestStateTest extends TestCase
         $tool = (new ClosureDependencyTool(static fn (): int => 42))->requireApproval();
         $middleware = new RequestEditingMiddleware($tool);
         $firstProvider = new FakeAIProvider(new ToolCallMessage(null, [ToolCall::make('count_users', 'call_1')]));
-        $first = Agent::make(threadId: 'request-state');
+        $first = Agent::make(workflowId: 'request-state');
         $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setPersistence($persistence)
             ->setChatHistory($history)
@@ -62,7 +62,7 @@ class AgentRequestStateTest extends TestCase
         $freshTool = (new ClosureDependencyTool(static fn (): int => 42))->requireApproval();
         $freshMiddleware = new RequestEditingMiddleware($freshTool, 'Changed middleware defaults');
         $freshProvider = new FakeAIProvider(new AssistantMessage('{"name":"Recovered"}'));
-        $resumed = Agent::make(threadId: 'request-state');
+        $resumed = Agent::make(workflowId: 'request-state');
         $resumed->setPersistence($persistence)
             ->setChatHistory($history)
             ->setAiProvider($freshProvider)

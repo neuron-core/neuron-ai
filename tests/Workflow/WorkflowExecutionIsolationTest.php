@@ -51,13 +51,14 @@ class WorkflowExecutionIsolationTest extends TestCase
         self::assertSame(1, $second->get('calls'));
         self::assertSame($firstId, $first->getRunId());
         self::assertNotSame($firstId, $second->getRunId());
-        self::assertNull($workflow->getWorkflowId());
+        self::assertSame($first->getWorkflowId(), $second->getWorkflowId());
+        self::assertSame($first->getWorkflowId(), $workflow->getWorkflowId());
     }
 
     public function test_lazy_agent_input_is_captured_before_the_callers_objects_change(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('One'), new AssistantMessage('Two'));
-        $agent = Agent::make(threadId: 'conversation')->setAiProvider($provider);
+        $agent = Agent::make(workflowId: 'conversation')->setAiProvider($provider);
         $message = new UserMessage('Original');
         $metadata = (object) ['value' => 'original'];
         $message->addMetadata('nested', ['object' => $metadata]);
@@ -93,27 +94,27 @@ class WorkflowExecutionIsolationTest extends TestCase
         self::assertSame('accepted', $resume->payload()['answer']->value);
     }
 
-    public function test_unbound_definition_continues_and_cleans_up_using_returned_address(): void
+    public function test_generated_identity_supports_continuation_and_cleanup_without_repeating_the_address(): void
     {
         $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()])
             ->retainCompletionUntilAcknowledged();
         $first = $workflow->run();
-        self::assertNull($workflow->getWorkflowId());
-        self::assertSame($first->getRunId(), $workflow->inspect($first->getWorkflowId())->runId);
-        $completed = $workflow->run(ExecutionRequest::resume([], $first->getRunId(), $first->getExecutionAttempt(), workflowId: $first->getWorkflowId()));
+        self::assertSame($first->getWorkflowId(), $workflow->getWorkflowId());
+        self::assertSame($first->getRunId(), $workflow->inspect()->runId);
+        $completed = $workflow->run(ExecutionRequest::resume([], $first->getRunId(), $first->getExecutionAttempt()));
         self::assertSame($first->getRunId(), $completed->getRunId());
         self::assertTrue($first->isInterrupted());
         self::assertFalse($completed->isInterrupted());
-        $workflow->acknowledgeCompletion($completed->getRunId(), $completed->getWorkflowId());
-        self::assertNull($workflow->inspect($first->getWorkflowId()));
+        $workflow->acknowledgeCompletion($completed->getRunId());
+        self::assertNull($workflow->inspect());
     }
 
-    public function test_conflicting_request_address_is_rejected_before_persistence(): void
+    public function test_rebinding_a_workflow_is_rejected_before_persistence(): void
     {
         $workflow = KeyedWorkflow::make('bound');
         $before = serialize($workflow->getPersistence());
         try {
-            $workflow->run(ExecutionRequest::start(workflowId: 'different'));
+            $workflow->setWorkflowId('different');
             self::fail('Expected conflicting address.');
         } catch (WorkflowException) {
             self::assertSame($before, serialize($workflow->getPersistence()));

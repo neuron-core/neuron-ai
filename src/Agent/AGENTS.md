@@ -144,7 +144,7 @@ To reconstruct the approval UI after a page refresh, rebuild the Agent with the 
 
 The persisted interruption is authoritative for the current UI request. The pre-suspend `ToolCallMessage` in history is an initial approval snapshot and can remain pending after decisions have been submitted or the workflow has advanced to awaiting tool results. Final tool outcomes are read from the following `ToolResultMessage`. Inside `ToolNode`, approval execution continues through `interrupt()` and durable step memos; `inspect()` serves external readers. Cross-process flows need workflow persistence **and** a durable chat history.
 
-`submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and return a `PendingExecution` holding its address/run/attempt fences. Chain `->run()` or `->events()` to consume the response. Each submission owns its immutable request; creating another submission cannot overwrite it. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
+`submitApprovalDecisions()` and `submitToolResults()` validate against the current persisted request and return a `PendingExecution` holding the bound Agent and run/attempt fences. Chain `->run()` or `->events()` to consume the response. Each submission owns its immutable request; creating another submission cannot overwrite it. They require neither an event name nor an interruption ID. Missing runs, unmatched call IDs and invalid payloads fail before execution. A concurrent continuation invalidates that snapshot. For raw AG-UI, Vercel or custom transport payloads, use inherited `submitInputs($payload, $translator)`; see `Frontend/README.md`.
 
 ## Tool run limits
 
@@ -190,14 +190,14 @@ Use `submitToolResults($results)` for native result maps, including results sent
 
 ## The thread IS the workflow ID
 
-The Agent declares its `threadId` as the run's workflow ID (`workflowId()`), so a run's durable records live in the partition named by the thread. No pointer, no index: the approve endpoint needs only the thread ID, one read answers "is a run in flight here", and execution identity never touches chat history.
+The Agent's `threadId` is the Workflow instance identity: `setThreadId()` delegates to `setWorkflowId()`, and `getThreadId()` reads `getWorkflowId()`. There is one stored address, so a run's durable records live in the partition named by the thread. No pointer, no index: the approve endpoint needs only the thread ID, one read answers "is a run in flight here", and execution identity never touches chat history.
 
 ```php
 // Fresh turn (controller): identity enters through the one front door.
-SupportAgent::make(threadId: $threadId)->chat(new UserMessage($input));
+SupportAgent::make(workflowId: $threadId)->chat(new UserMessage($input));
 
 // Thread-first resume (approve endpoint): same statement.
-$agent = SupportAgent::make(threadId: $threadId);
+$agent = SupportAgent::make(workflowId: $threadId);
 $agent->submitApprovalDecisions(['call_123' => 'approve'])->run();
 
 // WorkflowId-first resume (background wake): the configured workflow address is the thread.
@@ -205,15 +205,28 @@ SupportAgent::make(workflowId: $ticket->workflowId)
     ->run(ExecutionRequest::resume($ticket->payload, expectedRunId: $ticket->runId, expectedExecutionAttempt: $ticket->executionAttempt));
 ```
 
-Identity is configuration, never adopted from an active run. Explicit constructor
-IDs must agree. `setChatHistory()` can deliberately select another conversation
-for subsequent segments, including while a stream is active. The active segment keeps its original history and execution address. When neither ID is supplied, the default in-memory history chooses a
-conversation address at construction, so the ordinary reusable Agent keeps its
-history between turns. This local convenience is not cross-process storage.
-`chatHistory(string $threadId)` is a conversation-scoped factory: it can also be
-resolved for history inspection/reset without inventing run identity. A returned
-pre-bound history must agree with the configured thread; an unbound history is bound
-to it before use. Declare the address before executing a custom history hook.
+Agent inherits Workflow's constructor directly, accepting optional `workflowId`
+and initial state. Without an explicit identity it remains unbound. Framework applications resolve
+Agents through their container, then call `setThreadId($threadId)`; `make()` remains
+an independent direct-construction helper. Subclasses injecting application
+services still call `parent::__construct()`.
+
+Configure conversation identity through the constructor or `setThreadId()`.
+The first execution generates and retains an identity for an unbound new
+conversation. Continuations require an already bound Agent. Later executions reuse that
+identity with separate run IDs. Repeating the same identity is allowed; setters
+and histories cannot switch a bound instance to another conversation.
+Use a fresh Agent for another conversation. Creating a lazy stream or inspecting the Agent does not bind the instance.
+Execution requests and per-operation methods do not accept address overrides.
+
+Default in-memory history is created lazily after identity is established and
+retained across turns. `getChatHistory()` throws while identity is unset: bind
+before accessing history or using history-dependent operations such as reset or
+graph export. `setChatHistory()` may identify an unbound Agent using a pre-bound
+history; otherwise its identity must match. An injected unbound history receives
+the identity when the Agent is bound. Agent enforces these rules; history APIs are
+unchanged. `chatHistory(string $threadId)` remains a conversation-scoped factory,
+and any pre-bound result must agree with the Agent's identity.
 
 One live run per thread has these consequences:
 
@@ -222,7 +235,7 @@ One live run per thread has these consequences:
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
 - `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
-**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history between interactions; a different thread selects a new definition default while prior results and persisted runs stay intact, and replacing it during an active execution configures subsequent segments without redirecting the current history or durable writes.
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history for the same conversation between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current history or durable writes. A different conversation is rejected.
 
 **Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.
 

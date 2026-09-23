@@ -213,7 +213,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function test_identity_is_assigned_by_the_executor(): void
+    public function test_identity_is_assigned_on_first_execution(): void
     {
         $workflow = Workflow::make()
             ->addNodes([
@@ -222,14 +222,13 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        // Identity is assigned by the executor's identity phase, never
-        // defaulted at construction.
+        // Workflow establishes identity when execution starts.
         $this->assertNull($workflow->getWorkflowId());
         $this->assertNull($workflow->inspect()?->runId);
 
         $state = $this->execute($workflow, new InMemoryPersistence());
 
-        $this->assertNull($workflow->getWorkflowId());
+        $this->assertSame($state->getWorkflowId(), $workflow->getWorkflowId());
         $this->assertNotEmpty($state->getWorkflowId());
         $this->assertStringStartsWith('workflow_', (string) $state->getWorkflowId());
         $this->assertNotEmpty($state->getRunId());

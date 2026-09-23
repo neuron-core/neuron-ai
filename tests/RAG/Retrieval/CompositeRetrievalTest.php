@@ -48,7 +48,7 @@ class CompositeRetrievalTest extends TestCase
     {
         $embeddings = new FakeEmbeddingsProvider();
         $memoryStore = new MemoryVectorStore();
-        $writer = ConversationAgent::make(threadId: 'past-thread');
+        $writer = ConversationAgent::make(workflowId: 'past-thread');
         $writer->conversationStore = $memoryStore;
         $writer->conversationEmbeddings = $embeddings;
         $writer->setAiProvider(new FakeAIProvider(new AssistantMessage('Understood.')));
@@ -57,7 +57,7 @@ class CompositeRetrievalTest extends TestCase
         $knowledgeStore->addDocument($embeddings->embedDocument(new Document('Paris is in France.')));
         $memoryRetrieval = new SemanticMemoryRetrieval($memoryStore, $embeddings, ['past-thread']);
         $provider = new FakeAIProvider(new AssistantMessage('Paris, France.'));
-        $rag = RAG::make(threadId: 'current-thread');
+        $rag = RAG::make(workflowId: 'current-thread');
         $rag->setAiProvider($provider);
         $rag->setRetrieval(new CompositeRetrieval([
             $memoryRetrieval,

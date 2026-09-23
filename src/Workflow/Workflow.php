@@ -8,6 +8,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Closure;
 use Generator;
+use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\ListenerRegistry;
@@ -160,17 +161,32 @@ class Workflow implements WorkflowInterface
             throw new WorkflowException("Misidentified run: the workflow declares workflow ID '{$declared}' but was given '{$this->workflowId}'.");
         }
         $id = $this->workflowId ?? $declared;
-        if ($id !== null && (preg_match('/^(?!__)[^\x00-\x1F\x7F]{1,255}$/u', $id) !== 1)) {
-            throw new WorkflowException('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
+        if ($id !== null) {
+            $this->validateWorkflowId($id);
         }
         return $id;
     }
 
-    /**
-     * The business key this workflow wants as its workflow ID (e.g. the
-     * Agent's threadId). Unbound executions return their generated address
-     * in the result; the definition never adopts it.
-     */
+    /** Bind the instance address; a bound instance cannot change its address. */
+    public function setWorkflowId(string $workflowId): static
+    {
+        $this->validateWorkflowId($workflowId);
+        $current = $this->getWorkflowId();
+        if ($current !== null && $current !== $workflowId) {
+            throw new WorkflowException("This workflow is bound to '{$current}' and cannot be re-pointed to '{$workflowId}'.");
+        }
+        $this->workflowId = $workflowId;
+        return $this;
+    }
+
+    protected function validateWorkflowId(string $workflowId): void
+    {
+        if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/u', $workflowId) !== 1) {
+            throw new WorkflowException('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
+        }
+    }
+
+    /** The business key declared by a subclass, if any. */
     public function workflowId(): ?string
     {
         return null;
@@ -253,9 +269,9 @@ class Workflow implements WorkflowInterface
         return $this->consume($this->events($request));
     }
 
-    public function inspect(?string $workflowId = null): ?WorkflowRunSnapshot
+    public function inspect(): ?WorkflowRunSnapshot
     {
-        return $this->getExecutor()->inspect($this, $workflowId);
+        return $this->getExecutor()->inspect($this);
     }
 
     /**
@@ -265,9 +281,9 @@ class Workflow implements WorkflowInterface
      * @return PendingExecution<TState>
      * @throws InputTranslationException
      */
-    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null, ?string $workflowId = null): PendingExecution
+    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null): PendingExecution
     {
-        $run = $this->inspect($workflowId);
+        $run = $this->inspect();
 
         if (!$run instanceof WorkflowRunSnapshot) {
             throw new InputTranslationException('There is no persisted run to continue.');
@@ -279,11 +295,11 @@ class Workflow implements WorkflowInterface
 
         $response = $translator?->translate($payload, $run->interrupt) ?? $payload;
 
-        // Keep the inspected identity: another continuation may advance the run
+        // Capture the run and attempt: another continuation may advance the run
         // between submission and execution, making these inputs stale.
         return new PendingExecution(
             $this,
-            ExecutionRequest::resume($response, $run->runId, $run->executionAttempt, $idempotencyKey, workflowId: $run->workflowId),
+            ExecutionRequest::resume($response, $run->runId, $run->executionAttempt, $idempotencyKey),
         );
     }
 
@@ -298,8 +314,17 @@ class Workflow implements WorkflowInterface
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
 
         if ($request->starting && $request->event() === null) {
-            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->idempotencyKey, $request->recoverFailed, $request->workflowId);
+            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->idempotencyKey, $request->recoverFailed);
         }
+
+        $workflowId = $this->getWorkflowId();
+        if ($workflowId === null && !$request->starting) {
+            throw new WorkflowException(
+                'Cannot identify the run to continue: no workflow ID was provided '
+                . 'and the workflow declares none.'
+            );
+        }
+        $this->setWorkflowId($workflowId ?? UniqueIdGenerator::generateId('workflow_'));
 
         return yield from $this->getExecutor()->execute($this, $request);
     }
@@ -356,14 +381,14 @@ class Workflow implements WorkflowInterface
         );
     }
 
-    public function acknowledgeCompletion(string $expectedRunId, ?string $workflowId = null): void
+    public function acknowledgeCompletion(string $expectedRunId): void
     {
-        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId, $workflowId);
+        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
     }
 
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null, ?string $workflowId = null): bool
+    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
-        return $this->getExecutor()->abandonRun($this, $expectedRunId, $expectedExecutionAttempt, $workflowId);
+        return $this->getExecutor()->abandonRun($this, $expectedRunId, $expectedExecutionAttempt);
     }
 
     /**

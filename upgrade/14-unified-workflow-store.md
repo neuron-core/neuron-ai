@@ -86,7 +86,7 @@ you need:
 
 ```php
 // Rebuild the same thread, durable history and workflow persistence.
-$agent = Agent::make(threadId: $threadId)
+$agent = Agent::make(workflowId: $threadId)
     ->setChatHistory(new SQLChatHistory($pdo))
     ->setPersistence($persistence);
 

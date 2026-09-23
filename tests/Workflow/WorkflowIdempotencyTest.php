@@ -120,11 +120,17 @@ class WorkflowIdempotencyTest extends TestCase
         self::assertEquals($early, $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(idempotencyKey: 'early')));
     }
 
-    public function test_idempotent_execution_requires_an_explicit_or_declared_workflow_id(): void
+    public function test_generated_identity_is_stable_for_repeated_idempotent_execution(): void
     {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('stable workflow ID');
-        Workflow::make()->addNode(new MemoizingNode())->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(idempotencyKey: 'key', recoverFailed: true));
+        MemoizingNode::resetOperationCount();
+        $workflow = Workflow::make()->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged();
+        $request = \NeuronAI\Workflow\Executor\ExecutionRequest::start(idempotencyKey: 'key');
+        $first = $workflow->run($request);
+        $second = $workflow->run($request);
+
+        self::assertSame($first->getWorkflowId(), $workflow->getWorkflowId());
+        self::assertSame($first->getRunId(), $second->getRunId());
+        self::assertSame(1, MemoizingNode::getOperationCount());
     }
 
     public function test_an_empty_key_is_rejected_without_igniting_a_run(): void

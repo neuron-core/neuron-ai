@@ -131,7 +131,7 @@ use NeuronAI\Workflow\Streaming\SSEEncoder;
 Route::post('/chat', function (Request $request) {
     $adapter = new VercelAIAdapter();
 
-    $stream = MyAgent::make(threadId: $request->input('threadId'))
+    $stream = MyAgent::make(workflowId: $request->input('threadId'))
         ->setStreamAdapter($adapter)
         ->stream(new UserMessage($request->input('message')));
 
@@ -265,7 +265,7 @@ use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 
 // Inside a queued job: the HTTP request already returned.
-$agent = MyAgent::make(threadId: $threadId)
+$agent = MyAgent::make(workflowId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new CallbackChannel(
         onSend: fn (ProtocolEvent $event) => Broadcast::private("chat.{$threadId}")
@@ -314,7 +314,7 @@ class MyAgent extends Agent
 ```php
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 
-$agent = MyAgent::make(threadId: $threadId)
+$agent = MyAgent::make(workflowId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new RedisChannel($redis, "chat:{$threadId}"));
 
@@ -343,7 +343,7 @@ $pusher = new Pusher(
 );
 
 // Inside a queued job: the HTTP request already returned.
-$agent = MyAgent::make(threadId: $threadId)
+$agent = MyAgent::make(workflowId: $threadId)
     ->setStreamAdapter(new VercelAIAdapter())
     ->setChannel(new PusherChannel(
         client: $pusher,

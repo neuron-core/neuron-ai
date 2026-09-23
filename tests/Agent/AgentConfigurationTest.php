@@ -265,7 +265,7 @@ class AgentConfigurationTest extends TestCase
     public function test_history_changes_during_streaming_preserve_the_active_conversation(): void
     {
         $firstHistory = new InMemoryChatHistory('first-thread');
-        $nextHistory = new InMemoryChatHistory('next-thread');
+        $nextHistory = new InMemoryChatHistory('first-thread');
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'PHP'])]),
             new AssistantMessage('Found PHP'),
@@ -283,10 +283,10 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame('first-thread', $stream->getReturn()->getWorkflowId());
         $this->assertCount(4, $firstHistory->getMessages());
         $this->assertSame([], $nextHistory->getMessages());
-        $this->assertNull(Agent::make(threadId: 'first-thread')->setPersistence($agent->getPersistence())->inspect());
+        $this->assertNull(Agent::make(workflowId: 'first-thread')->setPersistence($agent->getPersistence())->inspect());
 
         $state = $agent->chat(new UserMessage('Hello'));
-        $this->assertSame('next-thread', $state->getWorkflowId());
+        $this->assertSame('first-thread', $state->getWorkflowId());
         $this->assertCount(2, $nextHistory->getMessages());
         $this->assertCount(4, $firstHistory->getMessages());
         $this->assertSame('first-thread', $firstHistory->getThreadId());
@@ -298,7 +298,7 @@ class AgentConfigurationTest extends TestCase
             ToolCall::make('search', 'call_1', ['query' => 'PHP']),
         ]));
         $second = new FakeAIProvider(new AssistantMessage('Resumed reply'), new AssistantMessage('Next reply'));
-        $agent = Agent::make(threadId: 'thread-config');
+        $agent = Agent::make(workflowId: 'thread-config');
         $agent->setAiProvider($first)->setInstructions('Original instructions')
             ->addTool((new SearchTool())->requireApproval());
         $stream = $agent->stream(new UserMessage('Search PHP'));
