@@ -320,6 +320,23 @@ Model creation, updates, and deletion emit their normal Eloquent events inside t
 conditional transaction. Cancelled mutations roll back the operation. Use
 Laravel's after-commit handling for listeners that publish external effects.
 
+### Read status without constructing a workflow
+
+```php
+use NeuronAI\Workflow\WorkflowInspector;
+
+$inspector = new WorkflowInspector($persistence);
+$snapshot = $inspector->inspect($workflowId);
+```
+
+The inspector requires only persistence and defaults to `PhpSerializer`. Pass a
+custom serializer as the second argument when the workflow uses one. Each read
+returns a fresh `WorkflowRunSnapshot` containing identity, status, execution
+attempt and the current interruption, or null if there is no persisted control.
+Normal completion removes that control; retained completion remains inspectable
+until acknowledged. `$workflow->inspect()` remains available for an already
+configured workflow.
+
 ### Workflow Lifecycle
 
 By default, successful completion conditionally removes the owned workflow

@@ -35,6 +35,7 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
+use NeuronAI\Workflow\WorkflowInspector;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
@@ -70,20 +71,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         if ($workflowId === null) {
             return null;
         }
-        // Use an independent store: inspection cannot replace an in-flight segment's fence.
-        $store = new WorkflowRunStore(
-            $workflow->getPersistence(),
-            $workflow->getSerializer(),
-            $workflowId,
-        );
-        $control = $store->loadControl();
-        return $control instanceof WorkflowControl ? new WorkflowRunSnapshot(
-            $control->runId,
-            $control->status,
-            $control->executionAttempt,
-            $control->interrupt?->request,
-            $workflowId,
-        ) : null;
+        return (new WorkflowInspector($workflow->getPersistence(), $workflow->getSerializer()))->inspect($workflowId);
     }
 
     /**

@@ -48,6 +48,17 @@ The core has no scheduler interface and no suspend/resume/complete callbacks. A 
 
 The complete `InterruptRequest` stays authoritative in Workflow persistence; a platform stores only the projection it needs to route work (`workflowId`, `runId`, `interruptId`, type, event name, deadline). A delivery job retains the observed run ID and execution attempt and passes both fences to `ExecutionRequest::resume($payload, ...)`; retries must not rematch by name against a later wait. Accepted input remains immutable until its node settles. Timer jobs use the current request's deadline and invoke a fenced resume request without a payload. Reconstruction is the factory's job: ignition context may restore small domain identity (the Agent's thread ID), but it is not a dependency container.
 
+## Standalone inspection
+
+`WorkflowInspector` reads persisted status and the current interruption without an Agent or Workflow definition:
+
+```php
+$inspector = new \NeuronAI\Workflow\WorkflowInspector($persistence);
+$snapshot = $inspector->inspect($workflowId);
+```
+
+Only `PersistenceInterface` is required. The optional second constructor argument is a `Serializer`, defaulting to `PhpSerializer`; use the same serializer as the executing workflow. Each call reads fresh control through an independent run store and returns `WorkflowRunSnapshot` or null. The inspector retains no identity or run cache and performs no writes. `Workflow::inspect()` uses the same reader through its executor, passing the workflow's configured serializer and bound identity. Null means no current persisted run; it does not distinguish never-started workflows from completed runs already cleaned up. Frontend payload formatting and full transcript reads are separate concerns.
+
 ## One partition, optimistic ownership
 
 All records for a workflow ID live in one persistence partition:
