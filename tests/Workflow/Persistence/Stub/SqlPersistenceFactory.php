@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Workflow\Persistence\Stub;
 use Illuminate\Database\Capsule\Manager as Capsule;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\EloquentPersistence;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -34,7 +35,7 @@ class SqlPersistenceFactory
         return new PDO($dsn, getenv($prefix . '_USER') ?: null, getenv($prefix . '_PASSWORD') ?: null);
     }
 
-    public static function make(PDO $pdo, string $table, bool $eloquent): DatabasePersistence
+    public static function make(PDO $pdo, string $table, bool $eloquent): PersistenceInterface
     {
         if (!$eloquent) {
             return new DatabasePersistence($pdo, $table);

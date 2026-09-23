@@ -307,7 +307,18 @@ CREATE TABLE workflow_store (
 );
 ```
 
-For `EloquentPersistence`, the model must have `partition`, `key`, and `value` columns.
+`EloquentPersistence` takes a model class and uses native model queries and mutations.
+For its table, replace the composite primary key shown above with a normal model
+primary key (such as `id`) and a unique constraint on `(partition, key)`. Use
+510-character identifier columns (ASCII binary collation on MySQL) and a value
+column large enough for base64-encoded payloads (`LONGTEXT` on MySQL). Allow mass
+assignment of `partition`, `key`, and `value`; configure timestamps on the model
+and provide the corresponding columns, or disable timestamps. Casts/accessors must
+round-trip the encoded strings. Do not use soft deletes for these records.
+
+Model creation, updates, and deletion emit their normal Eloquent events inside the
+conditional transaction. Cancelled mutations roll back the operation. Use
+Laravel's after-commit handling for listeners that publish external effects.
 
 ### Workflow Lifecycle
 

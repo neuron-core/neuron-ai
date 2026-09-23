@@ -10,6 +10,10 @@ class SqlWorkflowStoreModel extends Model
 {
     public static string $storeTable;
 
+    protected $guarded = [];
+
+    public $timestamps = false;
+
     public function getTable(): string
     {
         return self::$storeTable;

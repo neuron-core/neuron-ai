@@ -28,7 +28,7 @@
         "google/auth": "^1.49",
         "guzzlehttp/guzzle": "^7.0|^8.0",
         "html2text/html2text": "^4.3",
-        "illuminate/database": "^10.0|^11.0|^12.0",
+        "illuminate/database": "^10.20|^11.0|^12.0",
         "laudis/neo4j-php-client": "^3.4",
         "mongodb/mongodb": "^2.3",
         "opensearch-project/opensearch-php": "^2.5",

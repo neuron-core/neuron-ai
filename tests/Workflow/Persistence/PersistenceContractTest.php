@@ -88,11 +88,12 @@ class PersistenceContractTest extends TestCase
         $capsule->bootEloquent();
         $capsule->getConnection()->statement('
             CREATE TABLE workflow_store (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 "partition" VARCHAR(255) NOT NULL,
                 "key"       VARCHAR(255) NOT NULL,
                 "value"     TEXT NOT NULL,
                 updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY ("partition", "key")
+                UNIQUE ("partition", "key")
             )
         ');
 
