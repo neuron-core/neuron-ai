@@ -224,7 +224,6 @@ recovery of a process that died without recording failure, and retained outcomes
 Use `run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` for fenced delivery.
 All staging methods are inert; `run()` and `events()` accept an optional operation idempotency key.
 Configure context-aware resource factories on the definition before invoking the terminal.
-See [reserved starts and runtime preparation](../../docs/workflow-idempotency.md#reserved-starts-and-runtime-preparation) for ordering and constraints.
 
 ### Persistence Backends
 

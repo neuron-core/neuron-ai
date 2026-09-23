@@ -50,7 +50,6 @@ class Workflow implements WorkflowInterface
 
     /**
      * @param TState|null $state
-     * @throws WorkflowException
      */
     public function __construct(
         protected ?string $workflowId = null,

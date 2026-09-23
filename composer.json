@@ -35,6 +35,7 @@
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^10.0",
         "psr/http-message": "^1.0|^2.0",
+        "psr/log": "^1.0|^2.0|^3.0",
         "pusher/pusher-php-server": "^7.2.4",
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
@@ -90,7 +91,6 @@
         "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer.",
         "ext-redis": "Redis workflow persistence via RedisPersistence and Pub/Sub streaming via RedisChannel.",
         "ext-sodium": "End-to-end encryption for Pusher streaming channels.",
-        "guzzlehttp/guzzle": "Use GuzzleHttpClient as the HTTP client, e.g. for HandlerStack middleware.",
         "pusher/pusher-php-server": "Pusher-compatible streaming channels, including encrypted channels (requires >=7.2.4 for HTTP timeout propagation).",
         "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl)."
     },
