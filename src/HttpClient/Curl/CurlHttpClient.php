@@ -11,6 +11,8 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\MergesHttpHeaders;
+use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 
 use function basename;
@@ -44,6 +46,7 @@ use const CURLOPT_MAXREDIRS;
 use const CURLOPT_POSTFIELDS;
 use const CURLOPT_RETURNTRANSFER;
 use const CURLOPT_SHARE;
+use const CURLOPT_TIMEOUT;
 use const CURLOPT_TIMEOUT_MS;
 use const CURLOPT_URL;
 use const CURLOPT_USERAGENT;
@@ -58,6 +61,9 @@ use const CURLSHOPT_SHARE;
  */
 class CurlHttpClient implements HttpClientInterface
 {
+    use ResolvesHttpRequest;
+    use MergesHttpHeaders;
+
     protected string $baseUri = '';
 
     protected ?CurlHandle $handle = null;
@@ -219,7 +225,7 @@ class CurlHttpClient implements HttpClientInterface
      */
     public function withHeaders(array $headers): static
     {
-        $this->customHeaders = [...$this->customHeaders, ...$headers];
+        $this->customHeaders = $this->mergeRequestHeaders($this->customHeaders, $headers);
         return $this;
     }
 
@@ -264,7 +270,7 @@ class CurlHttpClient implements HttpClientInterface
      */
     protected function buildOptions(HttpRequest $request): array
     {
-        $headers = [...$this->customHeaders, ...$request->headers];
+        $headers = $this->mergeRequestHeaders($this->customHeaders, $request->headers);
 
         $options = [
             CURLOPT_URL => $this->resolveUri($request),
@@ -272,7 +278,7 @@ class CurlHttpClient implements HttpClientInterface
             // A User-Agent line in CURLOPT_HTTPHEADER replaces this default.
             CURLOPT_USERAGENT => HttpClientInterface::USER_AGENT,
             CURLOPT_CONNECTTIMEOUT_MS => (int) ($this->connectTimeout * 1000),
-            CURLOPT_TIMEOUT_MS => (int) ($this->timeout * 1000),
+            CURLOPT_TIMEOUT_MS => (int) (($request->timeout ?? $this->timeout) * 1000),
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_ENCODING => '',
@@ -304,15 +310,18 @@ class CurlHttpClient implements HttpClientInterface
 
         $options[CURLOPT_HTTPHEADER] = $headerLines;
 
-        // User-supplied CURLOPT_* overrides win over the defaults above.
-        return $this->curlOptions + $options;
+        $overrides = $this->curlOptions;
+        unset($overrides[CURLOPT_URL], $overrides[CURLOPT_HTTPHEADER]);
+        if ($request->timeout !== null) {
+            unset($overrides[CURLOPT_TIMEOUT], $overrides[CURLOPT_TIMEOUT_MS]);
+        }
+
+        return $overrides + $options;
     }
 
     protected function resolveUri(HttpRequest $request): string
     {
-        return $this->baseUri !== ''
-            ? $this->baseUri . ($request->uri !== '' ? '/' . trim($request->uri, '/') : '')
-            : $request->uri;
+        return $this->resolveRequestUri($request->uri, $this->baseUri);
     }
 
     /**

@@ -17,18 +17,20 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\PineconeFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
-use function trim;
 
 class PineconeVectorStore implements VectorStoreInterface
 {
     use HasHttpClient;
     use HasDocumentSchema;
 
+    protected string $baseUri;
+
     public function __construct(
         string $key,
-        protected string $indexUrl,
+        string $indexUrl,
         protected int $topK = 4,
         string $version = '2025-04',
         protected string $namespace = '__default__', // Default namespace
@@ -36,14 +38,14 @@ class PineconeVectorStore implements VectorStoreInterface
         ?DocumentSchema $schema = null,
     ) {
         $this->initializeSchema($schema);
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri(trim($this->indexUrl, '/').'/')
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Api-Key' => $key,
-                'X-Pinecone-API-Version' => $version,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $indexUrl;
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Api-Key' => $key,
+            'X-Pinecone-API-Version' => $version,
+        ];
     }
 
     /**
@@ -68,7 +70,7 @@ class PineconeVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::post(
-                    uri: 'vectors/upsert',
+                    uri: rtrim($this->baseUri, '/') . '/vectors/upsert',
                     body: [
                         'namespace' => $this->namespace,
                         'vectors' => array_map(fn (Document $document): array => [
@@ -81,7 +83,8 @@ class PineconeVectorStore implements VectorStoreInterface
                                 ...MetadataMapper::toStorage($document, $this->schema),
                             ],
                         ], $chunk),
-                    ]
+                    ],
+                    headers: $this->httpHeaders,
                 )
             );
         }
@@ -98,11 +101,12 @@ class PineconeVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'vectors/delete',
+                uri: rtrim($this->baseUri, '/') . '/vectors/delete',
                 body: [
                     'namespace' => $this->namespace,
                     'filter' => (new PineconeFilterCompiler())->compile($filters),
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         );
 
@@ -134,8 +138,9 @@ class PineconeVectorStore implements VectorStoreInterface
 
         $result = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'query',
-                body: $queryParams
+                uri: rtrim($this->baseUri, '/') . '/query',
+                body: $queryParams,
+                headers: $this->httpHeaders,
             )
         )->json();
 

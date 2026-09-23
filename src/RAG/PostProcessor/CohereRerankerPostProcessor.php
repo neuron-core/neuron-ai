@@ -12,12 +12,14 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_map;
-use function trim;
 
 class CohereRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
+
+    protected string $baseUri;
 
     public function __construct(
         protected string $key,
@@ -26,13 +28,13 @@ class CohereRerankerPostProcessor implements PostProcessorInterface
         string $host = 'https://api.cohere.com/v2/',
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri(trim($host, '/').'/')
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer '.$this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $host;
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer '.$this->key,
+        ];
     }
 
     /**
@@ -42,13 +44,14 @@ class CohereRerankerPostProcessor implements PostProcessorInterface
     {
         $result = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'rerank',
+                uri: rtrim($this->baseUri, '/') . '/rerank',
                 body: [
                     'model' => $this->model,
                     'query' => $question->getContent(),
                     'top_n' => $this->topN,
                     'documents' => array_map(fn (Document $document): string => $document->getContent(), $documents),
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 

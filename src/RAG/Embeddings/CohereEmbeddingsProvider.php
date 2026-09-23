@@ -11,6 +11,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
 use function array_merge;
@@ -27,13 +28,12 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->key,
+        ];
     }
 
     /**
@@ -41,14 +41,20 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
      */
     public function embedText(string $text): array
     {
-        $response = $this->httpClient->request(HttpRequest::post('embed', [
-            'model' => $this->model,
-            'texts' => [$text],
-            'embedding_types' => ['float'],
-            ...array_merge([
-                'input_type' => 'search_query',
-            ], $this->parameters),
-        ]))->json();
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: rtrim($this->baseUri, '/') . '/embed',
+                body: [
+                    'model' => $this->model,
+                    'texts' => [$text],
+                    'embedding_types' => ['float'],
+                    ...array_merge([
+                        'input_type' => 'search_query',
+                    ], $this->parameters),
+                ],
+                headers: $this->httpHeaders,
+            )
+        )->json();
 
         return $response['embeddings']['float'][0];
     }
@@ -61,14 +67,20 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
         $chunks = array_chunk($documents, 96);
 
         foreach ($chunks as $chunk) {
-            $response = $this->httpClient->request(HttpRequest::post('embed', [
-                'model' => $this->model,
-                'texts' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
-                'embedding_types' => ['float'],
-                ...array_merge([
-                    'input_type' => 'search_query',
-                ], $this->parameters),
-            ]))->json();
+            $response = $this->httpClient->request(
+                HttpRequest::post(
+                    uri: rtrim($this->baseUri, '/') . '/embed',
+                    body: [
+                        'model' => $this->model,
+                        'texts' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
+                        'embedding_types' => ['float'],
+                        ...array_merge([
+                            'input_type' => 'search_query',
+                        ], $this->parameters),
+                    ],
+                    headers: $this->httpHeaders,
+                )
+            )->json();
 
             foreach ($response['embeddings']['float'] as $index => $item) {
                 $chunk[$index]->setEmbedding($item);

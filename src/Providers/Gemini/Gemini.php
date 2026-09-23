@@ -49,13 +49,12 @@ class Gemini implements AIProviderInterface
         // Use provided client or create default Guzzle client
         // Provider always configures authentication headers
         // Note: Gemini doesn't use base_uri due to colon ":" in URL pattern
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'x-goog-api-key' => $this->key,
+        ];
     }
 
     public function getModel(): string

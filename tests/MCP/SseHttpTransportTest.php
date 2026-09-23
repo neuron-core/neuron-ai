@@ -17,13 +17,10 @@ class SseHttpTransportTest extends TestCase
     {
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->expects($this->once())
-            ->method('withTimeout')
-            ->with(15.0)
-            ->willReturnSelf();
-        $httpClient->expects($this->once())
             ->method('request')
             ->with($this->callback(
                 fn (HttpRequest $request): bool => $request->uri === 'https://example.com/messages'
+                    && $request->timeout === 15.0
             ))
             ->willReturn(new HttpResponse(202, ''));
 

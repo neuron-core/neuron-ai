@@ -16,6 +16,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
 
+use function rtrim;
 use function array_unshift;
 use function json_decode;
 
@@ -49,8 +50,9 @@ trait HandleStream
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'chat',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/chat',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

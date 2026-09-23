@@ -37,7 +37,8 @@ trait HandleStream
         $stream = $this->httpClient->stream(
             HttpRequest::post(
                 uri: $this->requestUri(true),
-                body: $this->requestBody($messages, true)
+                body: $this->requestBody($messages, true),
+                headers: $this->httpHeaders,
             )
         );
 

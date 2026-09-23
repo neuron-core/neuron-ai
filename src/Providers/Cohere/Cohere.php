@@ -12,6 +12,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Providers\ProviderResponse;
 
+use function rtrim;
 use function array_replace_recursive;
 use function end;
 use function is_array;
@@ -48,8 +49,9 @@ class Cohere extends OpenAI
         unset($payload['stream_options']);
 
         return HttpRequest::post(
-            uri: 'chat',
-            body: $payload
+            uri: rtrim($this->baseUri, '/') . '/chat',
+            body: $payload,
+            headers: $this->httpHeaders,
         );
     }
 

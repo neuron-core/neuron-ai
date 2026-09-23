@@ -26,13 +26,12 @@ class AzureOpenAI extends OpenAI
     ) {
         $this->setBaseUrl();
 
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Authorization' => 'Bearer ' . $this->key,
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Authorization' => 'Bearer ' . $this->key,
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ];
     }
 
     private function setBaseUrl(): void

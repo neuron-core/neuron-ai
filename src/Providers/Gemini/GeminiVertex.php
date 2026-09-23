@@ -36,12 +36,11 @@ class GeminiVertex extends Gemini
         $token = $credentials->fetchAuthToken();
 
         // Configure the HTTP client with Bearer token authentication (no x-goog-api-key)
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $token['access_token'],
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $token['access_token'],
+        ];
     }
 }

@@ -17,6 +17,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Tools\ToolInterface;
 
+use function rtrim;
 use function array_filter;
 use function array_key_exists;
 use function json_encode;
@@ -63,8 +64,9 @@ trait HandleChat
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: "{$this->model}:generateContent",
-                body: $body
+                uri: rtrim($this->baseUri, '/') . "/{$this->model}:generateContent",
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

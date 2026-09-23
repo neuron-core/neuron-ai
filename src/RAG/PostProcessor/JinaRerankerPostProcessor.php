@@ -12,13 +12,14 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_map;
 
 class JinaRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
 
-    protected string $host = 'https://api.jina.ai/v1';
+    protected string $baseUri = 'https://api.jina.ai/v1';
 
     public function __construct(
         protected string $key,
@@ -26,13 +27,12 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
         protected int $topN = 3,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->host)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer '.$this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer '.$this->key,
+        ];
     }
 
     /**
@@ -42,14 +42,15 @@ class JinaRerankerPostProcessor implements PostProcessorInterface
     {
         $result = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'rerank',
+                uri: rtrim($this->baseUri, '/') . '/rerank',
                 body: [
                     'model' => $this->model,
                     'query' => $question->getContent(),
                     'top_n' => $this->topN,
                     'documents' => array_map(fn (Document $document): array => ['text' => $document->getContent()], $documents),
                     'return_documents' => false,
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 

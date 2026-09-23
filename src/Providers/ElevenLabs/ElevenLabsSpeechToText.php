@@ -19,6 +19,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 
+use function rtrim;
 use function end;
 use function fopen;
 
@@ -39,13 +40,12 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'xi-api-key' => $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'xi-api-key' => $this->key,
+        ];
     }
 
     public function getModel(): string
@@ -73,8 +73,9 @@ class ElevenLabsSpeechToText implements AIProviderInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'audio/transcriptions',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/audio/transcriptions',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 

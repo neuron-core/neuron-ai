@@ -18,6 +18,7 @@ use NeuronAI\RAG\VectorSimilarity;
 use NeuronAI\RAG\VectorStore\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
+use function rtrim;
 use function array_chunk;
 use function count;
 use function is_null;
@@ -29,6 +30,8 @@ class ChromaVectorStore implements VectorStoreInterface
     use HasHttpClient;
     use HasDocumentSchema;
 
+    protected string $baseUri;
+
     protected string $collectionId;
 
     /**
@@ -36,7 +39,7 @@ class ChromaVectorStore implements VectorStoreInterface
      */
     public function __construct(
         protected string $collection,
-        protected string $host = 'http://localhost:8000',
+        string $host = 'http://localhost:8000',
         protected string $tenant = 'default_tenant',
         protected string $database = 'default_database',
         protected ?string $key = null,
@@ -45,12 +48,12 @@ class ChromaVectorStore implements VectorStoreInterface
         ?DocumentSchema $schema = null,
     ) {
         $this->initializeSchema($schema);
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri(trim($this->host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/")
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : []),
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = trim($host, '/')."/api/v2/tenants/{$this->tenant}/databases/{$this->database}/collections/";
+        $this->httpHeaders = [
+            'Content-Type' => 'application/json',
+            ...(!is_null($this->key) && $this->key !== '' ? ['Authentication' => 'Bearer '.$this->key] : []),
+        ];
 
         $this->initialize();
     }
@@ -64,11 +67,12 @@ class ChromaVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: '',
+                uri: rtrim($this->baseUri, '/'),
                 body: [
                     'name' => $this->collection,
                     'get_or_create' => true,
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -93,8 +97,9 @@ class ChromaVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
-                uri: "{$this->collectionId}/delete",
-                body: ['where' => (new ChromaFilterCompiler())->compile($filters)]
+                uri: rtrim($this->baseUri, '/') . "/{$this->collectionId}/delete",
+                body: ['where' => (new ChromaFilterCompiler())->compile($filters)],
+                headers: $this->httpHeaders,
             )
         );
 
@@ -109,7 +114,7 @@ class ChromaVectorStore implements VectorStoreInterface
     public function destroy(): void
     {
         $this->httpClient->request(
-            HttpRequest::delete(uri: $this->collection)
+            HttpRequest::delete(uri: rtrim($this->baseUri, '/') . '/' . $this->collection, headers: $this->httpHeaders)
         );
     }
 
@@ -126,8 +131,9 @@ class ChromaVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::post(
-                    uri: "{$this->collectionId}/add",
-                    body: $this->mapDocuments($chunk)
+                    uri: rtrim($this->baseUri, '/') . "/{$this->collectionId}/add",
+                    body: $this->mapDocuments($chunk),
+                    headers: $this->httpHeaders,
                 )
             );
         }
@@ -158,8 +164,9 @@ class ChromaVectorStore implements VectorStoreInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: "{$this->collectionId}/query",
-                body: $body
+                uri: rtrim($this->baseUri, '/') . "/{$this->collectionId}/query",
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 

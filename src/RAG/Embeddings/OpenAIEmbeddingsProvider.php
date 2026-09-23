@@ -11,6 +11,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
 use function array_merge;
@@ -27,13 +28,12 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         protected ?int $dimensions = 1024,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->key,
+        ];
     }
 
     /**
@@ -44,12 +44,18 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
-            $response = $this->httpClient->request(HttpRequest::post('embeddings', [
-                'model' => $this->model,
-                'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
-                'encoding_format' => 'float',
-                ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-            ]))->json();
+            $response = $this->httpClient->request(
+                HttpRequest::post(
+                    uri: rtrim($this->baseUri, '/') . '/embeddings',
+                    body: [
+                        'model' => $this->model,
+                        'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
+                        'encoding_format' => 'float',
+                        ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+                    ],
+                    headers: $this->httpHeaders,
+                )
+            )->json();
 
             foreach ($response['data'] as $index => $item) {
                 $chunk[$index]->setEmbedding($item['embedding']);
@@ -64,12 +70,18 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
      */
     public function embedText(string $text): array
     {
-        $response = $this->httpClient->request(HttpRequest::post('embeddings', [
-            'model' => $this->model,
-            'input' => $text,
-            'encoding_format' => 'float',
-            ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
-        ]))->json();
+        $response = $this->httpClient->request(
+            HttpRequest::post(
+                uri: rtrim($this->baseUri, '/') . '/embeddings',
+                body: [
+                    'model' => $this->model,
+                    'input' => $text,
+                    'encoding_format' => 'float',
+                    ...($this->dimensions ? ['dimensions' => $this->dimensions] : []),
+                ],
+                headers: $this->httpHeaders,
+            )
+        )->json();
 
         return $response['data'][0]['embedding'];
     }

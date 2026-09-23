@@ -19,6 +19,7 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\ProviderResponse;
 
+use function rtrim;
 use function array_filter;
 use function array_reduce;
 use function array_unshift;
@@ -50,8 +51,9 @@ trait HandleChat
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'chat/completions',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/chat/completions',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

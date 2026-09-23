@@ -75,17 +75,6 @@ class McpConnectorTest extends TestCase
         $requests = [];
 
         $httpClient = $this->createMock(HttpClientInterface::class);
-        $httpClient->expects($this->once())
-            ->method('withHeaders')
-            ->with([
-                'Accept' => 'application/json, text/event-stream',
-                'Content-Type' => 'application/json',
-            ])
-            ->willReturnSelf();
-        $httpClient->expects($this->once())
-            ->method('withTimeout')
-            ->with(15.0)
-            ->willReturnSelf();
         $httpClient->expects($this->exactly(3))
             ->method('request')
             ->willReturnCallback(function (HttpRequest $request) use (&$requests): HttpResponse {
@@ -108,6 +97,11 @@ class McpConnectorTest extends TestCase
         $this->assertSame([], $connector->tools());
         $this->assertCount(3, $requests);
         $this->assertSame('https://example.com/mcp', $requests[0]->uri);
+        foreach ($requests as $request) {
+            $this->assertSame(15.0, $request->timeout);
+            $this->assertSame('application/json, text/event-stream', $request->headers['Accept']);
+            $this->assertSame('application/json', $request->headers['Content-Type']);
+        }
     }
 
     public function test_mcp_tools_are_serializable(): void

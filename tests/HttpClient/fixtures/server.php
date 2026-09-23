@@ -32,6 +32,7 @@ switch ($path) {
     case '/multipart':
         \header('Content-Type: application/json');
         echo \json_encode([
+            'authorization' => $_SERVER['HTTP_AUTHORIZATION'] ?? '',
             'fields' => $_POST,
             'files' => \array_map(
                 fn (array $file): array => [
@@ -69,6 +70,11 @@ switch ($path) {
             echo "data: chunk{$i}\n\n";
             \flush();
         }
+        break;
+
+    case '/delay':
+        \usleep(100_000);
+        echo 'done';
         break;
 
     case '/slow':

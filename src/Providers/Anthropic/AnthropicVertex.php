@@ -9,6 +9,8 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
+use function rtrim;
+
 /**
  * Anthropic models (Claude) served through the Google Vertex APIs.
  */
@@ -49,13 +51,12 @@ class AnthropicVertex extends Anthropic
         );
 
         // CurlHttpClient always suppresses "Expect: 100-continue", which Vertex rejects.
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $token['access_token'],
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $token['access_token'],
+        ];
     }
 
     /**
@@ -65,7 +66,7 @@ class AnthropicVertex extends Anthropic
     protected function requestUri(bool $stream): string
     {
         $operation = $stream ? 'streamRawPredict' : 'rawPredict';
-        return "{$this->model}:{$operation}";
+        return rtrim($this->baseUri, '/') . "/{$this->model}:{$operation}";
     }
 
     /**

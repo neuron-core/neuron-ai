@@ -9,6 +9,11 @@ namespace NeuronAI\HttpClient;
  */
 trait HasHttpClient
 {
+    /**
+     * @var array<string, string>
+     */
+    protected array $httpHeaders = [];
+
     protected HttpClientInterface $httpClient;
 
     /**

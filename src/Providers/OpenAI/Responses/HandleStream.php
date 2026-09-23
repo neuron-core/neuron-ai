@@ -21,6 +21,7 @@ use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
 use Throwable;
 
+use function rtrim;
 use function json_decode;
 use function mb_strlen;
 use function str_contains;
@@ -49,8 +50,9 @@ trait HandleStream
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'responses',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/responses',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

@@ -18,6 +18,7 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\MeilisearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
 use function is_null;
@@ -31,12 +32,14 @@ class MeilisearchVectorStore implements VectorStoreInterface
     use HasHttpClient;
     use HasDocumentSchema;
 
+    protected string $baseUri;
+
     /**
      * @throws HttpException
      */
     public function __construct(
         protected string $indexUid,
-        protected string $host = 'http://localhost:7700',
+        string $host = 'http://localhost:7700',
         ?string $key = null,
         protected string $embedder = 'default',
         protected int $topK = 5,
@@ -45,15 +48,15 @@ class MeilisearchVectorStore implements VectorStoreInterface
         ?DocumentSchema $schema = null,
     ) {
         $this->initializeSchema($schema);
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($host)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"]),
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $host;
+        $this->httpHeaders = [
+            'Content-Type' => 'application/json',
+            ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"]),
+        ];
 
         try {
-            $this->httpClient->request(HttpRequest::get(uri: "indexes/{$this->indexUid}"));
+            $this->httpClient->request(HttpRequest::get(uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}", headers: $this->httpHeaders));
         } catch (Exception) {
             $this->createIndex();
         }
@@ -82,7 +85,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::put(
-                    uri: "indexes/{$this->indexUid}/documents",
+                    uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/documents",
                     body: array_map(fn (Document $document): array => [
                         'id' => $document->getId(),
                         'content' => $document->getContent(),
@@ -96,6 +99,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
                             ],
                         ],
                     ], $chunk),
+                    headers: $this->httpHeaders,
                 )
             );
         }
@@ -112,8 +116,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
-                uri: "/indexes/{$this->indexUid}/documents/delete",
-                body: ['filter' => (new MeilisearchFilterCompiler())->compile($filters)]
+                uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/documents/delete",
+                body: ['filter' => (new MeilisearchFilterCompiler())->compile($filters)],
+                headers: $this->httpHeaders,
             )
         );
 
@@ -148,8 +153,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: "/indexes/{$this->indexUid}/search",
-                body: $body
+                uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/search",
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -175,11 +181,12 @@ class MeilisearchVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'indexes',
+                uri: rtrim($this->baseUri, '/') . '/indexes',
                 body: [
                     'uid' => $this->indexUid,
                     'primaryKey' => 'id',
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -194,14 +201,15 @@ class MeilisearchVectorStore implements VectorStoreInterface
     {
         $response = $this->httpClient->request(
             HttpRequest::patch(
-                uri: "indexes/{$this->indexUid}/settings/embedders",
+                uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/settings/embedders",
                 body: [
                     $this->embedder => [
                         'dimensions' => $this->dimension,
                         'source' => 'userProvided',
                         'binaryQuantized' => false,
                     ],
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -216,8 +224,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $response = $this->httpClient->request(
             HttpRequest::put(
-                uri: "indexes/{$this->indexUid}/settings/filterable-attributes",
+                uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/settings/filterable-attributes",
                 body: $filterableAttributes,
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -229,7 +238,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
         foreach (range(1, 10) as $i) {
             try {
                 $task = $this->httpClient->request(
-                    HttpRequest::get('tasks/' . $taskUid)
+                    HttpRequest::get(rtrim($this->baseUri, '/') . '/tasks/' . $taskUid, headers: $this->httpHeaders)
                 )->json();
                 if ($task['status'] === 'succeeded') {
                     return;

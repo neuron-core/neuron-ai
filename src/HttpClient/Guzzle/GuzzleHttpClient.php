@@ -14,16 +14,20 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\MergesHttpHeaders;
+use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\ResponseInterface;
 
 use function is_array;
 use function is_resource;
 use function method_exists;
-use function trim;
 
 class GuzzleHttpClient implements HttpClientInterface
 {
+    use ResolvesHttpRequest;
+    use MergesHttpHeaders;
+
     protected string $baseUri = '';
 
     protected Client $client;
@@ -47,8 +51,8 @@ class GuzzleHttpClient implements HttpClientInterface
         try {
             $options = [
                 ...$this->options,
-                RequestOptions::HEADERS => [...$this->customHeaders, ...$request->headers],
-                RequestOptions::TIMEOUT => $this->timeout,
+                RequestOptions::HEADERS => $this->mergeRequestHeaders($this->customHeaders, $request->headers),
+                RequestOptions::TIMEOUT => $request->timeout ?? $this->timeout,
                 RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
             ];
 
@@ -70,8 +74,8 @@ class GuzzleHttpClient implements HttpClientInterface
 
         try {
             $options = [
-                RequestOptions::HEADERS => [...$this->customHeaders, ...$request->headers],
-                RequestOptions::TIMEOUT => $this->timeout,
+                RequestOptions::HEADERS => $this->mergeRequestHeaders($this->customHeaders, $request->headers),
+                RequestOptions::TIMEOUT => $request->timeout ?? $this->timeout,
                 RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
                 RequestOptions::STREAM => true, // Enable streaming
             ];
@@ -92,7 +96,7 @@ class GuzzleHttpClient implements HttpClientInterface
 
     public function withHeaders(array $headers): static
     {
-        $this->customHeaders = [...$this->customHeaders, ...$headers];
+        $this->customHeaders = $this->mergeRequestHeaders($this->customHeaders, $headers);
         return $this;
     }
 
@@ -201,9 +205,7 @@ class GuzzleHttpClient implements HttpClientInterface
             }
         }
 
-        $uri = $this->baseUri !== ''
-            ? trim($this->baseUri, '/') . ($request->uri !== '' ? '/'.trim($request->uri, '/') : '')
-            : $request->uri;
+        $uri = $this->resolveRequestUri($request->uri, $this->baseUri);
 
         return $client->request($request->method->value, $uri, $options);
     }

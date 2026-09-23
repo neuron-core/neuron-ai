@@ -71,12 +71,12 @@ class SseHttpTransport implements McpTransportInterface
         protected array $config,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient(
+        $this->httpClient = $httpClient ?? new CurlHttpClient(
             curlOptions: ($config['verify'] ?? true) ? [] : [
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_SSL_VERIFYHOST => 0,
             ],
-        ))->withTimeout((float) ($config['timeout'] ?? 30));
+        );
     }
 
     /**
@@ -254,6 +254,7 @@ class SseHttpTransport implements McpTransportInterface
                 uri: $this->postEndpointUrl,
                 headers: $headers,
                 body: $jsonData,
+                timeout: (float) ($this->config['timeout'] ?? 30),
             ));
 
             // SSE-based MCP: POST typically returns 202 Accepted, the actual response arrives

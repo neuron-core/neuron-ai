@@ -12,6 +12,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_map;
 use function trim;
 
@@ -19,20 +20,22 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
 
+    protected string $baseUri;
+
     public function __construct(
         protected string $key,
         protected string $model = 'cross-encoder',
         protected int    $topN = 3,
-        protected string $host = 'http://localhost:8080/',
+        string $host = 'http://localhost:8080/',
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri(trim($host, '/').'/v1')
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer '.$this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = trim($host, '/').'/v1';
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer '.$this->key,
+        ];
     }
 
     /**
@@ -42,13 +45,14 @@ class LocalAIRerankerPostProcessor implements PostProcessorInterface
     {
         $result = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'rerank',
+                uri: rtrim($this->baseUri, '/') . '/rerank',
                 body: [
                     'model' => $this->model,
                     'query' => $question->getContent(),
                     'top_n' => $this->topN,
                     'documents' => array_map(fn (Document $document): string => $document->getContent(), $documents),
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 

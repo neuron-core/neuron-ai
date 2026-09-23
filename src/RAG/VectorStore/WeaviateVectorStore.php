@@ -17,6 +17,7 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\WeaviateFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
+use function rtrim;
 use function array_chunk;
 use function array_key_exists;
 use function array_map;
@@ -35,24 +36,26 @@ class WeaviateVectorStore implements VectorStoreInterface
     use HasHttpClient;
     use HasDocumentSchema;
 
+    protected string $baseUri;
+
     /**
      * @throws HttpException
      */
     public function __construct(
         protected string $collection,
-        protected string $host = 'http://localhost:8080',
+        string $host = 'http://localhost:8080',
         protected ?string $key = null,
         protected int $topK = 5,
         ?HttpClientInterface $httpClient = null,
         ?DocumentSchema $schema = null,
     ) {
         $this->initializeSchema($schema);
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($host)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['Authorization' => 'Bearer '.$this->key] : []),
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $host;
+        $this->httpHeaders = [
+            'Content-Type' => 'application/json',
+            ...(!is_null($this->key) && $this->key !== '' ? ['Authorization' => 'Bearer '.$this->key] : []),
+        ];
 
         $this->initialize();
     }
@@ -75,7 +78,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     public function destroy(): void
     {
         $this->httpClient->request(
-            HttpRequest::delete(uri: 'v1/schema/'.ucfirst($this->collection))
+            HttpRequest::delete(uri: rtrim($this->baseUri, '/') . '/v1/schema/'.ucfirst($this->collection), headers: $this->httpHeaders)
         );
     }
 
@@ -114,8 +117,9 @@ class WeaviateVectorStore implements VectorStoreInterface
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
                 HttpRequest::post(
-                    uri: 'v1/batch/objects',
-                    body: ['objects' => $chunk]
+                    uri: rtrim($this->baseUri, '/') . '/v1/batch/objects',
+                    body: ['objects' => $chunk],
+                    headers: $this->httpHeaders,
                 )
             );
         }
@@ -132,13 +136,14 @@ class WeaviateVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::delete(
-                uri: 'v1/batch/objects',
+                uri: rtrim($this->baseUri, '/') . '/v1/batch/objects',
                 body: [
                     'match' => [
                         'class' => ucfirst($this->collection),
                         'where' => (new WeaviateFilterCompiler())->compile($filters),
                     ],
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         );
 
@@ -187,8 +192,9 @@ class WeaviateVectorStore implements VectorStoreInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'v1/graphql',
-                body: ['query' => $query]
+                uri: rtrim($this->baseUri, '/') . '/v1/graphql',
+                body: ['query' => $query],
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -225,7 +231,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     protected function collectionExists(): bool
     {
         $response = $this->httpClient->request(
-            HttpRequest::get(uri: 'v1/schema')
+            HttpRequest::get(uri: rtrim($this->baseUri, '/') . '/v1/schema', headers: $this->httpHeaders)
         )->json();
 
         foreach ($response['classes'] ?? [] as $class) {
@@ -267,11 +273,12 @@ class WeaviateVectorStore implements VectorStoreInterface
 
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'v1/schema',
+                uri: rtrim($this->baseUri, '/') . '/v1/schema',
                 body: [
                     'class' => ucfirst($this->collection),
                     'properties' => $properties,
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         );
     }

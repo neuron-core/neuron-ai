@@ -24,6 +24,7 @@ use NeuronAI\Providers\OpenAI\StreamState;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
+use function rtrim;
 use function array_filter;
 use function array_reduce;
 use function array_unshift;
@@ -63,8 +64,9 @@ trait HandleStream
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'chat/completions',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/chat/completions',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

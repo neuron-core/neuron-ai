@@ -34,8 +34,7 @@ class AnthropicVertexTest extends TestCase
                 $this->parameters = [];
                 $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/test-project/locations/{$location}/publishers/anthropic/models";
 
-                $this->httpClient = (new GuzzleHttpClient(handler: $this->stack))
-                    ->withBaseUri($this->baseUri);
+                $this->httpClient = new GuzzleHttpClient(handler: $this->stack);
             }
         };
     }

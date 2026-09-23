@@ -51,8 +51,6 @@ class McpClientTest extends TestCase
         $requests = [];
 
         $httpClient = $this->createMock(HttpClientInterface::class);
-        $httpClient->method('withHeaders')->willReturnSelf();
-        $httpClient->method('withTimeout')->willReturnSelf();
         $httpClient->method('request')
             ->willReturnCallback(function (HttpRequest $request) use (&$requests): HttpResponse {
                 $requests[] = $request;

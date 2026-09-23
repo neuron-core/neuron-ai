@@ -23,6 +23,7 @@ use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
+use function rtrim;
 use function base64_encode;
 use function end;
 
@@ -44,13 +45,12 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'xi-api-key' => $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'xi-api-key' => $this->key,
+        ];
     }
 
     public function getModel(): string
@@ -78,8 +78,9 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: $this->voiceId,
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/' . $this->voiceId,
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 
@@ -104,8 +105,9 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
 
         $response = $this->httpClient->stream(
             HttpRequest::post(
-                uri: $this->voiceId,
-                body: $json
+                uri: rtrim($this->baseUri, '/') . '/' . $this->voiceId,
+                body: $json,
+                headers: $this->httpHeaders,
             )
         );
 

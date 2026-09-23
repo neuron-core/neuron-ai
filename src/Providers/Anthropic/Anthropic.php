@@ -21,6 +21,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
+use function rtrim;
 use function array_map;
 use function array_values;
 use function is_array;
@@ -60,13 +61,12 @@ class Anthropic implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'x-api-key' => $this->key,
-                'anthropic-version' => $version,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Content-Type' => 'application/json',
+            'x-api-key' => $this->key,
+            'anthropic-version' => $version,
+        ];
     }
 
     public function getModel(): string
@@ -137,7 +137,7 @@ class Anthropic implements AIProviderInterface
      */
     protected function requestUri(bool $stream): string
     {
-        return 'messages';
+        return rtrim($this->baseUri, '/') . '/messages';
     }
 
     /**

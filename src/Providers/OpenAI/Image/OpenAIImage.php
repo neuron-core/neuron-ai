@@ -26,6 +26,7 @@ use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
+use function rtrim;
 use function end;
 use function is_string;
 
@@ -50,13 +51,12 @@ class OpenAIImage implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->key,
+        ];
     }
 
     public function getModel(): string
@@ -92,8 +92,9 @@ class OpenAIImage implements AIProviderInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'images/generations',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/images/generations',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -146,8 +147,9 @@ class OpenAIImage implements AIProviderInterface
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'images/generations',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/images/generations',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

@@ -19,6 +19,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
+use function rtrim;
 use function array_map;
 use function array_values;
 use function json_decode;
@@ -54,22 +55,20 @@ class OpenAI implements AIProviderInterface
         protected bool $strict_response = false,
         ?HttpClientInterface $httpClient = null,
     ) {
-        // Use the provided client or create default Guzzle client
-        // Provider always configures authentication and base URI
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->key,
+        ];
     }
 
     protected function createChatHttpRequest(array $payload): HttpRequest
     {
         return HttpRequest::post(
-            uri: 'chat/completions',
-            body: $payload
+            uri: rtrim($this->baseUri, '/') . '/chat/completions',
+            body: $payload,
+            headers: $this->httpHeaders,
         );
     }
 

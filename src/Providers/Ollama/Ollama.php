@@ -27,6 +27,8 @@ class Ollama implements AIProviderInterface
     use HandleStream;
     use HandleStructured;
 
+    protected string $baseUri;
+
     protected ?string $system = null;
 
     protected MessageMapperInterface $messageMapper;
@@ -36,15 +38,15 @@ class Ollama implements AIProviderInterface
      * @param array<string, mixed> $parameters
      */
     public function __construct(
-        protected string $url, // http://localhost:11434/api
+        string $url, // http://localhost:11434/api
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
         // Use provided client or create default Guzzle client
         // Provider always configures base URI
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->url);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $url;
     }
 
     public function getModel(): string

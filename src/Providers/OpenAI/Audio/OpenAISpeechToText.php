@@ -23,6 +23,7 @@ use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
+use function rtrim;
 use function end;
 use function fopen;
 
@@ -47,12 +48,11 @@ class OpenAISpeechToText implements AIProviderInterface
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->baseUri)
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Authorization' => 'Bearer ' . $this->key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->key,
+        ];
     }
 
     public function getModel(): string
@@ -86,8 +86,9 @@ class OpenAISpeechToText implements AIProviderInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'audio/transcriptions',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/audio/transcriptions',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -127,8 +128,9 @@ class OpenAISpeechToText implements AIProviderInterface
 
         $stream = $this->httpClient->stream(
             HttpRequest::post(
-                uri: 'audio/transcriptions',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/audio/transcriptions',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         );
 

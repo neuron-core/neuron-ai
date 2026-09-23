@@ -16,16 +16,20 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\MergesHttpHeaders;
+use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
 use function is_array;
 use function is_resource;
 use function json_encode;
-use function trim;
 
 class AmpHttpClient implements HttpClientInterface
 {
+    use ResolvesHttpRequest;
+    use MergesHttpHeaders;
+
     protected string $baseUri = '';
 
     protected ?HttpClient $client = null;
@@ -68,14 +72,12 @@ class AmpHttpClient implements HttpClientInterface
     {
         $client = $this->getClient();
 
-        $uri = $this->baseUri !== '' && $this->baseUri !== '0'
-            ? trim($this->baseUri, '/') . '/' . trim($request->uri, '/')
-            : $request->uri;
+        $uri = $this->resolveRequestUri($request->uri, $this->baseUri);
 
         $ampRequest = new Request($uri, $request->method->value);
 
         // Set headers
-        foreach ([...$this->customHeaders, ...$request->headers] as $name => $value) {
+        foreach ($this->mergeRequestHeaders($this->customHeaders, $request->headers) as $name => $value) {
             $ampRequest->setHeader((string)$name, $value);
         }
 
@@ -108,8 +110,8 @@ class AmpHttpClient implements HttpClientInterface
 
         $ampRequest->setBody($form);
 
-        $ampRequest->setTransferTimeout($this->timeout);
-        $ampRequest->setInactivityTimeout($this->timeout);
+        $ampRequest->setTransferTimeout($request->timeout ?? $this->timeout);
+        $ampRequest->setInactivityTimeout($request->timeout ?? $this->timeout);
 
         return $client->request($ampRequest);
     }
@@ -140,7 +142,7 @@ class AmpHttpClient implements HttpClientInterface
 
     public function withHeaders(array $headers): static
     {
-        $this->customHeaders = [...$this->customHeaders, ...$headers];
+        $this->customHeaders = $this->mergeRequestHeaders($this->customHeaders, $headers);
         return $this;
     }
 
@@ -169,25 +171,25 @@ class AmpHttpClient implements HttpClientInterface
 
         $client = $this->getClient();
 
-        $uri = $this->baseUri !== ''
-            ? trim($this->baseUri, '/') . ($request->uri !== '' ? '/'.trim($request->uri, '/') : '')
-            : $request->uri;
+        $uri = $this->resolveRequestUri($request->uri, $this->baseUri);
 
         $ampRequest = new Request($uri, $request->method->value);
 
         // Apply the configured timeout to the Amp Request
-        $ampRequest->setTransferTimeout($this->timeout);
-        $ampRequest->setInactivityTimeout($this->timeout);
+        $ampRequest->setTransferTimeout($request->timeout ?? $this->timeout);
+        $ampRequest->setInactivityTimeout($request->timeout ?? $this->timeout);
 
         // Set headers
-        foreach ([...$this->customHeaders, ...$request->headers] as $name => $value) {
+        foreach ($this->mergeRequestHeaders($this->customHeaders, $request->headers) as $name => $value) {
             $ampRequest->setHeader((string)$name, $value);
         }
 
         // Set body if present
         if ($request->body !== null) {
             if (is_array($request->body)) {
-                $ampRequest->setHeader('Content-Type', 'application/json');
+                if (!$ampRequest->hasHeader('Content-Type')) {
+                    $ampRequest->setHeader('Content-Type', 'application/json');
+                }
                 $ampRequest->setBody(json_encode($request->body));
             } else {
                 $ampRequest->setBody($request->body);

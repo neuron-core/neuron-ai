@@ -38,12 +38,7 @@ class StreamableHttpTransport implements McpTransportInterface
         protected array $config,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withHeaders([
-                'Accept' => 'application/json, text/event-stream',
-                'Content-Type' => 'application/json',
-            ])
-            ->withTimeout((float) ($config['timeout'] ?? 30));
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
     }
 
     /**
@@ -74,6 +69,7 @@ class StreamableHttpTransport implements McpTransportInterface
 
         try {
             $headers = array_merge($this->getAuthHeaders(), [
+                'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
             ]);
 
@@ -92,6 +88,7 @@ class StreamableHttpTransport implements McpTransportInterface
                 uri: $this->config['url'],
                 headers: $headers,
                 body: $jsonData,
+                timeout: (float) ($this->config['timeout'] ?? 30),
             ));
 
             $mcpSessionId = $response->header('Mcp-Session-Id');

@@ -17,6 +17,7 @@ use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\QdrantFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
 use function is_null;
@@ -26,11 +27,13 @@ class QdrantVectorStore implements VectorStoreInterface
     use HasHttpClient;
     use HasDocumentSchema;
 
+    protected string $baseUri;
+
     /**
      * @throws HttpException
      */
     public function __construct(
-        protected string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
+        string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
         protected int $topK = 5,
         protected int $dimension = 1024,
@@ -38,12 +41,12 @@ class QdrantVectorStore implements VectorStoreInterface
         ?DocumentSchema $schema = null,
     ) {
         $this->initializeSchema($schema);
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri($this->collectionUrl)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : []),
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->baseUri = $collectionUrl;
+        $this->httpHeaders = [
+            'Content-Type' => 'application/json',
+            ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : []),
+        ];
 
         $this->initialize();
     }
@@ -54,7 +57,7 @@ class QdrantVectorStore implements VectorStoreInterface
     protected function initialize(): void
     {
         $response = $this->httpClient->request(
-            HttpRequest::get(uri: 'exists')
+            HttpRequest::get(uri: rtrim($this->baseUri, '/') . '/exists', headers: $this->httpHeaders)
         )->json();
 
         if ($response['result']['exists']) {
@@ -69,7 +72,7 @@ class QdrantVectorStore implements VectorStoreInterface
      */
     public function destroy(): void
     {
-        $this->httpClient->request(HttpRequest::delete(uri: ''));
+        $this->httpClient->request(HttpRequest::delete(uri: rtrim($this->baseUri, '/'), headers: $this->httpHeaders));
     }
 
     /**
@@ -105,7 +108,7 @@ class QdrantVectorStore implements VectorStoreInterface
 
         foreach ($chunks as $chunk) {
             $this->httpClient->request(
-                HttpRequest::put(uri: 'points?wait=true', body: ['points' => $chunk])
+                HttpRequest::put(uri: rtrim($this->baseUri, '/') . '/points?wait=true', body: ['points' => $chunk], headers: $this->httpHeaders)
             );
         }
 
@@ -121,10 +124,11 @@ class QdrantVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         $this->httpClient->request(
             HttpRequest::post(
-                uri: 'points/delete?wait=true',
+                uri: rtrim($this->baseUri, '/') . '/points/delete?wait=true',
                 body: [
                     'filter' => ['must' => (new QdrantFilterCompiler())->compile($filters)],
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         );
 
@@ -156,8 +160,9 @@ class QdrantVectorStore implements VectorStoreInterface
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'points/query',
-                body: $body
+                uri: rtrim($this->baseUri, '/') . '/points/query',
+                body: $body,
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -182,13 +187,14 @@ class QdrantVectorStore implements VectorStoreInterface
     {
         $this->httpClient->request(
             HttpRequest::put(
-                uri: '',
+                uri: rtrim($this->baseUri, '/'),
                 body: [
                     'vectors' => [
                         'size' => $this->dimension,
                         'distance' => 'Cosine',
                     ],
                 ],
+                headers: $this->httpHeaders,
             )
         );
     }

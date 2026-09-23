@@ -11,10 +11,10 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 
+use function rtrim;
 use function array_chunk;
 use function array_map;
 use function array_merge;
-use function trim;
 
 class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
@@ -28,13 +28,12 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
         protected ?int $dimensions = null,
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->httpClient = ($httpClient ?? new CurlHttpClient())
-            ->withBaseUri(trim($this->baseUri, '/').'/')
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-                'Authorization' => 'Bearer ' . $key,
-            ]);
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+        $this->httpHeaders = [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $key,
+        ];
     }
 
     /**
@@ -44,12 +43,13 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
     {
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: 'embeddings',
+                uri: rtrim($this->baseUri, '/') . '/embeddings',
                 body: [
                     'model' => $this->model,
                     'input' => $text,
                     'output_dimension' => $this->dimensions,
-                ]
+                ],
+                headers: $this->httpHeaders,
             )
         )->json();
 
@@ -66,12 +66,13 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
         foreach ($chunks as $chunk) {
             $response = $this->httpClient->request(
                 HttpRequest::post(
-                    uri: 'embeddings',
+                    uri: rtrim($this->baseUri, '/') . '/embeddings',
                     body: [
                         'model' => $this->model,
                         'input' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
                         'output_dimension' => $this->dimensions,
-                    ]
+                    ],
+                    headers: $this->httpHeaders,
                 )
             )->json();
 
