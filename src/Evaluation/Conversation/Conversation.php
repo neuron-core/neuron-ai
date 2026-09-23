@@ -113,7 +113,7 @@ class Conversation
             $this->deliver(is_string($turn) ? new UserMessage($turn) : $turn);
         }
 
-        return Trajectory::fromChatHistory($this->agent->getChatHistory());
+        return $this->soFar();
     }
 
     /**
@@ -126,7 +126,7 @@ class Conversation
         $user = $this->user;
 
         for ($turn = 0; $turn < $this->maxTurns; $turn++) {
-            $message = $user->nextTurn(Trajectory::fromChatHistory($this->agent->getChatHistory()));
+            $message = $user->nextTurn($this->soFar());
 
             if (!$message instanceof UserMessage) {
                 break; // the simulator declared its stop
@@ -135,7 +135,17 @@ class Conversation
             $this->deliver($message);
         }
 
-        return Trajectory::fromChatHistory($this->agent->getChatHistory());
+        return $this->soFar();
+    }
+
+    /**
+     * Before its first turn the agent may have no conversation yet.
+     */
+    protected function soFar(): Trajectory
+    {
+        return $this->agent->getThreadId() === null
+            ? Trajectory::fromMessages([])
+            : Trajectory::fromChatHistory($this->agent->getChatHistory());
     }
 
     /**
@@ -173,7 +183,7 @@ class Conversation
 
             $payload = ($this->approvals)(
                 $request,
-                Trajectory::fromChatHistory($this->agent->getChatHistory())
+                $this->soFar()
             );
 
             if ($request instanceof ApprovalRequest) {

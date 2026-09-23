@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers\Anthropic;
 
+use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\Anthropic\MessageMapper;
-use NeuronAI\Tests\Chat\History\Stub\TestableChatHistory;
 use NeuronAI\Tests\Support\ReasoningStreamAssertions;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function count;
 use function implode;
 use function json_decode;
@@ -67,8 +68,9 @@ class AnthropicReasoningStreamTest extends TestCase
         ];
         $mapper = new MessageMapper();
         $this->assertSame($expectedContent, $mapper->map([$message])[0]['content']);
-        $restored = (new TestableChatHistory())->publicDeserialize(json_decode(json_encode([$message], JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR));
+        $restored = array_map((new MessageDeserializer())->deserialize(...), json_decode(json_encode([$message], JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR));
         $this->assertSame($expectedContent, $mapper->map($restored)[0]['content']);
+        $this->assertSame($message->getId(), $restored[0]->getId());
     }
 
     public static function signed_sequences(): array

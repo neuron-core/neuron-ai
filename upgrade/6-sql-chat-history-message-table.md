@@ -22,13 +22,15 @@ MySQL:
 CREATE TABLE chat_messages (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     thread_id VARCHAR(255) NOT NULL,
+    message_id VARCHAR(64) NOT NULL,
     role VARCHAR(32) NOT NULL,
     content LONGTEXT NULL,
     meta LONGTEXT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    INDEX idx_thread_id (thread_id)
+    INDEX idx_thread_id (thread_id),
+    UNIQUE INDEX idx_thread_message (thread_id, message_id)
 );
 ```
 
@@ -38,6 +40,7 @@ PostgreSQL:
 CREATE TABLE chat_messages (
     id BIGSERIAL PRIMARY KEY,
     thread_id VARCHAR(255) NOT NULL,
+    message_id VARCHAR(64) NOT NULL,
     role VARCHAR(32) NOT NULL,
     content TEXT NULL,
     meta TEXT NULL,
@@ -45,6 +48,7 @@ CREATE TABLE chat_messages (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_chat_messages_thread_id ON chat_messages (thread_id);
+CREATE UNIQUE INDEX idx_chat_messages_thread_message ON chat_messages (thread_id, message_id);
 ```
 
 SQLite:
@@ -53,6 +57,7 @@ SQLite:
 CREATE TABLE chat_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     thread_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NULL,
     meta TEXT NULL,
@@ -60,10 +65,12 @@ CREATE TABLE chat_messages (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_chat_messages_thread_id ON chat_messages (thread_id);
+CREATE UNIQUE INDEX idx_chat_messages_thread_message ON chat_messages (thread_id, message_id);
 ```
 
 Columns:
 
+- `message_id` — the message identity, unique within its thread (see guide 27).
 - `role` — the message role (`user`, `assistant`, `system`, `tool`).
 - `content` — the message content blocks, JSON encoded (`NULL` when the message has no content).
 - `meta` — everything else carried by the message (usage, tool calls/results, custom metadata), JSON encoded.
@@ -91,6 +98,9 @@ Properties of the migration:
 - **Transactional** — runs inside a single transaction; on failure everything is rolled back.
 - **Idempotent** — threads that already have rows in the target table are skipped,
   so it is safe to run it again.
+- **Identified** — each row's `message_id` is the message's stored `__id`; messages
+  stored without one receive a generated ID, and an ID repeated within a thread is
+  written once.
 - **Non-destructive** — the legacy table is left untouched. Drop it once you verified
   the migration:
 

@@ -6,7 +6,8 @@ namespace NeuronAI\Agent;
 
 use NeuronAI\Workflow\ExecutionContext;
 use Generator;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\MessageStoreInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
@@ -45,13 +46,16 @@ interface AgentInterface extends WorkflowInterface
     public function getTools(ExecutionContext $context): array;
 
     /**
-     * A pre-bound history can identify an unbound Agent. Otherwise its
-     * identity must agree with the Agent's fixed conversation identity.
+     * Where the Agent's conversations are stored. Each execution segment opens
+     * its own working history over it.
      */
-    public function setChatHistory(ChatHistoryInterface $chatHistory): AgentInterface;
+    public function setMessageStore(MessageStoreInterface $store): AgentInterface;
 
-    /** Requires a conversation identity configured or established by execution. */
-    public function getChatHistory(): ChatHistoryInterface;
+    /**
+     * A fresh view of the conversation on every call. Requires a conversation
+     * identity configured or established by execution.
+     */
+    public function getChatHistory(): ChatHistory;
 
     /**
      * Clear chat history and abandon the pending execution for this conversation.

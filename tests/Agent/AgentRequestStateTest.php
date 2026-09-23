@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -31,14 +31,14 @@ class AgentRequestStateTest extends TestCase
     public function test_middleware_changes_survive_resume_with_fresh_services(string $mode): void
     {
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory('request-state');
+        $messageStore = new InMemoryMessageStore();
         $tool = (new ClosureDependencyTool(static fn (): int => 42))->requireApproval();
         $middleware = new RequestEditingMiddleware($tool);
         $firstProvider = new FakeAIProvider(new ToolCallMessage(null, [ToolCall::make('count_users', 'call_1')]));
         $first = Agent::make(workflowId: 'request-state');
         $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setPersistence($persistence)
-            ->setChatHistory($history)
+            ->setMessageStore($messageStore)
             ->setAiProvider($firstProvider)
             ->setInstructions('Agent defaults')
             ->addTool(new SearchTool());
@@ -57,14 +57,14 @@ class AgentRequestStateTest extends TestCase
         $this->assertSame(1, $middleware->entryCalls);
         $firstProvider->assertSystemPrompt('Middleware instructions');
         $firstProvider->assertToolsConfigured(['count_users']);
-        $this->assertSame('Middleware question', $history->getMessages()[0]->getContent());
+        $this->assertSame('Middleware question', $messageStore->loadActive('request-state')[0]->getContent());
 
         $freshTool = (new ClosureDependencyTool(static fn (): int => 42))->requireApproval();
         $freshMiddleware = new RequestEditingMiddleware($freshTool, 'Changed middleware defaults');
         $freshProvider = new FakeAIProvider(new AssistantMessage('{"name":"Recovered"}'));
         $resumed = Agent::make(workflowId: 'request-state');
         $resumed->setPersistence($persistence)
-            ->setChatHistory($history)
+            ->setMessageStore($messageStore)
             ->setAiProvider($freshProvider)
             ->setInstructions('Changed agent defaults')
             ->addTool(new SearchTool());

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -38,12 +38,12 @@ class InferenceFailureHistoryTest extends TestCase
 {
     protected function makeAgent(
         FakeAIProvider $provider,
-        InMemoryChatHistory $history,
+        InMemoryMessageStore $messageStore,
         InMemoryPersistence $persistence,
     ): Agent {
-        $agent = Agent::make();
+        $agent = Agent::make(workflowId: 'thread');
         $agent->setAiProvider($provider);
-        $agent->setChatHistory($history);
+        $agent->setMessageStore($messageStore);
         $agent->setPersistence($persistence);
 
         return $agent;
@@ -53,10 +53,10 @@ class InferenceFailureHistoryTest extends TestCase
     {
         // An empty response queue makes the provider throw on the first call.
         $provider = new FakeAIProvider();
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $errors = [];
-        $agent = $this->makeAgent($provider, $history, $persistence)
+        $agent = $this->makeAgent($provider, $messageStore, $persistence)
             ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
                 $errors[] = $event;
             });
@@ -69,18 +69,18 @@ class InferenceFailureHistoryTest extends TestCase
             $this->assertSame($exception, $errors[0]->exception);
         }
 
-        $this->assertCount(0, $history->getMessages());
+        $this->assertCount(0, $messageStore->loadActive('thread'));
 
         // The retry — a fresh request reusing the same thread — succeeds.
         $provider->addResponses(new AssistantMessage('Hi there!'));
 
-        $message = $this->makeAgent($provider, $history, $persistence)
+        $message = $this->makeAgent($provider, $messageStore, $persistence)
             ->chat(new UserMessage('Hello'))
             ->getMessage();
 
         $this->assertSame('Hi there!', $message->getContent());
 
-        $messages = $history->getMessages();
+        $messages = $messageStore->loadActive('thread');
         $this->assertCount(2, $messages);
         $this->assertSame('Hello', $messages[0]->getContent());
         $this->assertSame('Hi there!', $messages[1]->getContent());
@@ -89,11 +89,11 @@ class InferenceFailureHistoryTest extends TestCase
     public function test_failed_durable_turn_is_superseded_by_a_turn_with_a_new_message(): void
     {
         $provider = new FakeAIProvider();
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
 
         try {
-            $this->makeAgent($provider, $history, $persistence)->chat(new UserMessage('First try'));
+            $this->makeAgent($provider, $messageStore, $persistence)->chat(new UserMessage('First try'));
             $this->fail('Expected the provider failure to propagate.');
         } catch (ProviderException) {
         }
@@ -101,11 +101,11 @@ class InferenceFailureHistoryTest extends TestCase
         // The failed generation is still recorded under the thread. The user
         // is free to send something else: the next turn sweeps it rather than
         // replaying a message they no longer want to send.
-        $threadId = (string) $history->getThreadId();
+        $threadId = 'thread';
         $this->assertNotNull($persistence->get($threadId, '__control'));
 
         $provider->addResponses(new AssistantMessage('Second reply'));
-        $state = $this->makeAgent($provider, $history, $persistence)->chat(new UserMessage('Second try'));
+        $state = $this->makeAgent($provider, $messageStore, $persistence)->chat(new UserMessage('Second try'));
 
         $this->assertSame('Second reply', $state->getMessage()->getContent());
 
@@ -118,7 +118,7 @@ class InferenceFailureHistoryTest extends TestCase
         ));
         $this->assertSame(['Second try', 'Second reply'], array_map(
             fn (Message $message): string => (string) $message->getContent(),
-            $history->getMessages(),
+            $messageStore->loadActive('thread'),
         ));
         $this->assertNull($persistence->get($threadId, '__control'));
     }
@@ -126,10 +126,10 @@ class InferenceFailureHistoryTest extends TestCase
     public function test_failed_stream_leaves_history_clean_and_retry_succeeds(): void
     {
         $provider = new FakeAIProvider();
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $errors = [];
-        $agent = $this->makeAgent($provider, $history, $persistence)
+        $agent = $this->makeAgent($provider, $messageStore, $persistence)
             ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
                 $errors[] = $event;
             });
@@ -142,40 +142,40 @@ class InferenceFailureHistoryTest extends TestCase
             $this->assertSame($exception, $errors[0]->exception);
         }
 
-        $this->assertCount(0, $history->getMessages());
+        $this->assertCount(0, $messageStore->loadActive('thread'));
 
         $provider->addResponses(new AssistantMessage('Hi there!'));
 
-        $stream = $this->makeAgent($provider, $history, $persistence)->stream(new UserMessage('Hello'));
+        $stream = $this->makeAgent($provider, $messageStore, $persistence)->stream(new UserMessage('Hello'));
 
         iterator_to_array($stream);
 
         $this->assertSame('Hi there!', $stream->getReturn()->getMessage()->getContent());
-        $this->assertCount(2, $history->getMessages());
+        $this->assertCount(2, $messageStore->loadActive('thread'));
     }
 
     public function test_failed_structured_leaves_history_clean_and_retry_succeeds(): void
     {
         $provider = new FakeAIProvider();
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
 
         try {
-            $this->makeAgent($provider, $history, $persistence)->structured(new UserMessage('Generate a user'), User::class);
+            $this->makeAgent($provider, $messageStore, $persistence)->structured(new UserMessage('Generate a user'), User::class);
             $this->fail('Expected the provider failure to propagate.');
         } catch (ProviderException) {
         }
 
-        $this->assertCount(0, $history->getMessages());
+        $this->assertCount(0, $messageStore->loadActive('thread'));
 
         $provider->addResponses(new AssistantMessage('{"name": "Alice"}'));
 
-        $user = $this->makeAgent($provider, $history, $persistence)
+        $user = $this->makeAgent($provider, $messageStore, $persistence)
             ->structured(new UserMessage('Generate a user'), User::class);
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
-        $this->assertCount(2, $history->getMessages());
+        $this->assertCount(2, $messageStore->loadActive('thread'));
     }
 
     public function test_structured_retry_persists_correction_and_corrected_response(): void
@@ -184,11 +184,11 @@ class InferenceFailureHistoryTest extends TestCase
             new AssistantMessage('not a json'),
             new AssistantMessage('{"name": "Alice"}'),
         );
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
 
-        $user = Agent::make()
+        $user = Agent::make(workflowId: 'thread')
             ->setAiProvider($provider)
-            ->setChatHistory($history)
+            ->setMessageStore($messageStore)
             ->structured(new UserMessage('Generate a user'), User::class);
 
         $this->assertInstanceOf(User::class, $user);
@@ -197,7 +197,7 @@ class InferenceFailureHistoryTest extends TestCase
         // [user, assistant(invalid), user(correction), assistant(valid)] — the
         // corrected response must be written even though the first attempt
         // already recorded a response within the same node step.
-        $messages = $history->getMessages();
+        $messages = $messageStore->loadActive('thread');
         $this->assertCount(4, $messages);
         $this->assertSame('not a json', $messages[1]->getContent());
         $this->assertSame('{"name": "Alice"}', $messages[3]->getContent());

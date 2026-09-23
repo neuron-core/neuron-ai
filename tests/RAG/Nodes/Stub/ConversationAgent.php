@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\Nodes\Stub;
 
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentExecution;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\Nodes\ConversationIngestionNode;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
@@ -15,13 +16,16 @@ class ConversationAgent extends Agent
     public VectorStoreInterface $conversationStore;
     public EmbeddingsProviderInterface $conversationEmbeddings;
 
-    /** @return Node[] */
+    /**
+     * @param AgentExecution $execution
+     * @return Node[]
+     */
     protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
     {
         return [new ConversationIngestionNode(
             $this->conversationStore,
             $this->conversationEmbeddings,
-            $this->getChatHistory(),
+            $execution->getChatHistory(),
         )];
     }
 }

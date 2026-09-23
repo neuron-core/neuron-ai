@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Middleware;
 
 use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -57,7 +58,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
         $event = new AIInferenceEvent();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $middleware->before($node, $event, $state);
 
@@ -71,7 +72,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('original instructions'), []);
         $event = new AIInferenceEvent();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $middleware->before($node, $event, $state);
 
@@ -85,7 +86,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $originalInstructions = $state->request->instructions->getContent();
         $middleware->before($node, $toolCallEvent, $state);
@@ -101,7 +102,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), [$existing]);
         $event = new AIInferenceEvent();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $middleware->before($node, $event, $state);
 
@@ -121,7 +122,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), [$existingTool]);
         $event = new AIInferenceEvent();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $middleware->before($node, $event, $state);
 
@@ -136,7 +137,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $dbTool = $this->createTool('query_database', 'Execute SQL queries');
         $middleware = $this->createMiddleware([$dbTool]);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
@@ -156,7 +157,7 @@ class ToolSearchMiddlewareTest extends TestCase
     {
         $dbTool = $this->createTool('query_database', 'Execute SQL queries');
         $middleware = $this->createMiddleware([$dbTool]);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $existingDbTool = $this->createTool('query_database', 'Execute SQL queries');
         $state = new AgentState();
@@ -182,7 +183,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), []);
         $toolCallEvent = new ToolCallEvent($toolCallMessage);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         // Should not throw or modify anything
         $middleware->after($node, $toolCallEvent, $state);
@@ -201,7 +202,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $state->request->messages = [$toolResultMessage];
 
         $middleware = $this->createMiddleware([]);
-        $middleware->after(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $middleware->after(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), $event, $state);
 
         $this->assertCount(0, $state->request->tools);
     }
@@ -209,7 +210,7 @@ class ToolSearchMiddlewareTest extends TestCase
     public function test_after_does_nothing_when_search_found_nothing(): void
     {
         $middleware = $this->createMiddleware([]);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'nonexistent'])->setResult('found'),
@@ -229,7 +230,7 @@ class ToolSearchMiddlewareTest extends TestCase
         $tool1 = $this->createTool('get_weather', 'Get current weather');
         $tool2 = $this->createTool('get_forecast', 'Get weather forecast');
         $middleware = $this->createMiddleware([$tool1, $tool2]);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         $toolResultMessage = new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => 'weather'])->setResult('found'),
@@ -337,7 +338,7 @@ class ToolSearchMiddlewareTest extends TestCase
 
         // Use MCP tools as the search pool
         $middleware = new ToolSearchMiddleware($mcpTools);
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
 
         // Simulate: model called tool_search for "database" tools.
         // Only query_users should match (description contains "database")

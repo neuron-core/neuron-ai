@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Chat\History;
 
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\History\FileChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\FileMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
@@ -71,8 +72,8 @@ class ContentBlockDeserializationTest extends TestCase
 
         file_put_contents($filePath, json_encode($legacyData));
 
-        // Load with FileChatHistory - should automatically migrate
-        $history = new FileChatHistory($this->testDir, $key);
+        // Load through the file store - should automatically migrate
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
 
         $messages = $history->getMessages();
         $this->assertCount(2, $messages);
@@ -96,7 +97,7 @@ class ContentBlockDeserializationTest extends TestCase
         $history->addMessage(new UserMessage('New message'));
 
         // Reload and verify it's still in content block format
-        $history2 = new FileChatHistory($this->testDir, $key);
+        $history2 = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages2 = $history2->getMessages();
 
         $this->assertCount(3, $messages2);
@@ -132,7 +133,7 @@ class ContentBlockDeserializationTest extends TestCase
 
         file_put_contents($filePath, json_encode($newData));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $history->getMessages();
 
         $this->assertCount(1, $messages);
@@ -196,7 +197,7 @@ class ContentBlockDeserializationTest extends TestCase
 
         file_put_contents($filePath, json_encode($data));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $history->getMessages();
 
         $this->assertCount(1, $messages);
@@ -247,7 +248,7 @@ class ContentBlockDeserializationTest extends TestCase
 
         file_put_contents($filePath, json_encode($mixedData));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $history->getMessages();
 
         $this->assertCount(2, $messages);
@@ -285,7 +286,7 @@ class ContentBlockDeserializationTest extends TestCase
 
         file_put_contents($filePath, json_encode($messages));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $history->getMessages();
 
         $this->assertCount(1, $messages);

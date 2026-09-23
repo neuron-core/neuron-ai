@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
+use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Tests\Chat\History\Stub\TestableChatHistory;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function json_decode;
 use function json_encode;
 
@@ -26,7 +27,7 @@ class DeferredCallSerializationTest extends TestCase
         $resultMessage = (new ToolResultMessage([$local, $deferred]))->jsonSerialize();
 
         $stored = json_decode(json_encode([$callMessage, $resultMessage]), true);
-        $messages = (new TestableChatHistory())->publicDeserialize($stored);
+        $messages = array_map((new MessageDeserializer())->deserialize(...), $stored);
         $this->assertInstanceOf(ToolCallMessage::class, $messages[0]);
         $this->assertInstanceOf(ToolResultMessage::class, $messages[1]);
         $this->assertFalse($messages[0]->getToolCalls()[0]->isDeferred());

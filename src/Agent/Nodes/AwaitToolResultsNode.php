@@ -11,7 +11,7 @@ use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\WorkflowException;
@@ -31,7 +31,7 @@ class AwaitToolResultsNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
-    public function __construct(ChatHistoryInterface $chatHistory)
+    public function __construct(ChatHistory $chatHistory)
     {
         $this->chatHistory = $chatHistory;
     }

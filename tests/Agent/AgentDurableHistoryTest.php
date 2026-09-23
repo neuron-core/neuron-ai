@@ -9,24 +9,28 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use PDO;
 use PHPUnit\Framework\TestCase;
 
+use function array_keys;
+use function array_map;
 use function glob;
 use function is_dir;
 use function iterator_to_array;
 use function rmdir;
+use function str_contains;
 use function strlen;
 use function sys_get_temp_dir;
 use function unlink;
@@ -43,12 +47,6 @@ class AgentDurableHistoryTest extends TestCase
 
     public function test_sql_chat_history_works_with_durable_workflow_persistence(): void
     {
-        $pdo = new PDO('sqlite::memory:');
-        $pdo->exec('CREATE TABLE chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
-        )');
-
         $searchTool = new SearchTool();
 
         $provider = new FakeAIProvider(
@@ -60,10 +58,10 @@ class AgentDurableHistoryTest extends TestCase
 
         $dir = sys_get_temp_dir() . '/neuron_sql_history_test';
 
-        $agent = Agent::make();
+        $agent = Agent::make(workflowId: 'thread-1');
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
-        $agent->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
+        $agent->setMessageStore(new SqliteMessageStore());
         $agent->setPersistence(new FilePersistence($dir));
 
         $message = $agent->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
@@ -132,7 +130,7 @@ class AgentDurableHistoryTest extends TestCase
     {
         $workflowId = 'steps_cycle_test';
         $persistence = new \NeuronAI\Workflow\Persistence\InMemoryPersistence();
-        $history = new \NeuronAI\Chat\History\InMemoryChatHistory($workflowId);
+        $messages = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -147,7 +145,7 @@ class AgentDurableHistoryTest extends TestCase
         );
 
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messages);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -161,7 +159,7 @@ class AgentDurableHistoryTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $steps1[1]);
 
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messages);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
@@ -182,7 +180,7 @@ class AgentDurableHistoryTest extends TestCase
 
         $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
 
-        $chatHistory = new \NeuronAI\Chat\History\InMemoryChatHistory();
+        $messages = new InMemoryMessageStore();
 
         $state = new AgentState();
         $state->request = new InferenceRequest('Be helpful', []);
@@ -192,32 +190,68 @@ class AgentDurableHistoryTest extends TestCase
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $state1->request = clone $state->request;
-        $node1 = new ChatNode($provider, $chatHistory);
+        $node1 = new ChatNode($provider, new ChatHistory($messages, $workflowId));
         $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $this->assertSame([], iterator_to_array($node1($event, $state1)));
 
-        $this->assertCount(2, $chatHistory->getMessages());
+        $this->assertCount(2, $messages->loadActive($workflowId));
 
         $state2 = new \NeuronAI\Agent\AgentState();
         $state2->request = clone $state->request;
-        $node2 = new ChatNode($provider, $chatHistory);
+        $node2 = new ChatNode($provider, new ChatHistory($messages, $workflowId));
         $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
         $this->assertSame([], iterator_to_array($node2($event, $state2)));
 
-        $messages = $chatHistory->getMessages();
-        $this->assertCount(2, $messages, 'Replayed history writes must be skipped, not duplicated');
-        $this->assertSame('Hi', $messages[0]->getContent());
-        $this->assertSame('Hello back!', $messages[1]->getContent());
+        $stored = $messages->loadActive($workflowId);
+        $this->assertCount(2, $stored, 'Replayed history writes must be skipped, not duplicated');
+        $this->assertSame('Hi', $stored[0]->getContent());
+        $this->assertSame('Hello back!', $stored[1]->getContent());
         $this->assertSame(1, $provider->getCallCount());
+    }
+
+    public function test_replaying_history_writes_whose_memos_were_lost_does_not_duplicate_them(): void
+    {
+        $workflowId = 'history_write_replay_test';
+        $stepId = ChatNode::class . '-0';
+        $messages = new InMemoryMessageStore();
+        $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
+        // Drops the history memos, as a crash between a history write and its memo commit would.
+        $persistence = new class () extends InMemoryPersistence {
+            public function writeIfUnchanged(string $partition, string $conditionKey, string $expectedValue, array $records): bool
+            {
+                foreach (array_keys($records) as $key) {
+                    if (str_contains($key, '::history.')) {
+                        unset($records[$key]);
+                    }
+                }
+
+                return parent::writeIfUnchanged($partition, $conditionKey, $expectedValue, $records);
+            }
+        };
+        $event = new \NeuronAI\Agent\Events\AIInferenceEvent();
+        // The replayed step restores its inbound message, identity included, from the checkpoint.
+        $inbound = new UserMessage('Hi');
+
+        foreach ([1, 2] as $attempt) {
+            $state = new AgentState();
+            $state->request = new InferenceRequest('Be helpful', []);
+            $state->request->messages = [clone $inbound];
+            $node = new ChatNode($provider, new ChatHistory($messages, $workflowId));
+            $node->setWorkflowContext(new NodeContext($state, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+            iterator_to_array($node($event, $state));
+        }
+
+        // The replay recalls the memoized response, so both writes repeat the same messages.
+        $this->assertSame(1, $provider->getCallCount());
+        $this->assertSame(['Hi', 'Hello back!'], array_map(
+            fn ($message) => $message->getContent(),
+            $messages->loadAll($workflowId)
+        ));
     }
 
     public function test_resume_with_sql_history_across_agent_instances(): void
     {
-        $pdo = new PDO('sqlite::memory:');
-        $pdo->exec('CREATE TABLE chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
-        )');
+        $messages = new SqliteMessageStore();
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -233,10 +267,10 @@ class AgentDurableHistoryTest extends TestCase
 
         $dir = sys_get_temp_dir() . '/neuron_sql_resume_test';
 
-        $agent1 = Agent::make();
+        $agent1 = Agent::make(workflowId: 'thread-1');
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
-        $agent1->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
+        $agent1->setMessageStore($messages);
         $agent1->setPersistence(new FilePersistence($dir));
 
         $state1 = $agent1->chat(new UserMessage('Search for PHP frameworks'));
@@ -248,10 +282,10 @@ class AgentDurableHistoryTest extends TestCase
 
         // Fresh agent on the same thread: the thread IS the workflow ID —
         // no other handle is passed.
-        $agent2 = Agent::make();
+        $agent2 = Agent::make(workflowId: 'thread-1');
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
-        $agent2->setChatHistory(new SQLChatHistory($pdo, 'thread-1', table: 'chat_messages'));
+        $agent2->setMessageStore($messages);
         $agent2->setPersistence(new FilePersistence($dir));
 
         $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();

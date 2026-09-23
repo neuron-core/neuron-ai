@@ -11,7 +11,8 @@ use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tests\Agent\Stub\QueryDatabaseTool;
 use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -58,7 +59,7 @@ class AgentInstructionsTest extends TestCase
         );
         $event = new AIInferenceEvent();
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $middleware->before(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), $event, $state);
 
         $blocks = $state->request->instructions->getTextBlocks();
         $this->assertCount(3, $blocks);
@@ -74,7 +75,7 @@ class AgentInstructionsTest extends TestCase
         $state->request = new InferenceRequest(new SystemMessage('Original instructions'), []);
         $event = new AIInferenceEvent();
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $middleware->before(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), $event, $state);
 
         $blocks = $state->request->instructions->getTextBlocks();
         $this->assertCount(2, $blocks);
@@ -85,7 +86,7 @@ class AgentInstructionsTest extends TestCase
     public function test_todo_tool_is_reapplied_to_restored_state_before_execution(): void
     {
         $middleware = new TodoPlanning();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $state = new AgentState();
         $state->request = new InferenceRequest('Original instructions');
         $middleware->before($node, new AIInferenceEvent(), $state);
@@ -114,10 +115,10 @@ class AgentInstructionsTest extends TestCase
         $event = new AIInferenceEvent();
 
         // Simulate multiple ChatNode passes (tool loop)
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $middleware->before(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), $event, $state);
         $this->assertCount(2, $state->request->instructions->getContentBlocks());
 
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), $event, $state);
+        $middleware->before(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), $event, $state);
 
         $this->assertCount(2, $state->request->instructions->getContentBlocks(), 'Instructions should not grow on second pass.');
     }

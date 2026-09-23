@@ -10,7 +10,8 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
@@ -33,7 +34,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $tool = new MultimodalTool();
         $call = ToolCall::make('multimodal_tool', 'call_1', []);
 
-        $toolNode = new ToolNode(new InMemoryChatHistory());
+        $toolNode = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$call]);
         $request = new InferenceRequest(instructions: 'Test', tools: [$tool]);
@@ -71,7 +72,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $request1 = new InferenceRequest(instructions: 'Test', tools: $registry);
         $state->request = $request1;
         $event1 = new ToolCallEvent($toolCallMessage1);
-        $node1 = new ToolNode(new InMemoryChatHistory());
+        $node1 = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node1->setWorkflowContext(new NodeContext($state, $event1, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node1($event1, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -87,7 +88,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $request2 = new InferenceRequest(instructions: 'Test', tools: $registry);
         $state->request = $request2;
         $event2 = new ToolCallEvent($toolCallMessage2);
-        $node2 = new ToolNode(new InMemoryChatHistory());
+        $node2 = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node2->setWorkflowContext(new NodeContext($state, $event2, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node2($event2, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.

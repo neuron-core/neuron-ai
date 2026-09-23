@@ -97,15 +97,15 @@ use the methods above instead of constructing a native translator.
 
 ### The endpoint
 
-Reconstruct a fresh agent on every request from durable persistence and history; nothing may depend on the previous PHP object.
+Reconstruct a fresh agent on every request from durable persistence and a durable message store; nothing may depend on the previous PHP object.
 
 ```php
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
-$agent = Agent::make()
-    ->setChatHistory(new SQLChatHistory($pdo, $threadId))
+$agent = Agent::make(workflowId: $threadId)
+    ->setMessageStore(new SQLMessageStore($pdo))
     ->setPersistence(new DatabasePersistence($pdo))
     ->setAiProvider($provider)
     ->addTool($backendTools);

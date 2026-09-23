@@ -8,11 +8,13 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\Summarization;
 use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
@@ -31,7 +33,7 @@ class SummarizationTest extends TestCase
      */
     protected function summarize(array $messages, int $messagesToKeep): array
     {
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         foreach ($messages as $message) {
             $history->addMessage($message);
         }
@@ -135,5 +137,24 @@ class SummarizationTest extends TestCase
         $messages = $this->summarize($original, messagesToKeep: 2);
 
         $this->assertSame($original, $messages);
+    }
+
+    public function test_a_freshly_loaded_conversation_is_summarized_on_its_first_inference(): void
+    {
+        $store = new InMemoryMessageStore();
+        $previousSegment = new ChatHistory($store, 'thread');
+        $previousSegment->addMessage(new UserMessage('Question 1'));
+        $previousSegment->addMessage((new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)));
+        $previousSegment->addMessage(new UserMessage('Question 2'));
+        $previousSegment->addMessage((new AssistantMessage('Answer 2'))->setUsage(new Usage(80, 20)));
+
+        // The next segment opens its own history and summarizes before any write of its own.
+        $history = new ChatHistory($store, 'thread');
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+        (new Summarization($provider, maxTokens: 50, messagesToKeep: 2))
+            ->before(new ChatNode($provider, $history), new AIInferenceEvent(), new AgentState());
+
+        $provider->assertCallCount(1);
+        $this->assertStringContainsString('Summary', (string) $history->getMessages()[0]->getContent());
     }
 }

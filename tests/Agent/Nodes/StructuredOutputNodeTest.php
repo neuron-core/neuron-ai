@@ -9,7 +9,8 @@ use NeuronAI\Exceptions\AgentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
@@ -29,7 +30,7 @@ class StructuredOutputNodeTest extends TestCase
      */
     public function test_retry_succeeds_across_attempts(): void
     {
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $provider = new FakeAIProvider(
             new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
@@ -70,7 +71,7 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('I cannot produce JSON'),
             new AssistantMessage('{"name": "Alice"}'),
         );
-        $node = new StructuredOutputNode($provider, new InMemoryChatHistory());
+        $node = new StructuredOutputNode($provider, new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $state = new AgentState();
         $request = new InferenceRequest('Test', messages: [new UserMessage('Generate a user')]);
         $request->options->outputClass = User::class;
@@ -95,7 +96,7 @@ class StructuredOutputNodeTest extends TestCase
      */
     public function test_recovery_recalls_inference_without_re_calling(): void
     {
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $provider = new FakeAIProvider(
             new AssistantMessage('I cannot produce JSON'), // attempt 0 -> invalid
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid

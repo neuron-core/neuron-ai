@@ -283,19 +283,38 @@ $agent->setInstructions('You are a helpful assistant.');
 
 ## Chat History & Thread Identity
 
-Declare durable conversation identity before execution with `make(workflowId:)` or attach a pre-bound history with `setChatHistory()`. An unbound SQL/file history receives that identity from Agent:
+Conversations are stored through a **message store**, and the Agent opens a working history over it for every execution segment. Declare the conversation identity with `make(workflowId:)` or `setThreadId()`, and give the Agent a store:
 
 ```php
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\SQLMessageStore;
 
 $agent = MyAgent::make(workflowId: $threadId);
-$agent->setChatHistory(new SQLChatHistory(pdo: $pdo, contextWindow: 50000));
+$agent->setMessageStore(new SQLMessageStore($pdo));
 $state = $agent->chat(new UserMessage($input));
 ```
 
-A pre-bound history supplied by `chatHistory()` must agree with an explicitly configured thread. Calling `setChatHistory()` with another pre-bound thread intentionally switches the configured conversation while prior results remain independent; it is refused during execution. `getThreadId(): ?string` reads the resolved conversation identity.
+A store names the thread on every call and keeps no conversation state, so one instance can serve the whole application: bind it once in the container, or return it from the `messageStore()` hook. `getThreadId(): ?string` reads the resolved conversation identity; an Agent without one generates it at its first execution.
 
-The default `InMemoryChatHistory` generates an ephemeral backend key, so simple `MyAgent::make()->chat(...)` needs no explicit thread ID. This is not a durable conversation handle: for later-process continuation, declare the thread before ignition and configure durable history and workflow persistence. A workflow-ID-first constructor configures the thread immediately. History factories must agree with the configured address and cannot adopt another one during graph construction.
+Size the conversation sent to the model to the provider's model with the `contextWindow()` hook (50,000 tokens by default), or with `setContextWindow()` when the Agent is configured from outside:
+
+```php
+protected function contextWindow(): int
+{
+    return 190_000;
+}
+
+// Or, without a subclass:
+$agent->setContextWindow(190_000);
+```
+
+`getChatHistory()->getMessages()` returns the model context. To render a whole conversation, read its transcript from the store; message IDs are stable, so they serve as UI keys and page cursors:
+
+```php
+$page = $store->loadAll($threadId, limit: 50);
+$older = $store->loadAll($threadId, limit: 50, before: $page[0]->getId());
+```
+
+The default in-memory store lives as long as the Agent instance. For later-process continuation, declare the thread before ignition and configure a durable store and workflow persistence.
 
 ### Conversation memory
 
@@ -303,11 +322,11 @@ Conversation memory is a RAG composition: `SemanticMemoryRetrieval` accepts the 
 
 See [conversation memory](references/conversation-memory.md) for complete retrieval, ingestion, recovery and deletion examples. `resetConversation()` clears the working history and pending execution; delete conversation documents explicitly through the vector store.
 
-### Chat History Backends
-- `InMemoryChatHistory` - Default, session-based
-- `FileChatHistory` - Persist to file
-- `SQLChatHistory` - Database-backed
-- `EloquentChatHistory` - Laravel Eloquent integration
+### Message Stores
+- `InMemoryMessageStore` - Default, process memory
+- `FileMessageStore` - One JSON file per thread
+- `SQLMessageStore` - Database-backed (PDO)
+- `EloquentMessageStore` - Laravel Eloquent integration
 
 ## Content Blocks (Multi-modal)
 
@@ -402,7 +421,7 @@ workflow coordination ID needs to be stored by the application:
 
 ```php
 $state = MyAgent::make(workflowId: $threadId)
-    ->setChatHistory(new SQLChatHistory($pdo))
+    ->setMessageStore(new SQLMessageStore($pdo))
     ->setPersistence(new FilePersistence('/path/to/storage'))
     ->chat(new UserMessage('Delete file /tmp/old.log'));
 
@@ -413,7 +432,7 @@ if ($state->isInterrupted()) {
     // A new execution cycle (e.g. the approve endpoint): the thread alone
     // identifies the run; decisions are keyed by tool callId.
     $state = MyAgent::make(workflowId: $threadId)
-        ->setChatHistory(new SQLChatHistory($pdo))
+        ->setMessageStore(new SQLMessageStore($pdo))
         ->setPersistence(new FilePersistence('/path/to/storage'))
         ->submitApprovalDecisions(['call_123' => 'approve'])
         ->run();

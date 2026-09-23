@@ -2,13 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Chat\History;
+namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
@@ -17,217 +15,37 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Chat\Messages\Usage;
-use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 
 use function array_map;
-use function count;
-use function end;
+use function in_array;
 use function is_array;
 use function is_string;
 use function json_decode;
 
 /**
- * The history is append-only: addMessage() always appends. Backends persist via
- * one no-op hook per primitive mutation — onNewMessage, onTrimHistory, clear —
- * or rewrite the whole state via setMessages().
+ * Rebuilds a message from the array produced by Message::jsonSerialize().
+ * Shapes stored by earlier versions still deserialize.
  */
-abstract class AbstractChatHistory implements ChatHistoryInterface
+class MessageDeserializer
 {
     /**
-     * @var Message[]
+     * Keys the message classes serialize from their own state, never metadata.
      */
-    protected array $history = [];
+    protected const STRUCTURAL_KEYS = ['role', 'content', 'usage', 'type', 'tools'];
 
     /**
-     * Null until bound: histories are constructible without their thread —
-     * the Agent binds the resolved identity itself.
+     * @param array<string, mixed> $data
      */
-    protected ?string $threadId = null;
-
-    protected bool $loaded = false;
-
-    public function __construct(
-        protected int $contextWindow = 50000,
-        protected HistoryTrimmerInterface $trimmer = new HistoryTrimmer()
-    ) {
-    }
-
-    /**
-     * @throws ChatHistoryException when re-binding to a different thread.
-     */
-    public function setThreadId(string $threadId): void
+    public function deserialize(array $data): Message
     {
-        if ($this->threadId !== null && $this->threadId !== $threadId) {
-            throw new ChatHistoryException(
-                "This chat history is bound to thread '{$this->threadId}' and cannot be re-pointed to '{$threadId}'."
-            );
-        }
-
-        $this->threadId = $threadId;
-    }
-
-    public function getThreadId(): ?string
-    {
-        return $this->threadId;
-    }
-
-    /**
-     * Backends call this wherever storage is touched, so an unbound
-     * thread-scoped history fails loudly instead of touching a wrong conversation.
-     *
-     * @throws ChatHistoryException
-     */
-    protected function requireThreadId(): string
-    {
-        return $this->threadId ?? throw new ChatHistoryException(
-            'This chat history is thread-scoped and no thread identity was given: '
-            . 'pass workflowId: to Agent::make(), or bind it via setThreadId().'
-        );
-    }
-
-    /**
-     * Deferring the load out of the constructor makes identity-free construction
-     * possible — the Agent binds the thread before any message is read or written.
-     */
-    protected function ensureLoaded(): void
-    {
-        if ($this->loaded) {
-            return;
-        }
-
-        $this->loaded = true;
-        $this->loadThread();
-    }
-
-    /**
-     * Backend hook: read the bound thread's messages into $this->history,
-     * guarded by requireThreadId().
-     */
-    protected function loadThread(): void
-    {
-    }
-
-    /**
-     * @param Message[] $messages
-     */
-    protected function setMessages(array $messages): void
-    {
-    }
-
-    protected function onNewMessage(Message $message): void
-    {
-    }
-
-    /**
-     * Backend hook: the messages from position zero up to $index (exclusive) fell out
-     * of the context window. Runs before $this->history drops them, so a backend can
-     * still read what is being trimmed.
-     */
-    protected function onTrimHistory(int $index): void
-    {
-    }
-
-    protected function clear(): void
-    {
-    }
-
-    /**
-     * @throws ChatHistoryException
-     */
-    public function addMessage(Message $message): ChatHistoryInterface
-    {
-        $this->ensureLoaded();
-
-        $this->history[] = $message;
-
-        $this->trimHistory();
-
-        $this->onNewMessage($message);
-
-        $this->setMessages($this->history);
-
-        return $this;
-    }
-
-    /**
-     * @throws ChatHistoryException
-     */
-    protected function trimHistory(): void
-    {
-        $trimmed = $this->trimmer->trim($this->history, $this->contextWindow);
-
-        $skipIndex = count($this->history) - count($trimmed);
-
-        if ($skipIndex > 0) {
-            $this->onTrimHistory($skipIndex);
-            $this->history = $trimmed;
-        }
-    }
-
-    public function getMessages(): array
-    {
-        $this->ensureLoaded();
-
-        return $this->history;
-    }
-
-    /**
-     * @throws ChatHistoryException
-     */
-    public function getLastMessage(): Message
-    {
-        $this->ensureLoaded();
-
-        $message = end($this->history);
-
-        if ($message === false) {
-            throw new ChatHistoryException('No messages in the chat history. It may have been filled with too large single message.');
-        }
-
-        return $message;
-    }
-
-    public function flushAll(): ChatHistoryInterface
-    {
-        $this->ensureLoaded();
-
-        $this->clear();
-        $this->history = [];
-        return $this;
-    }
-
-    public function calculateTotalUsage(): int
-    {
-        return $this->trimmer->getTotalTokens();
-    }
-
-    /**
-     * @return array<int, mixed>
-     */
-    public function jsonSerialize(): array
-    {
-        return $this->getMessages();
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $messages
-     * @return  Message[]
-     */
-    protected function deserializeMessages(array $messages): array
-    {
-        return array_map(fn (array $message): Message => match ($message['type'] ?? null) {
-            'tool_call' => $this->deserializeToolCall($message),
-            'tool_call_result' => $this->deserializeToolCallResult($message),
-            default => $this->deserializeMessage($message),
-        }, $messages);
+        return match ($data['type'] ?? null) {
+            'tool_call' => $this->deserializeToolCall($data),
+            'tool_call_result' => $this->deserializeToolCallResult($data),
+            default => $this->deserializeMessage($data),
+        };
     }
 
     /**
@@ -313,7 +131,11 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
             return $call;
         }, $message['tools']);
 
-        return new ToolResultMessage($tools);
+        $item = new ToolResultMessage($tools);
+
+        $this->deserializeMeta($message, $item);
+
+        return $item;
     }
 
     /**
@@ -429,17 +251,14 @@ abstract class AbstractChatHistory implements ChatHistoryInterface
      */
     protected function deserializeMeta(array $message, Message $item): void
     {
+        if (isset($message['usage'])) {
+            $item->setUsage(
+                new Usage($message['usage']['input_tokens'], $message['usage']['output_tokens'])
+            );
+        }
+
         foreach ($message as $key => $value) {
-            if ($key === 'role') {
-                continue;
-            }
-            if ($key === 'content') {
-                continue;
-            }
-            if ($key === 'usage') {
-                $item->setUsage(
-                    new Usage($message['usage']['input_tokens'], $message['usage']['output_tokens'])
-                );
+            if (in_array($key, self::STRUCTURAL_KEYS, true)) {
                 continue;
             }
             if ($key === 'citations' && is_array($value)) {

@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -62,11 +62,12 @@ class Summarization extends AgentMiddleware
     }
 
     /**
-     * Replace the messages before the cutoff with a generated summary.
+     * Replace the messages before the cutoff with a generated summary. The rewrite
+     * clears the stored thread, so its archived messages are erased as well.
      *
      * @param Message[] $messages
      */
-    protected function summarizeHistory(ChatHistoryInterface $chatHistory, array $messages): void
+    protected function summarizeHistory(ChatHistory $chatHistory, array $messages): void
     {
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
 

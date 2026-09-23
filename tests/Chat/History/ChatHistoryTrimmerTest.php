@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Chat\History;
 
 use NeuronAI\Chat\History\HistoryTrimmer;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -24,12 +25,12 @@ class ChatHistoryTrimmerTest extends TestCase
 {
     private const CONTEXT_WINDOW = 200000; // 200K context window
 
-    private InMemoryChatHistory $chatHistory;
+    private ChatHistory $chatHistory;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->chatHistory = new InMemoryChatHistory(contextWindow: self::CONTEXT_WINDOW);
+        $this->chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread', self::CONTEXT_WINDOW);
     }
 
     protected function tearDown(): void

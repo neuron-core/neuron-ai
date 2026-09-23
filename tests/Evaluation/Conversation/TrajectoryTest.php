@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Conversation;
 
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -164,7 +165,7 @@ class TrajectoryTest extends TestCase
 
     public function test_from_chat_history(): void
     {
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $history->addMessage(new UserMessage('Hello'));
         $history->addMessage(new AssistantMessage('Hi there.'));
 

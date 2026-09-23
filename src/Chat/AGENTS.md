@@ -17,28 +17,26 @@ new UserMessage([
 
 ## Chat history
 
-`AbstractChatHistory` implements the logic once; backends persist through one protected hook per primitive mutation, append (`onNewMessage`), head-trim (`onTrimHistory`, invoked before the in-memory history drops the trimmed head) and clear, or ignore the hooks and rewrite the whole state via `setMessages()` (File, InMemory). SQL and Eloquent backends store one row per message keyed by thread. `HistoryTrimmer` keeps the thread inside the context window by estimating tokens and dropping the oldest messages first.
+Two parts with different lifetimes:
+
+- `MessageStoreInterface` stores conversations. Every call names its thread (`loadActive()`, `loadAll()`, `append()`, `archive()`, `clear()`), so a store keeps no conversation state and one instance serves the whole process: bind it once in a container. `SQLMessageStore` and `EloquentMessageStore` store one row per message with a `message_id` unique within its thread; the table key orders the thread, so an Eloquent key must follow insertion order (auto-increment, ULID or UUIDv7). `FileMessageStore` keeps one JSON file per thread, replaced atomically on every write, for controlled single-host use. `InMemoryMessageStore` lives in process memory. Constructing a store performs no I/O.
+- `ChatHistory` is the working context of one conversation for one execution segment: it receives its thread at construction, loads the active messages on first use, keeps them inside the context window with `HistoryTrimmer` (`DEFAULT_CONTEXT_WINDOW`, 50,000 tokens, unless configured), and writes through the store. It is concrete, like Workflow's `WorkflowRunStore` over `PersistenceInterface`: storage varies through the store and trimming through `HistoryTrimmerInterface`, which a composed workflow passes to the constructor (one instance per history, since trimmers are stateful). Open a new history per segment, as the Agent does (`src/Agent/AGENTS.md`); thread identity belongs to the Agent.
+
+A message's identity is `Message::getId()`: assigned at construction, stored with the message and restored on load; `setMetadata()` keeps it. `MessageDeserializer` rebuilds messages from the `Message::jsonSerialize()` shape for stores and `Trajectory`.
 
 ### Trimming archives, it never deletes
 
-The durable backends (SQL, Eloquent, File) keep the messages trimmed out of the context window: a trim stamps them with `archived_at` (a nullable column on the messages table, a key on the file entry) and loading reads only the unarchived ones, so the full transcript stays available to the application while the model sees the trimmed thread. `flushAll()` is the one destructive operation: it removes the whole thread, archived messages included. `InMemoryChatHistory` simply drops what it trims.
+When the trimmer drops the oldest messages from the context, `ChatHistory` archives them in the store instead of deleting them: `archived_at` on the row or file entry, a counted prefix in memory. `loadActive()` returns the unarchived messages; `loadAll()` returns the whole transcript, optionally the `$limit` messages before a message ID, which is how a UI pages backward. `flushAll()` is the one destructive operation: it clears the whole thread, archived messages included. The `Summarization` middleware compacts through `flushAll()`, so summarizing a thread erases its transcript.
 
-### Identity: histories are bound, not identity-constructed
-
-A history is thread-scoped by nature but constructible *without* its thread: loading is lazy, so the Agent can bind the resolved thread ID into an unbound history before it is ever touched (`new SQLChatHistory($pdo)` in a hook, identity supplied once by `Agent::make(workflowId:)`). The rules, implemented in `AbstractChatHistory`:
-
-- `setThreadId()` is assign-once: the same id is a no-op, a different id throws `ChatHistoryException`. Re-pointing a conversation at another thread is never legitimate.
-- A durable backend *used* while unbound throws loudly, never a silent read of a wrong, empty thread.
-- Constructor identity is optional and positioned after the required dependencies (`new SQLChatHistory($pdo, 'thread-1')`); passing it pre-binds the history, which the Agent adopts as an identity declaration. `InMemoryChatHistory` self-keys when none is given.
-
-Thread identity itself belongs to the Agent (`src/Agent/AGENTS.md`); the history only validates against it.
+`calculateTotalUsage()` measures the active messages on demand, so a freshly loaded history reports its real size.
 
 ### Invariants
 
 - **Alternation.** A plain `UserMessage` can never directly follow a `ToolCallMessage`: the calls must be answered by a `ToolResultMessage` first. `HistoryTrimmer::validateAlternation()` enforces it on every append, which also covers sequences loaded from storage; a custom `HistoryTrimmerInterface` takes over this responsibility.
-- **Append-only.** `addMessage()` always appends; there is no update or replace, so a direct `ChatHistoryInterface` implementation that appends is fully conformant. Write-once convergence under crash replay is the *writer's* job, not the store's: agent nodes wrap history writes in durable memos (`src/Agent/AGENTS.md`).
+- **Append-only, idempotent by identity.** `addMessage()` always appends; there is no update or replace. A message whose ID is already in the context is skipped, and a store skips a message already stored in the thread, so a replayed write converges even when its durable memo was lost (agent nodes also wrap history writes in memos, `src/Agent/AGENTS.md`). The trim validates the sequence before anything is stored.
+- **One writer per segment.** Archiving counts from the oldest active message. The count is correct because a working history loads fresh for its segment and the workflow run fence admits one active segment per conversation.
 - **Nothing dangles.** Messages commit only after the step that consumes them succeeds, so a failed provider call or a crashed tool never leaves a user message or tool call at the tail. The single exception is an approval-gated `ToolCallMessage`, written before the suspend so a cold process can render the pending approval from history alone.
 - **Approval is recorded on messages.** The `tool_call` message keeps its pending snapshot forever; the final outcomes (approved/rejected, feedback, results) live on the `ToolResultMessage` that follows. "Is approval pending?" is answered by the thread tail alone. Serialized tool entries carry `approval`, `approvalReason` (outbound, why the tool asked) and `rejectReason` (inbound, the approver's feedback); entries stored without these keys deserialize as not gated.
 - **No execution identity.** History records nothing about the workflow run that produced a message. Reattaching to a suspended run is the engine's job, keyed by the thread itself (`src/Workflow/AGENTS.md`).
 
-A tool entry's `result` round-trips as a string, a content block array (a multimodal `ToolOutput`) or `{is_error: true, blocks: [...]}` for `ToolOutput::error()`; `deserializeToolResult()` discriminates on shape, so legacy stored histories come back unchanged.
+A tool entry's `result` round-trips as a string, a content block array (a multimodal `ToolOutput`) or `{is_error: true, blocks: [...]}` for `ToolOutput::error()`; `MessageDeserializer` discriminates on shape, so legacy stored histories come back unchanged.

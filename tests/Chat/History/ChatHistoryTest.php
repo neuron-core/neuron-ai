@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -14,20 +15,22 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
+use function array_map;
+use function count;
 use function end;
 use function sort;
-use function count;
 
-class InMemoryChatHistoryTest extends TestCase
+class ChatHistoryTest extends TestCase
 {
-    private InMemoryChatHistory $chatHistory;
+    private ChatHistory $chatHistory;
 
     protected function setUp(): void
     {
         parent::setUp();
         // Use a small context window for testing
-        $this->chatHistory = new InMemoryChatHistory(contextWindow: 1000);
+        $this->chatHistory = $this->history(1000);
     }
 
     protected function tearDown(): void
@@ -35,22 +38,16 @@ class InMemoryChatHistoryTest extends TestCase
         $this->chatHistory->flushAll();
     }
 
-    public function test_chat_history_instance(): void
-    {
-        $history = new InMemoryChatHistory();
-        $this->assertInstanceOf(ChatHistoryInterface::class, $history);
-    }
-
     public function test_chat_history_add_message(): void
     {
-        $history = new InMemoryChatHistory();
+        $history = $this->history();
         $history->addMessage(new UserMessage('Hello!'));
         $this->assertCount(1, $history->getMessages());
     }
 
     public function test_user_message_after_tool_call_is_rejected(): void
     {
-        $history = new InMemoryChatHistory();
+        $history = $this->history();
         $history->addMessage(new UserMessage('Delete the file'));
         $history->addMessage(new ToolCallMessage(null, [
             ToolCall::make('delete_file', description: 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']),
@@ -67,7 +64,7 @@ class InMemoryChatHistoryTest extends TestCase
         $tool = ToolCall::make('delete_file', description: 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']);
         $toolWithResult = (clone $tool)->setResult('File deleted');
 
-        $history = new InMemoryChatHistory();
+        $history = $this->history();
         $history->addMessage(new UserMessage('Delete the file'));
         $history->addMessage(new ToolCallMessage(null, [$tool]));
         $history->addMessage(new ToolResultMessage([$toolWithResult]));
@@ -77,7 +74,7 @@ class InMemoryChatHistoryTest extends TestCase
 
     public function test_chat_history_truncate_and_validate(): void
     {
-        $history = new InMemoryChatHistory(contextWindow: 13);
+        $history = $this->history(13);
 
         $message = new UserMessage('Hello!');
         $history->addMessage($message);
@@ -99,7 +96,7 @@ class InMemoryChatHistoryTest extends TestCase
         $this->expectException(ChatHistoryException::class);
         $this->expectExceptionMessage('Invalid message sequence at position 1: expected role assistant, got user');
 
-        $history = new InMemoryChatHistory();
+        $history = $this->history();
         $history->addMessage(new UserMessage('Hello!'));
         $history->addMessage(new UserMessage('Hello2!'));
     }
@@ -267,7 +264,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_find_trim_point_progressively_exceeds_context_window(): void
     {
         // Use a small context window to trigger trimming
-        $history = new InMemoryChatHistory(contextWindow: 500);
+        $history = $this->history(500);
 
         // AI providers report input_tokens as CUMULATIVE (including all prior context).
         // So the last checkpoint (input + output) IS the total tokens used.
@@ -313,7 +310,7 @@ class InMemoryChatHistoryTest extends TestCase
     public function test_find_trim_point_preserves_tool_call_result_pairs(): void
     {
         // Use a small context window so trimming is triggered
-        $history = new InMemoryChatHistory(contextWindow: 300);
+        $history = $this->history(300);
 
         // Create tools for multiple tool call/result pairs
         $tool1 = ToolCall::make('search_tool', description: 'Search for information')
@@ -408,5 +405,127 @@ class InMemoryChatHistoryTest extends TestCase
             );
             $expectingUser = !$expectingUser;
         }
+    }
+
+    public function test_loading_is_deferred_to_first_use(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+
+        // Stored after construction: an eager load would miss it.
+        $store->append('thread', new UserMessage('Stored later'));
+
+        $this->assertSame('Stored later', $history->getMessages()[0]->getContent());
+    }
+
+    public function test_a_failed_load_is_retried_on_the_next_access(): void
+    {
+        $store = new class () extends InMemoryMessageStore {
+            public bool $failing = true;
+
+            public function loadActive(string $threadId): array
+            {
+                if ($this->failing) {
+                    $this->failing = false;
+                    throw new RuntimeException('Connection lost');
+                }
+
+                return parent::loadActive($threadId);
+            }
+        };
+        $store->append('thread', new UserMessage('Hello'));
+        $history = new ChatHistory($store, 'thread');
+
+        try {
+            $history->getMessages();
+            $this->fail('The first load should fail.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertCount(1, $history->getMessages());
+    }
+
+    public function test_a_message_already_in_the_context_is_skipped(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $message = new UserMessage('Hello');
+
+        $history->addMessage($message);
+        $history->addMessage($message);
+
+        $this->assertCount(1, $history->getMessages());
+        $this->assertCount(1, $store->loadAll('thread'));
+    }
+
+    public function test_trimmed_messages_are_archived_in_the_store(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread', 1000);
+
+        for ($i = 1; $i <= 10; $i++) {
+            $history->addMessage($i % 2 === 0
+                ? (new AssistantMessage("Message {$i}"))->setUsage(new Usage(100 * $i, 150))
+                : new UserMessage("Message {$i}"));
+        }
+
+        $this->assertCount(8, $history->getMessages());
+        $this->assertSame($this->ids($history->getMessages()), $this->ids($store->loadActive('thread')));
+        $this->assertCount(10, $store->loadAll('thread'));
+    }
+
+    public function test_an_invalid_sequence_is_rejected_before_anything_is_stored(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $history->addMessage(new UserMessage('Hello'));
+
+        try {
+            $history->addMessage(new UserMessage('Hello again'));
+            $this->fail('Two consecutive user messages should be rejected.');
+        } catch (ChatHistoryException) {
+        }
+
+        $this->assertCount(1, $store->loadAll('thread'));
+        $this->assertCount(1, $history->getMessages());
+    }
+
+    public function test_usage_is_measured_on_a_freshly_loaded_history(): void
+    {
+        $store = new InMemoryMessageStore();
+        $writer = new ChatHistory($store, 'thread');
+        $writer->addMessage(new UserMessage('Hello'));
+        $writer->addMessage((new AssistantMessage('Hi'))->setUsage(new Usage(120, 30)));
+
+        $reader = new ChatHistory($store, 'thread');
+
+        $this->assertSame(150, $reader->calculateTotalUsage());
+        $this->assertSame($writer->calculateTotalUsage(), $reader->calculateTotalUsage());
+    }
+
+    public function test_flush_all_removes_the_thread_from_the_store(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $history->addMessage(new UserMessage('Hello'));
+
+        $history->flushAll();
+
+        $this->assertSame([], $history->getMessages());
+        $this->assertSame([], $store->loadAll('thread'));
+    }
+
+    protected function history(int $contextWindow = 50000): ChatHistory
+    {
+        return new ChatHistory(new InMemoryMessageStore(), 'thread', $contextWindow);
+    }
+
+    /**
+     * @param Message[] $messages
+     * @return string[]
+     */
+    protected function ids(array $messages): array
+    {
+        return array_map(fn (Message $message): string => $message->getId(), $messages);
     }
 }

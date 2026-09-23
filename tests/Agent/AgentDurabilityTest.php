@@ -10,7 +10,8 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\ChatNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -41,7 +42,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_recovery_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new CrashSearchTool();
 
@@ -54,7 +55,7 @@ class AgentDurabilityTest extends TestCase
 
         // Run 1: ChatNode completes, tool crashes
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -71,7 +72,7 @@ class AgentDurabilityTest extends TestCase
 
         // Revive with the same workflow ID: ChatNode:0 memoized, the tool retries.
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messageStore);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
@@ -85,7 +86,7 @@ class AgentDurabilityTest extends TestCase
 
     public function test_chat_node_inference_memoized_across_crash_recovery(): void
     {
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         // Crash window under test: ChatNode's inference succeeds and is memoized
         // mid-node, then the node crashes BEFORE its step completes. On recovery with
         // a fresh step engine + same persistence, the node re-executes but the inference
@@ -130,7 +131,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_approval_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -146,7 +147,7 @@ class AgentDurabilityTest extends TestCase
 
         // Run 1: ChatNode completes, the approval gate pauses ToolNode before the tool executes.
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -161,7 +162,7 @@ class AgentDurabilityTest extends TestCase
         // Resume: deliver the approval payload (call_1 approved). Same runId →
         // ChatNode:0 memoized, ToolNode:1 resumes and runs the tool.
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messageStore);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
@@ -198,7 +199,7 @@ class AgentDurabilityTest extends TestCase
     {
         $workflowId = 'agent_rejection_test';
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         // Attach-time approval config: the flag rides on the
@@ -213,7 +214,7 @@ class AgentDurabilityTest extends TestCase
         );
 
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
         $agent1->setAiProvider($provider);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
@@ -227,7 +228,7 @@ class AgentDurabilityTest extends TestCase
         // Resume with rejection: the tool is NOT executed; its rejection message
         // is fed back as the tool result and reaches the next inference.
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messageStore);
         $agent2->setAiProvider($provider);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
@@ -330,7 +331,7 @@ class AgentDurabilityTest extends TestCase
         $workflowId = 'agent_file_tool_recovery_test';
         $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
         $persistence = new FilePersistence($dir);
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $calls = 0;
         $tool = new ClosureDependencyTool(function () use (&$calls): string {
@@ -352,7 +353,7 @@ class AgentDurabilityTest extends TestCase
         // Run 1: ChatNode completes (its step is serialized to disk — carrying only
         // ToolCall data, never the tool's closure), then the tool crashes.
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
         $agent1->setAiProvider($provider);
         $agent1->addTool($tool);
         $agent1->setPersistence($persistence);
@@ -368,7 +369,7 @@ class AgentDurabilityTest extends TestCase
         // ChatNode step carries ToolCall data only — ToolNode resolves the
         // calls against the live registry to execute with a working dependency.
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messageStore);
         $agent2->setAiProvider($provider);
         $agent2->addTool($tool);
         $agent2->setPersistence($persistence);

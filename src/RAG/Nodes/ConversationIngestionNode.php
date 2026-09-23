@@ -8,13 +8,12 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\Retrieval\SemanticMemoryRetrieval;
@@ -31,7 +30,7 @@ class ConversationIngestionNode extends Node implements AgentNodeInterface
     public function __construct(
         protected readonly VectorStoreInterface $vectorStore,
         protected readonly EmbeddingsProviderInterface $embeddingProvider,
-        ChatHistoryInterface $chatHistory,
+        ChatHistory $chatHistory,
     ) {
         $this->chatHistory = $chatHistory;
     }
@@ -49,9 +48,7 @@ class ConversationIngestionNode extends Node implements AgentNodeInterface
             return new StopEvent();
         }
 
-        $threadId = $this->chatHistory->getThreadId() ?? throw new ChatHistoryException(
-            'Conversation ingestion requires a thread identity.'
-        );
+        $threadId = $this->chatHistory->getThreadId();
 
         $this->memoize('conversation.ingest', function () use ($threadId, $user, $assistant): bool {
             $document = (new Document("User: {$user->getContent()}\nAssistant: {$assistant->getContent()}"))

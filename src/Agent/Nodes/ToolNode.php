@@ -11,7 +11,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -71,7 +71,7 @@ class ToolNode extends Node implements AgentNodeInterface
     protected $errorHandler;
 
     public function __construct(
-        ChatHistoryInterface $chatHistory,
+        ChatHistory $chatHistory,
         protected int $maxRuns = 10,
         ?callable $errorHandler = null
     ) {

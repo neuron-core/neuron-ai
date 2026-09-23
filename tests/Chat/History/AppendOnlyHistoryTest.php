@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ApprovalState;
@@ -26,7 +27,7 @@ class AppendOnlyHistoryTest extends TestCase
 
     public function test_add_message_always_appends_even_for_matching_tool_call(): void
     {
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $history->addMessage(new UserMessage('go'));
 
         $first = new ToolCallMessage(tools: [
@@ -35,8 +36,8 @@ class AppendOnlyHistoryTest extends TestCase
         ]);
         $history->addMessage($first);
 
-        // The history is append-only — write-once convergence lives with
-        // the writer (ToolNode's memoized single write), not the store.
+        // The history is append-only and skips only a message it already
+        // holds: another message carrying the same calls still appends.
         $duplicate = new ToolCallMessage(tools: [
             $this->toolWithState('a', 'c1', ApprovalState::Approved),
             $this->toolWithState('b', 'c2', ApprovalState::Rejected),

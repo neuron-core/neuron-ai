@@ -9,7 +9,7 @@ use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -34,13 +34,13 @@ use function serialize;
 class AgentInputSubmissionTest extends TestCase
 {
     protected InMemoryPersistence $persistence;
-    protected InMemoryChatHistory $history;
+    protected InMemoryMessageStore $messages;
     protected FakeAIProvider $provider;
 
     protected function setUp(): void
     {
         $this->persistence = new InMemoryPersistence();
-        $this->history = new InMemoryChatHistory('submission');
+        $this->messages = new InMemoryMessageStore();
         $this->provider = new FakeAIProvider(
             new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true), new ToolCall('browser', 'b', deferred: true)]),
             new AssistantMessage('Finished'),
@@ -50,7 +50,7 @@ class AgentInputSubmissionTest extends TestCase
     protected function agent(bool $approval = false): Agent
     {
         $agent = Agent::make();
-        $agent->setChatHistory($this->history)->setPersistence($this->persistence)->setAiProvider($this->provider);
+        $agent->setMessageStore($this->messages)->setThreadId('submission')->setPersistence($this->persistence)->setAiProvider($this->provider);
         $tool = new FrontendTool('browser');
         if ($approval) {
             $tool->requireApproval();

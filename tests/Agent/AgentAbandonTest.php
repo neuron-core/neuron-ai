@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -27,12 +27,12 @@ class AgentAbandonTest extends TestCase
 {
     protected function makeAgent(
         FakeAIProvider $provider,
-        InMemoryChatHistory $history,
+        InMemoryMessageStore $messageStore,
         InMemoryPersistence $persistence,
         ?SearchTool $tool = null,
     ): Agent {
-        $agent = Agent::make();
-        $agent->setChatHistory($history);
+        $agent = Agent::make(workflowId: 'thread');
+        $agent->setMessageStore($messageStore);
         $agent->setAiProvider($provider);
         $agent->setPersistence($persistence);
         if ($tool instanceof SearchTool) {
@@ -56,17 +56,17 @@ class AgentAbandonTest extends TestCase
 
     public function test_abandon_refuses_while_an_approval_is_pending_and_leaves_the_run_intact(): void
     {
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $tool = new SearchTool();
         $provider = $this->approvalProvider($tool);
 
-        $suspended = $this->makeAgent($provider, $history, $persistence, $tool);
+        $suspended = $this->makeAgent($provider, $messageStore, $persistence, $tool);
         $this->assertTrue($suspended->chat(new UserMessage('Search for PHP frameworks'))->isInterrupted());
-        $threadId = (string) $history->getThreadId();
+        $threadId = 'thread';
 
         try {
-            $this->makeAgent($provider, $history, $persistence, $tool)->abandonRun();
+            $this->makeAgent($provider, $messageStore, $persistence, $tool)->abandonRun();
             $this->fail('A pending approval should refuse abandonment.');
         } catch (AgentException $e) {
             $this->assertStringContainsString('submitInputs()', $e->getMessage());
@@ -75,57 +75,57 @@ class AgentAbandonTest extends TestCase
         // Nothing was disturbed: the run and its history tail are untouched
         // and the approval is still deliverable.
         $this->assertNotNull($persistence->get($threadId, '__control'));
-        $this->assertCount(2, $history->getMessages());
+        $this->assertCount(2, $messageStore->loadActive('thread'));
 
-        $message = $this->makeAgent($provider, $history, $persistence, $tool)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))
+        $message = $this->makeAgent($provider, $messageStore, $persistence, $tool)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());
     }
 
     public function test_abandon_discards_a_failed_turn_without_touching_history(): void
     {
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $provider = new FakeAIProvider();
 
         try {
-            $this->makeAgent($provider, $history, $persistence)->chat(new UserMessage('Hello'));
+            $this->makeAgent($provider, $messageStore, $persistence)->chat(new UserMessage('Hello'));
             $this->fail('Expected the provider failure to propagate.');
         } catch (ProviderException) {
         }
-        $threadId = (string) $history->getThreadId();
+        $threadId = 'thread';
         $this->assertNotNull($persistence->get($threadId, '__control'));
 
-        $this->assertTrue($this->makeAgent($provider, $history, $persistence)->abandonRun());
+        $this->assertTrue($this->makeAgent($provider, $messageStore, $persistence)->abandonRun());
 
         $this->assertNull($persistence->get($threadId, '__control'));
-        $this->assertCount(0, $history->getMessages());
+        $this->assertCount(0, $messageStore->loadActive('thread'));
     }
 
     public function test_abandon_reports_nothing_in_flight_as_false(): void
     {
-        $agent = $this->makeAgent(new FakeAIProvider(), new InMemoryChatHistory(), new InMemoryPersistence());
+        $agent = $this->makeAgent(new FakeAIProvider(), new InMemoryMessageStore(), new InMemoryPersistence());
 
         $this->assertFalse($agent->abandonRun());
     }
 
     public function test_reset_conversation_frees_the_thread_even_with_a_pending_approval(): void
     {
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $tool = new SearchTool();
         $provider = $this->approvalProvider($tool);
 
-        $this->makeAgent($provider, $history, $persistence, $tool)->chat(new UserMessage('Search for PHP frameworks'));
-        $threadId = (string) $history->getThreadId();
+        $this->makeAgent($provider, $messageStore, $persistence, $tool)->chat(new UserMessage('Search for PHP frameworks'));
+        $threadId = 'thread';
 
-        $this->makeAgent($provider, $history, $persistence, $tool)->resetConversation();
+        $this->makeAgent($provider, $messageStore, $persistence, $tool)->resetConversation();
 
         $this->assertNull($persistence->get($threadId, '__control'));
-        $this->assertCount(0, $history->getMessages());
+        $this->assertCount(0, $messageStore->loadActive('thread'));
 
         // The thread is a blank slate: a new turn ignites instead of being refused.
-        $message = $this->makeAgent($provider, $history, $persistence, $tool)
+        $message = $this->makeAgent($provider, $messageStore, $persistence, $tool)
             ->chat(new UserMessage('Hello again'))
             ->getMessage();
         $this->assertSame('Here are the search results...', $message->getContent());

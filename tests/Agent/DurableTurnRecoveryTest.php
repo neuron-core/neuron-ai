@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\FileChatHistory;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\FileMessageStore;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -78,12 +79,12 @@ class DurableTurnRecoveryTest extends TestCase
 
     protected function makeAgent(
         FakeAIProvider $provider,
-        InMemoryChatHistory $history,
+        InMemoryMessageStore $messageStore,
         PersistenceInterface $persistence,
         ?CountingTool $tool = null,
     ): Agent {
-        $agent = Agent::make();
-        $agent->setChatHistory($history);
+        $agent = Agent::make(workflowId: 'thread');
+        $agent->setMessageStore($messageStore);
         $agent->setAiProvider($provider);
         $agent->setPersistence($persistence);
         if ($tool instanceof CountingTool) {
@@ -100,7 +101,7 @@ class DurableTurnRecoveryTest extends TestCase
     protected function fileAgent(FakeAIProvider $provider, ?SearchTool $tool = null): Agent
     {
         $agent = Agent::make(workflowId: 'thread-file');
-        $agent->setChatHistory(new FileChatHistory($this->directory));
+        $agent->setMessageStore(new FileMessageStore($this->directory));
         $agent->setAiProvider($provider);
         $agent->setPersistence(new FilePersistence($this->directory));
         if ($tool instanceof SearchTool) {
@@ -113,7 +114,7 @@ class DurableTurnRecoveryTest extends TestCase
     public function test_replay_after_a_failed_follow_up_reuses_the_first_inference_and_the_tool_run(): void
     {
         $tool = new CountingTool();
-        $history = new InMemoryChatHistory();
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         // The first inference asks for the tool; the follow-up inference has
         // nothing queued and fails.
@@ -122,7 +123,7 @@ class DurableTurnRecoveryTest extends TestCase
         );
 
         try {
-            $this->makeAgent($provider, $history, $persistence, $tool)->chat(new UserMessage('Search for PHP frameworks'));
+            $this->makeAgent($provider, $messageStore, $persistence, $tool)->chat(new UserMessage('Search for PHP frameworks'));
             $this->fail('Expected the follow-up provider failure to propagate.');
         } catch (ProviderException) {
         }
@@ -131,10 +132,10 @@ class DurableTurnRecoveryTest extends TestCase
         // follow-up left the history tail at the user message.
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(1, CountingTool::$executions);
-        $this->assertSame(['Search for PHP frameworks'], $this->contents($history->getMessages()));
+        $this->assertSame(['Search for PHP frameworks'], $this->contents($messageStore->loadActive('thread')));
 
         $provider->addResponses(new AssistantMessage('Laravel and Symfony.'));
-        $state = $this->makeAgent($provider, $history, $persistence, $tool)->run();
+        $state = $this->makeAgent($provider, $messageStore, $persistence, $tool)->run();
 
         // Only the failed step ran again: the first inference and the tool
         // were recalled, and the follow-up carried the original message plus
@@ -150,8 +151,8 @@ class DurableTurnRecoveryTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $replayed[1]);
         $this->assertInstanceOf(ToolResultMessage::class, $replayed[2]);
 
-        $this->assertCount(4, $history->getMessages());
-        $this->assertNull($persistence->get((string) $history->getThreadId(), '__control'));
+        $this->assertCount(4, $messageStore->loadActive('thread'));
+        $this->assertNull($persistence->get('thread', '__control'));
     }
 
     public function test_blank_file_backed_instances_supersede_a_failed_turn_with_a_new_message(): void
@@ -178,7 +179,7 @@ class DurableTurnRecoveryTest extends TestCase
         // trace, and the thread is free.
         $this->assertSame(
             ['second message', 'reply'],
-            $this->contents((new FileChatHistory($this->directory, 'thread-file'))->getMessages()),
+            $this->contents((new ChatHistory(new FileMessageStore($this->directory), 'thread-file'))->getMessages()),
         );
         $this->assertNull((new FilePersistence($this->directory))->get('thread-file', '__control'));
     }

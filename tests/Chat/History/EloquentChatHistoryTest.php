@@ -8,8 +8,8 @@ use NeuronAI\Tests\Chat\History\Stub\ChatMessage;
 use Illuminate\Database\Capsule\Manager as Capsule;
 use Illuminate\Database\Schema\Blueprint;
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\EloquentChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\EloquentMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -24,7 +24,7 @@ use function uniqid;
 
 class EloquentChatHistoryTest extends TestCase
 {
-    protected EloquentChatHistory $history;
+    protected ChatHistory $history;
     protected string $threadId;
 
     public function setUp(): void
@@ -42,6 +42,7 @@ class EloquentChatHistoryTest extends TestCase
         Capsule::schema()->create('chat_messages', function (Blueprint $table): void {
             $table->id();
             $table->string('thread_id');
+            $table->string('message_id', 64);
             $table->string('role');
             $table->json('content')->nullable();
             $table->json('meta')->nullable();
@@ -49,20 +50,16 @@ class EloquentChatHistoryTest extends TestCase
             $table->timestamps();
 
             $table->index('thread_id');
+            $table->unique(['thread_id', 'message_id']);
         });
 
         $this->threadId = uniqid('test-thread-');
-        $this->history = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $this->history = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId);
     }
 
     protected function tearDown(): void
     {
         Capsule::schema()->dropIfExists('chat_messages');
-    }
-
-    public function test_creates_chat_history_instance(): void
-    {
-        $this->assertInstanceOf(ChatHistoryInterface::class, $this->history);
     }
 
     public function test_starts_with_empty_history(): void
@@ -93,7 +90,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new AssistantMessage('Second message'));
 
         // Create a new instance with the same thread_id
-        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $newHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId);
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -147,7 +144,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
-        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $newHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(3, $messages);
@@ -163,7 +160,7 @@ class EloquentChatHistoryTest extends TestCase
     public function test_truncates_history_when_context_window_exceeded(): void
     {
         // Create history with small context window
-        $smallHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId, contextWindow: 100);
+        $smallHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId, 100);
 
         $this->addMessagesBeyondContextWindow($smallHistory);
 
@@ -184,13 +181,13 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_loads_only_unarchived_messages(): void
     {
-        $smallHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId, contextWindow: 100);
+        $smallHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId, 100);
 
         $this->addMessagesBeyondContextWindow($smallHistory);
 
         $active = $smallHistory->getMessages();
 
-        $reloaded = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $reloaded = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId);
         $messages = $reloaded->getMessages();
 
         $this->assertCount(count($active), $messages);
@@ -200,7 +197,7 @@ class EloquentChatHistoryTest extends TestCase
     /**
      * Twenty alternating messages whose usage grows past a 100 tokens context window.
      */
-    protected function addMessagesBeyondContextWindow(EloquentChatHistory $history): void
+    protected function addMessagesBeyondContextWindow(ChatHistory $history): void
     {
         // Start with UserMessage (i=1 is odd) to create valid sequence
         for ($i = 1; $i <= 20; $i++) {
@@ -216,8 +213,8 @@ class EloquentChatHistoryTest extends TestCase
         $thread1 = 'thread-1-' . uniqid();
         $thread2 = 'thread-2-' . uniqid();
 
-        $history1 = new EloquentChatHistory(ChatMessage::class, $thread1);
-        $history2 = new EloquentChatHistory(ChatMessage::class, $thread2);
+        $history1 = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $thread1);
+        $history2 = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $thread2);
 
         $history1->addMessage(new UserMessage('Message in thread 1'));
         $history2->addMessage(new UserMessage('Message in thread 2'));
@@ -226,8 +223,8 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertCount(1, $history2->getMessages());
 
         // Reload and verify isolation
-        $reloaded1 = new EloquentChatHistory(ChatMessage::class, $thread1);
-        $reloaded2 = new EloquentChatHistory(ChatMessage::class, $thread2);
+        $reloaded1 = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $thread1);
+        $reloaded2 = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $thread2);
 
         $this->assertEquals('Message in thread 1', $reloaded1->getMessages()[0]->getContent());
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());
@@ -255,7 +252,7 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_handles_empty_thread_id(): void
     {
-        $emptyThreadHistory = new EloquentChatHistory(ChatMessage::class, '');
+        $emptyThreadHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), '');
         $emptyThreadHistory->addMessage(new UserMessage('Test'));
 
         // Should still work with empty thread_id
@@ -270,7 +267,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage($message);
 
         // Load in new instance
-        $newHistory = new EloquentChatHistory(ChatMessage::class, $this->threadId);
+        $newHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId);
         $loadedMessage = $newHistory->getMessages()[0];
 
         $this->assertEquals('custom_value', $loadedMessage->getMetadata('custom_key'));
@@ -280,7 +277,7 @@ class EloquentChatHistoryTest extends TestCase
     {
         $agent = Agent::make()->setAiProvider(
             new FakeAIProvider(new AssistantMessage('Hello!'))
-        )->setChatHistory($this->history);
+        )->setMessageStore(new EloquentMessageStore(ChatMessage::class));
 
         $response = $agent->chat(new UserMessage('Hello'))->getMessage();
         $this->assertEquals('Hello!', $response->getContent());

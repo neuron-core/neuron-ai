@@ -9,7 +9,7 @@ use NeuronAI\Agent\Frontend\AGUIInputTranslator;
 use NeuronAI\Agent\Frontend\VercelAIInputTranslator;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -33,20 +33,20 @@ use function method_exists;
 class InputTranslatorFlowTest extends TestCase
 {
     protected InMemoryPersistence $persistence;
-    protected InMemoryChatHistory $history;
+    protected InMemoryMessageStore $messages;
     protected FakeAIProvider $provider;
 
     protected function setUp(): void
     {
         $this->persistence = new InMemoryPersistence();
-        $this->history = new InMemoryChatHistory('frontend');
+        $this->messages = new InMemoryMessageStore();
         $this->provider = new FakeAIProvider();
     }
 
     protected function agent(): Agent
     {
         $agent = Agent::make();
-        $agent->setPersistence($this->persistence)->setChatHistory($this->history)
+        $agent->setPersistence($this->persistence)->setMessageStore($this->messages)->setThreadId('frontend')
             ->setAiProvider($this->provider)->addTool((new FrontendTool('browser'))->requireApproval());
         return $agent;
     }
@@ -89,7 +89,7 @@ class InputTranslatorFlowTest extends TestCase
         $this->assertFalse($events->getReturn()->isInterrupted());
         $this->assertSame(2, $this->provider->getCallCount());
         $this->assertNull($this->persistence->get('frontend', '__control'));
-        $messages = $this->history->getMessages();
+        $messages = $this->messages->loadActive('frontend');
         $this->assertCount(4, $messages);
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
         $calls = $messages[2]->getToolCalls();

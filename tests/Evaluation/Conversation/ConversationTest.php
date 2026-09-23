@@ -8,7 +8,8 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -32,7 +33,7 @@ class ConversationTest extends TestCase
     protected function makeAgent(FakeAIProvider $provider, bool $withApproval = false): Agent
     {
         $agent = Agent::make();
-        $agent->setChatHistory(new InMemoryChatHistory());
+        $agent->setMessageStore(new InMemoryMessageStore());
         $agent->setAiProvider($provider);
 
         if ($withApproval) {
@@ -243,7 +244,7 @@ class ConversationTest extends TestCase
         $completed = new AgentState();
         $completed->clearInterrupt();
 
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $responses = [];
 
         $agent = $this->createMock(AgentInterface::class);

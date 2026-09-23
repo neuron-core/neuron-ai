@@ -13,7 +13,8 @@ use NeuronAI\Agent\Middleware\ToolSearchMiddleware;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\AgentEndNode;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -72,7 +73,7 @@ class ToolResolutionTest extends TestCase
         // registry of its own, so the removal is honored at execution too.
         $offered = $this->executableTool('offered_tool');
 
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $state = new AgentState();
 
         $state->request = new InferenceRequest('instructions', [$offered]);
@@ -186,7 +187,7 @@ class ToolResolutionTest extends TestCase
         );
 
         $agent1 = Agent::make(workflowId: $workflowId);
-        $agent1->setChatHistory(new InMemoryChatHistory($workflowId));
+        $agent1->setMessageStore(new InMemoryMessageStore());
         $agent1->setAiProvider($provider1);
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence)->setLeaseTimeout(null);
@@ -203,14 +204,15 @@ class ToolResolutionTest extends TestCase
         // wrote: the user turn and the tool call message.
         $provider2 = new FakeAIProvider(new AssistantMessage('Recovered answer.'));
 
-        $history2 = new InMemoryChatHistory($workflowId);
+        $messages2 = new InMemoryMessageStore();
+        $history2 = new ChatHistory($messages2, $workflowId);
         $history2->addMessage(new UserMessage('Search for PHP frameworks'));
         $history2->addMessage(new ToolCallMessage(null, [
             ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
         ]));
 
         $agent2 = Agent::make(workflowId: $workflowId);
-        $agent2->setChatHistory($history2);
+        $agent2->setMessageStore($messages2);
         $agent2->setAiProvider($provider2);
         $agent2->addTool($searchTool);
         $agent2->setPersistence($persistence);
@@ -236,7 +238,7 @@ class ToolResolutionTest extends TestCase
         $discovered = $this->executableTool('query_database', 'Execute SQL queries on the database');
         $middleware = new ToolSearchMiddleware([$discovered]);
 
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $history->addMessage(new UserMessage('Query the database'));
         $history->addMessage(new ToolCallMessage(null, [
             ToolCall::make('tool_search', 'call_1', ['query' => 'database']),

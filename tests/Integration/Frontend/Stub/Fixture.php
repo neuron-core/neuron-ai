@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Integration\Frontend\Stub;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Workflow\Executor\WorkflowExecutor;
@@ -56,8 +56,8 @@ class Fixture
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY ("partition", "key"))');
         $this->pdo->exec('CREATE TABLE IF NOT EXISTS chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, role TEXT NOT NULL,
-            content TEXT, meta TEXT, archived_at TEXT)');
+            id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, message_id TEXT NOT NULL,
+            role TEXT NOT NULL, content TEXT, meta TEXT, archived_at TEXT, UNIQUE (thread_id, message_id))');
         $this->pdo->exec('CREATE TABLE IF NOT EXISTS threads (thread_id TEXT PRIMARY KEY, scenario TEXT NOT NULL)');
         $this->pdo->exec('CREATE TABLE IF NOT EXISTS provider_invocations (
             id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, method TEXT NOT NULL,
@@ -103,8 +103,8 @@ class Fixture
     {
         $scenario = $this->scenario($threadId);
 
-        $agent = Agent::make();
-        $agent->setChatHistory(new SQLChatHistory($this->pdo, $threadId));
+        $agent = Agent::make(workflowId: $threadId);
+        $agent->setMessageStore(new SQLMessageStore($this->pdo));
         $agent->setPersistence(new DatabasePersistence($this->pdo));
         $agent->setAiProvider(new ScenarioProvider($this->pdo, $threadId, $scenario));
         $agent->addTool($this->backendTools($scenario, $threadId));

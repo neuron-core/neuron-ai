@@ -34,7 +34,7 @@ $state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://you
 echo $state->getMessage()->getContent();
 ```
 
-Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `setTools()`, `setChatHistory()`, `setPersistence()`), and an explicit setter wins over the hook. `setTools([...])` replaces the entire tool set, including defaults from `tools()` and earlier additions; `setTools([])` clears it. `addTool()` appends to the chosen set, retaining hook defaults only when `setTools()` has never been called. Tool changes apply to the next execution segment. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
+Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `setTools()`, `setMessageStore()`, `setContextWindow()`, `setPersistence()`), and an explicit setter wins over the hook. `setTools([...])` replaces the entire tool set, including defaults from `tools()` and earlier additions; `setTools([])` clears it. `addTool()` appends to the chosen set, retaining hook defaults only when `setTools()` has never been called. Tool changes apply to the next execution segment. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
 
 | Verb | Nature |
 |---|---|
@@ -97,11 +97,13 @@ Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `insta
 
 ## Chat history is a service, not state
 
+The Agent receives a message store (`messageStore()` hook, `setMessageStore()`; in-memory by default, retained per instance) and builds a working history over it at the start of every execution segment. Size the conversation sent to the model with the `contextWindow()` hook or `setContextWindow()` (`ChatHistory::DEFAULT_CONTEXT_WINDOW`, 50,000 tokens, by default). The store is the part to share: bind one instance in the container. Each segment loads the conversation fresh, so a long-lived Agent sees the turns other workers added. `getChatHistory()` returns a fresh view on every call and is final, so no override can retain a history across segments; nodes and middleware read the history of the node they wrap, and writing through the Agent's view while an execution runs is unsupported. See `src/Chat/AGENTS.md` for the store and history contracts.
+
 History is injected into agent nodes as a constructor dependency (`AgentNodeInterface`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
 
-- Writes go through `addToChatHistory($messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail.
+- Writes go through `addToChatHistory($messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail; the history also skips a message it already holds, covering a write whose memo was lost.
 - A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Approval-gated and externally executed cycles write their `ToolCallMessage` early, pre-suspend.
-- Durable workflow persistence needs a comparably durable history: `InMemoryChatHistory` loses the thread across processes.
+- Durable workflow persistence needs a comparably durable store: `InMemoryMessageStore` loses the thread across processes.
 - `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
 
 ## Conversation memory
@@ -215,18 +217,14 @@ Configure conversation identity through the constructor or `setThreadId()`.
 The first execution generates and retains an identity for an unbound new
 conversation. Continuations require an already bound Agent. Later executions reuse that
 identity with separate run IDs. Repeating the same identity is allowed; setters
-and histories cannot switch a bound instance to another conversation.
+cannot switch a bound instance to another conversation.
 Use a fresh Agent for another conversation. Creating a lazy stream or inspecting the Agent does not bind the instance.
 Execution requests and per-operation methods do not accept address overrides.
 
-Default in-memory history is created lazily after identity is established and
-retained across turns. `getChatHistory()` throws while identity is unset: bind
-before accessing history or using history-dependent operations such as reset or
-graph export. `setChatHistory()` may identify an unbound Agent using a pre-bound
-history; otherwise its identity must match. An injected unbound history receives
-the identity when the Agent is bound. Agent enforces these rules; history APIs are
-unchanged. `chatHistory(string $threadId)` remains a conversation-scoped factory,
-and any pre-bound result must agree with the Agent's identity.
+Histories are opened for the Agent's identity, and message stores carry none, so
+they cannot conflict with it. `getChatHistory()` throws while identity is unset:
+bind before accessing history or using history-dependent operations such as reset
+or graph export.
 
 One live run per thread has these consequences:
 
@@ -235,7 +233,7 @@ One live run per thread has these consequences:
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
 - `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
-**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setChatHistory()` may replace history for the same conversation between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current history or durable writes. A different conversation is rejected.
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setMessageStore()` may replace the store between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current segment's history or durable writes.
 
 **Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.
 

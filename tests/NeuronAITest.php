@@ -7,8 +7,7 @@ namespace NeuronAI\Tests;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\SystemPrompt;
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -26,8 +25,7 @@ class NeuronAITest extends TestCase
         $neuron = new Agent();
         $this->assertInstanceOf(AgentInterface::class, $neuron);
         $neuron->setThreadId('conversation');
-        $this->assertInstanceOf(ChatHistoryInterface::class, $neuron->getChatHistory());
-        $this->assertInstanceOf(InMemoryChatHistory::class, $neuron->getChatHistory());
+        $this->assertInstanceOf(ChatHistory::class, $neuron->getChatHistory());
 
         $neuron = new RAG();
         $this->assertInstanceOf(Agent::class, $neuron);

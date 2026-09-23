@@ -10,9 +10,11 @@ use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\WorkflowStart;
@@ -30,6 +32,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
+use function count;
 use function iterator_to_array;
 use function substr_count;
 
@@ -262,34 +265,33 @@ class AgentConfigurationTest extends TestCase
         $second->assertToolsConfigured(['search']);
     }
 
-    public function test_history_changes_during_streaming_preserve_the_active_conversation(): void
+    public function test_store_changes_during_streaming_preserve_the_active_conversation(): void
     {
-        $firstHistory = new InMemoryChatHistory('first-thread');
-        $nextHistory = new InMemoryChatHistory('first-thread');
+        $firstStore = new InMemoryMessageStore();
+        $nextStore = new InMemoryMessageStore();
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'PHP'])]),
             new AssistantMessage('Found PHP'),
             new AssistantMessage('New conversation'),
         );
-        $agent = Agent::make();
+        $agent = Agent::make(workflowId: 'first-thread');
         $agent->setAiProvider($provider)->addTool(new SearchTool());
-        $agent->setChatHistory($firstHistory);
+        $agent->setMessageStore($firstStore);
         $stream = $agent->stream(new UserMessage('Search PHP'));
         $stream->rewind();
 
-        $agent->setChatHistory($nextHistory);
+        $agent->setMessageStore($nextStore);
         iterator_to_array($stream);
 
         $this->assertSame('first-thread', $stream->getReturn()->getWorkflowId());
-        $this->assertCount(4, $firstHistory->getMessages());
-        $this->assertSame([], $nextHistory->getMessages());
+        $this->assertCount(4, $firstStore->loadActive('first-thread'));
+        $this->assertSame([], $nextStore->loadAll('first-thread'));
         $this->assertNull(Agent::make(workflowId: 'first-thread')->setPersistence($agent->getPersistence())->inspect());
 
         $state = $agent->chat(new UserMessage('Hello'));
         $this->assertSame('first-thread', $state->getWorkflowId());
-        $this->assertCount(2, $nextHistory->getMessages());
-        $this->assertCount(4, $firstHistory->getMessages());
-        $this->assertSame('first-thread', $firstHistory->getThreadId());
+        $this->assertCount(2, $nextStore->loadActive('first-thread'));
+        $this->assertCount(4, $firstStore->loadActive('first-thread'));
     }
 
     public function test_resume_uses_current_provider_but_preserves_recorded_instructions_and_intent(): void
@@ -319,4 +321,51 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame('Updated instructions', $second->getRecorded()[1]->systemPrompt->getContent());
     }
 
+    public function test_the_context_window_hook_sizes_the_conversation(): void
+    {
+        $messages = new InMemoryMessageStore();
+        $agent = $this->agentWithContextWindowHook(500)->setMessageStore($messages);
+
+        $this->addConversation($agent->getChatHistory());
+
+        $this->assertLessThan(10, count($messages->loadActive('thread')));
+        $this->assertCount(10, $messages->loadAll('thread'));
+    }
+
+    public function test_an_explicit_context_window_wins_over_the_hook(): void
+    {
+        $messages = new InMemoryMessageStore();
+        $agent = $this->agentWithContextWindowHook(500)->setMessageStore($messages)->setContextWindow(10_000);
+
+        $this->addConversation($agent->getChatHistory());
+
+        $this->assertCount(10, $messages->loadActive('thread'));
+    }
+
+    protected function agentWithContextWindowHook(int $tokens): Agent
+    {
+        return new class ($tokens) extends Agent {
+            public function __construct(protected int $tokens)
+            {
+                parent::__construct('thread');
+            }
+
+            protected function contextWindow(): int
+            {
+                return $this->tokens;
+            }
+        };
+    }
+
+    /**
+     * Ten alternating messages whose reported usage reaches 1150 tokens.
+     */
+    protected function addConversation(ChatHistory $history): void
+    {
+        for ($i = 1; $i <= 10; $i++) {
+            $history->addMessage($i % 2 === 0
+                ? (new AssistantMessage("Answer {$i}"))->setUsage(new Usage(100 * $i, 150))
+                : new UserMessage("Question {$i}"));
+        }
+    }
 }

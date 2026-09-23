@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Nodes\AgentEndNode;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -81,7 +82,8 @@ class AgentOutputTest extends TestCase
     public function test_failed_exit_recovers_on_a_fresh_instance_without_repeating_inference(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
-        $first = OutputAgent::make(workflowId: 'output-recovery');
+        $messageStore = new InMemoryMessageStore();
+        $first = OutputAgent::make(workflowId: 'output-recovery')->setMessageStore($messageStore);
         $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setAiProvider($provider);
         $first->addMiddleware(OutputNode::class, (new FakeMiddleware())->setThrowOnBefore(new RuntimeException('Output failed.')));
@@ -95,7 +97,7 @@ class AgentOutputTest extends TestCase
         $second = OutputAgent::make(workflowId: $first->getWorkflowId());
         $second->setAiProvider($provider);
         $second->setPersistence($first->getPersistence());
-        $second->setChatHistory($first->getChatHistory());
+        $second->setMessageStore($messageStore);
         $state = $second->run();
         $this->assertSame($firstRecord->context?->runId, $state->getRunId());
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());

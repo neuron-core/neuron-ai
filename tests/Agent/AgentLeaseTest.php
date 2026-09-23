@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -83,7 +83,7 @@ class AgentLeaseTest extends TestCase
 
         $agent = Agent::make();
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi!')));
-        $agent->setChatHistory(new InMemoryChatHistory());
+        $agent->setMessageStore(new InMemoryMessageStore());
         $agent->setPersistence($persistence);
 
         $before = time();

@@ -12,7 +12,8 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -34,7 +35,7 @@ class ToolNodeStreamingTest extends TestCase
 
         // Create the agent state with chat history
         // Add a user message and tool call message (required for valid message sequence)
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $chatHistory->addMessage(new \NeuronAI\Chat\Messages\UserMessage('Test user message'));
         $chatHistory->addMessage($toolCallMessage);
         $state = new AgentState();

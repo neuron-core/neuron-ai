@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\FileChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\FileMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -24,7 +25,7 @@ class FileChatHistoryTest extends TestCase
 {
     public function test_file_chat_history(): void
     {
-        $history = new FileChatHistory(__DIR__, 'test');
+        $history = new ChatHistory(new FileMessageStore(__DIR__), 'test');
         $this->assertFileDoesNotExist(__DIR__.DIRECTORY_SEPARATOR.'neuron_test.chat');
 
         $history->addMessage(new UserMessage('Hello!'));
@@ -47,7 +48,7 @@ class FileChatHistoryTest extends TestCase
         $directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'neuron_archive_' . uniqid();
         $file = $directory . DIRECTORY_SEPARATOR . 'neuron_archive.chat';
 
-        $history = new FileChatHistory($directory, 'archive', contextWindow: 100);
+        $history = new ChatHistory(new FileMessageStore($directory), 'archive', 100);
 
         for ($i = 1; $i <= 20; $i++) {
             $history->addMessage($i % 2 !== 0
@@ -65,7 +66,7 @@ class FileChatHistoryTest extends TestCase
         $this->assertSame('User message 1 with some text', $entries[0]['content'][0]['content']);
 
         // Only the unarchived entries are loaded back.
-        $reloaded = new FileChatHistory($directory, 'archive');
+        $reloaded = new ChatHistory(new FileMessageStore($directory), 'archive');
         $this->assertCount(count($active), $reloaded->getMessages());
         $this->assertSame($active[0]->getContent(), $reloaded->getMessages()[0]->getContent());
 

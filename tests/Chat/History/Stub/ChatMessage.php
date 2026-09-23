@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
  * Mock Eloquent Model for testing
  *
  * @property string $thread_id
+ * @property string $message_id
  * @property string $role
  * @property string $content
  * @property array $meta
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 class ChatMessage extends Model
 {
     protected $table = 'chat_messages';
-    protected $fillable = ['thread_id', 'role', 'content', 'meta'];
+    protected $fillable = ['thread_id', 'message_id', 'role', 'content', 'meta'];
     protected $casts = [
         'content' => 'array',
         'meta' => 'array',

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Conversation;
 
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -58,7 +58,7 @@ class Trajectory
         return new self(array_values($messages));
     }
 
-    public static function fromChatHistory(ChatHistoryInterface $chatHistory): self
+    public static function fromChatHistory(ChatHistory $chatHistory): self
     {
         return self::fromMessages($chatHistory->getMessages());
     }
@@ -305,17 +305,6 @@ class Trajectory
      */
     public function __unserialize(array $data): void
     {
-        $hydrator = new class () extends InMemoryChatHistory {
-            /**
-             * @param array<int, array<string, mixed>> $messages
-             * @return Message[]
-             */
-            public function hydrate(array $messages): array
-            {
-                return $this->deserializeMessages($messages);
-            }
-        };
-
-        $this->messages = $hydrator->hydrate($data['messages']);
+        $this->messages = array_map((new MessageDeserializer())->deserialize(...), $data['messages']);
     }
 }

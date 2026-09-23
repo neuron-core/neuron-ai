@@ -9,7 +9,8 @@ use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\ToolCall;
@@ -37,7 +38,7 @@ class AwaitToolResultsNodeTest extends TestCase
         );
         $memoizer = WorkflowTestStore::memoizer(new InMemoryPersistence(), 'timeout', 'await');
         $memoizer->memo('result.accepted', fn (): array => ['result' => 'already accepted']);
-        $node = new AwaitToolResultsNode(new InMemoryChatHistory());
+        $node = new AwaitToolResultsNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node->setWorkflowContext(new NodeContext($state, $event, timedOut: true, memoizer: $memoizer));
         $stream = $node($event, $state);
         $chunks = iterator_to_array($stream);
@@ -61,7 +62,7 @@ class AwaitToolResultsNodeTest extends TestCase
         $event = new AwaitToolResultsEvent([], [new ToolCall('browser', 'a', deferred: true)]);
         $memoizer = WorkflowTestStore::memoizer(new InMemoryPersistence(), 'recovery', 'await');
         $memoizer->memo('result.a', fn (): array => ['result' => 'accepted before crash']);
-        $node = new AwaitToolResultsNode(new InMemoryChatHistory());
+        $node = new AwaitToolResultsNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node->setWorkflowContext(new NodeContext($state, $event, memoizer: $memoizer));
         $stream = $node($event, $state);
         iterator_to_array($stream);

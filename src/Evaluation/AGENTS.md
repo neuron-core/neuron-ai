@@ -1,6 +1,6 @@
 # Evaluation Module
 
-Dataset-driven evaluation of agents and workflows, including multi-turn conversations with tool calls, human-in-the-loop approvals and simulated users. It types against the general contracts (`AgentInterface`, `ChatHistoryInterface`, `InterruptRequest`, `ToolCall`), so anything built on the framework is evaluable.
+Dataset-driven evaluation of agents and workflows, including multi-turn conversations with tool calls, human-in-the-loop approvals and simulated users. It types against the general framework types (`AgentInterface`, `ChatHistory`, `InterruptRequest`, `ToolCall`), so anything built on the framework is evaluable.
 
 ## Evaluator = template method
 

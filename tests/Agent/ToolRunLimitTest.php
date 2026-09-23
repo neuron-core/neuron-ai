@@ -11,7 +11,8 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -34,13 +35,13 @@ use function iterator_to_array;
 class ToolRunLimitTest extends TestCase
 {
     protected InMemoryPersistence $persistence;
-    protected InMemoryChatHistory $history;
+    protected InMemoryMessageStore $messages;
     protected FakeAIProvider $provider;
 
     protected function setUp(): void
     {
         $this->persistence = new InMemoryPersistence();
-        $this->history = new InMemoryChatHistory('tool-run-limit');
+        $this->messages = new InMemoryMessageStore();
         $this->provider = new FakeAIProvider();
         CountingTool::reset();
     }
@@ -50,7 +51,7 @@ class ToolRunLimitTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setPersistence($this->persistence);
-        $agent->setChatHistory($this->history);
+        $agent->setMessageStore($this->messages)->setThreadId('tool-run-limit');
         $agent->setAiProvider($this->provider);
         $agent->addTool($tools);
         $agent->toolMaxRuns($limit);
@@ -215,7 +216,7 @@ class ToolRunLimitTest extends TestCase
 
     protected function runNode(AgentState $state, ToolCallEvent $event, string $step, int $limit): void
     {
-        $node = new ToolNode($this->history, $limit);
+        $node = new ToolNode(new ChatHistory($this->messages, 'tool-run-limit'), $limit);
         $node->setWorkflowContext(new NodeContext(
             $state,
             $event,

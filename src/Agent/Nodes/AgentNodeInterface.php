@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Workflow\NodeInterface;
 
 /**
@@ -14,5 +14,5 @@ use NeuronAI\Workflow\NodeInterface;
  */
 interface AgentNodeInterface extends NodeInterface
 {
-    public function getChatHistory(): ChatHistoryInterface;
+    public function getChatHistory(): ChatHistory;
 }

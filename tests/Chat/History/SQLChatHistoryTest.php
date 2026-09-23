@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use NeuronAI\Tools\ToolCall;
 use PDO;
@@ -26,7 +25,7 @@ class SQLChatHistoryTest extends TestCase
 {
     use CheckOpenPort;
 
-    protected ChatHistoryInterface $history;
+    protected ChatHistory $history;
     protected PDO $pdo;
     protected string $threadId;
 
@@ -38,9 +37,11 @@ class SQLChatHistoryTest extends TestCase
 
         $this->pdo = new PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $this->pdo->exec("CREATE TABLE IF NOT EXISTS chat_messages (
+        $this->pdo->exec('DROP TABLE IF EXISTS chat_messages');
+        $this->pdo->exec("CREATE TABLE chat_messages (
           id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           thread_id VARCHAR(255) NOT NULL,
+          message_id VARCHAR(64) NOT NULL,
           role VARCHAR(32) NOT NULL,
           content LONGTEXT NULL,
           meta LONGTEXT NULL,
@@ -48,23 +49,18 @@ class SQLChatHistoryTest extends TestCase
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-          INDEX idx_thread_id (thread_id)
+          INDEX idx_thread_id (thread_id),
+          UNIQUE INDEX idx_thread_message (thread_id, message_id)
         );");
 
         $this->threadId = uniqid('test-thread-');
 
-        $this->history = new SQLChatHistory($this->pdo, $this->threadId);
+        $this->history = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
     }
 
     protected function tearDown(): void
     {
         $this->history->flushAll();
-    }
-
-    public function test_creates_chat_history_instance(): void
-    {
-        $this->assertInstanceOf(ChatHistoryInterface::class, $this->history);
-        $this->assertInstanceOf(SQLChatHistory::class, $this->history);
     }
 
     public function test_new_thread_has_no_rows_in_database(): void
@@ -101,7 +97,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new AssistantMessage('Second message'));
 
         // Create a new instance with the same thread_id
-        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
+        $newHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
 
         // Should load existing messages
         $messages = $newHistory->getMessages();
@@ -113,7 +109,7 @@ class SQLChatHistoryTest extends TestCase
     public function test_truncates_history_when_low_context_window_exceeded(): void
     {
         // Create history with small context window
-        $smallHistory = new SQLChatHistory(pdo: $this->pdo, threadId: $this->threadId, contextWindow: 100);
+        $smallHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId, 100);
 
         $this->addMessagesBeyondContextWindow($smallHistory);
 
@@ -133,13 +129,13 @@ class SQLChatHistoryTest extends TestCase
 
     public function test_loads_only_unarchived_messages(): void
     {
-        $smallHistory = new SQLChatHistory(pdo: $this->pdo, threadId: $this->threadId, contextWindow: 100);
+        $smallHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId, 100);
 
         $this->addMessagesBeyondContextWindow($smallHistory);
 
         $active = $smallHistory->getMessages();
 
-        $reloaded = new SQLChatHistory($this->pdo, $this->threadId);
+        $reloaded = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
         $messages = $reloaded->getMessages();
 
         $this->assertCount(count($active), $messages);
@@ -149,7 +145,7 @@ class SQLChatHistoryTest extends TestCase
     /**
      * Twenty alternating messages whose usage grows past a 100 tokens context window.
      */
-    protected function addMessagesBeyondContextWindow(SQLChatHistory $history): void
+    protected function addMessagesBeyondContextWindow(ChatHistory $history): void
     {
         for ($i = 1; $i <= 20; $i++) {
             $message = $i % 2 !== 0
@@ -218,7 +214,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new ToolResultMessage([$toolWithResult]));
 
         // Create new instance and verify tool messages are loaded correctly
-        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
+        $newHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(3, $messages);
@@ -241,7 +237,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage($message);
 
         // Load from database
-        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
+        $newHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(1, $messages);
@@ -258,7 +254,7 @@ class SQLChatHistoryTest extends TestCase
         $this->history->addMessage(new UserMessage('Hello'));
         $this->history->addMessage((new AssistantMessage('Hi!'))->setUsage(new Usage(100, 50)));
 
-        $newHistory = new SQLChatHistory($this->pdo, $this->threadId);
+        $newHistory = new ChatHistory(new SQLMessageStore($this->pdo), $this->threadId);
         $messages = $newHistory->getMessages();
 
         $this->assertCount(2, $messages);
@@ -268,21 +264,13 @@ class SQLChatHistoryTest extends TestCase
         $this->assertEquals(50, $usage->outputTokens);
     }
 
-    public function test_rejects_invalid_table_name(): void
-    {
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Table not allowed');
-
-        new SQLChatHistory($this->pdo, 'test-thread', table: 'nonexistent_table');
-    }
-
     public function test_multiple_threads_are_isolated(): void
     {
         $thread1 = 'thread-1-' . uniqid();
         $thread2 = 'thread-2-' . uniqid();
 
-        $history1 = new SQLChatHistory($this->pdo, $thread1);
-        $history2 = new SQLChatHistory($this->pdo, $thread2);
+        $history1 = new ChatHistory(new SQLMessageStore($this->pdo), $thread1);
+        $history2 = new ChatHistory(new SQLMessageStore($this->pdo), $thread2);
 
         $history1->addMessage(new UserMessage('Message in thread 1'));
         $history2->addMessage(new UserMessage('Message in thread 2'));
@@ -291,8 +279,8 @@ class SQLChatHistoryTest extends TestCase
         $this->assertCount(1, $history2->getMessages());
 
         // Reload and verify isolation
-        $reloaded1 = new SQLChatHistory($this->pdo, $thread1);
-        $reloaded2 = new SQLChatHistory($this->pdo, $thread2);
+        $reloaded1 = new ChatHistory(new SQLMessageStore($this->pdo), $thread1);
+        $reloaded2 = new ChatHistory(new SQLMessageStore($this->pdo), $thread2);
 
         $this->assertEquals('Message in thread 1', $reloaded1->getMessages()[0]->getContent());
         $this->assertEquals('Message in thread 2', $reloaded2->getMessages()[0]->getContent());

@@ -8,7 +8,8 @@ use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelAnotherTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelRegularTool;
 use NeuronAI\Workflow\NodeContext;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
@@ -31,7 +32,7 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('parallel_tool', 'call_2', ['key' => 'id=2']),
         ];
 
-        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
+        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
         $request = new InferenceRequest(instructions: 'Test', tools: $registry);
@@ -58,7 +59,7 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('another_tool', 'call_2', []),
         ];
 
-        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
+        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
         $request = new InferenceRequest(instructions: 'Test', tools: $registry);
@@ -83,7 +84,7 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('bounded_tool', 'call_2', ['key' => 'id=1']),
         ];
 
-        $toolNode = new ParallelToolNode(new InMemoryChatHistory(), maxRuns: 1);
+        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
         $request = new InferenceRequest(instructions: 'Test', tools: $registry);
@@ -125,7 +126,7 @@ class ParallelToolNodeTest extends TestCase
         $state->setExecutionMetadata($runId, $runId, 1);
 
         // Run 1: the batch executes and its result is memoized mid-node.
-        $node1 = new ParallelToolNode(new InMemoryChatHistory());
+        $node1 = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
         foreach ($node1($event, $state) as $_) {
             $_ = null; // This is to prevent rector from removing it.
@@ -138,7 +139,7 @@ class ParallelToolNodeTest extends TestCase
         $state->resetToolRuns();
         $state->request->tools = [];
         $node2 = new ParallelToolNode(
-            new InMemoryChatHistory(),
+            new ChatHistory(new InMemoryMessageStore(), 'thread'),
             beforeChild: static function (): void {
                 throw new RuntimeException('Child initialization must not repeat on recovery.');
             },

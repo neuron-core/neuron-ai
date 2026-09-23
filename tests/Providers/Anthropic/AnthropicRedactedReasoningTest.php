@@ -7,12 +7,12 @@ namespace NeuronAI\Tests\Providers\Anthropic;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\Anthropic\MessageMapper;
-use NeuronAI\Tests\Chat\History\Stub\TestableChatHistory;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -82,7 +82,7 @@ class AnthropicRedactedReasoningTest extends TestCase
         $mapper = new MessageMapper();
         $this->assertSame($contents, $mapper->map([$message])[0]['content']);
         $serialized = json_encode([$message], JSON_THROW_ON_ERROR);
-        $restored = (new TestableChatHistory())->publicDeserialize(json_decode($serialized, true, flags: JSON_THROW_ON_ERROR));
+        $restored = array_map((new MessageDeserializer())->deserialize(...), json_decode($serialized, true, flags: JSON_THROW_ON_ERROR));
         $this->assertSame($contents, $mapper->map($restored)[0]['content']);
     }
 

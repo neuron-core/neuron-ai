@@ -7,7 +7,8 @@ namespace NeuronAI\Tests\Agent\Nodes;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Agent\Nodes\Stub\TestToolWithRequiredInput;
 use NeuronAI\Workflow\NodeContext;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -31,7 +32,7 @@ class ToolNodeTest extends TestCase
     private function runNode(array $registry, array $calls, AgentState $state, ?callable $errorHandler = null, int $maxRuns = 10): void
     {
         $toolNode = new ToolNode(
-            new InMemoryChatHistory(),
+            new ChatHistory(new InMemoryMessageStore(), 'thread'),
             maxRuns: $maxRuns,
             errorHandler: $errorHandler
         );

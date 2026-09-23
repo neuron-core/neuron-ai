@@ -8,7 +8,8 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\InferenceNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -87,15 +88,17 @@ class ConversationIngestionNodeTest extends TestCase
     public function test_tool_approval_resume_ingests_once_and_excludes_tool_traffic(): void
     {
         $store = new FakeVectorStore();
+        $messages = new InMemoryMessageStore();
         $first = $this->agent($store, new FakeAIProvider(new ToolCallMessage(null, [
             new ToolCall('get_weather', 'call-1', ['location' => 'Rome']),
         ])));
+        $first->setMessageStore($messages);
         $first->addTool(GetWeatherTool::make()->requireApproval());
         $this->assertTrue($first->chat(new UserMessage('Weather?'))->isInterrupted());
         $store->assertNothingStored();
 
         $second = $this->agent($store, new FakeAIProvider(new AssistantMessage('Sunny.')));
-        $second->setPersistence($first->getPersistence())->setChatHistory($first->getChatHistory());
+        $second->setPersistence($first->getPersistence())->setMessageStore($messages);
         $second->addTool(GetWeatherTool::make()->requireApproval());
         $second->submitApprovalDecisions(['call-1' => 'approve'])->run();
         $store->assertDocumentCount(1);
@@ -108,7 +111,9 @@ class ConversationIngestionNodeTest extends TestCase
     {
         $store = new FakeVectorStore();
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
+        $messages = new InMemoryMessageStore();
         $first = $this->agent($store, $provider);
+        $first->setMessageStore($messages);
         $middleware = new FakeMiddleware();
         if ($boundary === 'before') {
             $middleware->setThrowOnBefore(new RuntimeException('Ingestion failed.'));
@@ -125,7 +130,7 @@ class ConversationIngestionNodeTest extends TestCase
         $store->assertDocumentCount($boundary === 'before' ? 0 : 1);
 
         $second = $this->agent($store, $provider);
-        $second->setPersistence($first->getPersistence())->setChatHistory($first->getChatHistory());
+        $second->setPersistence($first->getPersistence())->setMessageStore($messages);
         $this->assertSame(WorkflowStatus::Completed, $second->run()->getStatus());
         $provider->assertCallCount(1);
         $store->assertDocumentCount(1);
@@ -165,7 +170,7 @@ class ConversationIngestionNodeTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest('Instructions', messages: [new UserMessage($question)]);
         $state->setResponse(new ProviderResponse(new AssistantMessage($answer)));
-        $node = new ConversationIngestionNode($store, new FakeEmbeddingsProvider(), new InMemoryChatHistory('thread'));
+        $node = new ConversationIngestionNode($store, new FakeEmbeddingsProvider(), new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $node(new AgentOutputEvent(), $state);
         $store->assertNothingStored();
     }

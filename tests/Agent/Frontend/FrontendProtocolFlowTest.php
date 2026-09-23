@@ -10,7 +10,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Frontend\AGUIInputTranslator;
 use NeuronAI\Agent\Frontend\VercelAIInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -62,16 +62,16 @@ class FrontendProtocolFlowTest extends TestCase
     #[DataProvider('protocols')]
     public function test_approval_dispatch_and_result_round_trip(bool $agui, bool $approved): void
     {
-        $history = new InMemoryChatHistory('frontend-flow');
+        $messageStore = new InMemoryMessageStore();
         $persistence = new InMemoryPersistence();
         $provider = new FakeAIProvider();
         $provider->addResponses(
             new ToolCallMessage(null, [new ToolCall('browser', 'browser-call', deferred: true)]),
             new AssistantMessage('Finished'),
         );
-        $factory = static function () use ($history, $persistence, $provider): Agent {
-            $agent = Agent::make();
-            $agent->setChatHistory($history)->setPersistence($persistence)->setAiProvider($provider);
+        $factory = static function () use ($messageStore, $persistence, $provider): Agent {
+            $agent = Agent::make(workflowId: 'frontend-flow');
+            $agent->setMessageStore($messageStore)->setPersistence($persistence)->setAiProvider($provider);
             $agent->addTool((new FrontendTool('browser'))->requireApproval());
             return $agent;
         };

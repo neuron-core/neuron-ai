@@ -111,7 +111,7 @@ class ToolOutput implements JsonSerializable, Stringable
     /**
      * A plain output serializes as its block array — the pre-existing wire
      * shape. An error output wraps the blocks so the flag survives the chat
-     * history round-trip (see AbstractChatHistory::deserializeToolResult()).
+     * history round-trip (see MessageDeserializer::deserializeToolResult()).
      *
      * @return array<int|string, mixed>
      */

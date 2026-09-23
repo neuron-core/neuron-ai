@@ -62,7 +62,10 @@ class UserSimulator extends Agent
             throw new EvaluationException('The user simulator has no goal. Configure one with withGoal().');
         }
 
-        $this->getChatHistory()->flushAll();
+        // Before the first step the simulator has no conversation yet.
+        if ($this->getThreadId() !== null) {
+            $this->getChatHistory()->flushAll();
+        }
 
         /** @var SimulatorOutput $output */
         $output = $this->structured(new UserMessage($this->buildPrompt($soFar)), SimulatorOutput::class);

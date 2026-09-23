@@ -6,8 +6,7 @@ namespace NeuronAI\Tests\Agent;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
-use NeuronAI\Chat\History\InMemoryChatHistory;
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -19,11 +18,11 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Tests\Agent\Stub\ParityAdapter;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
-use PDO;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
@@ -37,17 +36,6 @@ use function iterator_to_array;
  */
 class AgentResumeTest extends TestCase
 {
-    protected function sqlite(): PDO
-    {
-        $pdo = new PDO('sqlite::memory:');
-        $pdo->exec('CREATE TABLE chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            thread_id TEXT, role TEXT, content TEXT, meta TEXT, archived_at TEXT
-        )');
-
-        return $pdo;
-    }
-
     public function test_streamed_approval_run_wakes_from_a_blank_factory(): void
     {
         $persistence = new InMemoryPersistence();
@@ -63,16 +51,15 @@ class AgentResumeTest extends TestCase
         );
         $provider1->setStreamChunkSize(5);
 
-        $agent1 = Agent::make();
+        $agent1 = Agent::make(workflowId: 'thread-1');
         $agent1Record = new \NeuronAI\Tests\Support\ExecutionRecorder($agent1);
         $agent1->setAiProvider($provider1)
             ->setInstructions('You are a search assistant.');
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
-        // Ignition: durable per-thread storage; the pre-bound history
-        // declares the thread identity.
-        $pdo = $this->sqlite();
-        $agent1->setChatHistory(new SQLChatHistory($pdo, 'thread-1'));
+        // Ignition: durable storage shared by both processes.
+        $messages = new SqliteMessageStore();
+        $agent1->setMessageStore($messages);
         $agent1->setChannel(new FakeChannel());
 
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
@@ -94,9 +81,7 @@ class AgentResumeTest extends TestCase
             ->setInstructions('You are a search assistant.');
         $agent2->addTool($wakeTool);
         $agent2->setPersistence($persistence);
-        // Unbound history: the threadId arrives from the ignition record and
-        // is bound by the framework before the history is touched.
-        $agent2->setChatHistory(new SQLChatHistory($pdo));
+        $agent2->setMessageStore($messages);
         $agent2->setChannel($channel);
         $agent2->setStreamAdapter(new ParityAdapter());
 
@@ -128,7 +113,7 @@ class AgentResumeTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $workflowId = 'wake_structured_e2e';
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
@@ -141,7 +126,7 @@ class AgentResumeTest extends TestCase
         ))->setInstructions('Extract the user.');
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
 
         // Eager structured() returns no output on suspension — the run paused.
         $output = $agent1->structured(new UserMessage('Who is the user?'), User::class);
@@ -155,7 +140,7 @@ class AgentResumeTest extends TestCase
             ->setInstructions('Extract the user.');
         $agent2->addTool($wakeTool);
         $agent2->setPersistence($persistence);
-        $agent2->setChatHistory($history);
+        $agent2->setMessageStore($messageStore);
 
         // Continuation is mode-agnostic: structured intent rides the ignition
         // record, and the output arrives through the state.
@@ -171,7 +156,7 @@ class AgentResumeTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $workflowId = 'wake_incomplete_e2e';
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
@@ -186,7 +171,7 @@ class AgentResumeTest extends TestCase
         ))->setInstructions('Search twice.');
         $agent1->addTool($searchTool);
         $agent1->setPersistence($persistence);
-        $agent1->setChatHistory($history);
+        $agent1->setMessageStore($messageStore);
 
         $state1 = $agent1->chat(new UserMessage('Run both searches'));
         $this->assertTrue($state1->isInterrupted());
@@ -205,7 +190,7 @@ class AgentResumeTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $workflowId = 'wake_rag_structured_e2e';
-        $history = new InMemoryChatHistory($workflowId);
+        $messageStore = new InMemoryMessageStore();
 
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
@@ -222,7 +207,7 @@ class AgentResumeTest extends TestCase
             new Document('Alice is the user in question.'),
         ]));
         $rag1->setPersistence($persistence);
-        $rag1->setChatHistory($history);
+        $rag1->setMessageStore($messageStore);
 
         // Structured intent must survive the retrieval boundary AND the suspend.
         $output = $rag1->structured(new UserMessage('Who is the user?'), User::class);
@@ -240,7 +225,7 @@ class AgentResumeTest extends TestCase
             new Document('Alice is the user in question.'),
         ]));
         $rag2->setPersistence($persistence);
-        $rag2->setChatHistory($history);
+        $rag2->setMessageStore($messageStore);
 
         $user = $rag2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->get('structured_output');
 
@@ -251,7 +236,7 @@ class AgentResumeTest extends TestCase
     public function test_resume_accepts_numeric_tool_call_ids(): void
     {
         $persistence = new InMemoryPersistence();
-        $history = new InMemoryChatHistory('numeric-call-id');
+        $messageStore = new InMemoryMessageStore();
         $searchTool = new SearchTool();
         $searchTool->requireApproval();
 
@@ -264,7 +249,7 @@ class AgentResumeTest extends TestCase
         ))->setInstructions('Search once.');
         $agent->addTool($searchTool);
         $agent->setPersistence($persistence);
-        $agent->setChatHistory($history);
+        $agent->setMessageStore($messageStore);
 
         $suspended = $agent->chat(new UserMessage('Search'));
         $this->assertTrue($suspended->isInterrupted());

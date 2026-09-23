@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Tests\Chat\History\Stub\TestableChatHistory;
+use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
@@ -27,8 +27,7 @@ class ApprovalSerializationTest extends TestCase
 
         $message = new ToolCallMessage(tools: [$pending, $rejected]);
 
-        $history = new TestableChatHistory();
-        $restored = $history->publicDeserialize([$message->jsonSerialize()]);
+        $restored = [(new MessageDeserializer())->deserialize($message->jsonSerialize())];
 
         $this->assertCount(1, $restored);
         $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
@@ -64,7 +63,7 @@ class ApprovalSerializationTest extends TestCase
             ],
         ];
 
-        $restored = (new TestableChatHistory())->publicDeserialize([$legacyMessage]);
+        $restored = [(new MessageDeserializer())->deserialize($legacyMessage)];
 
         $this->assertCount(1, $restored);
         $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);

@@ -10,7 +10,8 @@ use NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
@@ -21,7 +22,7 @@ class AgentMiddlewareTest extends TestCase
     public function test_typed_hooks_fire_in_agent_context(): void
     {
         $middleware = new RecordingAgentMiddleware();
-        $node = new ToolNode(new InMemoryChatHistory());
+        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $state = new AgentState();
         $state->request = new InferenceRequest('instructions', []);
         $event = new AIInferenceEvent();
@@ -41,7 +42,7 @@ class AgentMiddlewareTest extends TestCase
         // Non-agent node.
         $middleware->before(new PlainWorkflowNode(), new StartEvent(), new AgentState());
         // Agent node with a plain workflow state.
-        $middleware->before(new ToolNode(new InMemoryChatHistory()), new StartEvent(), new WorkflowState());
+        $middleware->before(new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread')), new StartEvent(), new WorkflowState());
 
         $this->assertSame(0, $middleware->agentCalls);
         $this->assertSame(2, $middleware->mismatchCalls);

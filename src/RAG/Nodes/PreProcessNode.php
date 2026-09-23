@@ -11,7 +11,7 @@ use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -34,7 +34,7 @@ class PreProcessNode extends Node implements AgentNodeInterface
      * @param ToolInterface[] $tools
      */
     public function __construct(
-        ChatHistoryInterface $chatHistory,
+        ChatHistory $chatHistory,
         protected array $preProcessors,
         protected SystemMessage $instructions,
         protected array $tools,

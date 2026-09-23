@@ -11,7 +11,8 @@ use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tests\Support\WorkflowTestStore;
@@ -89,11 +90,11 @@ class ToolApprovalFlowTest extends TestCase
     /**
      * @param ToolInterface[] $registry
      */
-    private function node(array $registry, ?InMemoryChatHistory $history = null): ToolNode
+    private function node(array $registry, ?ChatHistory $history = null): ToolNode
     {
         $this->registry = $registry;
 
-        return new ToolNode($history ?? new InMemoryChatHistory());
+        return new ToolNode($history ?? new ChatHistory(new InMemoryMessageStore(), 'thread'));
     }
 
     /**
@@ -621,7 +622,7 @@ class ToolApprovalFlowTest extends TestCase
     {
         $store = $this->stepStore();
         $memoizer = WorkflowTestStore::memoizer($store, 'approval_flow_test', 'ToolNode-1');
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')], $history);
         $state = new AgentState();
 
@@ -663,7 +664,7 @@ class ToolApprovalFlowTest extends TestCase
         // pre-suspend write is scoped per step, so each cycle records its own
         // ToolCallMessage (the non-gated path writes nothing here at all).
         $store = $this->stepStore();
-        $history = new InMemoryChatHistory();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $node = $this->node([$this->gatedTool('first'), $this->gatedTool('second')], $history);
         $state = new AgentState();
 

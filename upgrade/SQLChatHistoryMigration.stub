@@ -53,8 +53,17 @@ class SQLChatHistoryMigration
                     continue;
                 }
 
+                $stored = [];
                 foreach ($messages as $message) {
+                    $message['__id'] ??= \NeuronAI\UniqueIdGenerator::generateId('msg_');
+
+                    // A message recorded twice in the legacy thread is written once.
+                    if (isset($stored[$message['__id']])) {
+                        continue;
+                    }
+
                     $this->insertMessage((string) $thread['thread_id'], $message);
+                    $stored[$message['__id']] = true;
                     $migrated++;
                 }
             }
@@ -87,10 +96,11 @@ class SQLChatHistoryMigration
         unset($message['role'], $message['content']);
 
         $stmt = $this->pdo->prepare(
-            "INSERT INTO {$this->to} (thread_id, role, content, meta) VALUES (:thread_id, :role, :content, :meta)"
+            "INSERT INTO {$this->to} (thread_id, message_id, role, content, meta) VALUES (:thread_id, :message_id, :role, :content, :meta)"
         );
         $stmt->execute([
             'thread_id' => $threadId,
+            'message_id' => $message['__id'],
             'role' => $role,
             'content' => $content !== null ? \json_encode($content) : null,
             'meta' => $message === [] ? null : \json_encode($message),

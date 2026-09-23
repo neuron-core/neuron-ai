@@ -17,12 +17,12 @@ use NeuronAI\Agent\Nodes\ParallelToolNode;
 use NeuronAI\Agent\Nodes\AgentStartNode;
 use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
+use NeuronAI\Chat\History\MessageStoreInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\Action;
@@ -55,8 +55,9 @@ class Agent extends Workflow implements AgentInterface
     use HandleTools;
     use HandleInstructions;
 
-    protected ?ChatHistoryInterface $chatHistory = null;
-    protected ?InMemoryChatHistory $defaultHistory = null;
+    protected ?MessageStoreInterface $messageStore = null;
+
+    protected ?int $contextWindow = null;
 
     protected bool $parallelToolCalls = false;
 
@@ -103,47 +104,53 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @throws ChatHistoryException
+     * The default keeps conversations in process memory, for as long as this Agent lives.
      */
-    protected function chatHistory(string $threadId): ChatHistoryInterface
+    protected function messageStore(): MessageStoreInterface
     {
-        return $this->defaultHistory ??= new InMemoryChatHistory($threadId);
+        return new InMemoryMessageStore();
     }
 
-    /**
-     * A pre-bound history can identify an unbound Agent. Once bound, the
-     * Agent and its history must refer to the same conversation.
-     */
-    public function setChatHistory(ChatHistoryInterface $chatHistory): self
+    public function setMessageStore(MessageStoreInterface $store): self
     {
-        $threadId = $this->getThreadId();
-        $historyThreadId = $chatHistory->getThreadId();
-        if ($threadId !== null && $historyThreadId !== null && $threadId !== $historyThreadId) {
-            throw new AgentException('Chat history conflicts with the configured conversation.');
-        }
-        if ($historyThreadId !== null) {
-            $this->setThreadId($historyThreadId);
-        } elseif ($threadId !== null) {
-            $chatHistory->setThreadId($threadId);
-        }
-        $this->chatHistory = $chatHistory;
+        $this->messageStore = $store;
         return $this;
     }
 
-    public function getChatHistory(): ChatHistoryInterface
+    protected function resolveMessageStore(): MessageStoreInterface
     {
-        $threadId = $this->getThreadId() ?? throw new AgentException(
-            'Chat history requires a conversation identity: call setThreadId() or execute the Agent first.'
+        return $this->messageStore ??= $this->messageStore();
+    }
+
+    /**
+     * The token budget of the conversation sent to the model: size it to the
+     * provider's model. An explicit setContextWindow() wins over this hook.
+     */
+    protected function contextWindow(): int
+    {
+        return ChatHistory::DEFAULT_CONTEXT_WINDOW;
+    }
+
+    public function setContextWindow(int $tokens): self
+    {
+        $this->contextWindow = $tokens;
+        return $this;
+    }
+
+    /**
+     * A fresh view of the conversation on every call: every execution segment
+     * opens its own. Nodes and middleware read the history of the node they wrap;
+     * writing through this view while an execution is running is unsupported.
+     */
+    final public function getChatHistory(): ChatHistory
+    {
+        return new ChatHistory(
+            $this->resolveMessageStore(),
+            $this->getThreadId() ?? throw new AgentException(
+                'Chat history requires a conversation identity: call setThreadId() or execute the Agent first.'
+            ),
+            $this->contextWindow ?? $this->contextWindow()
         );
-        $history = $this->chatHistory ?? $this->chatHistory($threadId);
-        $historyThreadId = $history->getThreadId();
-        if ($historyThreadId !== null && $historyThreadId !== $threadId) {
-            throw new AgentException('Chat history conflicts with the configured conversation.');
-        }
-        if ($historyThreadId === null) {
-            $history->setThreadId($threadId);
-        }
-        return $history;
     }
 
     protected function execution(ExecutionContext $context): WorkflowExecution
@@ -288,19 +295,6 @@ class Agent extends Workflow implements AgentInterface
     public function setThreadId(string $threadId): static
     {
         return $this->setWorkflowId($threadId);
-    }
-
-    public function setWorkflowId(string $workflowId): static
-    {
-        $historyThreadId = $this->chatHistory?->getThreadId();
-        if ($historyThreadId !== null && $historyThreadId !== $workflowId) {
-            throw new AgentException('Chat history conflicts with the configured conversation.');
-        }
-        parent::setWorkflowId($workflowId);
-        if ($this->chatHistory !== null && $historyThreadId === null) {
-            $this->chatHistory->setThreadId($workflowId);
-        }
-        return $this;
     }
 
     protected function startEvent(): AgentStartEvent

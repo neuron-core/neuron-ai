@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\WorkflowExecution;
@@ -38,7 +38,7 @@ class AgentExecution extends WorkflowExecution
         array $middleware,
         array $globalMiddleware,
         protected AIProviderInterface $provider,
-        protected ChatHistoryInterface $history,
+        protected ChatHistory $history,
         protected SystemMessage $instructions,
         protected array $configuredTools,
     ) {
@@ -52,7 +52,7 @@ class AgentExecution extends WorkflowExecution
         return $this->provider;
     }
 
-    public function getChatHistory(): ChatHistoryInterface
+    public function getChatHistory(): ChatHistory
     {
         return $this->history;
     }

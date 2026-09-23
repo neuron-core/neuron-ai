@@ -7,7 +7,8 @@ namespace NeuronAI\Tests\Agent\Nodes;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\ChatNode;
@@ -27,7 +28,7 @@ class ChatNodeStreamingTest extends TestCase
     #[TestWith([true])]
     public function test_live_inference_yields_chunks_only_when_streaming_and_records_response(bool $stream): void
     {
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
         $provider->setStreamChunkSize(5);
 
@@ -71,7 +72,7 @@ class ChatNodeStreamingTest extends TestCase
     #[TestWith([true, true])]
     public function test_recovery_serves_cached_response_across_transports(bool $stream, bool $replayStream): void
     {
-        $chatHistory = new InMemoryChatHistory();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         // A provider stream is non-resumable, so only the terminal response is
         // durable. After a crash between the memoize() commit and the node-step
         // commit, re-running the node on a fresh engine (same persistence) must

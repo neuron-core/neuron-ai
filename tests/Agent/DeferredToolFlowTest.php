@@ -9,7 +9,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
@@ -37,13 +37,13 @@ use function iterator_to_array;
 
 class DeferredToolFlowTest extends TestCase
 {
-    protected InMemoryChatHistory $history;
+    protected InMemoryMessageStore $messages;
     protected InMemoryPersistence $persistence;
     protected FakeAIProvider $provider;
 
     protected function setUp(): void
     {
-        $this->history = new InMemoryChatHistory('deferred-thread');
+        $this->messages = new InMemoryMessageStore();
         $this->persistence = new InMemoryPersistence();
         $this->provider = new FakeAIProvider();
         CountingTool::reset();
@@ -53,7 +53,7 @@ class DeferredToolFlowTest extends TestCase
     protected function agent(array $tools = [], bool $parallel = false): Agent
     {
         $agent = Agent::make();
-        $agent->setChatHistory($this->history);
+        $agent->setMessageStore($this->messages)->setThreadId('deferred-thread');
         $agent->setPersistence($this->persistence);
         $agent->setAiProvider($this->provider);
         $agent->addTool($tools);
@@ -64,7 +64,7 @@ class DeferredToolFlowTest extends TestCase
     /** @return ToolCall[] */
     protected function completedCalls(): array
     {
-        $result = $this->history->getMessages()[2];
+        $result = $this->messages->loadActive('deferred-thread')[2];
         $this->assertInstanceOf(ToolResultMessage::class, $result);
         return $result->getToolCalls();
     }
@@ -85,7 +85,7 @@ class DeferredToolFlowTest extends TestCase
         $this->assertSame('external', $request->getToolCalls()[0]->getCallId());
         $this->assertSame(['selector' => '#title'], $request->jsonSerialize()['toolCalls'][0]['inputs']);
         $this->assertSame(1, CountingTool::$executions);
-        $this->assertCount(2, $this->history->getMessages());
+        $this->assertCount(2, $this->messages->loadActive('deferred-thread'));
 
         $invocationAgent = $this->agent();
         $state = $invocationAgent->submitInputs(['external' => ['result' => ['text' => 'Hello']]], new ToolResultsTranslator())->run();
@@ -93,7 +93,7 @@ class DeferredToolFlowTest extends TestCase
         $this->assertSame('Done', $state->getMessage()->getContent());
         $this->assertSame(1, CountingTool::$executions);
         $this->assertSame(2, $this->provider->getCallCount());
-        $this->assertCount(4, $this->history->getMessages());
+        $this->assertCount(4, $this->messages->loadActive('deferred-thread'));
         $calls = $this->completedCalls();
         $this->assertSame(['external', 'local'], array_map(fn (ToolCall $call): ?string => $call->getCallId(), $calls));
         $this->assertSame('{"text":"Hello"}', $calls[0]->getResult());
@@ -186,12 +186,12 @@ class DeferredToolFlowTest extends TestCase
         $this->assertCount(1, $request->getToolCalls());
         $this->assertSame('allowed', $request->getToolCalls()[0]->getCallId());
         $this->assertSame(1, CountingTool::$executions);
-        $this->assertCount(2, $this->history->getMessages());
+        $this->assertCount(2, $this->messages->loadActive('deferred-thread'));
 
         $invocationAgent = $this->agent();
         $invocationAgent->submitInputs(['allowed' => ['result' => 'ok']], new ToolResultsTranslator())->run();
         $this->assertSame(1, CountingTool::$executions);
-        $this->assertCount(4, $this->history->getMessages());
+        $this->assertCount(4, $this->messages->loadActive('deferred-thread'));
         $this->assertStringContainsString('user rejected', $this->completedCalls()[1]->getResult());
     }
 

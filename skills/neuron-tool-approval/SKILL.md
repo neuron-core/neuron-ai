@@ -22,14 +22,14 @@ Two facts shape the UI:
 
 ## Enabling Approval
 
-Two requirements for cross-process flows: **workflow persistence** (the suspension/continuation machinery) and a **durable chat history** (the record itself — `InMemoryChatHistory` keeps the safety property but loses the thread across processes).
+Two requirements for cross-process flows: **workflow persistence** (the suspension/continuation machinery) and a **durable message store** (the record itself — `InMemoryMessageStore` keeps the safety property but loses the thread across processes).
 
 ```php
-use NeuronAI\Chat\History\SQLChatHistory;
+use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 
 $agent = MyAgent::make(workflowId: $threadId)
-    ->setChatHistory(new SQLChatHistory($pdo))       // identity-free: the framework binds the thread
+    ->setMessageStore(new SQLMessageStore($pdo))
     ->setPersistence(new DatabasePersistence($pdo));
 ```
 

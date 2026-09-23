@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Chat\History;
 
 use NeuronAI\Chat\Enums\SourceType;
-use NeuronAI\Chat\History\FileChatHistory;
+use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\FileMessageStore;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -67,13 +68,13 @@ class MultimodalToolResultHistoryTest extends TestCase
                 new ImageContent('base64data', SourceType::BASE64, 'image/png'),
             ]));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $history->addMessage(new UserMessage('Show me the AAPL chart'));
         $history->addMessage(new ToolCallMessage(null, [$callTool]));
         $history->addMessage(new ToolResultMessage([$resultTool]));
 
         // Reload from disk with a fresh instance (simulates a new process).
-        $reloaded = new FileChatHistory($this->testDir, $key);
+        $reloaded = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $reloaded->getMessages();
 
         $this->assertCount(3, $messages);
@@ -105,12 +106,12 @@ class MultimodalToolResultHistoryTest extends TestCase
             ->setInputs([])
             ->setResult(ToolOutput::error('SMTP connection refused'));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $history->addMessage(new UserMessage('Send the report'));
         $history->addMessage(new ToolCallMessage(null, [$callTool]));
         $history->addMessage(new ToolResultMessage([$resultTool]));
 
-        $reloaded = new FileChatHistory($this->testDir, $key);
+        $reloaded = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $reloaded->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
@@ -133,12 +134,12 @@ class MultimodalToolResultHistoryTest extends TestCase
             ->setInputs([])
             ->setResult('42.5');
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $history->addMessage(new UserMessage('What is the price?'));
         $history->addMessage(new ToolCallMessage(null, [$callTool]));
         $history->addMessage(new ToolResultMessage([$resultTool]));
 
-        $reloaded = new FileChatHistory($this->testDir, $key);
+        $reloaded = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $reloaded->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
@@ -188,7 +189,7 @@ class MultimodalToolResultHistoryTest extends TestCase
             ],
         ]));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $history->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
@@ -208,11 +209,11 @@ class MultimodalToolResultHistoryTest extends TestCase
             ->setInputs([])
             ->setResult(new ToolOutput([]));
 
-        $history = new FileChatHistory($this->testDir, $key);
+        $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $history->addMessage(new ToolCallMessage(null, [$callTool]));
         $history->addMessage(new ToolResultMessage([$resultTool]));
 
-        $reloaded = new FileChatHistory($this->testDir, $key);
+        $reloaded = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $reloaded->getMessages();
 
         $this->assertInstanceOf(ToolResultMessage::class, $messages[1]);

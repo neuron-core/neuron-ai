@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\ChatHistoryHelper;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Providers\AIProviderInterface;
@@ -24,7 +24,7 @@ abstract class InferenceNode extends Node implements AgentNodeInterface
 
     public function __construct(
         protected AIProviderInterface $provider,
-        protected ChatHistoryInterface $chatHistory,
+        protected ChatHistory $chatHistory,
     ) {
     }
 

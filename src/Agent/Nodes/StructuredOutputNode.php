@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -52,7 +52,7 @@ class StructuredOutputNode extends InferenceNode
 {
     public function __construct(
         AIProviderInterface $provider,
-        ChatHistoryInterface $chatHistory,
+        ChatHistory $chatHistory,
         protected JsonExtractor $extractor = new JsonExtractor(),
     ) {
         parent::__construct($provider, $chatHistory);

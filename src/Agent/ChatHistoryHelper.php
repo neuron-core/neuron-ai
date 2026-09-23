@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\Events\MessageSaved;
 use NeuronAI\Observability\Events\MessageSaving;
@@ -20,9 +20,9 @@ use function is_array;
  */
 trait ChatHistoryHelper
 {
-    protected ChatHistoryInterface $chatHistory;
+    protected ChatHistory $chatHistory;
 
-    public function getChatHistory(): ChatHistoryInterface
+    public function getChatHistory(): ChatHistory
     {
         return $this->chatHistory;
     }

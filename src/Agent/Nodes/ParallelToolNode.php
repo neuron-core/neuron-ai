@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
-use NeuronAI\Chat\History\ChatHistoryInterface;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\ToolException;
@@ -39,7 +39,7 @@ class ParallelToolNode extends ToolNode
     protected ?Closure $afterChild;
 
     public function __construct(
-        ChatHistoryInterface $chatHistory,
+        ChatHistory $chatHistory,
         int $maxRuns = 10,
         ?callable $errorHandler = null,
         ?callable $beforeChild = null,

@@ -9,7 +9,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronAI\Chat\History\InMemoryChatHistory;
+use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -30,9 +30,9 @@ class AgentManagedExecutionTest extends TestCase
     public function test_explicit_address_resolves_thread_without_constructing_services(): void
     {
         $agent = new class (workflowId: 'thread') extends Agent {
-            protected function chatHistory(string $threadId): \NeuronAI\Chat\History\ChatHistoryInterface
+            protected function messageStore(): \NeuronAI\Chat\History\MessageStoreInterface
             {
-                throw new LogicException('History must remain lazy.');
+                throw new LogicException('The message store must remain lazy.');
             }
         };
         self::assertSame('thread', $agent->getWorkflowId());
@@ -43,12 +43,12 @@ class AgentManagedExecutionTest extends TestCase
     public function test_inert_stream_start_and_new_turn_use_reserved_generations_and_one_history(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('First answer'), new AssistantMessage('Second answer'));
-        $history = new InMemoryChatHistory('thread');
+        $messageStore = new InMemoryMessageStore();
         $store = new InMemoryPersistence();
         $channel = new FakeChannel();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
-            ->setAiProvider($provider)->setChatHistory($history)->setStreamAdapter(new AgentChunkAdapter())->setChannel($channel);
+            ->setAiProvider($provider)->setMessageStore($messageStore)->setStreamAdapter(new AgentChunkAdapter())->setChannel($channel);
         $first = $make();
         $request = ExecutionRequest::start(new AgentStartEvent([new UserMessage('One')], new AgentRunOptions(stream: true)), 'first', 'delivery-one');
         $provider->assertCallCount(0);
@@ -62,7 +62,7 @@ class AgentManagedExecutionTest extends TestCase
         $second = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Two')]), 'second', idempotencyKey: 'delivery-two'));
         self::assertSame('second', $second->getRunId());
         self::assertFalse($second->request->options->stream);
-        self::assertCount(4, $history->getMessages());
+        self::assertCount(4, $messageStore->loadActive('thread'));
         $provider->assertCallCount(2);
     }
 
@@ -74,11 +74,11 @@ class AgentManagedExecutionTest extends TestCase
             new AssistantMessage('Done'),
         );
         $store = new InMemoryPersistence();
-        $history = new InMemoryChatHistory('thread');
+        $messageStore = new InMemoryMessageStore();
         $channel = new FakeChannel();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
-            ->setAiProvider($provider)->setTools([$tool])->setChatHistory($history)->setChannel($channel)
+            ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel($channel)
             ->setStreamAdapter(function (\NeuronAI\Workflow\ExecutionContext $context): AgentChunkAdapter {
                 self::assertSame('reserved', $context->runId);
                 self::assertSame('Question', $context->startEvent()->messages[0]->getContent());
@@ -95,13 +95,14 @@ class AgentManagedExecutionTest extends TestCase
         $provider->assertCallCount(2);
     }
 
-    public function test_output_setup_can_replace_same_thread_history_without_redirecting_the_active_run(): void
+    public function test_output_setup_can_replace_the_message_store_without_redirecting_the_active_run(): void
     {
-        $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
-        $originalHistory = $agent->getChatHistory();
-        $nextHistory = new InMemoryChatHistory('thread');
-        $agent->setStreamAdapter(function () use ($agent, $nextHistory): AgentChunkAdapter {
-            $agent->setChatHistory($nextHistory);
+        $original = new InMemoryMessageStore();
+        $next = new InMemoryMessageStore();
+        $agent = Agent::make(workflowId: 'thread')->setMessageStore($original)
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
+        $agent->setStreamAdapter(function () use ($agent, $next): AgentChunkAdapter {
+            $agent->setMessageStore($next);
             return new AgentChunkAdapter();
         });
 
@@ -111,8 +112,8 @@ class AgentManagedExecutionTest extends TestCase
         self::assertSame('thread', $state->getWorkflowId());
         self::assertSame('reserved', $state->getRunId());
         self::assertSame('thread', $agent->getWorkflowId());
-        self::assertCount(2, $originalHistory->getMessages());
-        self::assertSame([], $nextHistory->getMessages());
+        self::assertCount(2, $original->loadActive('thread'));
+        self::assertSame([], $next->loadAll('thread'));
     }
 
     public function test_runtime_setup_cannot_mutate_persisted_inference_intent(): void
@@ -156,16 +157,16 @@ class AgentManagedExecutionTest extends TestCase
     public function test_two_lazy_stream_requests_keep_their_own_messages(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('One answer'), new AssistantMessage('Two answer'));
-        $history = new InMemoryChatHistory('thread');
-        $agent = Agent::make(workflowId: 'thread')->setAiProvider($provider)->setChatHistory($history);
+        $messageStore = new InMemoryMessageStore();
+        $agent = Agent::make(workflowId: 'thread')->setAiProvider($provider)->setMessageStore($messageStore);
         $first = $agent->stream(new UserMessage('One'));
         $second = $agent->stream(new UserMessage('Two'));
         $provider->assertCallCount(0);
         iterator_to_array($first);
-        self::assertSame('One', $history->getMessages()[0]->getContent());
+        self::assertSame('One', $messageStore->loadActive('thread')[0]->getContent());
         $firstRunId = $first->getReturn()->getRunId();
         iterator_to_array($second);
-        self::assertSame('Two', $history->getMessages()[2]->getContent());
+        self::assertSame('Two', $messageStore->loadActive('thread')[2]->getContent());
         self::assertNotSame($firstRunId, $second->getReturn()->getRunId());
     }
 

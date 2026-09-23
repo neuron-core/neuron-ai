@@ -59,6 +59,22 @@ class Message implements JsonSerializable
         );
     }
 
+    public function getId(): string
+    {
+        return $this->meta['__id'];
+    }
+
+    /**
+     * The identity lives in the metadata, so a replacement without one keeps it.
+     *
+     * @param array<string, mixed> $meta
+     */
+    public function setMetadata(array $meta): self
+    {
+        $this->meta = ['__id' => $this->getId(), ...$meta];
+        return $this;
+    }
+
     public function getRole(): string
     {
         return $this->role->value;
