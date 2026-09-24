@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
@@ -52,7 +51,7 @@ trait HandleTools
      */
     protected function resolveToolErrorHandler(): ?callable
     {
-        return $this->toolErrorHandler;
+        return null;
     }
 
     public function toolMaxRuns(int $num): Agent
@@ -66,7 +65,7 @@ trait HandleTools
      *
      * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
-    protected function tools(ExecutionContext $context): array
+    protected function tools(): array
     {
         return [];
     }
@@ -74,9 +73,9 @@ trait HandleTools
     /**
      * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
-    public function getTools(ExecutionContext $context): array
+    public function getTools(): array
     {
-        return $this->toolsOverridden ? $this->tools : array_merge($this->tools, $this->tools($context));
+        return $this->toolsOverridden ? $this->tools : array_merge($this->tools, $this->tools());
     }
 
     /**

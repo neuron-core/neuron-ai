@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Chat\Messages\SystemMessage;
 
 use function is_string;
@@ -13,7 +12,7 @@ trait HandleInstructions
 {
     protected SystemMessage $instructions;
 
-    protected function instructions(ExecutionContext $context): SystemMessage|string
+    protected function instructions(): SystemMessage|string
     {
         return new SystemMessage(
             'Your are a helpful and friendly AI agent built with Neuron AI - the first agentic framework for the PHP ecosystem.'
@@ -26,9 +25,9 @@ trait HandleInstructions
         return $this;
     }
 
-    final public function getInstructions(ExecutionContext $context): SystemMessage
+    final public function getInstructions(): SystemMessage
     {
-        $instructions = $this->instructions ?? $this->instructions($context);
+        $instructions = $this->instructions ?? $this->instructions();
         return is_string($instructions) ? new SystemMessage($instructions) : $instructions;
     }
 

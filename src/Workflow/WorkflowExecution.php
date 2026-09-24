@@ -107,12 +107,12 @@ class WorkflowExecution implements WorkflowRuntimeInterface
 
     public function restoreEvent(Event $event): Event
     {
-        return $this->definition->restoreEvent($event, $this->context);
+        return $this->definition->restoreEvent($event);
     }
 
     public function restoreState(WorkflowState $state): WorkflowState
     {
-        return $this->definition->restoreState($state, $this->context);
+        return $this->definition->restoreState($state);
     }
 
     protected function getStreamAdapter(): ?StreamAdapterInterface

@@ -38,7 +38,7 @@ class AgentInstructionsTest extends TestCase
 {
     public function test_default_instructions_are_not_cached(): void
     {
-        $blocks = ($agent = Agent::make())->getInstructions(ExecutionTestFactory::context($agent))->getTextBlocks();
+        $blocks = ($agent = Agent::make())->getInstructions()->getTextBlocks();
 
         $this->assertCount(1, $blocks);
         $this->assertInstanceOf(SystemContent::class, $blocks[0]);

@@ -10,7 +10,7 @@ Model Context Protocol connector. An MCP server's tools become ordinary Neuron t
 - The connector serializes to its config and filters only; the client, transport and HTTP client are dropped and rebuilt lazily on first use after unserialize. `with()` callbacks are not serialized either: their effect already lives on the tools they configured.
 
 ```php
-protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+protected function tools(): array
 {
     return [
         ...McpConnector::make(['command' => 'php', 'args' => ['/path/to/mcp_server.php']])->tools(),

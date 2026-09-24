@@ -80,7 +80,6 @@ class AgentExecution extends WorkflowExecution
     /** @return array<ToolInterface|ProviderToolInterface> */
     protected function resolveTools(): array
     {
-
         $guidelines = [];
 
         foreach ($this->configuredTools as $tool) {

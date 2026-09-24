@@ -213,6 +213,41 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame('Updated handler', $secondCall->getResult());
     }
 
+    public function test_configured_tool_error_handler_wins_over_the_declared_one(): void
+    {
+        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'test']);
+        $agent = new class () extends Agent {
+            protected function resolveToolErrorHandler(): callable
+            {
+                return static fn (Throwable $error, ToolCall $tool): string => 'Declared handler';
+            }
+        };
+        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
+            ->addTool(new AgentFailingTool());
+        $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Configured handler');
+
+        $agent->chat(new UserMessage('Use the tool'));
+
+        $this->assertSame('Configured handler', $call->getResult());
+    }
+
+    public function test_declared_tool_error_handler_applies_without_a_configured_one(): void
+    {
+        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'test']);
+        $agent = new class () extends Agent {
+            protected function resolveToolErrorHandler(): callable
+            {
+                return static fn (Throwable $error, ToolCall $tool): string => 'Declared handler';
+            }
+        };
+        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
+            ->addTool(new AgentFailingTool());
+
+        $agent->chat(new UserMessage('Use the tool'));
+
+        $this->assertSame('Declared handler', $call->getResult());
+    }
+
     public function test_parallel_tool_configuration_changes_preserve_added_nodes(): void
     {
         $node = new FirstNode();

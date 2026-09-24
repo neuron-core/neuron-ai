@@ -21,6 +21,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\Workflow\Node;
 
 use function array_chunk;
+use function get_debug_type;
 
 /**
  * @method static static make(?string $workflowId = null, ?WorkflowState $state = null)
@@ -32,14 +33,14 @@ class RAG extends Agent
     use ResolveRetrieval;
 
     /**
-     * @var PreProcessorInterface[]
+     * @var PreProcessorInterface[]|null
      */
-    protected array $preProcessors = [];
+    protected ?array $preProcessors = null;
 
     /**
-     * @var PostProcessorInterface[]
+     * @var PostProcessorInterface[]|null
      */
-    protected array $postProcessors = [];
+    protected ?array $postProcessors = null;
 
     /**
      * The retrieval chain replaces the Agent's StartNode as the entry chain:
@@ -55,12 +56,12 @@ class RAG extends Agent
         return [
             new PreProcessNode(
                 $execution->getChatHistory(),
-                $this->preProcessors(),
+                $this->preProcessors ?? $this->preProcessors(),
                 $execution->getInstructions(),
                 $tools,
             ),
             new RetrievalNode($this->resolveRetrieval(), $this->resolveRetrievalScope()),
-            new PostProcessNode($this->postProcessors()),
+            new PostProcessNode($this->postProcessors ?? $this->postProcessors()),
             new InstructionsNode(),
         ];
     }
@@ -125,11 +126,11 @@ class RAG extends Agent
     {
         foreach ($preProcessors as $processor) {
             if (! $processor instanceof PreProcessorInterface) {
-                throw new AgentException($processor::class." must implement ".PreProcessorInterface::class);
+                throw new AgentException(get_debug_type($processor)." must implement ".PreProcessorInterface::class);
             }
-
-            $this->preProcessors[] = $processor;
         }
+
+        $this->preProcessors = $preProcessors;
 
         return $this;
     }
@@ -142,11 +143,11 @@ class RAG extends Agent
     {
         foreach ($postProcessors as $processor) {
             if (! $processor instanceof PostProcessorInterface) {
-                throw new AgentException($processor::class." must implement ".PostProcessorInterface::class);
+                throw new AgentException(get_debug_type($processor)." must implement ".PostProcessorInterface::class);
             }
-
-            $this->postProcessors[] = $processor;
         }
+
+        $this->postProcessors = $postProcessors;
 
         return $this;
     }
@@ -156,7 +157,7 @@ class RAG extends Agent
      */
     protected function preProcessors(): array
     {
-        return $this->preProcessors;
+        return [];
     }
 
     /**
@@ -164,6 +165,6 @@ class RAG extends Agent
      */
     protected function postProcessors(): array
     {
-        return $this->postProcessors;
+        return [];
     }
 }

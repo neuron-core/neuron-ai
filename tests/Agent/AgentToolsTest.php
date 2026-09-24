@@ -21,12 +21,12 @@ class AgentToolsTest extends TestCase
         $search = new SearchTool();
         $agent->addTool($search);
 
-        $this->assertSame($search, $agent->getTools(ExecutionTestFactory::context($agent))[0]);
-        $this->assertInstanceOf(WeatherToolkit::class, $agent->getTools(ExecutionTestFactory::context($agent))[1]);
+        $this->assertSame($search, $agent->getTools()[0]);
+        $this->assertInstanceOf(WeatherToolkit::class, $agent->getTools()[1]);
 
         $replacement = (new SearchTool())->setDescription('Search application documents');
         $this->assertSame($agent, $agent->setTools([$replacement]));
-        $this->assertSame([$replacement], $agent->getTools(ExecutionTestFactory::context($agent)));
+        $this->assertSame([$replacement], $agent->getTools());
         $this->assertSame([$replacement], ExecutionTestFactory::runtime($agent)->getTools());
 
         $providerTool = new ProviderTool('web_search');
@@ -34,7 +34,7 @@ class AgentToolsTest extends TestCase
         $this->assertSame([$replacement, $providerTool], ExecutionTestFactory::runtime($agent)->getTools());
 
         $agent->setTools([$search]);
-        $this->assertSame([$search], $agent->getTools(ExecutionTestFactory::context($agent)));
+        $this->assertSame([$search], $agent->getTools());
     }
 
     public function test_empty_override_removes_defaults_and_allows_later_additions(): void
@@ -45,7 +45,7 @@ class AgentToolsTest extends TestCase
 
         $agent->setTools([]);
 
-        $this->assertSame([], $agent->getTools(ExecutionTestFactory::context($agent)));
+        $this->assertSame([], $agent->getTools());
         $this->assertSame([], ExecutionTestFactory::runtime($agent)->getTools());
 
         $search = new SearchTool();
@@ -92,8 +92,8 @@ class AgentToolsTest extends TestCase
             $this->assertSame('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface', $exception->getMessage());
         }
 
-        $this->assertSame($search, $agent->getTools(ExecutionTestFactory::context($agent))[0]);
-        $this->assertInstanceOf(WeatherToolkit::class, $agent->getTools(ExecutionTestFactory::context($agent))[1]);
+        $this->assertSame($search, $agent->getTools()[0]);
+        $this->assertInstanceOf(WeatherToolkit::class, $agent->getTools()[1]);
         $this->assertEquals($tools, ExecutionTestFactory::runtime($agent)->getTools());
     }
 }

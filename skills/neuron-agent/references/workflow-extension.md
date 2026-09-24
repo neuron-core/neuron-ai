@@ -67,7 +67,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 
 class DemoVoiceAgent extends SpeechAgent
 {
-    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new FakeAIProvider(new AssistantMessage('Hello.'));
     }

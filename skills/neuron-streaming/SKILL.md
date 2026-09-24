@@ -22,23 +22,23 @@ Adapter and channel compose. The adapter decides the shape, the channel the dest
 
 Live output is **ephemeral**. Nothing yielded during a segment is stored in persistence or replayed when a completed step is restored. Chat history is the record the UI reconciles from. Never make correctness depend on a client receiving a streamed item.
 
-## Resources constructed with execution context
+## Resources constructed per segment
 
-Use `streamAdapter(ExecutionContext $context)` and `channel(ExecutionContext $context)`
-hooks, or pass a resource factory to `setStreamAdapter()` / `setChannel()`:
+Use the `streamAdapter()` and `channel()` hooks, or pass a resource factory to
+`setStreamAdapter()` / `setChannel()`:
 
 ```php
-$agent->setStreamAdapter(fn (\NeuronAI\Workflow\ExecutionContext $context) =>
-    new AGUIAdapter($context->workflowId, $context->runId));
+$agent->setStreamAdapter(fn () => new AGUIAdapter($input['threadId'], $input['runId'] ?? null));
 $state = $agent->run($request);
 ```
 
-These factories run only for an owned execution and return a resource. There is no
-Workflow-mutating preparation callback. Original input is available through
-`$context->startEvent()`; saved outcomes and idle polls skip resource construction.
-Lazy calls capture input at creation and execute during iteration. Setters configure
-the definition; an active execution keeps its already resolved resources and graph.
-This rule applies to Workflow, Agent and RAG configuration.
+These factories run only for an owned execution and return a fresh resource for each
+segment. There is no Workflow-mutating preparation callback; saved outcomes and idle
+polls skip resource construction. The AG-UI run ID is the client's per-request ID from
+its input, not Neuron's durable run ID. Lazy calls capture input at creation and
+execute during iteration. Setters configure the definition; an active execution keeps
+its already resolved resources and graph. This rule applies to Workflow, Agent and RAG
+configuration.
 
 ## Pull Streaming: Native Chunks
 

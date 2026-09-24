@@ -15,12 +15,12 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
 - `PostProcessNode` re-ranks or filters the documents.
 - `InstructionsNode` enriches `state->request->instructions` with the retrieved documents, preserving earlier middleware changes. Messages and options stay in the state request throughout; intermediate events carry only query, filters and documents.
 
-Collaborators come through lazy hooks with setter twins, like the Agent's provider: `embeddings()`, `vectorStore()`, `retrieval()`, `retrievalScope()`, `preProcessors()`, `postProcessors()`.
+Collaborators come through lazy hooks with setter twins, like the Agent's provider: `embeddings()`, `vectorStore()`, `retrieval()`, `retrievalScope()`, `preProcessors()`, `postProcessors()`. An explicit setter wins over its hook; `setPreProcessors()` and `setPostProcessors()` replace the whole list. A pre-processor that calls a model can take the agent's provider in the hook (`new QueryTransformationPreProcessor($this->getProvider())`); it clears the provider's tools for its call.
 
 ```php
 class WorkoutTipsAgent extends RAG
 {
-    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface { /* ... */ }
+    protected function provider(): AIProviderInterface { /* ... */ }
 
     protected function embeddings(): EmbeddingsProviderInterface
     {

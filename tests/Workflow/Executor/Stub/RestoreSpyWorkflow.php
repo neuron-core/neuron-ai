@@ -12,10 +12,10 @@ class RestoreSpyWorkflow extends Workflow
     /** @var class-string[] */
     public array $restored = [];
 
-    public function restoreEvent(Event $event, \NeuronAI\Workflow\ExecutionContext $context): Event
+    public function restoreEvent(Event $event): Event
     {
         $this->restored[] = $event::class;
 
-        return parent::restoreEvent($event, $context);
+        return parent::restoreEvent($event);
     }
 }

@@ -38,7 +38,7 @@ class Workflow implements WorkflowInterface
     use HandleDispatcher;
 
     /**
-     * @var array<NodeInterface|Closure(ExecutionContext): NodeInterface>
+     * @var array<NodeInterface|Closure(): NodeInterface>
      */
     protected array $nodes = [];
 
@@ -118,7 +118,7 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * @param array<NodeInterface|Closure(ExecutionContext): NodeInterface> $nodes
+     * @param array<NodeInterface|Closure(): NodeInterface> $nodes
      */
     public function addNodes(array $nodes): static
     {
@@ -140,12 +140,12 @@ class Workflow implements WorkflowInterface
      * A plain workflow has no transient capability to restore — subclasses
      * whose events carry live objects (e.g. Agent's tools) override this.
      */
-    public function restoreEvent(Event $event, ExecutionContext $context): Event
+    public function restoreEvent(Event $event): Event
     {
         return $event;
     }
 
-    public function restoreState(WorkflowState $state, ExecutionContext $context): WorkflowState
+    public function restoreState(WorkflowState $state): WorkflowState
     {
         return $state;
     }
@@ -333,7 +333,7 @@ class Workflow implements WorkflowInterface
     public function createExecution(ExecutionContext $context): WorkflowExecution
     {
         $execution = $this->buildGraph($context);
-        $execution->setOutput($this->resolveStreamAdapter($context), $this->resolveChannel($context));
+        $execution->setOutput($this->resolveStreamAdapter(), $this->resolveChannel());
         return $execution;
     }
 
@@ -343,7 +343,7 @@ class Workflow implements WorkflowInterface
     protected function buildGraph(ExecutionContext $context): WorkflowExecution
     {
         $execution = $this->execution($context);
-        $execution->bootstrap(array_merge($this->nodes($execution), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node($context) : clone $node, $this->nodes)));
+        $execution->bootstrap(array_merge($this->nodes($execution), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)));
         return $execution;
     }
 

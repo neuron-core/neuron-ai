@@ -79,16 +79,16 @@ class AgentManagedExecutionTest extends TestCase
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel($channel)
-            ->setStreamAdapter(function (\NeuronAI\Workflow\ExecutionContext $context): AgentChunkAdapter {
-                self::assertSame('reserved', $context->runId);
-                self::assertSame('Question', $context->startEvent()->messages[0]->getContent());
-                self::assertTrue($context->startEvent()->options->stream);
-                return new AgentChunkAdapter();
-            });
+            ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter());
         $first = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Question')], new AgentRunOptions(stream: true)), 'reserved', idempotencyKey: 'start'));
         self::assertTrue($first->isInterrupted());
         $resumed = $make()->setStartEvent(new AgentStartEvent([new UserMessage('Wrong local intent')]));
+        $record = new \NeuronAI\Tests\Support\ExecutionRecorder($resumed);
         $reply = $resumed->submitApprovalDecisions(['call_1' => 'approve'], idempotencyKey: 'answer')->run();
+        self::assertSame('reserved', $record->context->runId);
+        self::assertSame('Question', $record->context->startEvent()->messages[0]->getContent());
+        self::assertTrue($record->context->startEvent()->options->stream);
+        self::assertSame('stream', $provider->getRecorded()[1]->method);
         self::assertSame('reserved', $reply->getRunId());
         self::assertSame(2, $reply->getExecutionAttempt());
         self::assertSame(WorkflowStatus::Completed, $reply->getStatus());
@@ -116,13 +116,12 @@ class AgentManagedExecutionTest extends TestCase
         self::assertSame([], $next->loadAll('thread'));
     }
 
-    public function test_runtime_setup_cannot_mutate_persisted_inference_intent(): void
+    public function test_listeners_cannot_mutate_persisted_inference_intent(): void
     {
         $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
-        $agent->setStreamAdapter(function (\NeuronAI\Workflow\ExecutionContext $context): AgentChunkAdapter {
-            $context->startEvent()->options->stream = true;
-            self::assertFalse($context->startEvent()->options->stream);
-            return new AgentChunkAdapter();
+        $agent->subscribe(\NeuronAI\Observability\Events\WorkflowStart::class, static function (\NeuronAI\Observability\Events\WorkflowStart $event): void {
+            $event->execution->startEvent()->options->stream = true;
+            self::assertFalse($event->execution->startEvent()->options->stream);
         });
         $state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Hello')]), 'reserved'));
         self::assertFalse($state->request->options->stream);

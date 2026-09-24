@@ -8,7 +8,7 @@ use NeuronAI\Agent\Agent;
 
 class WeatherAgent extends Agent
 {
-    protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+    protected function tools(): array
     {
         return [new WeatherToolkit()];
     }

@@ -114,15 +114,15 @@ class WorkflowManagedExecutionTest extends TestCase
     }
 
     #[DataProvider('executors')]
-    public function test_resource_factory_has_owned_identity_and_builds_the_push_pipeline(bool $async): void
+    public function test_resource_factory_runs_for_the_admitted_run_and_builds_the_push_pipeline(bool $async): void
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make('order')->setExecutor($async ? new AsyncExecutor() : new WorkflowExecutor())
             ->addNode(new ChunkStreamingNode(2))->setChannel($channel);
-        $workflow->setStreamAdapter(function (\NeuronAI\Workflow\ExecutionContext $context) use ($workflow, $channel): ChunkAdapter {
-            self::assertSame('order', $context->workflowId);
-            self::assertSame('reserved', $context->runId);
-            self::assertSame(1, $context->executionAttempt);
+        $workflow->setStreamAdapter(function () use ($workflow, $channel): ChunkAdapter {
+            self::assertSame('order', $workflow->getWorkflowId());
+            self::assertSame('reserved', $workflow->inspect()->runId);
+            self::assertSame(1, $workflow->inspect()->executionAttempt);
             self::assertSame(WorkflowStatus::Running, $workflow->inspect()->status);
             self::assertSame([], $channel->getSent());
             return new ChunkAdapter();
@@ -240,10 +240,10 @@ class WorkflowManagedExecutionTest extends TestCase
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make('order')->addNode(new MemoizingNode())->setChannel($channel)
-            ->setStreamAdapter(fn (\NeuronAI\Workflow\ExecutionContext $context) => new \NeuronAI\Agent\Adapters\AGUIAdapter($context->workflowId, $context->runId));
+            ->setStreamAdapter(fn (): \NeuronAI\Agent\Adapters\AGUIAdapter => new \NeuronAI\Agent\Adapters\AGUIAdapter('order', 'client-run'));
         $state = $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
-        self::assertSame('reserved', $channel->getSent()[0]->data['runId']);
+        self::assertSame('client-run', $channel->getSent()[0]->data['runId']);
         $channel->assertCompleted();
     }
 

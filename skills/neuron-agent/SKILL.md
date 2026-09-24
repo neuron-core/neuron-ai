@@ -22,7 +22,7 @@ use NeuronAI\Providers\Anthropic\Anthropic;
 
 class MyAgent extends Agent
 {
-    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new Anthropic(
             key: $_ENV['ANTHROPIC_API_KEY'],
@@ -30,7 +30,7 @@ class MyAgent extends Agent
         );
     }
 
-    protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
+    protected function instructions(): SystemMessage|string
     {
         return new SystemMessage("You are a helpful AI assistant.");
     }
@@ -179,7 +179,7 @@ use NeuronAI\Tools\Toolkits\Calendar\CalendarToolkit;
 use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 use NeuronAI\Tools\Toolkits\FileSystem\FileSystemToolkit;
 
-protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+protected function tools(): array
 {
     return [
         FileSystemToolkit::make(scope: '/srv/agent-workspace'),
@@ -262,7 +262,7 @@ Agent instructions are a `SystemMessage` (`instructions()` returns `SystemMessag
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 
-protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
+protected function instructions(): SystemMessage|string
 {
     return new SystemMessage([
         // Large static context: cache it to reduce cost and latency.
@@ -367,7 +367,7 @@ hook (a string counts as `true` and doubles as the approval reason shown to the 
 and you override the declaration per tool where you attach it:
 
 ```php
-protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+protected function tools(): array
 {
     return [
         DeleteFileTool::make()->requireApproval(),        // force the gate

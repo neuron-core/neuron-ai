@@ -152,6 +152,7 @@ class Summarization extends AgentMiddleware
         try {
             $response = $this->provider
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
+                ->setTools([])
                 ->chat(new UserMessage("{$prompt}\n\n{$conversation}"));
 
             return $response->message()->getContent();

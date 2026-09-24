@@ -11,12 +11,12 @@ use NeuronAI\Agent\Agent;
 
 class YouTubeAgent extends Agent
 {
-    protected function provider(\NeuronAI\Workflow\ExecutionContext $context): AIProviderInterface
+    protected function provider(): AIProviderInterface
     {
         return new Anthropic(key: env('ANTHROPIC_API_KEY'), model: 'claude-sonnet-4-6');
     }
 
-    protected function instructions(\NeuronAI\Workflow\ExecutionContext $context): SystemMessage|string
+    protected function instructions(): SystemMessage|string
     {
         return new SystemMessage(<<<PROMPT
             You are an AI agent specialized in writing YouTube video summaries.
@@ -24,7 +24,7 @@ class YouTubeAgent extends Agent
             PROMPT);
     }
 
-    protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+    protected function tools(): array
     {
         return [GetTranscriptionTool::make(env('SUPADATA_API_KEY'))];
     }
@@ -34,7 +34,7 @@ $state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://you
 echo $state->getMessage()->getContent();
 ```
 
-Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `setTools()`, `setMessageStore()`, `setContextWindow()`, `setPersistence()`), and an explicit setter wins over the hook. `setTools([...])` replaces the entire tool set, including defaults from `tools()` and earlier additions; `setTools([])` clears it. `addTool()` appends to the chosen set, retaining hook defaults only when `setTools()` has never been called. Tool changes apply to the next execution segment. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
+Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstructions()`, `setTools()`, `setMessageStore()`, `setContextWindow()`, `setPersistence()`; `toolErrorHandler()` for the `resolveToolErrorHandler()` hook), and an explicit setter wins over the hook. `setTools([...])` replaces the entire tool set, including defaults from `tools()` and earlier additions; `setTools([])` clears it. `addTool()` appends to the chosen set, retaining hook defaults only when `setTools()` has never been called. Tool changes apply to the next execution segment. A plain string from `instructions()` is wrapped in a `SystemMessage`; `->cache()` marks its blocks for provider-side prompt caching. `SystemPrompt` is a small helper to compose a structured prompt (background, steps, output).
 
 | Verb | Nature |
 |---|---|
@@ -49,6 +49,27 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 `chat()`, `stream()`, and `structured()` also accept an optional `idempotencyKey`, included in the execution request. Reconstructed messages with identical content/options can reuse the key: generated message display IDs are excluded from the start fingerprint. Saved outcomes replay without provider calls; receipts last only as long as the stored run.
 
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
+
+Hooks take no argument and run once per execution segment, after admission. Dependencies from an application container arrive through the constructor: resolve the agent from the container, then bind its conversation.
+
+```php
+class SupportAgent extends Agent
+{
+    public function __construct(protected OrderLookupTool $orders, protected RefundTool $refunds)
+    {
+        parent::__construct();
+    }
+
+    protected function tools(): array
+    {
+        return [$this->orders, $this->refunds];
+    }
+}
+
+$agent = $container->get(SupportAgent::class)->setThreadId($threadId);
+```
+
+A tool instance is a prototype: `ToolNode` clones it for every call and it never enters persisted state, so it can hold injected services.
 
 ## The graph is a function of the definition
 
@@ -93,7 +114,7 @@ Output nodes are ordinary durable steps: if one fails, `run()` recovers the turn
 
 ### Middleware
 
-Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `instanceof`, so `InferenceNode::class` (the base of `ChatNode` and `StructuredOutputNode`, both always registered) is the target for mode-agnostic inference middleware such as `Summarization`, `TodoPlanning` and `ToolSearchMiddleware`. Extend `AgentMiddleware` for typed hooks: `beforeAgentNode()` / `afterAgentNode()` receive `AgentNodeInterface` and `AgentState`, and `onAgentContextMismatch()` fires on misattachment (empty by default, override it to fail loudly). Middleware read chat history from the node they wrap (`$node->getChatHistory()`), never from their own constructor. Flow control and I/O stay in nodes: tool approval, once a middleware, lives in `ToolNode`.
+Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `instanceof`, so `InferenceNode::class` (the base of `ChatNode` and `StructuredOutputNode`, both always registered) is the target for mode-agnostic inference middleware such as `Summarization`, `TodoPlanning` and `ToolSearchMiddleware`. Extend `AgentMiddleware` for typed hooks: `beforeAgentNode()` / `afterAgentNode()` receive `AgentNodeInterface` and `AgentState`, and `onAgentContextMismatch()` fires on misattachment (empty by default, override it to fail loudly). Middleware read chat history from the node they wrap (`$node->getChatHistory()`), never from their own constructor. A middleware that calls a model can take the agent's provider in the `middleware()` hook (`new Summarization($this->getProvider())`); it sets its own prompt and clears the provider's tools for that call. Flow control and I/O stay in nodes: tool approval, once a middleware, lives in `ToolNode`.
 
 ## Chat history is a service, not state
 
@@ -117,7 +138,7 @@ Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/th
 `ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
 ```php
-protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
+protected function tools(): array
 {
     return [
         DeleteFileTool::make()->requireApproval(),
@@ -243,19 +264,19 @@ One live run per thread has these consequences:
 Build an `ExecutionRequest::start(new AgentStartEvent($messages, $options),
 runId: $reservedRunId, idempotencyKey: $key)` and call `run($request)` for eager
 execution or `events($request)` for lazy output. Both use the same engine as chat,
-stream and structured conveniences. Run/thread/attempt identity is available in
-`ExecutionContext` before resources are constructed; original input comes from
-`$context->startEvent()` on both starts and continuations.
+stream and structured conveniences. The thread is bound before resources are
+constructed, so hooks read it from `getThreadId()`. Graph hooks read the run identity
+and the original input from `$execution->context`, on both starts and continuations.
 
-`provider()`, `tools()` and `instructions()` receive `ExecutionContext`. Their
-explicit fluent instance overrides still win. Graph hooks `nodes()`, `entryNodes()`
+`provider()`, `tools()` and `instructions()` take no argument; their explicit fluent
+instance overrides still win. Graph hooks `nodes()`, `entryNodes()`
 and `exitNodes()` receive the runtime; Agent compositions use AgentExecution's
 `getProvider()`, `getChatHistory()`, `getInstructions()` and `getTools()` to reuse
 resources resolved for that segment. Toolkit guidelines are derived once on the
 runtime and never appended to definition instructions.
 
-Use `streamAdapter(ExecutionContext $context)` / `channel(ExecutionContext $context)`
-or fluent factories returning adapters/channels for application-managed push output.
+Use the `streamAdapter()` / `channel()` hooks or fluent factories returning
+adapters/channels for application-managed push output.
 There is no preparation callback or Cloud trait. Saved results do not construct
 resources or replay chunks. Returned states keep their own metadata and data when
 the same definition runs again. `getRunId()` and `getState()` are runtime/result

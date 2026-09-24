@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Conversation;
 
-use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
@@ -38,7 +37,7 @@ class UserSimulator extends Agent
         return $this;
     }
 
-    protected function instructions(ExecutionContext $context): string
+    protected function instructions(): string
     {
         return 'You are role-playing a human USER talking to an AI assistant. You are NOT the assistant.'
             . ' Stay in character, pursue your goal naturally, and keep messages short and conversational'

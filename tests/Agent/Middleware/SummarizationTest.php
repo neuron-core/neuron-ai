@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware;
 
+use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\Summarization;
 use NeuronAI\Agent\Nodes\ChatNode;
+use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -16,7 +18,9 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
@@ -156,5 +160,54 @@ class SummarizationTest extends TestCase
 
         $provider->assertCallCount(1);
         $this->assertStringContainsString('Summary', (string) $history->getMessages()[0]->getContent());
+    }
+
+    public function test_the_summary_request_offers_no_tools(): void
+    {
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history->addMessage(new UserMessage('Question 1'));
+        $history->addMessage((new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)));
+        $history->addMessage(new UserMessage('Question 2'));
+        $history->addMessage((new AssistantMessage('Answer 2'))->setUsage(new Usage(80, 20)));
+        // A provider shared with the agent still holds the tools of its last inference.
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+        $provider->setTools([new SearchTool()]);
+
+        (new Summarization($provider, maxTokens: 50, messagesToKeep: 2))
+            ->before(new ChatNode($provider, $history), new AIInferenceEvent(), new AgentState());
+
+        $provider->assertCallCount(1);
+        $this->assertSame([], $provider->getRecorded()[0]->tools);
+    }
+
+    public function test_the_middleware_hook_can_summarize_with_the_agent_provider(): void
+    {
+        $provider = new FakeAIProvider(
+            (new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)),
+            new AssistantMessage('Summary'),
+            new AssistantMessage('Answer 2'),
+        );
+        $agent = new class ($provider) extends Agent {
+            public function __construct(protected AIProviderInterface $fakeProvider)
+            {
+                parent::__construct();
+            }
+
+            protected function provider(): AIProviderInterface
+            {
+                return $this->fakeProvider;
+            }
+
+            protected function middleware(): array
+            {
+                return [InferenceNode::class => new Summarization($this->getProvider(), maxTokens: 1, messagesToKeep: 1)];
+            }
+        };
+
+        $agent->chat(new UserMessage('Question 1'));
+        $agent->chat(new UserMessage('Question 2'));
+
+        $provider->assertCallCount(3);
+        $this->assertStringContainsString('Summary', (string) $agent->getChatHistory()->getMessages()[0]->getContent());
     }
 }

@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\RAG;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
@@ -89,5 +90,66 @@ class RAGConfigurationTest extends TestCase
         self::assertStringContainsString('Original strategy', $provider->getRecorded()[0]->systemPrompt->getContent());
         self::assertStringContainsString('Next strategy', $provider->getRecorded()[1]->systemPrompt->getContent());
         self::assertStringContainsString('Next strategy', $provider->getRecorded()[2]->systemPrompt->getContent());
+    }
+
+    public function test_configured_processors_win_over_the_declared_ones(): void
+    {
+        $declaredPre = $this->createMock(PreProcessorInterface::class);
+        $declaredPre->expects(self::never())->method('process');
+        $declaredPost = $this->createMock(PostProcessorInterface::class);
+        $declaredPost->expects(self::never())->method('process');
+        $configuredPre = $this->createMock(PreProcessorInterface::class);
+        $configuredPre->expects(self::once())->method('process')->willReturnArgument(0);
+        $configuredPost = $this->createMock(PostProcessorInterface::class);
+        $configuredPost->expects(self::once())->method('process')->willReturnArgument(1);
+        $rag = new class ($declaredPre, $declaredPost) extends RAG {
+            public function __construct(protected PreProcessorInterface $declaredPre, protected PostProcessorInterface $declaredPost)
+            {
+                parent::__construct();
+            }
+
+            protected function preProcessors(): array
+            {
+                return [$this->declaredPre];
+            }
+
+            protected function postProcessors(): array
+            {
+                return [$this->declaredPost];
+            }
+        };
+        $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
+        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore([new Document('Context')]))
+            ->setPreProcessors([$configuredPre])->setPostProcessors([$configuredPost]);
+
+        $rag->chat(new UserMessage('Question'));
+    }
+
+    public function test_setting_processors_replaces_the_previous_ones(): void
+    {
+        $replacedPre = $this->createMock(PreProcessorInterface::class);
+        $replacedPre->expects(self::never())->method('process');
+        $replacedPost = $this->createMock(PostProcessorInterface::class);
+        $replacedPost->expects(self::never())->method('process');
+        $currentPre = $this->createMock(PreProcessorInterface::class);
+        $currentPre->expects(self::once())->method('process')->willReturnArgument(0);
+        $currentPost = $this->createMock(PostProcessorInterface::class);
+        $currentPost->expects(self::once())->method('process')->willReturnArgument(1);
+        $rag = RAG::make();
+        $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
+        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore([new Document('Context')]))
+            ->setPreProcessors([$replacedPre])->setPreProcessors([$currentPre])
+            ->setPostProcessors([$replacedPost])->setPostProcessors([$currentPost]);
+
+        $rag->chat(new UserMessage('Question'));
+    }
+
+    public function test_processor_setters_reject_values_that_are_not_processors(): void
+    {
+        $this->expectException(AgentException::class);
+        $this->expectExceptionMessage('string must implement '.PostProcessorInterface::class);
+
+        /** @phpstan-ignore-next-line deliberately wrong type */
+        RAG::make()->setPostProcessors([PostProcessorInterface::class]);
     }
 }

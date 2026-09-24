@@ -467,14 +467,20 @@ use NeuronAI\Agent\Agent;
 
 class MyAgent extends Agent
 {
+    // Dependencies arrive through the constructor, e.g. when the agent is resolved from a container
+    public function __construct(protected PDO $pdo)
+    {
+        parent::__construct();
+    }
+
     protected function tools(): array
     {
         return [
             // Use full toolkit
-            ...CalculatorToolkit::make(),
+            CalculatorToolkit::make(),
 
             // Use toolkit with dependencies
-            ...MySQLToolkit::make($this->pdo),
+            MySQLToolkit::make($this->pdo),
         ];
     }
 }
@@ -486,15 +492,15 @@ Control which tools are exposed:
 
 ```php
 // Exclude specific tools
-...MySQLToolkit::make($pdo)
+MySQLToolkit::make($pdo)
     ->exclude([MySQLWriteTool::class]),
 
 // Include only specific tools
-...MySQLToolkit::make($pdo)
+MySQLToolkit::make($pdo)
     ->only([MySQLSchemaTool::class, MySQLSelectTool::class]),
 
 // Configure tools dynamically
-...MyToolkit::make()
+MyToolkit::make()
     ->with(ExpensiveTool::class, function (Tool $tool): Tool {
         $tool->setMaxRuns(1);  // Limit expensive operations
         return $tool;

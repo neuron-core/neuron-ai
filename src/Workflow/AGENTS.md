@@ -121,10 +121,12 @@ There is no `prepare:` callback, adopted run ID, live state getter or graph
 cache on the definition. Read result identity from returned state and live metadata
 from observability events' `execution` property; `source` retains the definition.
 
-Graph hooks receive `WorkflowExecution $execution`. Resource hooks for adapters and
-channels receive `ExecutionContext $context`. `setStreamAdapter()` and `setChannel()`
-also accept factories returning the resource. Factories never receive a Workflow
-to patch. They run only under ownership; saved outcomes and idle polls are passive.
+Graph hooks receive `WorkflowExecution $execution`, which carries the segment's
+context and resolved resources. Resource hooks (`streamAdapter()`, `channel()`) take
+no argument; `setStreamAdapter()` and `setChannel()` also accept factories returning
+the resource. Hooks and factories run once per owned segment; saved outcomes and idle
+polls are passive. The instance is bound before execution, so a resource needing the
+address reads `getWorkflowId()`.
 
 `getWorkflowId()` returns the instance address, or null before binding.
 `setWorkflowId()` binds an unbound instance and accepts the same ID again, but
@@ -156,7 +158,7 @@ cloning mutable custom properties when used as branch states or returned snapsho
 
 Configured nodes/middleware are prototypes cloned per execution. Their `__clone()`
 contract must detach owned mutable fields while retaining explicitly shared clients.
-Use node factories (`fn (ExecutionContext $context): NodeInterface => ...`) or
+Use node factories (`fn (): NodeInterface => ...`) or
 middleware factories (`fn (): WorkflowMiddleware => ...`) for uncloneable services.
 Hook-created nodes/middleware are already fresh and are used directly. Factories
 that deliberately return shared objects must support sequential reuse. Resource setters
@@ -167,8 +169,10 @@ Listener registration preserves earlier dispatcher snapshots. The executor captu
 storage, serializer and lease settings before admission. Its local usage gate only
 protects overlapping execution and cleanup operations; persisted ownership is separate.
 Sharing clients does not imply concurrent safety or protect against direct mutation
-of a supplied service. Restoration hooks must use the supplied context and execution
-resources rather than reading changing definition settings.
+of a supplied service. Restoration hooks (`restoreEvent()`, `restoreState()`) reattach
+transient dependencies to recalled data; an execution that resolved its own resources
+restores from them, as `AgentExecution` does with the segment's tools, rather than
+from changing definition settings.
 
 
 `export($context)` builds a preview graph without admission, output factories or

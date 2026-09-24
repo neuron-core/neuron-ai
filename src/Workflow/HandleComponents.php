@@ -111,12 +111,12 @@ trait HandleComponents
         return $this;
     }
 
-    final protected function resolveChannel(ExecutionContext $context): ?StreamingChannelInterface
+    final protected function resolveChannel(): ?StreamingChannelInterface
     {
-        return $this->channel instanceof Closure ? ($this->channel)($context) : ($this->channel ?? $this->channel($context));
+        return $this->channel instanceof Closure ? ($this->channel)() : ($this->channel ?? $this->channel());
     }
 
-    protected function channel(ExecutionContext $context): ?StreamingChannelInterface
+    protected function channel(): ?StreamingChannelInterface
     {
         return null;
     }
@@ -133,12 +133,12 @@ trait HandleComponents
         return $this;
     }
 
-    final protected function resolveStreamAdapter(ExecutionContext $context): ?StreamAdapterInterface
+    final protected function resolveStreamAdapter(): ?StreamAdapterInterface
     {
-        return $this->streamAdapter instanceof Closure ? ($this->streamAdapter)($context) : ($this->streamAdapter ?? $this->streamAdapter($context));
+        return $this->streamAdapter instanceof Closure ? ($this->streamAdapter)() : ($this->streamAdapter ?? $this->streamAdapter());
     }
 
-    protected function streamAdapter(ExecutionContext $context): ?StreamAdapterInterface
+    protected function streamAdapter(): ?StreamAdapterInterface
     {
         return null;
     }

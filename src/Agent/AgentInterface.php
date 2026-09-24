@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
-use NeuronAI\Workflow\ExecutionContext;
 use Generator;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\MessageStoreInterface;
@@ -21,11 +20,11 @@ interface AgentInterface extends WorkflowInterface
 {
     public function setAiProvider(AIProviderInterface $provider): AgentInterface;
 
-    public function getProvider(ExecutionContext $context): AIProviderInterface;
+    public function getProvider(): AIProviderInterface;
 
     public function setInstructions(SystemMessage|string $instructions): AgentInterface;
 
-    public function getInstructions(ExecutionContext $context): SystemMessage;
+    public function getInstructions(): SystemMessage;
 
     /**
      * Replace all tools, including the defaults declared by the agent.
@@ -43,7 +42,7 @@ interface AgentInterface extends WorkflowInterface
     /**
      * @return ToolInterface[]
      */
-    public function getTools(ExecutionContext $context): array;
+    public function getTools(): array;
 
     /**
      * Where the Agent's conversations are stored. Each execution segment opens

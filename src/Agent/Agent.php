@@ -162,10 +162,10 @@ class Agent extends Workflow implements AgentInterface
             $this->newState(),
             $this->executionMiddleware(),
             $this->executionGlobalMiddleware(),
-            $this->getProvider($context),
+            $this->getProvider(),
             $this->getChatHistory(),
-            $this->getInstructions($context),
-            $this->getTools($context),
+            $this->getInstructions(),
+            $this->getTools(),
         );
     }
 
@@ -214,16 +214,17 @@ class Agent extends Workflow implements AgentInterface
     {
 
         $chatHistory = $execution->getChatHistory();
+        $toolErrorHandler = $this->toolErrorHandler ?? $this->resolveToolErrorHandler();
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode(
                 $chatHistory,
                 $this->toolMaxRuns,
-                $this->resolveToolErrorHandler(),
+                $toolErrorHandler,
                 $this->beforeParallelToolChild,
                 $this->afterParallelToolChild,
             )
-            : new ToolNode($chatHistory, $this->toolMaxRuns, $this->resolveToolErrorHandler());
+            : new ToolNode($chatHistory, $this->toolMaxRuns, $toolErrorHandler);
 
         $nodes = [
             ...$this->entryNodes($execution),
