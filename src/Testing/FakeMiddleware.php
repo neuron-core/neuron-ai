@@ -9,6 +9,7 @@ use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\Assert;
 use Throwable;
@@ -45,7 +46,7 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * @param Closure(NodeInterface, Event, WorkflowState): void $handler
+     * @param Closure(NodeInterface, Event, WorkflowState, WorkflowResources): void $handler
      */
     public function setBeforeHandler(Closure $handler): self
     {
@@ -54,7 +55,7 @@ class FakeMiddleware implements WorkflowMiddleware
     }
 
     /**
-     * @param Closure(NodeInterface, Event, WorkflowState): void $handler
+     * @param Closure(NodeInterface, Event, WorkflowState, WorkflowResources): void $handler
      */
     public function setAfterHandler(Closure $handler): self
     {
@@ -62,12 +63,12 @@ class FakeMiddleware implements WorkflowMiddleware
         return $this;
     }
 
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
         $this->recorded[] = new MiddlewareRecord('before', $node, $event, $state);
 
         if ($this->beforeHandler instanceof Closure) {
-            ($this->beforeHandler)($node, $event, $state);
+            ($this->beforeHandler)($node, $event, $state, $resources);
         }
 
         if ($this->throwOnBefore instanceof Throwable) {
@@ -75,12 +76,12 @@ class FakeMiddleware implements WorkflowMiddleware
         }
     }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
         $this->recorded[] = new MiddlewareRecord('after', $node, $result, $state);
 
         if ($this->afterHandler instanceof Closure) {
-            ($this->afterHandler)($node, $result, $state);
+            ($this->afterHandler)($node, $result, $state, $resources);
         }
 
         if ($this->throwOnAfter instanceof Throwable) {

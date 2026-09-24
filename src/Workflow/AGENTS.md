@@ -12,7 +12,41 @@ $state = Workflow::make(state: $state)
     ->run();
 ```
 
-Subclasses build their graph in the `nodes()` / `entryNodes()` hooks, which run fresh at every execution segment, so the graph is always a function of the current configuration. Middleware wraps node execution (`addMiddleware(NodeClass::class, ...)`, subclass-aware, or `addGlobalMiddleware()`): it shapes events before a node acts, while flow control and I/O belong to nodes. Keep platform integration outside middleware and executors; the returned lifecycle outcome is the integration boundary.
+Subclasses build their graph in the `nodes()` hook, which takes no argument and runs fresh at every execution segment, so the graph is always a function of the current configuration. Middleware wraps node execution (`addMiddleware(NodeClass::class, ...)`, subclass-aware, or `addGlobalMiddleware()`): it shapes events before a node acts, while flow control and I/O belong to nodes. Keep platform integration outside middleware and executors; the returned lifecycle outcome is the integration boundary.
+
+## State and resources
+
+State is what a run knows; resources are what it can use. `WorkflowState` is persisted with every step. `WorkflowResources` holds the services of one execution segment (clients, connections, a conversation), built once per segment by the `resources()` hook or a `setResources()` factory and never persisted: a continuation builds them again.
+
+```php
+class ReportResources extends WorkflowResources
+{
+    public function __construct(public readonly ReportClient $client)
+    {
+        parent::__construct();
+    }
+}
+
+class ReportWorkflow extends Workflow
+{
+    protected function resources(): ReportResources
+    {
+        return new ReportResources(new ReportClient());
+    }
+}
+
+class FetchNode extends Node
+{
+    public function __invoke(StartEvent $event, WorkflowState $state, ReportResources $resources): FetchedEvent
+    {
+        $state->set('report', $resources->client->fetch());
+
+        return new FetchedEvent();
+    }
+}
+```
+
+A node declares them as an optional third `__invoke()` parameter, typed `WorkflowResources` or a subclass; a node asking for a subclass the workflow does not provide fails when the graph is built. Middleware receive them as the fourth argument of `before()` and `after()`, and what one of them changes is what the others and the nodes see for the rest of the segment. Nodes are built without services, so they stay constructible outside a workflow. `set()`, `get()` and `has()` hold loose values for a composition that needs no subclass.
 
 ## Suspend, inspect, resume
 
@@ -31,7 +65,7 @@ A workflow exposes one current interruption through `$state->getInterruptRequest
 - `submitInputs($payload, $translator)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and observed run/attempt fences; the Workflow supplies its fixed address. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
 
 
-Parallel branches expose interruptions sequentially. The normal executor stops at the first interruption. AsyncExecutor stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
+A node reads the parallel branch it runs in from `$this->branchId`, null outside a branch; the branch is not part of the state. Parallel branches expose interruptions sequentially. The normal executor stops at the first interruption. AsyncExecutor stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
 
 The current request blocks later requests, including their deadlines. A deferred deadline keeps its original value; it is evaluated by inputless continuation only after that request becomes current. This design requires no live fibers across segments and does not cancel running external operations. A node may take time to reach its boundary: memoization persists an operation but is not a traversal suspension point.
 
@@ -92,7 +126,7 @@ Backends: `DatabasePersistence` and `EloquentPersistence` coordinate multiple pr
 
 Every completed node step is persisted and skipped on replay; a node that fails before its step commits runs again (failure updates control without writing a failed-step marker). Inside a node, `memoize('name', fn () => ...)` makes an expensive or non-deterministic sub-operation replay-safe; the memo write is fenced by the same control record as step writes. It reuses committed results, it cannot make an uncertain external side effect exactly-once: supply an idempotency key to the external system where that matters. `recallMemo()` is the read-only counterpart for streaming flows.
 
-`restoreState()` reattaches transient dependencies to state recalled for an owned execution (completed steps and deferred interruptions); it is never called on live results. Saved outcomes and idle checkpoint polls return persisted data without rebuilding executable dependencies. Serialization and cloning are separate contracts: parallel branches work on clones, so state subclasses with mutable object properties outside the data array must define how they clone.
+State recalled for an owned execution (completed steps and deferred interruptions) is data only: executable dependencies come from the segment's resources. Saved outcomes and idle checkpoint polls return persisted data without building resources. Serialization and cloning are separate contracts: parallel branches work on clones, so state subclasses with mutable object properties outside the data array must define how they clone.
 
 ## Leases, failures, dead generations
 
@@ -120,11 +154,10 @@ There is no `prepare:` callback, adopted run ID, live state getter or graph
 cache on the definition. Read result identity from returned state and live metadata
 from observability events' `execution` property; `source` retains the definition.
 
-Graph hooks receive `WorkflowExecution $execution`, which carries the segment's
-context and resolved resources. Resource hooks (`streamAdapter()`, `channel()`) take
-no argument; `setStreamAdapter()` and `setChannel()` also accept factories returning
-the resource. Hooks and factories run once per owned segment; saved outcomes and idle
-polls are passive. The instance is bound before execution, so a resource needing the
+The graph hook (`nodes()`) and the resource hooks (`resources()`, `streamAdapter()`,
+`channel()`) take no argument; `setResources()` takes a factory, and `setStreamAdapter()`
+and `setChannel()` also accept one. Hooks and factories run once per owned segment;
+saved outcomes and idle polls are passive. The instance is bound before execution, so a resource needing the
 address reads `getWorkflowId()`.
 
 `getWorkflowId()` returns the instance address, or null before binding.
@@ -169,13 +202,11 @@ Listener registration preserves earlier dispatcher snapshots. The executor captu
 storage, serializer and lease settings before admission. Its local usage gate only
 protects overlapping execution and cleanup operations; persisted ownership is separate.
 Sharing clients does not imply concurrent safety or protect against direct mutation
-of a supplied service. The restoration hook, `restoreState()`, reattaches
-transient dependencies to recalled state; an execution that resolved its own resources
-restores from them, as `AgentExecution` does with the segment's tools, rather than
-from changing definition settings.
+of a supplied service. Nodes and middleware read services from the segment's
+resources, never from definition settings that may change while the segment runs.
 
 
-`export($context)` builds a preview graph without admission, output factories or
-transport delivery. Without an explicit context it uses a synthetic preview identity
-(run ID `preview`, attempt zero). Supply a context for execution-dependent graphs;
-resource construction must stay free of business effects.
+`export()` builds a preview graph without admission, output factories or transport
+delivery, under a synthetic preview identity (run ID `preview`, attempt zero). It builds
+the segment's resources like an execution does, so resource construction must stay
+free of business effects.

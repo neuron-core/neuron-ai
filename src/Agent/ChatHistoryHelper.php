@@ -12,7 +12,7 @@ use NeuronAI\Observability\Events\MessageSaving;
 use function is_array;
 
 /**
- * Holds the chat history reference for agent nodes and centralizes writes.
+ * Centralizes chat history writes for agent nodes.
  *
  * A history write is a side effect like tool execution, so it is wrapped in a
  * durable memo: on crash-replay the write is skipped instead of duplicating
@@ -20,25 +20,18 @@ use function is_array;
  */
 trait ChatHistoryHelper
 {
-    protected ChatHistory $chatHistory;
-
-    public function getChatHistory(): ChatHistory
-    {
-        return $this->chatHistory;
-    }
-
     /**
      * @param string $memo Stable memo name identifying this write within the
      *                     node execution (e.g. 'history.inbound').
      */
-    protected function addToChatHistory(Message|array $messages, string $memo): void
+    protected function addToChatHistory(ChatHistory $history, AgentState $state, Message|array $messages, string $memo): void
     {
         $messages = is_array($messages) ? $messages : [$messages];
 
-        $this->memoize($memo, function () use ($messages): bool {
+        $this->memoize($memo, function () use ($history, $messages): bool {
             foreach ($messages as $message) {
                 $this->emit(new MessageSaving($message));
-                $this->chatHistory->addMessage($message);
+                $history->addMessage($message);
                 $this->emit(new MessageSaved($message));
             }
 
@@ -47,10 +40,8 @@ trait ChatHistoryHelper
 
         // Outside the memo: a replayed (skipped) write still registers the
         // message on the current cycle's transcript.
-        if (isset($this->state) && $this->state instanceof AgentState) {
-            foreach ($messages as $message) {
-                $this->state->addStep($message);
-            }
+        foreach ($messages as $message) {
+            $state->addStep($message);
         }
     }
 }

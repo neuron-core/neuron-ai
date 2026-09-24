@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware\Stub;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Agent\Nodes\AgentStartNode;
@@ -14,6 +15,7 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 
 use function array_map;
@@ -31,20 +33,21 @@ class RequestEditingMiddleware implements WorkflowMiddleware
     ) {
     }
 
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
-        if (!$state instanceof AgentState || !$node instanceof InferenceNode && !$node instanceof ToolNode) {
+        if (!$resources instanceof AgentResources || !$node instanceof InferenceNode && !$node instanceof ToolNode) {
             return;
         }
 
-        $this->toolSelections[] = array_map(
-            static fn (ToolInterface $tool): string => $tool->getName(),
-            $state->request->tools,
-        );
-        $state->request->tools = [$this->tool];
+        $names = array_map(static fn (ToolInterface $tool): string => $tool->getName(), $resources->tools->all());
+        $this->toolSelections[] = $names;
+        foreach ($names as $name) {
+            $resources->tools->remove($name);
+        }
+        $resources->tools->add($this->tool);
     }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
         if (!$state instanceof AgentState || !$node instanceof AgentStartNode) {
             return;

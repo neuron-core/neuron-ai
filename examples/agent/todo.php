@@ -3,13 +3,12 @@
 declare(strict_types=1);
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\Middleware\TodoPlanning;
-use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use NeuronAI\Tools\Toolkits\TodoPlanning\TodoPlanningToolkit;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -89,7 +88,7 @@ class WriteDocumentationTool extends Tool
     }
 }
 
-echo "=== Agent with TodoPlanning Middleware ===\n";
+echo "=== Agent with the TodoPlanning toolkit ===\n";
 echo "-------------------------------------------------------------------\n\n";
 
 // Create AI provider
@@ -98,7 +97,7 @@ $provider = new Anthropic(
     'claude-sonnet-5'
 );
 
-// Create agent with TodoPlanning middleware attached to PrepareInferenceNode
+// Create agent with the TodoPlanning toolkit next to its own tools
 $agent = Agent::make()
     ->setAiProvider($provider)
     ->setInstructions(
@@ -109,11 +108,8 @@ $agent = Agent::make()
         new CreateApiEndpointTool(),
         new RunTestsTool(),
         new WriteDocumentationTool(),
-    ])
-    ->addMiddleware(
-        InferenceNode::class,
-        new TodoPlanning()
-    );
+        TodoPlanningToolkit::make(),
+    ]);
 
 // Give the agent a complex task
 $message = new UserMessage(

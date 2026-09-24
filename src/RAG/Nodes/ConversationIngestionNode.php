@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -25,21 +24,17 @@ use function array_reverse;
 
 class ConversationIngestionNode extends Node implements AgentNodeInterface
 {
-    use ChatHistoryHelper;
-
     public function __construct(
         protected readonly VectorStoreInterface $vectorStore,
         protected readonly EmbeddingsProviderInterface $embeddingProvider,
-        ChatHistory $chatHistory,
     ) {
-        $this->chatHistory = $chatHistory;
     }
 
-    public function __invoke(AgentOutputEvent $event, AgentState $state): StopEvent
+    public function __invoke(AgentOutputEvent $event, AgentState $state, AgentResources $resources): StopEvent
     {
         $assistant = $state->getMessage();
         $user = $this->lastUserMessage($state->request->messages)
-            ?? $this->lastUserMessage($this->chatHistory->getMessages());
+            ?? $this->lastUserMessage($resources->history->getMessages());
 
         if (
             !$assistant instanceof AssistantMessage || $assistant instanceof ToolCallMessage
@@ -48,7 +43,7 @@ class ConversationIngestionNode extends Node implements AgentNodeInterface
             return new StopEvent();
         }
 
-        $threadId = $this->chatHistory->getThreadId();
+        $threadId = $resources->history->getThreadId();
 
         $this->memoize('conversation.ingest', function () use ($threadId, $user, $assistant): bool {
             $document = (new Document("User: {$user->getContent()}\nAssistant: {$assistant->getContent()}"))

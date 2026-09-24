@@ -376,14 +376,14 @@ use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
 class TenantScope implements WorkflowMiddleware
 {
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
         if ($event instanceof QueryPreProcessedEvent) {
             $event->addFilters(Filter::eq('tenant', $state->get('tenant')));
         }
     }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
     }
 }

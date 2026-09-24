@@ -107,14 +107,9 @@ class Workflow implements WorkflowInterface
     /**
      * @return NodeInterface[]
      */
-    protected function nodes(WorkflowExecution $execution): array
+    protected function nodes(): array
     {
         return [];
-    }
-
-    public function restoreState(WorkflowState $state): WorkflowState
-    {
-        return $state;
     }
 
     /**
@@ -310,7 +305,7 @@ class Workflow implements WorkflowInterface
     protected function buildGraph(ExecutionContext $context): WorkflowExecution
     {
         $execution = $this->execution($context);
-        $execution->bootstrap(array_merge($this->nodes($execution), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)));
+        $execution->bootstrap(array_merge($this->nodes(), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)));
         return $execution;
     }
 
@@ -343,6 +338,7 @@ class Workflow implements WorkflowInterface
             $context,
             $this,
             $this->newState(),
+            $this->resolveResources(),
             $this->executionMiddleware(),
             $this->executionGlobalMiddleware(),
         );

@@ -15,6 +15,7 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
 use NeuronAI\Tools\ApprovalState;
@@ -32,6 +33,7 @@ use RuntimeException;
 
 use function iterator_to_array;
 use function json_encode;
+use function spl_object_id;
 
 use const JSON_PRETTY_PRINT;
 
@@ -82,19 +84,25 @@ class ToolApprovalFlowTest extends TestCase
     }
 
     /**
-     * @var ToolInterface[] The registry the next created event will offer —
-     *      resolution reads the state request's tool list.
+     * @var array<int, array{ToolInterface[], ChatHistory}> Each node's registry and
+     *      history, keyed by the node's object ID: resolution reads the registry.
      */
-    private array $registry = [];
+    private array $setups = [];
 
     /**
      * @param ToolInterface[] $registry
      */
     private function node(array $registry, ?ChatHistory $history = null): ToolNode
     {
-        $this->registry = $registry;
+        $node = new ToolNode();
+        $this->setups[spl_object_id($node)] = [$registry, $history ?? new ChatHistory(new InMemoryMessageStore(), 'thread')];
 
-        return new ToolNode($history ?? new ChatHistory(new InMemoryMessageStore(), 'thread'));
+        return $node;
+    }
+
+    private function history(ToolNode $node): ChatHistory
+    {
+        return $this->setups[spl_object_id($node)][1];
     }
 
     /**
@@ -123,10 +131,11 @@ class ToolApprovalFlowTest extends TestCase
         ?array $payload = null,
         ?StepMemoizer $memoizer = null,
     ): AIInferenceEvent|WorkflowInterrupt {
-        $state->request = new InferenceRequest('test instructions', $this->registry);
-        $node->setWorkflowContext(new NodeContext($state, $event, $payload, false, $memoizer));
+        $state->request = new InferenceRequest('test instructions');
+        $node->setWorkflowContext(new NodeContext($payload, false, $memoizer));
+        [$registry, $history] = $this->setups[spl_object_id($node)];
 
-        $generator = $node($event, $state);
+        $generator = $node($event, $state, AgentResourcesFactory::make($registry, $history));
         $this->assertInstanceOf(Generator::class, $generator);
 
         try {
@@ -184,7 +193,7 @@ class ToolApprovalFlowTest extends TestCase
 
     private function lastToolCall(ToolNode $node): ToolCallMessage
     {
-        $last = $node->getChatHistory()->getLastMessage();
+        $last = $this->history($node)->getLastMessage();
         $this->assertInstanceOf(ToolCallMessage::class, $last);
 
         return $last;
@@ -235,7 +244,7 @@ class ToolApprovalFlowTest extends TestCase
         // Deferred pair-commit: with no suspend possible the node writes nothing —
         // the call/result pair travels as the next inference's inbound messages
         // and commits only after that provider call succeeds.
-        $this->assertSame([], $node->getChatHistory()->getMessages());
+        $this->assertSame([], $this->history($node)->getMessages());
         $this->assertSame(
             [$event->toolCallMessage, $state->request->messages[1]],
             $state->request->messages
@@ -264,7 +273,7 @@ class ToolApprovalFlowTest extends TestCase
 
         // Deferred pair-commit: the crash happened before any history write, so
         // the thread is not wedged behind a tool call with no result.
-        $this->assertSame([], $node->getChatHistory()->getMessages());
+        $this->assertSame([], $this->history($node)->getMessages());
     }
 
     public function test_require_approval_forces_the_gate(): void

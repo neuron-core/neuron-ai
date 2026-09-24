@@ -9,7 +9,7 @@ use Generator;
 
 interface NodeInterface
 {
-    public function run(Event $event, WorkflowState $state): Generator|Event;
+    public function run(Event $event, WorkflowState $state, WorkflowResources $resources): Generator|Event;
 
     /**
      * Receive the execution context for the upcoming run. Called by the

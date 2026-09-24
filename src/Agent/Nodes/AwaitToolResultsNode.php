@@ -7,11 +7,9 @@ namespace NeuronAI\Agent\Nodes;
 use Generator;
 use JsonException;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\WorkflowException;
@@ -29,13 +27,6 @@ use const JSON_THROW_ON_ERROR;
 
 class AwaitToolResultsNode extends Node implements AgentNodeInterface
 {
-    use ChatHistoryHelper;
-
-    public function __construct(ChatHistory $chatHistory)
-    {
-        $this->chatHistory = $chatHistory;
-    }
-
     /**
      * @throws WorkflowInterrupt
      * @throws WorkflowException

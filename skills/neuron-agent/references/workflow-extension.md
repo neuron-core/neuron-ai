@@ -50,7 +50,7 @@ abstract class SpeechAgent extends Agent
     abstract protected function textToSpeech(): AIProviderInterface;
 
     /** @return Node[] */
-    protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+    protected function exitNodes(): array
     {
         return [new TextToSpeechNode($this->textToSpeech())];
     }

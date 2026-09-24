@@ -36,6 +36,7 @@ class WorkflowExecution implements WorkflowRuntimeInterface
         public readonly ExecutionContext $context,
         public readonly Workflow $definition,
         protected WorkflowState $state,
+        protected WorkflowResources $resources,
         protected array $middleware = [],
         protected array $globalMiddleware = [],
     ) {
@@ -51,7 +52,7 @@ class WorkflowExecution implements WorkflowRuntimeInterface
     {
         $signature = new NodeSignature();
         foreach ($nodes as $node) {
-            $eventClass = $signature->eventClass($node);
+            $eventClass = $signature->eventClass($node, $this->resources);
             if (isset($this->eventNodeMap[$eventClass])) {
                 throw new WorkflowException("Node for event {$eventClass} already exists");
             }
@@ -84,6 +85,11 @@ class WorkflowExecution implements WorkflowRuntimeInterface
         return $this->startEvent;
     }
 
+    public function getResources(): WorkflowResources
+    {
+        return $this->resources;
+    }
+
     public function getWorkflowId(): string
     {
         return $this->context->workflowId;
@@ -102,11 +108,6 @@ class WorkflowExecution implements WorkflowRuntimeInterface
     public function shouldRetainCompletionUntilAcknowledged(): bool
     {
         return $this->retainCompletion;
-    }
-
-    public function restoreState(WorkflowState $state): WorkflowState
-    {
-        return $this->definition->restoreState($state);
     }
 
     protected function getStreamAdapter(): ?StreamAdapterInterface

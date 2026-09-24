@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
-use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentStartEvent;
@@ -16,10 +15,9 @@ use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
-use NeuronAI\Tests\Support\ExecutionTestFactory;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use stdClass;
 
 use function serialize;
@@ -46,13 +44,14 @@ class InferenceIntentTest extends TestCase
     public function test_start_node_initializes_a_fresh_request_on_reused_state(): void
     {
         $instructions = new SystemMessage('Base instructions');
-        $node = new AgentStartNode($instructions, []);
+        $node = new AgentStartNode();
+        $resources = AgentResourcesFactory::make(instructions: $instructions);
         $state = new AgentState();
         $start = new AgentStartEvent(
             [new UserMessage('Original question')],
             new AgentRunOptions(stream: true),
         );
-        $event = $node($start, $state);
+        $event = $node($start, $state, $resources);
         $request = $state->request;
 
         $this->assertInstanceOf(AIInferenceEvent::class, $event);
@@ -64,7 +63,7 @@ class InferenceIntentTest extends TestCase
         $this->assertSame('Base instructions', $instructions->getContent());
 
         $state->incrementToolRun('lookup');
-        $node(new AgentStartEvent([new UserMessage('Next question')]), $state);
+        $node(new AgentStartEvent([new UserMessage('Next question')]), $state, $resources);
         $this->assertSame(0, $state->getToolRuns('lookup'));
         $this->assertNotSame($request, $state->request);
         $this->assertFalse($state->request->options->stream);
@@ -91,20 +90,18 @@ class InferenceIntentTest extends TestCase
     {
         $start = new AgentStartEvent(options: new AgentRunOptions(outputClass: stdClass::class));
         $state = new AgentState();
-        $event = (new AgentStartNode(new SystemMessage('Instructions'), []))($start, $state);
+        $event = (new AgentStartNode())($start, $state, AgentResourcesFactory::make(instructions: 'Instructions'));
 
         $this->assertInstanceOf(StructuredInferenceEvent::class, $event);
         $this->assertSame($start->options, $state->request->options);
         $this->assertInstanceOf(StructuredInferenceEvent::class, AIInferenceEvent::fromRequest($state->request));
     }
 
-    public function test_state_serializes_request_data_and_restores_live_tools(): void
+    public function test_state_serializes_request_data(): void
     {
-        $tool = new ClosureDependencyTool(static fn (): int => 42);
         $state = new AgentState();
         $state->request = new InferenceRequest(
             'Recorded instructions',
-            [$tool],
             [new UserMessage('Question')],
             new AgentRunOptions(outputClass: stdClass::class, maxRetries: 0),
         );
@@ -113,26 +110,18 @@ class InferenceIntentTest extends TestCase
         $restored = unserialize(serialize($state));
 
         $this->assertInstanceOf(AgentState::class, $restored);
-        $this->assertSame([], $restored->request->tools);
         $this->assertSame('Recorded instructions', $restored->request->instructions->getContent());
         $this->assertSame('Question', $restored->request->messages[0]->getContent());
         $this->assertEquals($state->request->options, $restored->request->options);
         $this->assertSame([], $restored->getSteps());
         $this->assertSame(1, $restored->getToolRuns('count_users'));
-
-        $agent = Agent::make();
-        $agent->addTool($tool);
-        ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($restored);
-        $this->assertSame([$tool], $restored->request->tools);
-        $this->assertSame([$tool], $state->request->tools);
     }
 
-    public function test_cloned_state_isolates_nested_request_data_and_keeps_live_tools(): void
+    public function test_cloned_state_isolates_nested_request_data(): void
     {
-        $tool = new ClosureDependencyTool(static fn (): int => 42);
         $call = ToolCall::make('count_users', 'call_1', ['filter' => ['active' => true]])->setResult('Original result');
         $state = new AgentState();
-        $state->request = new InferenceRequest('Original instructions', [$tool], [new ToolCallMessage(null, [$call])]);
+        $state->request = new InferenceRequest('Original instructions', [new ToolCallMessage(null, [$call])]);
         $branch = clone $state;
 
         $branch->request->instructions->getTextBlocks()[0]->content = 'Branch instructions';
@@ -140,13 +129,10 @@ class InferenceIntentTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $branchMessage);
         $branchMessage->getToolCalls()[0]->setResult('Branch result');
         $branch->request->options->stream = true;
-        $this->assertSame([$tool], $branch->request->tools);
-        $branch->request->tools = [];
 
         $this->assertSame('Original instructions', $state->request->instructions->getContent());
         $this->assertSame('Original result', $call->getResult());
         $this->assertFalse($state->request->options->stream);
-        $this->assertSame([$tool], $state->request->tools);
     }
 
     public function test_state_can_be_cloned_and_serialized_before_entry(): void

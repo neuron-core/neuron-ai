@@ -30,7 +30,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -59,7 +59,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -89,7 +89,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -144,7 +144,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -182,7 +182,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -221,7 +221,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -241,7 +241,7 @@ class GlobalMiddlewareMethodTest extends TestCase
     public function test_empty_global_middleware_override_does_not_cause_errors(): void
     {
         $workflow = new class () extends Workflow {
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }
@@ -287,7 +287,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 parent::__construct();
             }
 
-            protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+            protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
             }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Nodes\Stub\CalculatorTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\GreeterTool;
 use NeuronAI\Workflow\NodeContext;
@@ -41,16 +42,16 @@ class ToolNodeStreamingTest extends TestCase
         $state = new AgentState();
 
         // Create the events
-        $request = new InferenceRequest('Test instructions', $registry);
+        $request = new InferenceRequest('Test instructions');
         $state->request = $request;
         $toolCallEvent = new ToolCallEvent($toolCallMessage);
 
         // Create the ToolNode (the executor hands the node the event it dispatches)
-        $toolNode = new ToolNode($chatHistory);
-        $toolNode->setWorkflowContext(new NodeContext($state, $toolCallEvent));
+        $toolNode = new ToolNode();
+        $toolNode->setWorkflowContext(new NodeContext());
 
         // Invoke the node and collect yielded chunks
-        $generator = $toolNode->__invoke($toolCallEvent, $state);
+        $generator = $toolNode->__invoke($toolCallEvent, $state, AgentResourcesFactory::make($registry, $chatHistory));
 
         $chunks = [];
         foreach ($generator as $chunk) {

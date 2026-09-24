@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 
 /**
@@ -22,28 +24,28 @@ use NeuronAI\Workflow\WorkflowState;
  */
 abstract class AgentMiddleware implements WorkflowMiddleware
 {
-    final public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    final public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
-        if ($node instanceof AgentNodeInterface && $state instanceof AgentState) {
-            $this->beforeAgentNode($node, $event, $state);
+        if ($node instanceof AgentNodeInterface && $state instanceof AgentState && $resources instanceof AgentResources) {
+            $this->beforeAgentNode($node, $event, $state, $resources);
             return;
         }
 
         $this->onAgentContextMismatch($node, $event, $state);
     }
 
-    final public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    final public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
-        if ($node instanceof AgentNodeInterface && $state instanceof AgentState) {
-            $this->afterAgentNode($node, $result, $state);
+        if ($node instanceof AgentNodeInterface && $state instanceof AgentState && $resources instanceof AgentResources) {
+            $this->afterAgentNode($node, $result, $state, $resources);
         }
     }
 
-    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state, AgentResources $resources): void
     {
     }
 
-    protected function afterAgentNode(AgentNodeInterface $node, Event $result, AgentState $state): void
+    protected function afterAgentNode(AgentNodeInterface $node, Event $result, AgentState $state, AgentResources $resources): void
     {
     }
 

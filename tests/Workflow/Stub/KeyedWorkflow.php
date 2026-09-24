@@ -26,7 +26,7 @@ class KeyedWorkflow extends Workflow
         return $this->key;
     }
 
-    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+    protected function nodes(): array
     {
         return [
             new NodeOne(),

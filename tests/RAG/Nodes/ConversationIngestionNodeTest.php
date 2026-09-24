@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\Nodes;
 
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\InferenceNode;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -170,8 +170,8 @@ class ConversationIngestionNodeTest extends TestCase
         $state = new AgentState();
         $state->request = new InferenceRequest('Instructions', messages: [new UserMessage($question)]);
         $state->setResponse(new ProviderResponse(new AssistantMessage($answer)));
-        $node = new ConversationIngestionNode($store, new FakeEmbeddingsProvider(), new ChatHistory(new InMemoryMessageStore(), 'thread'));
-        $node(new AgentOutputEvent(), $state);
+        $node = new ConversationIngestionNode($store, new FakeEmbeddingsProvider());
+        $node(new AgentOutputEvent(), $state, AgentResourcesFactory::make());
         $store->assertNothingStored();
     }
 }

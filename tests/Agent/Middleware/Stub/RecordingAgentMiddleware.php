@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Middleware\Stub;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Middleware\AgentMiddleware;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
@@ -17,12 +18,12 @@ class RecordingAgentMiddleware extends AgentMiddleware
     public int $mismatchCalls = 0;
     public int $afterCalls = 0;
 
-    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state, AgentResources $resources): void
     {
         $this->agentCalls++;
     }
 
-    protected function afterAgentNode(AgentNodeInterface $node, Event $result, AgentState $state): void
+    protected function afterAgentNode(AgentNodeInterface $node, Event $result, AgentState $state, AgentResources $resources): void
     {
         $this->afterCalls++;
     }

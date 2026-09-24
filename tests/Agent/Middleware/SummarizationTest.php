@@ -20,6 +20,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
@@ -45,7 +46,7 @@ class SummarizationTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Summary'));
         // maxTokens: 1 makes any non-empty history exceed the threshold
         $middleware = new Summarization($provider, maxTokens: 1, messagesToKeep: $messagesToKeep);
-        $middleware->before(new ChatNode($provider, $history), new AIInferenceEvent(), new AgentState());
+        $middleware->before(new ChatNode(), new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $history, $provider));
 
         return $history->getMessages();
     }
@@ -156,7 +157,7 @@ class SummarizationTest extends TestCase
         $history = new ChatHistory($store, 'thread');
         $provider = new FakeAIProvider(new AssistantMessage('Summary'));
         (new Summarization($provider, maxTokens: 50, messagesToKeep: 2))
-            ->before(new ChatNode($provider, $history), new AIInferenceEvent(), new AgentState());
+            ->before(new ChatNode(), new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $history, $provider));
 
         $provider->assertCallCount(1);
         $this->assertStringContainsString('Summary', (string) $history->getMessages()[0]->getContent());
@@ -174,7 +175,7 @@ class SummarizationTest extends TestCase
         $provider->setTools([new SearchTool()]);
 
         (new Summarization($provider, maxTokens: 50, messagesToKeep: 2))
-            ->before(new ChatNode($provider, $history), new AIInferenceEvent(), new AgentState());
+            ->before(new ChatNode(), new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $history, $provider));
 
         $provider->assertCallCount(1);
         $this->assertSame([], $provider->getRecorded()[0]->tools);

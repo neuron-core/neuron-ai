@@ -38,6 +38,7 @@ use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowInspector;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\ExecutionContext;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -576,13 +577,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     protected function runNode(
         NodeInterface $node,
+        Event $event,
+        WorkflowState $state,
         NodeContext $context,
+        WorkflowResources $resources,
         array $middleware = [],
         ?string $branchId = null,
     ): Generator {
         $node->setWorkflowContext($context);
-        $event = $context->event;
-        $state = $context->state;
         $dispatcher = $context->dispatcher;
 
         $this->dispatchEvent($dispatcher, new WorkflowNodeStart($node::class, $state), $node, $branchId);
@@ -590,11 +592,11 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         try {
             foreach ($middleware as $m) {
                 $this->dispatchEvent($dispatcher, new MiddlewareStart($m, $event, 'before'), $node, $branchId);
-                $m->before($node, $event, $state);
+                $m->before($node, $event, $state, $resources);
                 $this->dispatchEvent($dispatcher, new MiddlewareEnd($m, 'before'), $node, $branchId);
             }
 
-            $result = $node->run($event, $state);
+            $result = $node->run($event, $state, $resources);
             if ($result instanceof Generator) {
                 foreach ($result as $streamedEvent) {
                     yield $streamedEvent;
@@ -604,7 +606,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
 
             foreach ($middleware as $m) {
                 $this->dispatchEvent($dispatcher, new MiddlewareStart($m, $result, 'after'), $node, $branchId);
-                $m->after($node, $result, $state);
+                $m->after($node, $result, $state, $resources);
                 $this->dispatchEvent($dispatcher, new MiddlewareEnd($m, 'after'), $node, $branchId);
             }
 
@@ -630,14 +632,14 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $cached = $this->store->loadStep($stepId);
 
         if ($cached instanceof StepResult && !$cached->isInterrupted()) {
-            return $cached->withState($workflow->restoreState($cached->getState()));
+            return $cached;
         }
 
         $active = $this->store->control()->interrupt;
         $input = $cached?->getInterruptId() === $active?->request->getId() ? $active?->input : null;
         $resuming = $input instanceof ResumeInput;
         if ($cached?->isInterrupted() && !$resuming) {
-            return $cached->withState($workflow->restoreState($cached->getState()));
+            return $cached;
         }
         if ($active instanceof ActiveInterrupt && !$resuming) {
             return new StepResult($stepId, new BranchPausedEvent(), $state);
@@ -648,15 +650,17 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         try {
             $terminal = yield from $this->runNode(
                 $node,
+                $event,
+                $state,
                 new NodeContext(
-                    state: $state,
-                    event: $event,
                     payload: $payload,
                     timedOut: $timedOut,
                     memoizer: $this->store->memoizer($stepId),
                     dispatcher: $workflow->getEventDispatcher(),
                     resuming: $resuming,
+                    branchId: $branchId,
                 ),
+                $workflow->getResources(),
                 $workflow->getMiddlewareForNode($node),
                 $branchId,
             );
@@ -776,7 +780,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         string $forkStepId,
     ): Generator {
         $branchState = clone $workflow->getState();
-        $branchState->set('__branchId', $branchId);
         $this->dispatchEvent($workflow->getEventDispatcher(), new BranchStart($branchId), $workflow, $branchId);
 
         try {

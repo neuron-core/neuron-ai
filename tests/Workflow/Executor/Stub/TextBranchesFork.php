@@ -8,7 +8,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 
-class RestorableStateFork extends Node
+class TextBranchesFork extends Node
 {
     public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
     {

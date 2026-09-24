@@ -71,7 +71,7 @@ A tool instance is a prototype: `ToolNode` clones it for every call and it never
 
 ## The graph is a function of the definition
 
-Default nodes are rebuilt through Workflow's `nodes()` hook at every execution segment, from the current configuration and never from which sugar method was called. Explicitly added nodes and registered middleware stay attached; custom node construction that must read configuration belongs in `nodes()` / `entryNodes()`.
+Default nodes are rebuilt through Workflow's `nodes()` hook at every execution segment, from the current configuration and never from which sugar method was called. Explicitly added nodes and registered middleware stay attached; custom node construction that must read configuration belongs in `nodes()` / `entryNodes()`. Nodes take no collaborators: the `resources()` hook resolves the segment's provider, chat history, instructions (with toolkit guidelines) and tools once into `AgentResources`, which every agent node receives as the third `__invoke()` argument and every middleware as the fourth.
 
 ```text
 AgentStartEvent ─► StartNode ─► AIInferenceEvent ─► ChatNode ─────────────────┐
@@ -81,16 +81,32 @@ AgentStartEvent ─► StartNode ─► AIInferenceEvent ─► ChatNode ──�
 ```
 
 - Each `chat()` / `stream()` / `structured()` selects a fresh execution internally and builds a new `AgentStartEvent` (`startEvent()` hook) carrying `messages` and `AgentRunOptions` (`stream`, `outputClass`, `maxRetries`), so inference settings never leak between turns. Agent provider, instructions, history, tools, tool limits, error handlers and parallel-tool settings can change during streaming. The active segment keeps its resolved resources and graph; subsequent segments use the new configuration.
-- `AgentStartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, tools, options) from the start event, cloned instructions and the effective tool list. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
+- `AgentStartNode` initializes the public typed `AgentState::$request` (`InferenceRequest`: instructions, messages, options) from the start event and a copy of the segment's instructions. **Nodes and middleware read and mutate that one request; events are routing signals and never forward it.** `AIInferenceEvent::fromRequest()` picks the exact routing class from `options->outputClass`.
 - Chat vs stream is transport: `ChatNode` reads `options->stream`, and both paths record the same memoized `ProviderResponse`. Structured output keeps its own node with attempt-indexed memos; `maxRetries` counts retries after the first attempt.
 - The tool loop replaces `request->messages` with the uncommitted call/result pair and routes the same request back to inference; those messages are combined with stored history, never overwrite it. `parallelToolCalls(true)` swaps `ToolNode` for `ParallelToolNode`.
-- The effective tool list is shared by inference and tool execution. Executable tools are excluded from request serialization (they may hold closures or connections): `AgentExecution::restoreState()` re-seeds the execution-local tool registry on recalled state, and tool-contributing middleware reapply their changes in `before()`. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
+- The segment's `ToolRegistry` (`$resources->tools`) is the one tool list shared by inference and tool execution. Tools never enter the state, since they may hold closures or connections; a middleware that contributes tools registers them in `before()`, which runs again in every segment. Cloning `AgentState` deep-copies messages, instructions and options, so parallel branches cannot affect each other.
 
-Middleware edits the working request directly:
+Middleware edits the working request and the segment's tools directly:
 
 ```php
 $state->request->instructions->addContent($context);
-$state->request->tools[] = $tool;
+$resources->tools->add($tool);
+```
+
+### Agent nodes in your own workflow
+
+Agent nodes run in any workflow that provides `AgentResources`; a workflow that provides none fails when its graph is built.
+
+```php
+Workflow::make(state: new AgentState())
+    ->setStartEvent(new AgentStartEvent([new UserMessage('Search PHP')]))
+    ->setResources(fn (): AgentResources => new AgentResources(
+        $provider,
+        new ChatHistory($messageStore, $threadId),
+        new SystemMessage('Be helpful'),
+        new ToolRegistry([new SearchTool()]),
+    ))
+    ->addNodes([new AgentStartNode(), new ChatNode(), new ToolNode(), new AgentEndNode()]);
 ```
 
 ### Output extension
@@ -100,7 +116,7 @@ Every final response converges on `AgentOutputEvent`. The response remains in `A
 `exitNodes()` supplies `[new EndNode()]` by default. Override it to replace the default ending with application nodes:
 
 ```php
-protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+protected function exitNodes(): array
 {
     return [new TextToSpeechNode($this->textToSpeech())];
 }
@@ -112,28 +128,28 @@ Output nodes are ordinary durable steps: if one fails, `run()` recovers the turn
 
 ### Middleware
 
-Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `instanceof`, so `InferenceNode::class` (the base of `ChatNode` and `StructuredOutputNode`, both always registered) is the target for mode-agnostic inference middleware such as `Summarization`, `TodoPlanning` and `ToolSearchMiddleware`. Extend `AgentMiddleware` for typed hooks: `beforeAgentNode()` / `afterAgentNode()` receive `AgentNodeInterface` and `AgentState`, and `onAgentContextMismatch()` fires on misattachment (empty by default, override it to fail loudly). Middleware read chat history from the node they wrap (`$node->getChatHistory()`), never from their own constructor. A middleware that calls a model can take the agent's provider in the `middleware()` hook (`new Summarization($this->getProvider())`); it sets its own prompt and clears the provider's tools for that call. Flow control and I/O stay in nodes: tool approval, once a middleware, lives in `ToolNode`.
+Register with `addMiddleware(NodeClass::class, $middleware)`; matching is `instanceof`, so `InferenceNode::class` (the base of `ChatNode` and `StructuredOutputNode`, both always registered) is the target for mode-agnostic inference middleware such as `Summarization`. Register a middleware that contributes tools, such as `ToolSearchMiddleware`, with `addGlobalMiddleware()`: a continuation can start at `ToolNode`, which must find the tools the model was offered before the pause. Extend `AgentMiddleware` for typed hooks: `beforeAgentNode()` / `afterAgentNode()` receive `AgentNodeInterface`, `AgentState` and `AgentResources`, and `onAgentContextMismatch()` fires on misattachment (empty by default, override it to fail loudly). Middleware read the segment's history, provider, instructions and tools from `AgentResources`, never from their own constructor. `Summarization` calls the segment's provider unless it is given its own (`new Summarization($cheaperProvider)`); it sets its own prompt and clears the provider's tools for that call. Flow control and I/O stay in nodes: tool approval, once a middleware, lives in `ToolNode`, and to-do planning is a toolkit, `TodoPlanningToolkit`.
 
 ## Chat history is a service, not state
 
-The Agent receives a message store (`messageStore()` hook, `setMessageStore()`; in-memory by default, retained per instance) and builds a working history over it at the start of every execution segment. Size the conversation sent to the model with the `contextWindow()` hook or `setContextWindow()` (`ChatHistory::DEFAULT_CONTEXT_WINDOW`, 50,000 tokens, by default). The store is the part to share: bind one instance in the container. Each segment loads the conversation fresh, so a long-lived Agent sees the turns other workers added. `getChatHistory()` returns a fresh view on every call and is final, so no override can retain a history across segments; nodes and middleware read the history of the node they wrap, and writing through the Agent's view while an execution runs is unsupported. See `src/Chat/AGENTS.md` for the store and history contracts.
+The Agent receives a message store (`messageStore()` hook, `setMessageStore()`; in-memory by default, retained per instance) and builds a working history over it at the start of every execution segment. Size the conversation sent to the model with the `contextWindow()` hook or `setContextWindow()` (`ChatHistory::DEFAULT_CONTEXT_WINDOW`, 50,000 tokens, by default). The store is the part to share: bind one instance in the container. Each segment loads the conversation fresh, so a long-lived Agent sees the turns other workers added. `getChatHistory()` returns a fresh view on every call and is final, so no override can retain a history across segments; nodes and middleware read the segment's history from `AgentResources`, and writing through the Agent's view while an execution runs is unsupported. See `src/Chat/AGENTS.md` for the store and history contracts.
 
-History is injected into agent nodes as a constructor dependency (`AgentNodeInterface`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
+History is a resource of the segment (`AgentResources::$history`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
 
-- Writes go through `addToChatHistory($messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail; the history also skips a message it already holds, covering a write whose memo was lost.
+- Writes go through `addToChatHistory($resources->history, $state, $messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail; the history also skips a message it already holds, covering a write whose memo was lost.
 - A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Approval-gated and externally executed cycles write their `ToolCallMessage` early, pre-suspend.
 - Durable workflow persistence needs a comparably durable store: `InMemoryMessageStore` loses the thread across processes.
 - `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
 
 ## Conversation memory
 
-Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/thread filters from an explicit thread-ID allowlist. `CompositeRetrieval` combines it with document retrieval. Creation is opt-in: override `exitNodes()` with `NeuronAI\RAG\Nodes\ConversationIngestionNode`, providing the vector store, embeddings provider and chat history. Agent has no memory collaborator or memory-specific routing.
+Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/thread filters from an explicit thread-ID allowlist. `CompositeRetrieval` combines it with document retrieval. Creation is opt-in: override `exitNodes()` with `NeuronAI\RAG\Nodes\ConversationIngestionNode`, providing the vector store and embeddings provider; the node reads the chat history from the segment's resources. Agent has no memory collaborator or memory-specific routing.
 
 `resetConversation()` abandons the pending execution and clears chat history. Stored conversation documents have a separate lifecycle and are deleted explicitly through the vector store. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md) for attachment, retrieval and deletion examples.
 
 ## Tool approval
 
-`ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the request's tool list (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
+`ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the segment's tool registry (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
 ```php
 protected function tools(): array
@@ -263,15 +279,13 @@ Build an `ExecutionRequest::start(new AgentStartEvent($messages, $options),
 runId: $reservedRunId)` and call `run($request)` for eager
 execution or `events($request)` for lazy output. Both use the same engine as chat,
 stream and structured conveniences. The thread is bound before resources are
-constructed, so hooks read it from `getThreadId()`. Graph hooks read the run identity
-and the original input from `$execution->context`, on both starts and continuations.
+constructed, so hooks read it from `getThreadId()`.
 
 `provider()`, `tools()` and `instructions()` take no argument; their explicit fluent
-instance overrides still win. Graph hooks `nodes()`, `entryNodes()`
-and `exitNodes()` receive the runtime; Agent compositions use AgentExecution's
-`getProvider()`, `getChatHistory()`, `getInstructions()` and `getTools()` to reuse
-resources resolved for that segment. Toolkit guidelines are derived once on the
-runtime and never appended to definition instructions.
+instance overrides still win. Graph hooks `nodes()`, `entryNodes()` and `exitNodes()`
+take no argument either: nodes read the segment's provider, history, instructions and
+tools from `AgentResources`. Toolkit guidelines are appended to the segment's copy of
+the instructions, never to the definition's.
 
 Use the `streamAdapter()` / `channel()` hooks or fluent factories returning
 adapters/channels for application-managed push output.

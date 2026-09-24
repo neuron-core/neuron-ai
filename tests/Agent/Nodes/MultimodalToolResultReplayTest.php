@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Nodes\Stub\MultimodalTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
-use NeuronAI\Chat\History\ChatHistory;
-use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tools\Tool;
@@ -34,15 +33,15 @@ class MultimodalToolResultReplayTest extends TestCase
         $tool = new MultimodalTool();
         $call = ToolCall::make('multimodal_tool', 'call_1', []);
 
-        $toolNode = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
+        $toolNode = new ToolNode();
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, [$call]);
-        $request = new InferenceRequest(instructions: 'Test', tools: [$tool]);
+        $request = new InferenceRequest(instructions: 'Test');
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
-        $toolNode->setWorkflowContext(new NodeContext($state, $event));
+        $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool])) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -69,12 +68,12 @@ class MultimodalToolResultReplayTest extends TestCase
 
         // Run 1: the tool executes and its result is memoized mid-node.
         $toolCallMessage1 = new ToolCallMessage(null, [$call1]);
-        $request1 = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request1 = new InferenceRequest(instructions: 'Test');
         $state->request = $request1;
         $event1 = new ToolCallEvent($toolCallMessage1);
-        $node1 = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
-        $node1->setWorkflowContext(new NodeContext($state, $event1, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node1($event1, $state) as $_) {
+        $node1 = new ToolNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        foreach ($node1($event1, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -85,12 +84,12 @@ class MultimodalToolResultReplayTest extends TestCase
         $call2 = ToolCall::make('multimodal_tool', 'call_1', []);
 
         $toolCallMessage2 = new ToolCallMessage(null, [$call2]);
-        $request2 = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request2 = new InferenceRequest(instructions: 'Test');
         $state->request = $request2;
         $event2 = new ToolCallEvent($toolCallMessage2);
-        $node2 = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
-        $node2->setWorkflowContext(new NodeContext($state, $event2, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node2($event2, $state) as $_) {
+        $node2 = new ToolNode();
+        $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        foreach ($node2($event2, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 

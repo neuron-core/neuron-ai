@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -25,11 +25,11 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
+use NeuronAI\Tools\ToolRegistry;
 use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Agent\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
-use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function array_diff_key;
@@ -62,8 +62,6 @@ use const JSON_PRETTY_PRINT;
 class ToolNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
-    /** @var AgentState */
-    protected WorkflowState $state;
 
     /**
      * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
@@ -71,11 +69,9 @@ class ToolNode extends Node implements AgentNodeInterface
     protected $errorHandler;
 
     public function __construct(
-        ChatHistory $chatHistory,
         protected int $maxRuns = 10,
         ?callable $errorHandler = null
     ) {
-        $this->chatHistory = $chatHistory;
         $this->errorHandler = $errorHandler;
     }
 
@@ -83,12 +79,12 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    public function __invoke(ToolCallEvent $event, AgentState $state): AIInferenceEvent|AwaitToolResultsEvent|Generator
+    public function __invoke(ToolCallEvent $event, AgentState $state, AgentResources $resources): AIInferenceEvent|AwaitToolResultsEvent|Generator
     {
-        $approvalGated = $this->resolveToolApprovals($event->toolCallMessage);
+        $approvalGated = $this->resolveToolApprovals($event->toolCallMessage, $state, $resources);
 
         $calls = $event->toolCallMessage->getToolCalls();
-        $executed = yield from $this->executeLocalTools($calls, $event->toolCallMessage->getId());
+        $executed = yield from $this->executeLocalTools($calls, $event->toolCallMessage->getId(), $state, $resources->tools);
         $deferred = $this->filterDeferredCalls($calls);
 
         if ($deferred !== []) {
@@ -97,7 +93,7 @@ class ToolNode extends Node implements AgentNodeInterface
             // consuming another slot for the same call.
             foreach ($deferred as $index => $call) {
                 try {
-                    $this->checkToolRuns($call, $index);
+                    $this->checkToolRuns($call, $index, $state, $resources->tools);
                 } catch (Throwable $e) {
                     $this->handleError($e, $call);
                     $executed[$index] = $call;
@@ -109,7 +105,7 @@ class ToolNode extends Node implements AgentNodeInterface
             }
 
             if ($deferred !== []) {
-                $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
+                $this->addToChatHistory($resources->history, $state, $event->toolCallMessage, 'history.toolcall');
                 foreach ($deferred as $call) {
                     $this->emit(new ToolCalling($call));
                     yield new ToolCallChunk($event->toolCallMessage->getId(), $call);
@@ -144,9 +140,9 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws WorkflowException
      * @throws WorkflowInterrupt
      */
-    protected function resolveToolApprovals(ToolCallMessage $message): bool
+    protected function resolveToolApprovals(ToolCallMessage $message, AgentState $state, AgentResources $resources): bool
     {
-        $gated = $this->filterToolsRequiringApproval($message->getToolCalls());
+        $gated = $this->filterToolsRequiringApproval($message->getToolCalls(), $resources->tools);
 
         if ($gated === []) {
             return false;
@@ -159,7 +155,7 @@ class ToolNode extends Node implements AgentNodeInterface
         // Written with pending states BEFORE any suspend, so a cold
         // process renders pending approvals from history alone; the memo
         // keeps a resume pass from duplicating the tail.
-        $this->addToChatHistory($message, 'history.toolcall');
+        $this->addToChatHistory($resources->history, $state, $message, 'history.toolcall');
 
         // A tool runs if explicitly approved; silence is never consent.
         // An incomplete decision set loops and re-suspends with the
@@ -168,7 +164,7 @@ class ToolNode extends Node implements AgentNodeInterface
         while ($this->pendingTools($gated) !== []) {
             $decisions = $this->memoize(
                 'approval.' . $round++,
-                fn (): array => $this->interrupt($this->buildApprovalRequest($gated)) ?? [],
+                fn (): array => $this->interrupt($this->buildApprovalRequest($gated, $resources->tools)) ?? [],
             );
             $this->applyDecisions($decisions, $gated);
         }
@@ -198,21 +194,15 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * The single source for resolution is the state request's tool list —
-     * the cycle's effective set. The node holds no registry of its own, so a
-     * tool removed from the offering is removed from execution.
+     * The single source for resolution is the segment's registry, which is
+     * also what the model is offered: a tool removed from the offering is
+     * removed from execution.
      *
      * @throws ToolException
      */
-    protected function findLiveTool(string $name): ToolInterface
+    protected function findLiveTool(string $name, ToolRegistry $tools): ToolInterface
     {
-        foreach ($this->state->request->tools as $tool) {
-            if ($tool instanceof ToolInterface && $tool->getName() === $name) {
-                return $tool;
-            }
-        }
-
-        throw new ToolException(
+        return $tools->find($name) ?? throw new ToolException(
             "The tool {$name} is not registered on this agent: the call cannot be executed."
         );
     }
@@ -224,9 +214,9 @@ class ToolNode extends Node implements AgentNodeInterface
      *
      * @throws ToolException
      */
-    protected function resolveTool(ToolCall $call): ToolInterface
+    protected function resolveTool(ToolCall $call, ToolRegistry $tools): ToolInterface
     {
-        $tool = $this->findLiveTool($call->getName());
+        $tool = $this->findLiveTool($call->getName(), $tools);
 
         $tool = clone $tool;
         $tool->setInputs($call->getInputs());
@@ -247,20 +237,18 @@ class ToolNode extends Node implements AgentNodeInterface
      * @return ToolCall[]
      * @throws ToolException
      */
-    protected function filterToolsRequiringApproval(array $calls): array
+    protected function filterToolsRequiringApproval(array $calls, ToolRegistry $tools): array
     {
         return array_filter(
             $calls,
-            function (ToolCall $call): bool {
-                try {
-                    $this->findLiveTool($call->getName());
-                } catch (ToolException) {
+            function (ToolCall $call) use ($tools): bool {
+                if (!$tools->find($call->getName()) instanceof ToolInterface) {
                     return false;
                 }
 
                 // Ask a clone with the call's inputs bound, so a policy callback
                 // reading $tool->getInputs() sees this call's arguments.
-                $tool = $this->resolveTool($call);
+                $tool = $this->resolveTool($call, $tools);
 
                 $decision = $tool->requiresApproval();
 
@@ -335,12 +323,12 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws WorkflowException
      * @throws ToolException
      */
-    protected function buildApprovalRequest(array $gated): ApprovalRequest
+    protected function buildApprovalRequest(array $gated, ToolRegistry $tools): ApprovalRequest
     {
         $actions = [];
         foreach ($gated as $call) {
             // The approver judges the typed values __invoke() would receive, not the model's raw spelling
-            $inputs = $this->resolveTool($call)->getInputs();
+            $inputs = $this->resolveTool($call, $tools)->getInputs();
 
             $actions[] = new Action(
                 id: $call->getCallId() ?? uniqid('tool_'),
@@ -400,12 +388,12 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws Throwable
      * @throws ToolRunsExceededException
      */
-    protected function executeLocalTools(array $calls, string $messageId): Generator
+    protected function executeLocalTools(array $calls, string $messageId, AgentState $state, ToolRegistry $tools): Generator
     {
         $local = array_diff_key($calls, $this->filterDeferredCalls($calls));
         foreach ($local as $index => $call) {
             yield new ToolCallChunk($messageId, $call);
-            $this->executeSingleTool($call, $index);
+            $this->executeSingleTool($call, $index, $state, $tools);
             yield new ToolResultChunk($call);
         }
 
@@ -421,7 +409,7 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
      */
-    protected function executeSingleTool(ToolCall $call, int $index): void
+    protected function executeSingleTool(ToolCall $call, int $index, AgentState $state, ToolRegistry $tools): void
     {
         // A rejected tool must not run; its rejection result was already stamped.
         if ($call->getApprovalState() === ApprovalState::Rejected) {
@@ -433,11 +421,11 @@ class ToolNode extends Node implements AgentNodeInterface
         $memoKey = 'tool.' . ($call->getCallId() ?? $call->getName()) . '.' . $index;
 
         try {
-            $this->checkToolRuns($call, $index);
-            $result = $this->memoize($memoKey, function () use ($call): string|ToolOutput {
+            $this->checkToolRuns($call, $index, $state, $tools);
+            $result = $this->memoize($memoKey, function () use ($call, $tools): string|ToolOutput {
                 // Resolution happens inside the memo: on replay the recorded
                 // result is returned and the live registry is never consulted.
-                $tool = $this->resolveTool($call);
+                $tool = $this->resolveTool($call, $tools);
 
                 $tool->execute();
                 return $tool->getResult();
@@ -459,20 +447,20 @@ class ToolNode extends Node implements AgentNodeInterface
      * @throws ToolRunsExceededException
      * @throws ToolException
      */
-    protected function checkToolRuns(ToolCall $call, int $index): void
+    protected function checkToolRuns(ToolCall $call, int $index, AgentState $state, ToolRegistry $tools): void
     {
-        $attempt = $this->memoize('tool_run.' . $index, function () use ($call): array {
-            $tool = $this->resolveTool($call);
+        $attempt = $this->memoize('tool_run.' . $index, function () use ($call, $state, $tools): array {
+            $tool = $this->resolveTool($call, $tools);
             $key = $tool->getRunKey();
 
             return [
                 'key' => $key,
-                'count' => $this->state->getToolRuns($key) + 1,
+                'count' => $state->getToolRuns($key) + 1,
                 'limit' => $tool->getMaxRuns() ?? $this->maxRuns,
             ];
         });
 
-        $this->state->restoreToolRunCount($attempt['key'], $attempt['count']);
+        $state->restoreToolRunCount($attempt['key'], $attempt['count']);
         $runs = $attempt['limit'];
         if ($attempt['count'] > $runs) {
             throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($call->getInputs()));

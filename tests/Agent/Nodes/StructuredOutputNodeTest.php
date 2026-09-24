@@ -17,6 +17,7 @@ use NeuronAI\Agent\Nodes\StructuredOutputNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -36,18 +37,18 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('{"name": "Alice"}'),     // attempt 1 -> valid
         );
 
-        $node = new StructuredOutputNode($provider, $chatHistory);
+        $node = new StructuredOutputNode();
         $state = new AgentState();
 
-        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $state->request = new InferenceRequest(instructions: 'Test');
         $event = new StructuredInferenceEvent();
         $state->request->options->outputClass = User::class;
         $state->request->options->maxRetries = 1;
         $state->request->messages = [new UserMessage('Generate a user')];
 
-        $node->setWorkflowContext(new NodeContext($state, $event));
+        $node->setWorkflowContext(new NodeContext());
 
-        $return = $node($event, $state);
+        $return = $node($event, $state, AgentResourcesFactory::make([], $chatHistory, $provider));
 
         $this->assertInstanceOf(AgentOutputEvent::class, $return);
         $provider->assertMethodCallCount('structured', 2);
@@ -71,18 +72,19 @@ class StructuredOutputNodeTest extends TestCase
             new AssistantMessage('I cannot produce JSON'),
             new AssistantMessage('{"name": "Alice"}'),
         );
-        $node = new StructuredOutputNode($provider, new ChatHistory(new InMemoryMessageStore(), 'thread'));
+        $node = new StructuredOutputNode();
+        $chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread');
         $state = new AgentState();
         $request = new InferenceRequest('Test', messages: [new UserMessage('Generate a user')]);
         $request->options->outputClass = User::class;
         $request->options->maxRetries = $maxRetries;
         $state->request = $request;
         $event = new StructuredInferenceEvent();
-        $node->setWorkflowContext(new NodeContext($state, $event));
+        $node->setWorkflowContext(new NodeContext());
 
         $this->expectException(AgentException::class);
         try {
-            $node($event, $state);
+            $node($event, $state, AgentResourcesFactory::make([], $chatHistory, $provider));
         } finally {
             $provider->assertMethodCallCount('structured', 1);
         }
@@ -110,16 +112,16 @@ class StructuredOutputNodeTest extends TestCase
         $state = new AgentState();
         $state->setExecutionMetadata($runId, $runId, 1);
 
-        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $state->request = new InferenceRequest(instructions: 'Test');
         $event = new StructuredInferenceEvent();
         $state->request->options->outputClass = User::class;
         $state->request->options->maxRetries = 1;
         $state->request->messages = [new UserMessage('Generate a user')];
 
-        $node1 = new StructuredOutputNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        $node1 = new StructuredOutputNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
-        $firstReturn = $node1($event, $state);
+        $firstReturn = $node1($event, $state, AgentResourcesFactory::make([], $chatHistory, $provider));
 
         $this->assertInstanceOf(AgentOutputEvent::class, $firstReturn);
         $provider->assertMethodCallCount('structured', 2);
@@ -132,10 +134,10 @@ class StructuredOutputNodeTest extends TestCase
         $state2->request = clone $state->request;
         $state2->setExecutionMetadata($runId, $runId, 1);
 
-        $node2 = new StructuredOutputNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        $node2 = new StructuredOutputNode();
+        $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
-        $secondReturn = $node2($event, $state2);
+        $secondReturn = $node2($event, $state2, AgentResourcesFactory::make([], $chatHistory, $provider));
 
         $this->assertInstanceOf(AgentOutputEvent::class, $secondReturn);
         // No additional inference: still the original two calls.

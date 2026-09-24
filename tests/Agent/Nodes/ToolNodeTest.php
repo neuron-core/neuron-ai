@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Nodes\Stub\TestToolWithRequiredInput;
 use NeuronAI\Workflow\NodeContext;
-use NeuronAI\Chat\History\ChatHistory;
-use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
@@ -32,20 +31,19 @@ class ToolNodeTest extends TestCase
     private function runNode(array $registry, array $calls, AgentState $state, ?callable $errorHandler = null, int $maxRuns = 10): void
     {
         $toolNode = new ToolNode(
-            new ChatHistory(new InMemoryMessageStore(), 'thread'),
             maxRuns: $maxRuns,
             errorHandler: $errorHandler
         );
 
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $request = new InferenceRequest(instructions: 'Test instructions', tools: $registry);
+        $request = new InferenceRequest(instructions: 'Test instructions');
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
 
         // Set up the workflow context (required for Node::emit() to work)
-        $toolNode->setWorkflowContext(new NodeContext($state, $event));
+        $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
     }

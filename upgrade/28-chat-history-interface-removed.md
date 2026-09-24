@@ -20,11 +20,7 @@ and `getChatHistory()` is final.
 | Before | After |
 |---|---|
 | `AgentInterface::getChatHistory(): ChatHistoryInterface` | `AgentInterface::getChatHistory(): ChatHistory`, final on `Agent` |
-| `AgentNodeInterface::getChatHistory(): ChatHistoryInterface` | `AgentNodeInterface::getChatHistory(): ChatHistory` |
-| `AgentExecution::getChatHistory(): ChatHistoryInterface` | `AgentExecution::getChatHistory(): ChatHistory` |
 | `Agent::chatHistory(string $threadId): ChatHistoryInterface` (protected hook) | Removed |
-| Constructors of `ChatNode`, `StructuredOutputNode`, `ToolNode`, `ParallelToolNode` and `AwaitToolResultsNode`: `ChatHistoryInterface $chatHistory` | `ChatHistory $chatHistory` |
-| Constructors of `PreProcessNode` and `ConversationIngestionNode`: `ChatHistoryInterface $chatHistory` | `ChatHistory $chatHistory` |
 | `Trajectory::fromChatHistory(ChatHistoryInterface $chatHistory)` | `Trajectory::fromChatHistory(ChatHistory $chatHistory)` |
 | `Summarization::summarizeHistory(ChatHistoryInterface $chatHistory, array $messages)` (protected) | `Summarization::summarizeHistory(ChatHistory $chatHistory, array $messages)` |
 
@@ -69,60 +65,7 @@ protected function lastAnswer(ChatHistory $history): ?string
 }
 ```
 
-### Case 2: A custom agent node
-
-A class implementing `AgentNodeInterface` must declare the new return type, otherwise PHP refuses to
-load it.
-
-Before:
-
-```php
-use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistoryInterface;
-use NeuronAI\Workflow\Node;
-
-class AuditNode extends Node implements AgentNodeInterface
-{
-    public function __construct(protected ChatHistoryInterface $chatHistory)
-    {
-    }
-
-    public function getChatHistory(): ChatHistoryInterface
-    {
-        return $this->chatHistory;
-    }
-
-    // ...
-}
-```
-
-After:
-
-```php
-use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistory;
-use NeuronAI\Workflow\Node;
-
-class AuditNode extends Node implements AgentNodeInterface
-{
-    public function __construct(protected ChatHistory $chatHistory)
-    {
-    }
-
-    public function getChatHistory(): ChatHistory
-    {
-        return $this->chatHistory;
-    }
-
-    // ...
-}
-```
-
-A node using the `ChatHistoryHelper` trait, or extending a built-in node, only changes the type of
-its own constructor parameter. Construct custom nodes with the history of the segment,
-`$execution->getChatHistory()`, in `nodes()`, `entryNodes()` or `exitNodes()`.
-
-### Case 3: A custom `ChatHistoryInterface` implementation
+### Case 2: A custom `ChatHistoryInterface` implementation
 
 Move what the implementation did to the extension point it belongs to:
 
@@ -139,13 +82,13 @@ $history = new ChatHistory($store, $threadId, $contextWindow, new KeepLastTurnsT
 
 Agents always use the default `HistoryTrimmer`.
 
-### Case 4: An Agent overriding `chatHistory()` or `getChatHistory()`
+### Case 3: An Agent overriding `chatHistory()` or `getChatHistory()`
 
 Remove the override. The Agent builds the history of every execution segment from `messageStore()`
 and `contextWindow()`, where guide 27 moved the store and the context window. `getChatHistory()` is
 final and returns a fresh view on every call.
 
-### Case 5: Test doubles
+### Case 4: Test doubles
 
 A mock or stub of `ChatHistoryInterface` has nothing left to replace. Use a real history over an
 in-memory store; it performs no I/O.
@@ -168,7 +111,7 @@ $history->addMessage($question);
 $history->addMessage($answer);
 ```
 
-### Case 6: Comparing `getLastMessage()` with `false`
+### Case 5: Comparing `getLastMessage()` with `false`
 
 `getLastMessage()` never returns `false`: an empty history throws `ChatHistoryException`, as the
 built-in histories already did. Where an empty history is expected, check `getMessages() === []`
@@ -178,7 +121,6 @@ first and remove the `false` branch.
 
 ```
 grep -rn "ChatHistoryInterface" --include="*.php" .
-grep -rn "implements AgentNodeInterface" --include="*.php" .
 grep -rnE "function (chatHistory|getChatHistory|summarizeHistory)\(" --include="*.php" .
 grep -rn "getLastMessage()" --include="*.php" .
 ```
@@ -186,6 +128,5 @@ grep -rn "getLastMessage()" --include="*.php" .
 ## Checklist
 
 - No reference to `ChatHistoryInterface` remains, in application code, tests or configuration.
-- Custom agent nodes declare `getChatHistory(): ChatHistory`.
 - No Agent subclass defines `chatHistory()` or `getChatHistory()`.
 - No code compares the result of `getLastMessage()` with `false`.

@@ -151,7 +151,7 @@ class SequentialInterruptionTest extends TestCase
 
             public function __invoke(ImageProcessEvent $event, WorkflowState $state): StopEvent
             {
-                if ($state->get('__branchId') === 'image') {
+                if ($this->branchId === 'image') {
                     $this->awaitEvent('approval');
                 } else {
                     $this->trace->events[] = 'next';

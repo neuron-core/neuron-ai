@@ -18,8 +18,8 @@ six areas:
 4. **`observe()` / `ObserverInterface` / `LogObserver` are deprecated** — use
    `subscribe()`, `LogListener`, and `setEventDispatcher()`; removal planned for
    the next major.
-5. **`NodeInterface::setWorkflowContext()` gained a `$dispatcher` parameter** —
-   direct implementors must add it.
+5. **`NodeInterface::setWorkflowContext()` receives a `NodeContext`** — it
+   carries the event dispatcher; direct implementors must adopt the signature.
 6. **Inspector is no longer bundled** — `inspector-apm/inspector-php` is an
    optional dependency and monitoring is never attached automatically; the
    application requires the package and subscribes its `InspectorSubscriber`.
@@ -118,24 +118,24 @@ $agent->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event
 (which is now a thin subclass of it), so serialization overrides port by
 changing the parent class.
 
-## 5. `setWorkflowContext()` gained a `$dispatcher` parameter
+## 5. `setWorkflowContext()` receives a `NodeContext`
 
 Only relevant if you implement `NodeInterface` directly instead of extending
-`Node`:
+`Node`. The executor hands the node its execution context as one object:
 
 ```php
-public function setWorkflowContext(
-    WorkflowState $currentState,
-    Event         $currentEvent,
-    ?array        $payload = null,
-    bool          $timedOut = false,
-    ?StepMemoizer $memoizer = null,
-    ?EventDispatcherInterface $dispatcher = null,   // new
-): void;
+use NeuronAI\Workflow\NodeContext;
+
+public function setWorkflowContext(NodeContext $context): void;
 ```
 
+`NodeContext` carries the resume payload, the timeout flag, the step's memoizer,
+the workflow's event dispatcher (`$context->dispatcher`) and the parallel branch
+the step runs in. The event and the state are not part of it: `run()` receives
+them as arguments.
+
 Custom `WorkflowExecutorInterface` implementations should pass
-`$workflow->getEventDispatcher()` through to the nodes they run.
+`$workflow->getEventDispatcher()` in the `NodeContext` of the nodes they run.
 
 ## 6. Inspector is no longer bundled
 

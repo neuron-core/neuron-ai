@@ -23,10 +23,10 @@ use function reset;
 /**
  * Validates a node's __invoke signature and resolves the event class it handles.
  *
- * Single reflection pass: the signature rules (two typed parameters, an Event
- * first — a concrete class or an intersection with exactly one Event member —
- * a WorkflowState second, an Event/Generator return) and the routed
- * event-class extraction live together here, out of the Workflow bootstrap.
+ * Single reflection pass: the signature rules (an Event first — a concrete
+ * class or an intersection with exactly one Event member — a WorkflowState
+ * second, optionally the resources third, an Event/Generator return) and the
+ * routed event-class extraction live together here, out of the Workflow bootstrap.
  */
 class NodeSignature
 {
@@ -34,9 +34,10 @@ class NodeSignature
      * The event class this node handles (the key in the event→node map).
      *
      * @return class-string<Event>
-     * @throws WorkflowException when the __invoke signature is invalid.
+     * @throws WorkflowException when the __invoke signature is invalid, or
+     *                            the segment's resources are not the type it declares.
      */
-    public function eventClass(NodeInterface $node): string
+    public function eventClass(NodeInterface $node, WorkflowResources $resources): string
     {
         try {
             $reflection = new ReflectionClass($node);
@@ -48,8 +49,8 @@ class NodeSignature
             $method = $reflection->getMethod('__invoke');
             $parameters = $method->getParameters();
 
-            if (count($parameters) !== 2) {
-                throw $this->invalid($node, '__invoke method must have exactly 2 parameters');
+            if (count($parameters) !== 2 && count($parameters) !== 3) {
+                throw $this->invalid($node, '__invoke method must have 2 or 3 parameters');
             }
 
             $eventClass = $this->resolveEventClass($node, $parameters[0]->getType());
@@ -57,6 +58,10 @@ class NodeSignature
             $secondParamType = $parameters[1]->getType();
             if (!($secondParamType instanceof ReflectionNamedType) || !is_a($secondParamType->getName(), WorkflowState::class, true)) {
                 throw $this->invalid($node, 'Second parameter of __invoke method must be ' . WorkflowState::class);
+            }
+
+            if (isset($parameters[2])) {
+                $this->validateResources($node, $parameters[2]->getType(), $resources);
             }
 
             $this->validateReturnType($node, $method);
@@ -108,6 +113,24 @@ class NodeSignature
 
         /** @var class-string<Event> */
         return $type->getName();
+    }
+
+    /**
+     * The graph is built once the segment's resources exist, so a node that
+     * needs more than the workflow provides fails here instead of mid-run.
+     *
+     * @throws WorkflowException
+     */
+    protected function validateResources(NodeInterface $node, ?ReflectionType $type, WorkflowResources $resources): void
+    {
+        if (!($type instanceof ReflectionNamedType) || !is_a($type->getName(), WorkflowResources::class, true)) {
+            throw $this->invalid($node, 'Third parameter of __invoke method must be ' . WorkflowResources::class);
+        }
+
+        $needed = $type->getName();
+        if (!$resources instanceof $needed) {
+            throw $this->invalid($node, "__invoke method needs {$needed}, but the workflow provides " . $resources::class);
+        }
     }
 
     /**

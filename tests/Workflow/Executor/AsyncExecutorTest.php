@@ -127,7 +127,7 @@ class AsyncExecutorTest extends TestCase
             {
                 delay(0.01);
 
-                return new StopEvent(result: $this->state->get('__branchId'));
+                return new StopEvent(result: $this->branchId);
             }
         };
 

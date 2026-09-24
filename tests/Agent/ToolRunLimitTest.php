@@ -9,6 +9,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistory;
@@ -155,46 +156,43 @@ class ToolRunLimitTest extends TestCase
     {
         $crashing = new CrashSearchTool();
         $initial = new AgentState();
-        $initial->request = new InferenceRequest('Test', [new CountingTool(), $crashing]);
+        $initial->request = new InferenceRequest('Test');
         $initial->incrementToolRun('lookup');
         $event = new ToolCallEvent(new ToolCallMessage(null, [
             new ToolCall('lookup', 'completed', ['query' => 'PHP']),
             new ToolCall('search', 'failed', ['query' => 'PHP']),
         ]));
         try {
-            $this->runNode(clone $initial, $event, 'batch', 2);
+            $this->runNode(clone $initial, $event, 'batch', 2, [new CountingTool(), $crashing]);
             $this->fail('The second call must fail on its first execution.');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Simulated crash', $e->getMessage());
         }
 
         $restored = clone $initial;
-        $restored->request->tools = [$crashing];
-        $this->runNode($restored, $event, 'batch', 2);
+        $this->runNode($restored, $event, 'batch', 2, [$crashing]);
         $this->assertSame(2, $restored->getToolRuns('lookup'));
         $this->assertSame(1, $restored->getToolRuns('search'));
         $this->assertSame(1, CountingTool::$executions);
         $this->assertSame(2, $crashing->getCallCount());
 
-        $restored->request->tools = [new CountingTool()];
         $next = new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('lookup', 'next', ['query' => 'Rust'])]));
         $this->expectException(ToolRunsExceededException::class);
-        $this->runNode($restored, $next, 'next-batch', 2);
+        $this->runNode($restored, $next, 'next-batch', 2, [new CountingTool()]);
     }
 
     public function test_replaying_a_batch_does_not_lower_or_increment_recorded_counts(): void
     {
         $state = new AgentState();
-        $state->request = new InferenceRequest('Test', [new CountingTool()]);
+        $state->request = new InferenceRequest('Test');
         $event = new ToolCallEvent(new ToolCallMessage(null, [
             new ToolCall('lookup', 'a', ['query' => 'PHP']),
             new ToolCall('lookup', 'b', ['query' => 'Rust']),
         ]));
-        $this->runNode($state, $event, 'completed-batch', 2);
+        $this->runNode($state, $event, 'completed-batch', 2, [new CountingTool()]);
         $this->assertSame(2, $state->getToolRuns('lookup'));
 
-        $state->request->tools = [];
-        $this->runNode($state, $event, 'completed-batch', 2);
+        $this->runNode($state, $event, 'completed-batch', 2, []);
         $this->assertSame(2, $state->getToolRuns('lookup'));
         $this->assertSame(2, CountingTool::$executions);
     }
@@ -204,9 +202,9 @@ class ToolRunLimitTest extends TestCase
         $event = new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true)]));
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $state = new AgentState();
-            $state->request = new InferenceRequest('Test', [new FrontendTool('browser')]);
+            $state->request = new InferenceRequest('Test');
             try {
-                $this->runNode($state, $event, 'denied', $attempt === 0 ? 0 : 10);
+                $this->runNode($state, $event, 'denied', $attempt === 0 ? 0 : 10, [new FrontendTool('browser')]);
                 $this->fail('The recorded limit must still reject the call on replay.');
             } catch (ToolRunsExceededException) {
                 $this->assertSame(1, $state->getToolRuns('browser'));
@@ -214,14 +212,15 @@ class ToolRunLimitTest extends TestCase
         }
     }
 
-    protected function runNode(AgentState $state, ToolCallEvent $event, string $step, int $limit): void
+    /**
+     * @param ToolInterface[] $tools
+     */
+    protected function runNode(AgentState $state, ToolCallEvent $event, string $step, int $limit, array $tools): void
     {
-        $node = new ToolNode(new ChatHistory($this->messages, 'tool-run-limit'), $limit);
+        $node = new ToolNode($limit);
         $node->setWorkflowContext(new NodeContext(
-            $state,
-            $event,
             memoizer: WorkflowTestStore::memoizer($this->persistence, 'counter-recovery', $step),
         ));
-        iterator_to_array($node($event, $state));
+        iterator_to_array($node($event, $state, AgentResourcesFactory::make($tools, new ChatHistory($this->messages, 'tool-run-limit'))));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
@@ -98,7 +99,7 @@ class AgentDurabilityTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
 
         $state = new AgentState();
-        $state->request = new InferenceRequest('Be helpful', []);
+        $state->request = new InferenceRequest('Be helpful');
         $event = new AIInferenceEvent();
         $state->request->messages = [new UserMessage('Hi')];
 
@@ -109,9 +110,9 @@ class AgentDurabilityTest extends TestCase
         $state1 = new AgentState();
         $state1->request = clone $state->request;
         $state1->setExecutionMetadata($workflowId, $workflowId, 1);
-        $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $this->assertSame([], iterator_to_array($node1($event, $state1)));
+        $node1 = new ChatNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+        $this->assertSame([], iterator_to_array($node1($event, $state1, AgentResourcesFactory::make([], $chatHistory, $provider))));
 
         $this->assertSame(1, $provider->getCallCount());
 
@@ -120,9 +121,9 @@ class AgentDurabilityTest extends TestCase
         $state2 = new AgentState();
         $state2->request = clone $state->request;
         $state2->setExecutionMetadata($workflowId, $workflowId, 1);
-        $node2 = new ChatNode($provider, $chatHistory);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $this->assertSame([], iterator_to_array($node2($event, $state2)));
+        $node2 = new ChatNode();
+        $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+        $this->assertSame([], iterator_to_array($node2($event, $state2, AgentResourcesFactory::make([], $chatHistory, $provider))));
 
         $this->assertSame(1, $provider->getCallCount(), 'Inference must not be re-billed on recovery');
     }

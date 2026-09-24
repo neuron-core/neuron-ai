@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -24,7 +24,6 @@ use NeuronAI\Observability\Events\SchemaGenerated;
 use NeuronAI\Observability\Events\SchemaGeneration;
 use NeuronAI\Observability\Events\Validated;
 use NeuronAI\Observability\Events\Validating;
-use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
@@ -51,11 +50,8 @@ use const PHP_EOL;
 class StructuredOutputNode extends InferenceNode
 {
     public function __construct(
-        AIProviderInterface $provider,
-        ChatHistory $chatHistory,
         protected JsonExtractor $extractor = new JsonExtractor(),
     ) {
-        parent::__construct($provider, $chatHistory);
     }
 
     /**
@@ -64,7 +60,7 @@ class StructuredOutputNode extends InferenceNode
      * @throws ReflectionException
      * @throws ChatHistoryException
      */
-    public function __invoke(StructuredInferenceEvent $event, AgentState $state): ToolCallEvent|AgentOutputEvent
+    public function __invoke(StructuredInferenceEvent $event, AgentState $state, AgentResources $resources): ToolCallEvent|AgentOutputEvent
     {
         $outputClass = $state->request->options->outputClass
             ?? throw new AgentException('Structured inference requires an output class on the request.');
@@ -93,7 +89,7 @@ class StructuredOutputNode extends InferenceNode
                     );
                 }
 
-                $messages = $this->pendingConversation($pending);
+                $messages = $this->pendingConversation($resources->history, $pending);
 
                 $last = clone end($messages);
 
@@ -105,16 +101,16 @@ class StructuredOutputNode extends InferenceNode
                 // the provider.
                 $providerResponse = $this->memoize(
                     "inference.{$attempt}",
-                    fn (): ProviderResponse => $this->provider
+                    fn (): ProviderResponse => $resources->provider
                         ->systemPrompt($state->request->instructions)
-                        ->setTools($state->request->tools)
+                        ->setTools($resources->tools->all())
                         ->structured($messages, $outputClass, $schema),
                 );
 
                 $message = $providerResponse->message();
                 $this->emit(new InferenceStop($last, $providerResponse));
 
-                $this->addToChatHistory($pending, "history.inbound.{$attempt}");
+                $this->addToChatHistory($resources->history, $state, $pending, "history.inbound.{$attempt}");
                 $pending = [];
 
                 if ($message instanceof ToolCallMessage) {
@@ -123,7 +119,7 @@ class StructuredOutputNode extends InferenceNode
 
                 // The response memo is attempt-indexed too: a shared name would
                 // silently skip the write of every retry's corrected response.
-                $this->addToChatHistory($message, "history.response.{$attempt}");
+                $this->addToChatHistory($resources->history, $state, $message, "history.response.{$attempt}");
 
                 $output = $this->processResponse($message, $schema, $outputClass);
 

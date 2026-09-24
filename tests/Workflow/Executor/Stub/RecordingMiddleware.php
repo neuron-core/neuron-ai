@@ -7,29 +7,24 @@ namespace NeuronAI\Tests\Workflow\Executor\Stub;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 
 class RecordingMiddleware implements WorkflowMiddleware
 {
-    /** @var array{node: class-string, branchId: string|null}[] */
+    /** @var class-string[] */
     public array $beforeCalls = [];
 
-    /** @var array{node: class-string, branchId: string|null}[] */
+    /** @var class-string[] */
     public array $afterCalls = [];
 
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
-        $this->beforeCalls[] = [
-            'node' => $node::class,
-            'branchId' => $state->get('__branchId'),
-        ];
+        $this->beforeCalls[] = $node::class;
     }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
-        $this->afterCalls[] = [
-            'node' => $node::class,
-            'branchId' => $state->get('__branchId'),
-        ];
+        $this->afterCalls[] = $node::class;
     }
 }

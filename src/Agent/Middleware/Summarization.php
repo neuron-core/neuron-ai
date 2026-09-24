@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
@@ -28,15 +29,18 @@ use function strtoupper;
 
 class Summarization extends AgentMiddleware
 {
+    /**
+     * @param AIProviderInterface|null $provider Writes the summary; the agent's own provider when null.
+     */
     public function __construct(
-        protected AIProviderInterface $provider,
+        protected ?AIProviderInterface $provider = null,
         protected int $maxTokens = 50000,
         protected int $messagesToKeep = 5,
         protected ?string $summaryPrompt = null,
     ) {
     }
 
-    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state, AgentResources $resources): void
     {
         if (!$event instanceof AIInferenceEvent) {
             return;
@@ -47,7 +51,7 @@ class Summarization extends AgentMiddleware
             return;
         }
 
-        $chatHistory = $node->getChatHistory();
+        $chatHistory = $resources->history;
         $messages = $chatHistory->getMessages();
 
         if (count($messages) <= $this->messagesToKeep) {
@@ -58,7 +62,7 @@ class Summarization extends AgentMiddleware
             return;
         }
 
-        $this->summarizeHistory($chatHistory, $messages);
+        $this->summarizeHistory($chatHistory, $messages, $this->provider ?? $resources->provider);
     }
 
     /**
@@ -67,7 +71,7 @@ class Summarization extends AgentMiddleware
      *
      * @param Message[] $messages
      */
-    protected function summarizeHistory(ChatHistory $chatHistory, array $messages): void
+    protected function summarizeHistory(ChatHistory $chatHistory, array $messages, AIProviderInterface $provider): void
     {
         $cutoffIndex = $this->findSafeCutoffIndex($messages);
 
@@ -78,7 +82,7 @@ class Summarization extends AgentMiddleware
         $oldMessages = array_slice($messages, 0, $cutoffIndex);
         $recentMessages = array_slice($messages, $cutoffIndex);
 
-        $summary = $this->generateSummary($oldMessages);
+        $summary = $this->generateSummary($provider, $oldMessages);
 
         $newMessages = [
             new UserMessage("## Previous conversation summary:\n\n{$summary}"),
@@ -143,14 +147,14 @@ class Summarization extends AgentMiddleware
     /**
      * @param Message[] $messages
      */
-    protected function generateSummary(array $messages): string
+    protected function generateSummary(AIProviderInterface $provider, array $messages): string
     {
         $prompt = $this->summaryPrompt ?? $this->getDefaultSummaryPrompt();
 
         $conversation = $this->formatMessagesForSummarization($messages);
 
         try {
-            $response = $this->provider
+            $response = $provider
                 ->systemPrompt('You are a helpful assistant that creates concise, informative summaries of conversations.')
                 ->setTools([])
                 ->chat(new UserMessage("{$prompt}\n\n{$conversation}"));

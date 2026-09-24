@@ -14,7 +14,9 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowRuntimeInterface;
+use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function Amp\async;
@@ -33,13 +35,19 @@ class AsyncExecutor extends WorkflowExecutor
      */
     protected function runNode(
         NodeInterface $node,
+        Event $event,
+        WorkflowState $state,
         NodeContext $context,
+        WorkflowResources $resources,
         array $middleware = [],
         ?string $branchId = null,
     ): Generator {
         return yield from parent::runNode(
             $branchId === null ? $node : clone $node,
+            $event,
+            $state,
             $context,
+            $resources,
             $middleware,
             $branchId,
         );

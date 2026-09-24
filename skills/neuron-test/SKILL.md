@@ -115,8 +115,9 @@ use NeuronAI\Testing\FakeMiddleware;
 
 $middleware = FakeMiddleware::make();
 
-// Configure custom handlers
-$middleware->setBeforeHandler(function ($node, $event, $state): void {
+// Configure custom handlers; they receive the arguments of before() / after(),
+// including the segment's resources as the fourth
+$middleware->setBeforeHandler(function ($node, $event, $state, $resources): void {
     $state->set('injected_data', 'value');
 });
 

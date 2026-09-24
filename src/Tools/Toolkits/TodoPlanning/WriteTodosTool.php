@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Agent\Middleware;
+namespace NeuronAI\Tools\Toolkits\TodoPlanning;
 
-use NeuronAI\Agent\AgentState;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
@@ -90,10 +89,6 @@ class WriteTodosTool extends Tool
 
     protected array $todos = [];
 
-    public function __construct(protected AgentState $state)
-    {
-    }
-
     protected function properties(): array
     {
         return [
@@ -125,7 +120,8 @@ class WriteTodosTool extends Tool
     }
 
     /**
-     * Update the agent's todo list.
+     * The whole list is the call's input: the latest write_todos call in the
+     * conversation is the current todo list, so nothing is stored elsewhere.
      */
     public function __invoke(array $todos): string
     {
@@ -139,8 +135,6 @@ class WriteTodosTool extends Tool
                 return "Error: Todo at index {$index} has invalid status '{$todo['status']}'. Must be one of: pending, in_progress, completed.";
             }
         }
-
-        $this->state->set('__todos', $todos);
 
         return "Updated to do list to: " . json_encode($todos);
     }

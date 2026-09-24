@@ -27,11 +27,11 @@ class AgentToolsTest extends TestCase
         $replacement = (new SearchTool())->setDescription('Search application documents');
         $this->assertSame($agent, $agent->setTools([$replacement]));
         $this->assertSame([$replacement], $agent->getTools());
-        $this->assertSame([$replacement], ExecutionTestFactory::runtime($agent)->getTools());
+        $this->assertSame([$replacement], ExecutionTestFactory::agentResources($agent)->tools->all());
 
         $providerTool = new ProviderTool('web_search');
         $agent->addTool($providerTool);
-        $this->assertSame([$replacement, $providerTool], ExecutionTestFactory::runtime($agent)->getTools());
+        $this->assertSame([$replacement, $providerTool], ExecutionTestFactory::agentResources($agent)->tools->all());
 
         $agent->setTools([$search]);
         $this->assertSame([$search], $agent->getTools());
@@ -41,32 +41,32 @@ class AgentToolsTest extends TestCase
     {
         $agent = (new WeatherAgent())->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
         $agent->addTool(new SearchTool());
-        ExecutionTestFactory::runtime($agent)->getTools();
+        ExecutionTestFactory::agentResources($agent)->tools->all();
 
         $agent->setTools([]);
 
         $this->assertSame([], $agent->getTools());
-        $this->assertSame([], ExecutionTestFactory::runtime($agent)->getTools());
+        $this->assertSame([], ExecutionTestFactory::agentResources($agent)->tools->all());
 
         $search = new SearchTool();
         $agent->addTool($search);
-        $this->assertSame([$search], ExecutionTestFactory::runtime($agent)->getTools());
+        $this->assertSame([$search], ExecutionTestFactory::agentResources($agent)->tools->all());
     }
 
     public function test_replacing_tools_refreshes_toolkit_guidelines_and_cached_tools(): void
     {
         $agent = (new WeatherAgent())->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
         $agent->setInstructions('Application instructions');
-        ExecutionTestFactory::runtime($agent)->getTools();
-        $this->assertStringContainsString('Always report temperatures in Celsius.', ExecutionTestFactory::runtime($agent)->getInstructions()->getContent());
+        ExecutionTestFactory::agentResources($agent)->tools->all();
+        $this->assertStringContainsString('Always report temperatures in Celsius.', ExecutionTestFactory::agentResources($agent)->instructions->getContent());
 
         $agent->setTools([]);
-        $this->assertSame([], ExecutionTestFactory::runtime($agent)->getTools());
-        $this->assertSame('Application instructions', ExecutionTestFactory::runtime($agent)->getInstructions()->getContent());
+        $this->assertSame([], ExecutionTestFactory::agentResources($agent)->tools->all());
+        $this->assertSame('Application instructions', ExecutionTestFactory::agentResources($agent)->instructions->getContent());
 
         $agent->setTools([new WeatherToolkit(), new ProviderTool('web_search')]);
-        $this->assertCount(2, ExecutionTestFactory::runtime($agent)->getTools());
-        $this->assertStringContainsString('Always report temperatures in Celsius.', ExecutionTestFactory::runtime($agent)->getInstructions()->getContent());
+        $this->assertCount(2, ExecutionTestFactory::agentResources($agent)->tools->all());
+        $this->assertStringContainsString('Always report temperatures in Celsius.', ExecutionTestFactory::agentResources($agent)->instructions->getContent());
     }
 
     /** @return iterable<string, array{mixed}> */
@@ -83,7 +83,7 @@ class AgentToolsTest extends TestCase
         $agent = (new WeatherAgent())->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
         $search = new SearchTool();
         $agent->addTool($search);
-        $tools = ExecutionTestFactory::runtime($agent)->getTools();
+        $tools = ExecutionTestFactory::agentResources($agent)->tools->all();
 
         try {
             $agent->setTools([new ProviderTool('web_search'), $invalidTool]);
@@ -94,6 +94,6 @@ class AgentToolsTest extends TestCase
 
         $this->assertSame($search, $agent->getTools()[0]);
         $this->assertInstanceOf(WeatherToolkit::class, $agent->getTools()[1]);
-        $this->assertEquals($tools, ExecutionTestFactory::runtime($agent)->getTools());
+        $this->assertEquals($tools, ExecutionTestFactory::agentResources($agent)->tools->all());
     }
 }

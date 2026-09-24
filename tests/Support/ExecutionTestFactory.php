@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Support;
 
+use LogicException;
+use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowExecution;
@@ -20,5 +23,13 @@ final class ExecutionTestFactory
     {
         $definition->setWorkflowId($definition->getWorkflowId() ?? 'test');
         return $definition->createExecution(self::context($definition));
+    }
+
+    /** The resources an agent builds for a segment. */
+    public static function agentResources(Agent $agent): AgentResources
+    {
+        $resources = self::runtime($agent)->getResources();
+
+        return $resources instanceof AgentResources ? $resources : throw new LogicException('An agent must build AgentResources.');
     }
 }

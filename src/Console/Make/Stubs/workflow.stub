@@ -8,7 +8,7 @@ use NeuronAI\Workflow\Workflow;
 
 class [classname] extends Workflow
 {
-    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+    protected function nodes(): array
     {
         return [
             // new InitialNode(),

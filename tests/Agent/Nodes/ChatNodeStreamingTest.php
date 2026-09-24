@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -32,17 +33,17 @@ class ChatNodeStreamingTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
         $provider->setStreamChunkSize(5);
 
-        $node = new ChatNode($provider, $chatHistory);
+        $node = new ChatNode();
         $state = new AgentState();
 
-        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $state->request = new InferenceRequest(instructions: 'Test');
         $event = new AIInferenceEvent();
         $state->request->options->stream = $stream;
         $state->request->messages = [new UserMessage('hi')];
 
-        $node->setWorkflowContext(new NodeContext($state, $event));
+        $node->setWorkflowContext(new NodeContext());
 
-        $generator = $node($event, $state);
+        $generator = $node($event, $state, AgentResourcesFactory::make([], $chatHistory, $provider));
 
         $chunks = [];
         foreach ($generator as $chunk) {
@@ -88,16 +89,16 @@ class ChatNodeStreamingTest extends TestCase
         $state = new AgentState();
         $state->setExecutionMetadata($runId, $runId, 1);
 
-        $state->request = new InferenceRequest(instructions: 'Test', tools: []);
+        $state->request = new InferenceRequest(instructions: 'Test');
         $event = new AIInferenceEvent();
         $state->request->options->stream = $stream;
         $state->request->messages = [new UserMessage('hi')];
 
         // Run 1: record the response as a durable memo.
-        $node1 = new ChatNode($provider, $chatHistory);
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        $node1 = new ChatNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
-        $generator1 = $node1($event, $state);
+        $generator1 = $node1($event, $state, AgentResourcesFactory::make([], $chatHistory, $provider));
         foreach ($generator1 as $_) {
             $_ = null; // defeat rector dead-code removal
         }
@@ -112,14 +113,14 @@ class ChatNodeStreamingTest extends TestCase
         // process restart mid-node, after the inference memo committed but before
         // the node step committed — so the prior assistant message was never
         // persisted and the response must come from the memo, not from state).
-        $node2 = new ChatNode($provider, $chatHistory);
+        $node2 = new ChatNode();
         $state2 = new AgentState();
         $state2->request = clone $state->request;
         $state2->request->options->stream = $replayStream;
         $state2->setExecutionMetadata($runId, $runId, 1);
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
 
-        $generator2 = $node2($event, $state2);
+        $generator2 = $node2($event, $state2, AgentResourcesFactory::make([], $chatHistory, $provider));
 
         $replayedChunks = [];
         foreach ($generator2 as $chunk) {

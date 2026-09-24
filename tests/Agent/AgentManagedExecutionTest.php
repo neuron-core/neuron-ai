@@ -149,7 +149,6 @@ class AgentManagedExecutionTest extends TestCase
             });
         $result = $agent->run(ExecutionRequest::resume());
         self::assertSame('Saved', $result->getMessage()->getContent());
-        self::assertSame([], $result->request->tools);
     }
 
     public function test_two_lazy_stream_requests_keep_their_own_messages(): void

@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\InferenceRequest;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelAnotherTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelRegularTool;
 use NeuronAI\Workflow\NodeContext;
-use NeuronAI\Chat\History\ChatHistory;
-use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
@@ -32,16 +31,16 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('parallel_tool', 'call_2', ['key' => 'id=2']),
         ];
 
-        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
+        $toolNode = new ParallelToolNode(maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request = new InferenceRequest(instructions: 'Test');
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
 
-        $toolNode->setWorkflowContext(new NodeContext($state, $event));
+        $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -59,16 +58,16 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('another_tool', 'call_2', []),
         ];
 
-        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
+        $toolNode = new ParallelToolNode(maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request = new InferenceRequest(instructions: 'Test');
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
 
-        $toolNode->setWorkflowContext(new NodeContext($state, $event));
+        $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -84,19 +83,19 @@ class ParallelToolNodeTest extends TestCase
             ToolCall::make('bounded_tool', 'call_2', ['key' => 'id=1']),
         ];
 
-        $toolNode = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), maxRuns: 1);
+        $toolNode = new ParallelToolNode(maxRuns: 1);
         $state = new AgentState();
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request = new InferenceRequest(instructions: 'Test');
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
 
-        $toolNode->setWorkflowContext(new NodeContext($state, $event));
+        $toolNode->setWorkflowContext(new NodeContext());
 
         $this->expectException(ToolRunsExceededException::class);
         $this->expectExceptionMessage('Tool bounded_tool has been executed too many times - 1');
 
-        foreach ($toolNode($event, $state) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
     }
@@ -118,7 +117,7 @@ class ParallelToolNodeTest extends TestCase
         ];
 
         $toolCallMessage = new ToolCallMessage(null, $calls);
-        $request = new InferenceRequest(instructions: 'Test', tools: $registry);
+        $request = new InferenceRequest(instructions: 'Test');
         $state = new AgentState();
         $state->request = $request;
         $event = new ToolCallEvent($toolCallMessage);
@@ -126,9 +125,9 @@ class ParallelToolNodeTest extends TestCase
         $state->setExecutionMetadata($runId, $runId, 1);
 
         // Run 1: the batch executes and its result is memoized mid-node.
-        $node1 = new ParallelToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
-        $node1->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node1($event, $state) as $_) {
+        $node1 = new ParallelToolNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        foreach ($node1($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -137,9 +136,7 @@ class ParallelToolNodeTest extends TestCase
 
         // Recovery starts with stale counters and no live registry for cached calls.
         $state->resetToolRuns();
-        $state->request->tools = [];
         $node2 = new ParallelToolNode(
-            new ChatHistory(new InMemoryMessageStore(), 'thread'),
             beforeChild: static function (): void {
                 throw new RuntimeException('Child initialization must not repeat on recovery.');
             },
@@ -147,8 +144,8 @@ class ParallelToolNodeTest extends TestCase
                 throw new RuntimeException('Child cleanup must not repeat on recovery.');
             },
         );
-        $node2->setWorkflowContext(new NodeContext($state, $event, null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node2($event, $state) as $_) {
+        $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
+        foreach ($node2($event, $state, AgentResourcesFactory::make()) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 

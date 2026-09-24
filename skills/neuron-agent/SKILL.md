@@ -49,15 +49,15 @@ AgentStartEvent → AgentStartNode → inference ⇄ tools
 `ChatNode` handles chat and streaming; `StructuredOutputNode` handles structured inference. Tools may pause for approval or deferred results before returning to inference. `AgentOutputEvent` means the final answer is available for output processing; it is not a terminal event.
 
 - `nodes()` rebuilds the graph from the current configuration each execution segment. `entryNodes()` defaults to `AgentStartNode`; `exitNodes()` defaults to `AgentEndNode`.
-- A node's `__invoke(EventType $event, AgentState $state)` receives one exact routed event type. `addNode()` registers a handler; array order does not connect nodes, and duplicate handlers are rejected.
+- A node's `__invoke(EventType $event, AgentState $state, AgentResources $resources)` receives one exact routed event type; the third parameter is optional. `addNode()` registers a handler; array order does not connect nodes, and duplicate handlers are rejected.
 - For preprocessing, override `startEvent()` with an `AgentStartEvent` subclass, register a node for it in `entryNodes()`, and return the original `AgentStartEvent` to retain `parent::entryNodes()`. This keeps request initialization and tool-run resets in `AgentStartNode`. Replacing that initialization entirely requires handling those responsibilities yourself.
 - For postprocessing, override `exitNodes()` with a node accepting `AgentOutputEvent`. Return an application event to continue through another node, or `StopEvent` to finish. Replace the default ending: including `parent::exitNodes()` alongside another output handler creates a duplicate.
-- `AgentState::$request` holds instructions, messages, tools, and run options. Events route execution; collaborators such as providers and history remain node dependencies. `getMessage()` reads the provider response, while extra artifacts can use state keys.
+- `AgentState::$request` holds instructions, messages, and run options. Events route execution; the segment's provider, chat history, instructions and tools arrive in `AgentResources`, built once per segment, so nodes take no collaborators in their constructors. `getMessage()` reads the provider response, while extra artifacts can use state keys.
 
 For example, an Agent subclass can own speech synthesis without replacing inference nodes:
 
 ```php
-protected function exitNodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+protected function exitNodes(): array
 {
     return [new TextToSpeechNode($this->textToSpeech())];
 }
@@ -209,6 +209,7 @@ $files = FileSystemToolkit::make(scope: '/srv/agent-workspace')
 - **CalendarToolkit** — date/time formatting, arithmetic, comparisons, period boundaries, and timezone conversion. It does not connect to a calendar service or schedule workflow wakeups.
 - **CalculatorToolkit** — expression evaluation, exact integer arithmetic, and statistics. Exact integer tools require `ext-bcmath`.
 - **MySQLToolkit** / **PGSQLToolkit** — schema inspection, selects, and writes for MySQL/PostgreSQL.
+- **TodoPlanningToolkit** — a `write_todos` tool the model uses to plan multi-step work and report progress. The list lives in the conversation, so it survives interruptions and later turns without extra state.
 - **TavilyToolkit** — web search, extraction, and crawling.
 - **JinaToolkit** — web search and URL reading; reranking is a separate RAG component.
 - **SupadataYouTubeToolkit** — video metadata/transcripts and channel/playlist lookup. Deprecated: it will be removed in the next major version.
@@ -541,7 +542,7 @@ When helping users build agents:
    - Multiple sessions should share history
    - Conversation context needs to be shared across agents
 
-4. **Use middleware** to edit the working request, such as summarization or tool selection. Target `InferenceNode::class` to cover both chat/stream and structured inference; matching is subclass-aware. `AgentMiddleware` offers typed hooks for nodes implementing `AgentNodeInterface`. Ordinary custom `Node`s and the boundary nodes need `WorkflowMiddleware` unless they implement that interface. Middleware `after()` returns `void` and cannot replace the routing event.
+4. **Use middleware** to edit the working request, such as summarization or tool selection. Target `InferenceNode::class` to cover both chat/stream and structured inference; matching is subclass-aware. `AgentMiddleware` offers typed hooks for nodes implementing `AgentNodeInterface`, with the segment's provider, history, instructions and tools in `AgentResources`. Register a middleware that adds tools, such as `ToolSearchMiddleware`, with `addGlobalMiddleware()`, so a continuation that starts at the tool node finds the tools the model was offered. Ordinary custom `Node`s and the boundary nodes need `WorkflowMiddleware` unless they implement that interface. Middleware `after()` returns `void` and cannot replace the routing event.
 
 5. **Use workflow nodes** for I/O and flow control: speech providers, output processing, and interruptions. Tool approval already lives in `ToolNode`. Prefer `entryNodes()` / `exitNodes()` for boundary extensions and **neuron-workflow** for bespoke graphs.
 

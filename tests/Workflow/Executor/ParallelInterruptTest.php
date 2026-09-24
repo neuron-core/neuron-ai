@@ -112,7 +112,7 @@ class ParallelInterruptTest extends TestCase
                     $this->counter->runs++;
                     $this->interrupt(new ApprovalRequest('approval'));
 
-                    return new StopEvent($state->get('__branchId'));
+                    return new StopEvent($this->branchId);
                 }
             };
 

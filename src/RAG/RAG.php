@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG;
 
-use NeuronAI\Agent\AgentExecution;
-use NeuronAI\Workflow\WorkflowExecution;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\VectorStoreException;
@@ -46,20 +44,12 @@ class RAG extends Agent
      * The retrieval chain replaces the Agent's StartNode as the entry chain:
      * RAG's inference event is born at its end, in InstructionsNode.
      *
-     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function entryNodes(WorkflowExecution $execution): array
+    protected function entryNodes(): array
     {
-        $tools = $execution->getTools();
-
         return [
-            new PreProcessNode(
-                $execution->getChatHistory(),
-                $this->preProcessors ?? $this->preProcessors(),
-                $execution->getInstructions(),
-                $tools,
-            ),
+            new PreProcessNode($this->preProcessors ?? $this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval(), $this->resolveRetrievalScope()),
             new PostProcessNode($this->postProcessors ?? $this->postProcessors()),
             new InstructionsNode(),

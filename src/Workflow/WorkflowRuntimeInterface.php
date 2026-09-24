@@ -16,6 +16,7 @@ interface WorkflowRuntimeInterface
 {
     public function getStartEvent(): Event;
     public function getState(): WorkflowState;
+    public function getResources(): WorkflowResources;
     public function setState(WorkflowState $state): static;
     public function getNodeForEvent(string $eventClass): NodeInterface;
     /** @return array<class-string, NodeInterface> */
@@ -25,7 +26,6 @@ interface WorkflowRuntimeInterface
     public function getWorkflowId(): string;
     public function getRunId(): string;
     public function getEventDispatcher(): EventDispatcherInterface;
-    public function restoreState(WorkflowState $state): WorkflowState;
     public function shouldRetainCompletionUntilAcknowledged(): bool;
 
     /**

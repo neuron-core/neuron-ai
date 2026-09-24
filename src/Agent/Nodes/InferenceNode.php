@@ -8,7 +8,6 @@ use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\ChatHistoryException;
-use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Workflow\Node;
 
 /**
@@ -22,12 +21,6 @@ abstract class InferenceNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
 
-    public function __construct(
-        protected AIProviderInterface $provider,
-        protected ChatHistory $chatHistory,
-    ) {
-    }
-
     /**
      * The request's inbound messages are committed to the chat history only after
      * the provider call succeeds — a failed call must not persist a dangling
@@ -39,9 +32,9 @@ abstract class InferenceNode extends Node implements AgentNodeInterface
      * @return non-empty-list<Message>
      * @throws ChatHistoryException
      */
-    protected function pendingConversation(array $inbound): array
+    protected function pendingConversation(ChatHistory $history, array $inbound): array
     {
-        $messages = [...$this->chatHistory->getMessages(), ...$inbound];
+        $messages = [...$history->getMessages(), ...$inbound];
 
         if ($messages === []) {
             throw new ChatHistoryException('Cannot run inference on an empty conversation.');

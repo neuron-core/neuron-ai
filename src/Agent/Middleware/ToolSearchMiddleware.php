@@ -4,23 +4,29 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Middleware;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
-use NeuronAI\Workflow\NodeInterface;
-use NeuronAI\Workflow\WorkflowState;
 
-use function in_array;
+use function array_slice;
+use function count;
 use function is_string;
 use function max;
 
-class ToolSearchMiddleware implements WorkflowMiddleware
+/**
+ * Lets the model find tools in a pool through the tool_search tool. Register it
+ * globally: it runs before every agent node of every execution segment, so the
+ * tools found during the current turn are registered again after a pause. The
+ * next user message starts a turn without them.
+ */
+class ToolSearchMiddleware extends AgentMiddleware
 {
     protected const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
         ---
@@ -46,75 +52,39 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         $this->topN = max(1, $this->topN);
     }
 
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state, AgentResources $resources): void
     {
-        if ($state instanceof AgentState && $event instanceof ToolCallEvent) {
-            $this->resupplyExecutionTools($node, $state);
+        $resources->tools->add(new ToolSearchTool($this->toolPool, $this->topN));
+
+        if (!isset($state->request)) {
             return;
         }
 
-        if (!$state instanceof AgentState || !$event instanceof AIInferenceEvent) {
-            return;
-        }
-
-        if (!$state->request->instructions->contains($this->systemPrompt)) {
+        if ($event instanceof AIInferenceEvent && !$state->request->instructions->contains($this->systemPrompt)) {
             $state->request->instructions->addContent(new SystemContent($this->systemPrompt));
         }
 
-        if (!$this->hasToolSearchTool($state->request->tools)) {
-            $state->request->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
+        $conversation = [...$resources->history->getMessages(), ...$state->request->messages];
+        foreach ($this->discoverFromMessages($this->currentTurn($conversation)) as $tool) {
+            $resources->tools->add($tool);
         }
     }
 
     /**
-     * Re-establish this middleware's contribution on the state request's tool
-     * list after AgentExecution::restoreState() restores the base registry. Each
-     * middleware re-supplies what it added — here, the search tool itself plus
-     * every tool discovered earlier in the conversation, re-derived from chat
-     * history (deterministic for a given pool). On the live path everything is
-     * already present, making this a no-op.
+     * The messages after the last user message.
+     *
+     * @param Message[] $messages
+     * @return Message[]
      */
-    protected function resupplyExecutionTools(NodeInterface $node, AgentState $state): void
+    protected function currentTurn(array $messages): array
     {
-        $request = $state->request;
-        $existingNames = $this->getToolNames($request->tools);
-
-        if (!$this->hasToolSearchTool($request->tools)) {
-            $request->tools[] = new ToolSearchTool($this->toolPool, $this->topN);
-        }
-
-        if (!$node instanceof AgentNodeInterface) {
-            return;
-        }
-
-        foreach ($this->discoverFromMessages($node->getChatHistory()->getMessages()) as $tool) {
-            if (!in_array($tool->getName(), $existingNames, true)) {
-                $request->tools[] = $tool;
-                $existingNames[] = $tool->getName();
+        for ($index = count($messages) - 1; $index >= 0; $index--) {
+            if ($messages[$index] instanceof UserMessage && !$messages[$index] instanceof ToolResultMessage) {
+                return array_slice($messages, $index + 1);
             }
         }
-    }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
-    {
-        if (!$state instanceof AgentState || !$result instanceof AIInferenceEvent) {
-            return;
-        }
-
-        $discovered = $this->discoverFromMessages($state->request->messages);
-
-        if ($discovered === []) {
-            return;
-        }
-
-        $existingNames = $this->getToolNames($state->request->tools);
-
-        foreach ($discovered as $tool) {
-            if (!in_array($tool->getName(), $existingNames, true)) {
-                $state->request->tools[] = $tool;
-                $existingNames[] = $tool->getName();
-            }
-        }
+        return $messages;
     }
 
     /**
@@ -122,10 +92,10 @@ class ToolSearchMiddleware implements WorkflowMiddleware
      * deterministic for a given pool, and message entries carry no side-channel
      * objects.
      *
-     * @param iterable<mixed> $messages
+     * @param Message[] $messages
      * @return ToolInterface[]
      */
-    protected function discoverFromMessages(iterable $messages): array
+    protected function discoverFromMessages(array $messages): array
     {
         $finder = null;
         $discovered = [];
@@ -150,31 +120,5 @@ class ToolSearchMiddleware implements WorkflowMiddleware
         }
 
         return $discovered;
-    }
-
-    /**
-     * @param ToolInterface[] $tools
-     * @return string[]
-     */
-    protected function getToolNames(array $tools): array
-    {
-        $names = [];
-        foreach ($tools as $tool) {
-            $names[] = $tool->getName();
-        }
-        return $names;
-    }
-
-    /**
-     * @param ToolInterface[] $tools
-     */
-    protected function hasToolSearchTool(array $tools): bool
-    {
-        foreach ($tools as $tool) {
-            if ($tool instanceof ToolSearchTool) {
-                return true;
-            }
-        }
-        return false;
     }
 }

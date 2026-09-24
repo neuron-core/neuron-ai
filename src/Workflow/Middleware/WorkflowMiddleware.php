@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Middleware;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 
 interface WorkflowMiddleware
@@ -13,8 +14,10 @@ interface WorkflowMiddleware
     /**
      * Execute before the node runs.
      * This method is called before the node's __invoke method executes.
+     * The resources are the ones the node receives: what the middleware adds
+     * to them lasts for the current execution segment.
      */
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void;
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void;
 
     /**
      * Execute after the node runs.
@@ -26,6 +29,7 @@ interface WorkflowMiddleware
      * @param NodeInterface $node The node that executed
      * @param Event $result The final result event returned by the node
      * @param WorkflowState $state The current workflow state
+     * @param WorkflowResources $resources What the run can use in this segment
      */
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void;
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void;
 }

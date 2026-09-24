@@ -12,6 +12,7 @@ use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
@@ -27,8 +28,8 @@ class FakeMiddlewareTest extends TestCase
         $result = new FirstEvent('done');
         $state = new WorkflowState();
 
-        $middleware->before($node, $event, $state);
-        $middleware->after($node, $result, $state);
+        $middleware->before($node, $event, $state, new WorkflowResources());
+        $middleware->after($node, $result, $state, new WorkflowResources());
 
         $recorded = $middleware->getRecorded();
         $this->assertCount(2, $recorded);
@@ -45,18 +46,21 @@ class FakeMiddlewareTest extends TestCase
     public function test_handlers_receive_the_call_arguments(): void
     {
         $state = new WorkflowState();
+        $resources = new WorkflowResources();
         $middleware = FakeMiddleware::make()
-            ->setBeforeHandler(function (NodeInterface $node, Event $event, WorkflowState $state): void {
+            ->setBeforeHandler(function (NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void {
                 $state->set('before', $node::class);
+                $state->set('resources', $resources);
             })
             ->setAfterHandler(function (NodeInterface $node, Event $result, WorkflowState $state): void {
                 $state->set('after', $result::class);
             });
 
-        $middleware->before(new NodeOne(), new StartEvent(), $state);
-        $middleware->after(new NodeOne(), new FirstEvent('done'), $state);
+        $middleware->before(new NodeOne(), new StartEvent(), $state, $resources);
+        $middleware->after(new NodeOne(), new FirstEvent('done'), $state, $resources);
 
         $this->assertSame(NodeOne::class, $state->get('before'));
+        $this->assertSame($resources, $state->get('resources'));
         $this->assertSame(FirstEvent::class, $state->get('after'));
     }
 
@@ -71,7 +75,7 @@ class FakeMiddlewareTest extends TestCase
             ->setThrowOnBefore($exception);
 
         try {
-            $middleware->before(new NodeOne(), new StartEvent(), $state);
+            $middleware->before(new NodeOne(), new StartEvent(), $state, new WorkflowResources());
             $this->fail('Expected the configured exception.');
         } catch (RuntimeException $caught) {
             $this->assertSame($exception, $caught);
@@ -88,7 +92,7 @@ class FakeMiddlewareTest extends TestCase
 
         $this->expectExceptionObject($exception);
 
-        $middleware->after(new NodeOne(), new FirstEvent('done'), new WorkflowState());
+        $middleware->after(new NodeOne(), new FirstEvent('done'), new WorkflowState(), new WorkflowResources());
     }
 
     public function test_call_assertions_pass(): void
@@ -98,9 +102,9 @@ class FakeMiddlewareTest extends TestCase
         $middleware->assertBeforeNotCalled();
         $middleware->assertAfterNotCalled();
 
-        $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState());
-        $middleware->before(new NodeTwo(), new FirstEvent('first'), new WorkflowState());
-        $middleware->after(new NodeTwo(), new SecondEvent('second'), new WorkflowState());
+        $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState(), new WorkflowResources());
+        $middleware->before(new NodeTwo(), new FirstEvent('first'), new WorkflowState(), new WorkflowResources());
+        $middleware->after(new NodeTwo(), new SecondEvent('second'), new WorkflowState(), new WorkflowResources());
 
         $middleware->assertBeforeCalled();
         $middleware->assertAfterCalled();
@@ -115,7 +119,7 @@ class FakeMiddlewareTest extends TestCase
     public function test_call_assertions_fail(): void
     {
         $middleware = new FakeMiddleware();
-        $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState());
+        $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState(), new WorkflowResources());
 
         $this->expectException(AssertionFailedError::class);
         $middleware->assertAfterCalledForNode(NodeOne::class);

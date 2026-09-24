@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Nodes;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\InferenceRequest;
-use NeuronAI\Chat\Messages\SystemMessage;
-use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Observability\Events\PreProcessed;
 use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
@@ -27,35 +24,27 @@ use function end;
  */
 class PreProcessNode extends Node implements AgentNodeInterface
 {
-    use ChatHistoryHelper;
-
     /**
      * @param PreProcessorInterface[] $preProcessors
-     * @param ToolInterface[] $tools
      */
     public function __construct(
-        ChatHistory $chatHistory,
         protected array $preProcessors,
-        protected SystemMessage $instructions,
-        protected array $tools,
     ) {
-        $this->chatHistory = $chatHistory;
     }
 
     /**
      * Apply preprocessors sequentially to the query.
      */
-    public function __invoke(AgentStartEvent $event, AgentState $state): QueryPreProcessedEvent
+    public function __invoke(AgentStartEvent $event, AgentState $state, AgentResources $resources): QueryPreProcessedEvent
     {
         $state->resetToolRuns();
         $state->request = new InferenceRequest(
-            instructions: clone $this->instructions,
-            tools: $this->tools,
+            instructions: clone $resources->instructions,
             messages: $event->messages,
             options: $event->options,
         );
         $messages = $state->request->messages;
-        $query = $messages === [] ? $this->chatHistory->getLastMessage() : end($messages);
+        $query = $messages === [] ? $resources->history->getLastMessage() : end($messages);
 
         foreach ($this->preProcessors as $processor) {
             $this->emit(new PreProcessing($processor::class, $query));

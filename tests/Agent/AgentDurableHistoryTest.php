@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\InferenceRequest;
@@ -183,24 +184,24 @@ class AgentDurableHistoryTest extends TestCase
         $messages = new InMemoryMessageStore();
 
         $state = new AgentState();
-        $state->request = new InferenceRequest('Be helpful', []);
+        $state->request = new InferenceRequest('Be helpful');
         $event = new \NeuronAI\Agent\Events\AIInferenceEvent();
         $state->request->messages = [new UserMessage('Hi')];
 
         // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $state1->request = clone $state->request;
-        $node1 = new ChatNode($provider, new ChatHistory($messages, $workflowId));
-        $node1->setWorkflowContext(new NodeContext($state1, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $this->assertSame([], iterator_to_array($node1($event, $state1)));
+        $node1 = new ChatNode();
+        $node1->setWorkflowContext(new NodeContext(null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+        $this->assertSame([], iterator_to_array($node1($event, $state1, AgentResourcesFactory::make([], new ChatHistory($messages, $workflowId), $provider))));
 
         $this->assertCount(2, $messages->loadActive($workflowId));
 
         $state2 = new \NeuronAI\Agent\AgentState();
         $state2->request = clone $state->request;
-        $node2 = new ChatNode($provider, new ChatHistory($messages, $workflowId));
-        $node2->setWorkflowContext(new NodeContext($state2, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-        $this->assertSame([], iterator_to_array($node2($event, $state2)));
+        $node2 = new ChatNode();
+        $node2->setWorkflowContext(new NodeContext(null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+        $this->assertSame([], iterator_to_array($node2($event, $state2, AgentResourcesFactory::make([], new ChatHistory($messages, $workflowId), $provider))));
 
         $stored = $messages->loadActive($workflowId);
         $this->assertCount(2, $stored, 'Replayed history writes must be skipped, not duplicated');
@@ -234,11 +235,11 @@ class AgentDurableHistoryTest extends TestCase
 
         foreach ([1, 2] as $attempt) {
             $state = new AgentState();
-            $state->request = new InferenceRequest('Be helpful', []);
+            $state->request = new InferenceRequest('Be helpful');
             $state->request->messages = [clone $inbound];
-            $node = new ChatNode($provider, new ChatHistory($messages, $workflowId));
-            $node->setWorkflowContext(new NodeContext($state, $event, null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-            iterator_to_array($node($event, $state));
+            $node = new ChatNode();
+            $node->setWorkflowContext(new NodeContext(null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
+            iterator_to_array($node($event, $state, AgentResourcesFactory::make([], new ChatHistory($messages, $workflowId), $provider)));
         }
 
         // The replay recalls the memoized response, so both writes repeat the same messages.

@@ -18,10 +18,6 @@ use NeuronAI\Workflow\Executor\AsyncExecutor;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
-use function array_filter;
-use function in_array;
-use function reset;
-
 class BranchEdgeCasesTest extends TestCase
 {
     use ExecutorTestHelpers;
@@ -125,69 +121,16 @@ class BranchEdgeCasesTest extends TestCase
 
         $this->execute($workflow);
 
-        $this->assertCount(6, $middleware->beforeCalls);
-        $this->assertCount(6, $middleware->afterCalls);
-
-        $byBranch = fn (array $calls, string $nodeClass): array => array_filter(
-            $calls,
-            fn (array $c): bool => $c['node'] === $nodeClass,
-        );
-
-        $forkBefore = $byBranch($middleware->beforeCalls, DocumentParallelProcessing::class);
-        $this->assertCount(1, $forkBefore);
-        $this->assertNull(reset($forkBefore)['branchId']);
-
-        $step1Before = $byBranch($middleware->beforeCalls, MultiStepTextProcessNode::class);
-        $this->assertCount(1, $step1Before);
-        $this->assertSame('text', reset($step1Before)['branchId']);
-
-        $streamBefore = $byBranch($middleware->beforeCalls, StreamingTextProcessNode::class);
-        $this->assertCount(1, $streamBefore);
-        $this->assertSame('text', reset($streamBefore)['branchId']);
-
-        $finalBefore = $byBranch($middleware->beforeCalls, FinalTextProcessNode::class);
-        $this->assertCount(1, $finalBefore);
-        $this->assertSame('text', reset($finalBefore)['branchId']);
-
-        $imageBefore = $byBranch($middleware->beforeCalls, ImageProcessNode::class);
-        $this->assertCount(1, $imageBefore);
-        $this->assertSame('image', reset($imageBefore)['branchId']);
-
-        $mergeBefore = $byBranch($middleware->beforeCalls, MergeNode::class);
-        $this->assertCount(1, $mergeBefore);
-        $this->assertNull(reset($mergeBefore)['branchId']);
-    }
-
-    public function test_async_middleware_carries_branch_id(): void
-    {
-        $middleware = new RecordingMiddleware();
-
-        $workflow = Workflow::make('test-workflow')
-            ->addGlobalMiddleware(fn () => $middleware)
-            ->addNodes([
-                new DocumentParallelProcessing(),
-                new MultiStepTextProcessNode(),
-                new StreamingTextProcessNode(),
-                new FinalTextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $this->execute($workflow);
-
-        $this->assertCount(6, $middleware->beforeCalls);
-        $this->assertCount(6, $middleware->afterCalls);
-
-        $textNodes = [MultiStepTextProcessNode::class, StreamingTextProcessNode::class, FinalTextProcessNode::class];
-        foreach ($middleware->beforeCalls as $call) {
-            if (in_array($call['node'], $textNodes, true)) {
-                $this->assertSame('text', $call['branchId'], "Expected branchId='text' for {$call['node']}");
-            }
-        }
-
-        $imageCalls = array_filter($middleware->beforeCalls, fn (array $c): bool => $c['node'] === ImageProcessNode::class);
-        $this->assertCount(1, $imageCalls);
-        $this->assertSame('image', reset($imageCalls)['branchId']);
+        $nodes = [
+            DocumentParallelProcessing::class,
+            MultiStepTextProcessNode::class,
+            StreamingTextProcessNode::class,
+            FinalTextProcessNode::class,
+            ImageProcessNode::class,
+            MergeNode::class,
+        ];
+        $this->assertEqualsCanonicalizing($nodes, $middleware->beforeCalls);
+        $this->assertEqualsCanonicalizing($nodes, $middleware->afterCalls);
     }
 
     public function test_async_observer_receives_all_events(): void

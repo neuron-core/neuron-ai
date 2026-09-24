@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Agent\Nodes;
 
 use Generator;
-use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\ToolException;
@@ -15,6 +15,7 @@ use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolRegistry;
 use Spatie\Fork\Fork;
 use Closure;
 use Throwable;
@@ -39,13 +40,12 @@ class ParallelToolNode extends ToolNode
     protected ?Closure $afterChild;
 
     public function __construct(
-        ChatHistory $chatHistory,
         int $maxRuns = 10,
         ?callable $errorHandler = null,
         ?callable $beforeChild = null,
         ?callable $afterChild = null,
     ) {
-        parent::__construct($chatHistory, $maxRuns, $errorHandler);
+        parent::__construct($maxRuns, $errorHandler);
 
         $this->beforeChild = $beforeChild !== null
             ? Closure::fromCallable($beforeChild)
@@ -63,22 +63,22 @@ class ParallelToolNode extends ToolNode
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    protected function executeLocalTools(array $calls, string $messageId): Generator
+    protected function executeLocalTools(array $calls, string $messageId, AgentState $state, ToolRegistry $tools): Generator
     {
         // Sequential fallbacks: pcntl unavailable (e.g. Windows), spatie/fork
         // not installed, or a single call not worth forking for.
         if (!extension_loaded('pcntl')) {
-            return yield from parent::executeLocalTools($calls, $messageId);
+            return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
         }
 
         if (!class_exists(Fork::class)) {
-            return yield from parent::executeLocalTools($calls, $messageId);
+            return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
         }
 
         $calls = array_diff_key($calls, $this->filterDeferredCalls($calls));
 
         if (count($calls) <= 1) {
-            return yield from parent::executeLocalTools($calls, $messageId);
+            return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
         }
 
         // Only runnable calls enter the concurrent batch; rejected calls
@@ -111,14 +111,14 @@ class ParallelToolNode extends ToolNode
             // Restore accounting even when the batch's execution results are cached.
             // All calls reserve their slots in the parent before any child starts.
             foreach ($runnable as $index => $call) {
-                $this->checkToolRuns($call, $index);
+                $this->checkToolRuns($call, $index, $state, $tools);
             }
 
-            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls): array {
+            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls, $tools): array {
                 // Resolve parent-side, before forking.
                 $resolved = [];
                 foreach ($runnableCalls as $pos => $call) {
-                    $resolved[$pos] = $this->resolveTool($call);
+                    $resolved[$pos] = $this->resolveTool($call, $tools);
                 }
 
                 // Fork children return the serialized RESULT only — the

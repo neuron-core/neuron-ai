@@ -11,6 +11,7 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 
@@ -24,7 +25,7 @@ class NodeTest extends TestCase
         $event = new StartEvent();
         $state = new WorkflowState();
 
-        $result = $node->run($event, $state);
+        $result = $node->run($event, $state, new WorkflowResources());
 
         $this->assertInstanceOf(FirstEvent::class, $result);
         $this->assertEquals('First complete', $result->message);
@@ -36,9 +37,9 @@ class NodeTest extends TestCase
         $state = new WorkflowState(['existing' => 'data']);
         $event = new StartEvent();
 
-        $node->setWorkflowContext(new NodeContext($state, $event));
+        $node->setWorkflowContext(new NodeContext());
 
-        $node->run($event, $state);
+        $node->run($event, $state, new WorkflowResources());
 
         $this->assertTrue($state->get('node_one_executed'));
         $this->assertEquals('data', $state->get('existing'));

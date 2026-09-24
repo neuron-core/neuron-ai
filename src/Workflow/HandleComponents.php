@@ -42,6 +42,9 @@ trait HandleComponents
     /** Optional transform from native stream objects to protocol events. */
     protected StreamAdapterInterface|Closure|null $streamAdapter = null;
 
+    /** @var (Closure(): WorkflowResources)|null */
+    protected ?Closure $resources = null;
+
     protected ExporterInterface $exporter;
 
     final protected function getExecutor(): WorkflowExecutorInterface
@@ -141,6 +144,29 @@ trait HandleComponents
     protected function streamAdapter(): ?StreamAdapterInterface
     {
         return null;
+    }
+
+    /**
+     * Build what the run can use. The factory runs once for every execution
+     * segment, so each segment gets fresh resources; it wins over the
+     * resources() hook.
+     *
+     * @param Closure(): WorkflowResources $factory
+     */
+    public function setResources(Closure $factory): static
+    {
+        $this->resources = $factory;
+        return $this;
+    }
+
+    final protected function resolveResources(): WorkflowResources
+    {
+        return $this->resources instanceof Closure ? ($this->resources)() : $this->resources();
+    }
+
+    protected function resources(): WorkflowResources
+    {
+        return new WorkflowResources();
     }
 
     /**

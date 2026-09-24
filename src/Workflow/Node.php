@@ -21,9 +21,6 @@ use function is_callable;
 
 abstract class Node implements NodeInterface
 {
-    protected WorkflowState $state;
-    protected Event $event;
-
     /**
      * The inbound resume payload. Null when not resuming; a non-null array
      * (even empty) means this node is resuming and holds the delivered answer.
@@ -42,21 +39,24 @@ abstract class Node implements NodeInterface
 
     protected ?EventDispatcherInterface $dispatcher = null;
 
-    public function run(Event $event, WorkflowState $state): Generator|Event
+    /** The parallel branch the current step runs in, null outside branches. */
+    protected ?string $branchId = null;
+
+    public function run(Event $event, WorkflowState $state, WorkflowResources $resources): Generator|Event
     {
+        // A node that declares two parameters ignores the resources.
         /** @phpstan-ignore method.notFound */
-        return $this->__invoke($event, $state);
+        return $this->__invoke($event, $state, $resources);
     }
 
     public function setWorkflowContext(NodeContext $context): void
     {
-        $this->state = $context->state;
-        $this->event = $context->event;
         $this->payload = $context->payload;
         $this->timedOut = $context->timedOut;
         $this->resuming = $context->resuming;
         $this->memoizer = $context->memoizer;
         $this->dispatcher = $context->dispatcher;
+        $this->branchId = $context->branchId;
     }
 
     protected function consumePayload(): ?array
@@ -210,7 +210,7 @@ abstract class Node implements NodeInterface
 
         if ($event instanceof ObservabilityEvent) {
             $event->source = $this;
-            $event->branchId = $this->state->get('__branchId');
+            $event->branchId = $this->branchId;
         }
 
         $this->dispatcher->dispatch($event);

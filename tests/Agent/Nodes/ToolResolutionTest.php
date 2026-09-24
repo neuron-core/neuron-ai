@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Agent\Nodes;
 
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -28,18 +29,16 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\ExecutionTestFactory;
 
 use function str_starts_with;
 
 /**
- * The state request's tool list is the SINGLE source calls resolve
- * against — the cycle's effective set (agent base + middleware additions, minus
- * middleware removals). Capability is transient in persistence, and the
- * restoration seam is Workflow::restoreState(), called by the executor on every
- * event recalled from persistence (never on a live result): the Agent re-seeds
- * its base registry there, and each middleware re-supplies its own additions
- * in before().
+ * The segment's tool registry is the SINGLE source calls resolve against:
+ * the agent's tools plus what middleware register for the segment. Nothing
+ * about tools is persisted; every segment builds its registry again, and each
+ * middleware re-supplies its own additions in before().
  */
 class ToolResolutionTest extends TestCase
 {
@@ -59,47 +58,44 @@ class ToolResolutionTest extends TestCase
         return $tool;
     }
 
-    private function drain(ToolNode $node, ToolCallEvent $event, AgentState $state): void
+    private function drain(ToolNode $node, ToolCallEvent $event, AgentState $state, AgentResources $resources): void
     {
-        foreach ($node($event, $state) as $_) {
+        foreach ($node($event, $state, $resources) as $_) {
             $_ = null; // consume the generator
         }
     }
 
-    public function test_a_tool_absent_from_the_event_is_not_executable(): void
+    public function test_a_tool_absent_from_the_registry_is_not_executable(): void
     {
-        // The cycle's effective set (the event) does not carry 'removed_tool' —
-        // e.g. a middleware removed it from the offering. The node holds no
-        // registry of its own, so the removal is honored at execution too.
+        // The registry does not carry 'removed_tool' — e.g. a middleware
+        // removed it from the offering. The node holds no registry of its own,
+        // so the removal is honored at execution too.
         $offered = $this->executableTool('offered_tool');
 
-        $node = new ToolNode(new ChatHistory(new InMemoryMessageStore(), 'thread'));
+        $node = new ToolNode();
         $state = new AgentState();
 
-        $state->request = new InferenceRequest('instructions', [$offered]);
+        $state->request = new InferenceRequest('instructions');
         $event = new ToolCallEvent(new ToolCallMessage(null, [ToolCall::make('removed_tool', 'call_1')]));
-        $node->setWorkflowContext(new NodeContext($state, $event));
+        $node->setWorkflowContext(new NodeContext());
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessageMatches('/removed_tool/');
 
-        $this->drain($node, $event, $state);
+        $this->drain($node, $event, $state, AgentResourcesFactory::make([$offered]));
     }
 
-    public function test_restore_state_reseeds_the_base_registry_on_recalled_state(): void
+    public function test_every_segment_registers_the_agent_tools(): void
     {
         $agent = Agent::make();
         $tool = new SearchTool();
-        $agent->addTool($tool);
-        $state = new AgentState();
-        $state->request = new InferenceRequest('instructions');
+        $agent->addTool($tool)->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
 
-        $this->assertSame($state, ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($state));
-        $this->assertSame([$tool], $state->request->tools);
+        $resources = ExecutionTestFactory::runtime($agent)->getResources();
 
-        $emptyState = new AgentState();
-        $this->assertSame($emptyState, ExecutionTestFactory::runtime($agent->setAiProvider(new \NeuronAI\Testing\FakeAIProvider()))->restoreState($emptyState));
-        $this->assertFalse(isset($emptyState->request));
+        $this->assertInstanceOf(AgentResources::class, $resources);
+        $this->assertSame([$tool], $resources->tools->all());
+        $this->assertNotSame($resources, ExecutionTestFactory::runtime($agent)->getResources());
     }
 
     public function test_live_inference_after_a_cached_tool_node_gets_the_agent_tools_back(): void
@@ -108,8 +104,8 @@ class ToolResolutionTest extends TestCase
         // completed but before ChatNode #2's inference committed. On recovery,
         // ChatNode #1 and ToolNode #1 replay from cache — nothing executes, so
         // no node-level repair could ever run — and the recalled AIInferenceEvent
-        // reaches the LIVE ChatNode #2 with its tool list stripped. Without the
-        // restoreState() seam, the provider would be called with NO tools.
+        // reaches the LIVE ChatNode #2. The segment's registry, not the recalled
+        // state, offers the tools, so the provider still gets the agent tools.
         $workflowId = 'stripped_inference_recovery_test';
 
         // Step store that survives run completion and can forget single steps.
@@ -247,25 +243,26 @@ class ToolResolutionTest extends TestCase
             ToolCall::make('tool_search', 'call_1', ['query' => 'database'])->setResult('found'),
         ]));
 
-        $node = new ToolNode($history); // 'query_database' is NOT in the agent base
+        $node = new ToolNode();
+        $resources = AgentResourcesFactory::make([], $history); // 'query_database' is NOT in the agent base
         $state = new AgentState();
 
         $call = ToolCall::make('query_database', 'call_2', ['sql' => 'SELECT 1']);
-        $state->request = new InferenceRequest('instructions', []);
+        $state->request = new InferenceRequest('instructions');
         $event = new ToolCallEvent(new ToolCallMessage(null, [$call]));
 
         // The executor's order: context, then middleware before(), then the node.
-        $node->setWorkflowContext(new NodeContext($state, $event));
-        $middleware->before($node, $event, $state);
+        $node->setWorkflowContext(new NodeContext());
+        $middleware->before($node, $event, $state, $resources);
 
         $names = [];
-        foreach ($state->request->tools as $tool) {
+        foreach ($resources->tools->all() as $tool) {
             $names[] = $tool->getName();
         }
         $this->assertContains('tool_search', $names, 'The middleware re-supplies its own tool');
         $this->assertContains('query_database', $names, 'Discoveries are re-derived from chat history');
 
-        $this->drain($node, $event, $state);
+        $this->drain($node, $event, $state, $resources);
 
         $this->assertSame('executed', $call->getResult());
     }

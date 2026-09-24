@@ -20,27 +20,40 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\History\MessageStoreInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Agent\Interrupt\Action;
+use NeuronAI\Tools\ProviderToolInterface;
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolRegistry;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\ExecutionContext;
-use NeuronAI\Workflow\WorkflowExecution;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
+use ReflectionClass;
 use Throwable;
 
 use function array_filter;
+use function array_map;
+use function array_merge;
 use function array_values;
 use function end;
+use function implode;
+use function in_array;
 use function is_array;
+use function serialize;
+use function unserialize;
+
+use const PHP_EOL;
 
 /**
  * @extends Workflow<AgentState>
@@ -152,19 +165,62 @@ class Agent extends Workflow implements AgentInterface
         );
     }
 
-    protected function execution(ExecutionContext $context): WorkflowExecution
+    /**
+     * The provider, the conversation, the instructions and the tools, built
+     * fresh for every execution segment. Toolkits are flattened into their
+     * tools and their guidelines join the instructions.
+     */
+    protected function resources(): AgentResources
     {
-        return new AgentExecution(
-            $context,
-            $this,
-            $this->newState(),
-            $this->executionMiddleware(),
-            $this->executionGlobalMiddleware(),
-            $this->getProvider(),
-            $this->getChatHistory(),
-            $this->getInstructions(),
-            $this->getTools(),
-        );
+        [$instructions, $tools] = $this->resolveTools();
+
+        return new AgentResources($this->getProvider(), $this->getChatHistory(), $instructions, new ToolRegistry($tools));
+    }
+
+    /**
+     * @return array{SystemMessage, array<ToolInterface|ProviderToolInterface>}
+     */
+    protected function resolveTools(): array
+    {
+        $tools = [];
+        $guidelines = [];
+
+        foreach ($this->getTools() as $tool) {
+            if ($tool instanceof ToolkitInterface) {
+                $kitGuidelines = $tool->guidelines();
+                if ($kitGuidelines !== null && $kitGuidelines !== '') {
+                    $name = (new ReflectionClass($tool))->getShortName();
+                    $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
+                }
+                $innerTools = $tool->tools();
+                $tools = array_merge($tools, $innerTools);
+
+                if (!in_array($kitGuidelines, [null, '', '0'], true)) {
+                    $kitGuidelines .= PHP_EOL.implode(
+                        PHP_EOL.'- ',
+                        array_map(
+                            fn (ToolInterface $tool): string => $tool->getName(),
+                            $innerTools
+                        )
+                    );
+
+                    $guidelines[] = $kitGuidelines;
+                }
+            } elseif ($tool->isVisible()) {
+                $tools[] = $tool;
+            }
+        }
+
+        // A copy: the guidelines must not reach the configured instructions.
+        $blocks = unserialize(serialize($this->getInstructions()))->getContentBlocks();
+
+        if ($guidelines !== []) {
+            $blocks[] = new SystemContent(
+                '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
+            );
+        }
+
+        return [new SystemMessage($blocks), $tools];
     }
 
     /**
@@ -205,41 +261,36 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function nodes(WorkflowExecution $execution): array
+    protected function nodes(): array
     {
-
-        $chatHistory = $execution->getChatHistory();
         $toolErrorHandler = $this->toolErrorHandler ?? $this->resolveToolErrorHandler();
 
         $toolNode = $this->parallelToolCalls
             ? new ParallelToolNode(
-                $chatHistory,
                 $this->toolMaxRuns,
                 $toolErrorHandler,
                 $this->beforeParallelToolChild,
                 $this->afterParallelToolChild,
             )
-            : new ToolNode($chatHistory, $this->toolMaxRuns, $toolErrorHandler);
+            : new ToolNode($this->toolMaxRuns, $toolErrorHandler);
 
         $nodes = [
-            ...$this->entryNodes($execution),
-            new ChatNode($execution->getProvider(), $chatHistory),
-            new StructuredOutputNode($execution->getProvider(), $chatHistory),
+            ...$this->entryNodes(),
+            new ChatNode(),
+            new StructuredOutputNode(),
             $toolNode,
-            new AwaitToolResultsNode($chatHistory),
+            new AwaitToolResultsNode(),
         ];
 
-        return [...$nodes, ...$this->exitNodes($execution)];
+        return [...$nodes, ...$this->exitNodes()];
     }
 
     /**
-     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function exitNodes(WorkflowExecution $execution): array
+    protected function exitNodes(): array
     {
         return [new AgentEndNode()];
     }
@@ -247,19 +298,11 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Hook method for child classes.
      *
-     * @param AgentExecution $execution
      * @return Node[]
      */
-    protected function entryNodes(WorkflowExecution $execution): array
+    protected function entryNodes(): array
     {
-        $tools = $execution->getTools();
-
-        return [
-            new AgentStartNode(
-                $execution->getInstructions(),
-                $tools,
-            ),
-        ];
+        return [new AgentStartNode()];
     }
 
     public function getThreadId(): ?string

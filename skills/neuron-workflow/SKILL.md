@@ -113,7 +113,7 @@ class MyWorkflow extends Workflow
     /**
      * @return NodeInterface[]
      */
-    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+    protected function nodes(): array
     {
         return [
             new ValidationNode(),
@@ -206,6 +206,60 @@ $state = OrderWorkflow::make()->run(); // inferred as OrderState
 ```
 
 `Agent` uses the same contract by specializing `Workflow<AgentState>`.
+
+## Workflow Resources
+
+State is what a run knows; resources are what it can use. Services that nodes and
+middleware share, such as API clients and connections, belong in a `WorkflowResources`
+subclass built by the `resources()` hook or by a factory passed to `setResources()`.
+The workflow builds them once per execution segment and never persists them, so a
+resumed run gets live services again.
+
+```php
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowResources;
+use NeuronAI\Workflow\WorkflowState;
+
+class CrmResources extends WorkflowResources
+{
+    public function __construct(public readonly CrmClient $crm)
+    {
+        parent::__construct();
+    }
+}
+
+class LeadWorkflow extends Workflow
+{
+    protected function resources(): CrmResources
+    {
+        return new CrmResources(new CrmClient(getenv('CRM_KEY')));
+    }
+
+    protected function nodes(): array
+    {
+        return [new EnrichLeadNode()];
+    }
+}
+
+class EnrichLeadNode extends Node
+{
+    public function __invoke(StartEvent $event, WorkflowState $state, CrmResources $resources): StopEvent
+    {
+        $state->set('lead', $resources->crm->find($state->get('email')));
+
+        return new StopEvent();
+    }
+}
+```
+
+The third `__invoke()` parameter is optional. A node asking for a resources class the
+workflow does not provide fails when the graph is built. Middleware receive the same
+object as the fourth argument of `before()` and `after()`. A quick composition can skip
+the subclass: `setResources(fn (): WorkflowResources => new WorkflowResources(['crm' => $crm]))`,
+then `$resources->get('crm')`.
 
 ## Persistence and Durability
 
@@ -730,18 +784,19 @@ Middleware wraps node execution for cross-cutting concerns.
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 
 class LoggingMiddleware implements WorkflowMiddleware
 {
     public function __construct(private \Psr\Log\LoggerInterface $logger) {}
 
-    public function before(NodeInterface $node, Event $event, WorkflowState $state): void
+    public function before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void
     {
         $this->logger->info("Executing: " . $node::class);
     }
 
-    public function after(NodeInterface $node, Event $result, WorkflowState $state): void
+    public function after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void
     {
         $this->logger->info("Completed: " . $node::class);
     }
@@ -868,7 +923,7 @@ class SequentialWorkflow extends Workflow
     /**
      * @return NodeInterface[]
      */
-    protected function nodes(\NeuronAI\Workflow\WorkflowExecution $execution): array
+    protected function nodes(): array
     {
         return [
             new ValidationNode(),
@@ -930,6 +985,8 @@ ForkNode → ParallelEvent([branch1 => EventA, branch2 => EventB])
 2. The executor runs each branch independently until `StopEvent`.
 3. Each branch's `StopEvent::getResult()` is collected into the `ParallelEvent`.
 4. A **join node** (whose `__invoke()` accepts the `ParallelEvent` subclass) reads the results.
+
+Inside a branch, a node reads the branch name from `$this->branchId`; it is null outside a branch.
 
 ### Step 1 — Define a ParallelEvent Subclass
 

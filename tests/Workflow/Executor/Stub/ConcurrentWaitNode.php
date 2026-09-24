@@ -23,7 +23,7 @@ class ConcurrentWaitNode extends Node
 
     public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
     {
-        $branch = $state->get('__branchId');
+        $branch = $this->branchId;
         if (!$this->isResuming()) {
             $this->trace->events[] = "$branch.started";
             delay($branch === 'a' ? 0.001 : 0.01);

@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\Nodes;
 
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
-use NeuronAI\Chat\History\ChatHistory;
-use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
-use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
@@ -26,8 +24,8 @@ class InstructionsNodeIntentTest extends TestCase
     protected function enter(AgentRunOptions $options): AgentState
     {
         $state = new AgentState();
-        $node = new PreProcessNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), [], new SystemMessage('Base instructions'), []);
-        $node(new AgentStartEvent([new UserMessage('What is Neuron?')], $options), $state);
+        $node = new PreProcessNode([]);
+        $node(new AgentStartEvent([new UserMessage('What is Neuron?')], $options), $state, AgentResourcesFactory::make(instructions: 'Base instructions'));
 
         return $state;
     }
@@ -44,8 +42,8 @@ class InstructionsNodeIntentTest extends TestCase
     {
         $state = $this->enter(new AgentRunOptions());
         $state->incrementToolRun('lookup');
-        $node = new PreProcessNode(new ChatHistory(new InMemoryMessageStore(), 'thread'), [], new SystemMessage('Test'), []);
-        $node(new AgentStartEvent([new UserMessage('New question')]), $state);
+        $node = new PreProcessNode([]);
+        $node(new AgentStartEvent([new UserMessage('New question')]), $state, AgentResourcesFactory::make());
 
         $this->assertSame(0, $state->getToolRuns('lookup'));
     }
