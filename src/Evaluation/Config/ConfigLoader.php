@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Config;
 
+use Closure;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use RuntimeException;
 
 use function is_array;
+use function is_callable;
 use function is_string;
 use function realpath;
 
@@ -55,6 +58,37 @@ class ConfigLoader
     public function getOutputDrivers(): array
     {
         return $this->load()['output'] ?? [ConsoleOutput::class];
+    }
+
+    /**
+     * The 'resolver' entry: builds evaluators and output drivers given as
+     * class names, e.g. through the application's container.
+     *
+     * @return (Closure(class-string): object)|null
+     */
+    public function getResolver(): ?Closure
+    {
+        $resolver = $this->load()['resolver'] ?? null;
+
+        if ($resolver !== null && !is_callable($resolver)) {
+            throw new RuntimeException("The 'resolver' entry of evaluation.php must be callable");
+        }
+
+        return $resolver !== null ? $resolver(...) : null;
+    }
+
+    /**
+     * The 'runner' entry, e.g. a runner configured with child process hooks.
+     */
+    public function getRunner(): ?EvaluatorRunner
+    {
+        $runner = $this->load()['runner'] ?? null;
+
+        if ($runner !== null && !$runner instanceof EvaluatorRunner) {
+            throw new RuntimeException("The 'runner' entry of evaluation.php must be an EvaluatorRunner instance");
+        }
+
+        return $runner;
     }
 
     /**

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Console\Evaluation;
 
+use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use NeuronAI\Console\Command;
-use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
+use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 use NeuronAI\Evaluation\EvaluatorDiscovery;
 use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
@@ -31,12 +32,21 @@ use function substr;
 
 class EvaluationCommand extends Command
 {
+    protected ?Closure $resolver;
+
+    /**
+     * @param EvaluatorRunner|null $runner Defaults to the 'runner' entry of evaluation.php.
+     * @param callable|null $resolver Builds evaluators and output drivers given as class
+     *        names, e.g. through the application's container: fn (string $class): object.
+     *        Defaults to the 'resolver' entry of evaluation.php.
+     */
     public function __construct(
-        private readonly ConfigLoader $configLoader = new ConfigLoader(),
-        private readonly EvaluationOutputResolver $driverResolver = new EvaluationOutputResolver(),
-        private readonly EvaluatorDiscovery $discovery = new EvaluatorDiscovery(),
-        private readonly EvaluatorRunner $runner = new EvaluatorRunner(),
+        protected readonly ConfigLoader $configLoader = new ConfigLoader(),
+        protected readonly EvaluatorDiscovery $discovery = new EvaluatorDiscovery(),
+        protected readonly ?EvaluatorRunner $runner = null,
+        ?callable $resolver = null,
     ) {
+        $this->resolver = $resolver !== null ? $resolver(...) : null;
     }
 
     /**
@@ -124,9 +134,12 @@ class EvaluationCommand extends Command
             $concurrency = 1;
         }
 
-        $runner = $cache
-            ? new EvaluatorRunner(new FileEvaluationCache($this->configLoader->getCachePath()), $fresh)
-            : $this->runner;
+        $resolver = $this->resolver ?? $this->configLoader->getResolver() ?? $this->instantiate(...);
+        $runner = $this->runner ?? $this->configLoader->getRunner() ?? new EvaluatorRunner();
+
+        if ($cache) {
+            $runner = $runner->withCache(new FileEvaluationCache($this->configLoader->getCachePath()), $fresh);
+        }
 
         $evaluationStartedAt = new DateTimeImmutable("now", new DateTimeZone("UTC"));
         $evaluatorClasses = $this->discovery->discover($path);
@@ -148,7 +161,7 @@ class EvaluationCommand extends Command
             $namespace = null;
 
             try {
-                $evaluator = $this->createEvaluator($evaluatorClass);
+                $evaluator = $this->createEvaluator($evaluatorClass, $resolver);
                 $namespace = $evaluator->namespace();
                 $results = $runner->run($evaluator, $concurrency);
             } catch (Throwable $e) {
@@ -185,7 +198,7 @@ class EvaluationCommand extends Command
             $evaluationStartedAt,
             new DateTimeImmutable("now", new DateTimeZone("UTC")),
         );
-        $this->outputSummary($report);
+        $this->outputSummary($report, $resolver);
 
         return $report->hasFailures() ? 1 : 0;
     }
@@ -197,23 +210,40 @@ class EvaluationCommand extends Command
         }
     }
 
-    protected function outputSummary(EvaluationReport $report): void
+    /**
+     * @param Closure(class-string): object $resolver
+     */
+    protected function outputSummary(EvaluationReport $report, Closure $resolver): void
     {
         // Build the pipeline only after all runs complete: drivers may hold live
         // resources (e.g. DB connections) that must not exist at fork time
-        $drivers = $this->driverResolver->resolve($this->configLoader->getOutputDrivers());
+        $drivers = (new EvaluationOutputResolver($resolver))->resolve($this->configLoader->getOutputDrivers());
 
         (new OutputPipeline($drivers))->output($report);
     }
 
-    protected function createEvaluator(string $className): BaseEvaluator
+    /**
+     * @param class-string $className
+     * @param Closure(class-string): object $resolver
+     */
+    protected function createEvaluator(string $className, Closure $resolver): EvaluatorInterface
+    {
+        return $resolver($className);
+    }
+
+    /**
+     * The resolver when none is configured.
+     *
+     * @param class-string $className
+     */
+    protected function instantiate(string $className): object
     {
         $constructor = (new ReflectionClass($className))->getConstructor();
 
         if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
             throw new RuntimeException(
-                "Evaluator {$className} requires constructor parameters. " .
-                "Please ensure evaluators can be instantiated without arguments."
+                "{$className} requires constructor arguments: build it with a resolver, "
+                . "such as the 'resolver' entry of evaluation.php."
             );
         }
 

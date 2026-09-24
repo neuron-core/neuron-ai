@@ -6,6 +6,8 @@ namespace NeuronAI\Tests\Evaluation\Config;
 
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+use NeuronAI\Tests\Evaluation\Stub\GreetingEvaluator;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -125,6 +127,72 @@ class ConfigLoaderTest extends TestCase
             $config = $loader->load();
 
             $this->assertEquals(['output_drivers' => ['RootDriver']], $config);
+        } finally {
+            chdir($originalCwd);
+        }
+    }
+
+    public function test_reads_the_resolver_and_runner_entries(): void
+    {
+        file_put_contents($this->tempDir . '/evaluation.php', <<<'PHP'
+            <?php
+
+            return [
+                'resolver' => fn (string $class): object => new $class('Hello'),
+                'runner' => new \NeuronAI\Evaluation\Runner\EvaluatorRunner(),
+            ];
+            PHP);
+
+        $originalCwd = getcwd();
+        chdir($this->tempDir);
+
+        try {
+            $loader = new ConfigLoader();
+
+            $this->assertInstanceOf(GreetingEvaluator::class, ($loader->getResolver())(GreetingEvaluator::class));
+            $this->assertInstanceOf(EvaluatorRunner::class, $loader->getRunner());
+        } finally {
+            chdir($originalCwd);
+        }
+    }
+
+    public function test_resolver_and_runner_are_absent_without_config(): void
+    {
+        $originalCwd = getcwd();
+        chdir($this->tempDir);
+
+        try {
+            $loader = new ConfigLoader();
+
+            $this->assertNull($loader->getResolver());
+            $this->assertNull($loader->getRunner());
+        } finally {
+            chdir($originalCwd);
+        }
+    }
+
+    /** @return array<string, array{string, string, string}> */
+    public static function invalidEntryProvider(): array
+    {
+        return [
+            'resolver' => ["'resolver' => 'not a function'", 'getResolver', "'resolver' entry of evaluation.php must be callable"],
+            'runner' => ["'runner' => new stdClass()", 'getRunner', "'runner' entry of evaluation.php must be an EvaluatorRunner instance"],
+        ];
+    }
+
+    /** @dataProvider invalidEntryProvider */
+    public function test_rejects_an_invalid_resolver_or_runner_entry(string $entry, string $getter, string $message): void
+    {
+        file_put_contents($this->tempDir . '/evaluation.php', "<?php return [{$entry}];");
+
+        $originalCwd = getcwd();
+        chdir($this->tempDir);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage($message);
+
+            (new ConfigLoader())->{$getter}();
         } finally {
             chdir($originalCwd);
         }

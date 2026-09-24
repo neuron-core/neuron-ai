@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Runner;
 
+use Closure;
 use NeuronAI\Evaluation\AssertionOutcomes;
 use NeuronAI\Evaluation\Cache\CacheKey;
 use NeuronAI\Evaluation\Cache\EvaluationCacheInterface;
@@ -20,17 +21,41 @@ use function serialize;
 
 class EvaluatorRunner
 {
+    protected ?Closure $beforeChild;
+
+    protected ?Closure $afterChild;
+
     /**
      * @param EvaluationCacheInterface|null $cache When set, run() outputs are
      *        cached by content fingerprint and unchanged items skip run();
      *        evaluate() always executes fresh against the cached output.
      * @param bool $refresh Bypass cache reads while still recording outputs
      *        (the --fresh flag).
+     * @param callable|null $beforeChild Runs in each child process of a concurrent
+     *        run before its dataset item, to replace process-bound resources
+     *        inherited from the parent, such as database connections.
+     * @param callable|null $afterChild Runs in each child process after its dataset item.
      */
     public function __construct(
-        protected readonly ?EvaluationCacheInterface $cache = null,
-        protected readonly bool $refresh = false,
+        protected ?EvaluationCacheInterface $cache = null,
+        protected bool $refresh = false,
+        ?callable $beforeChild = null,
+        ?callable $afterChild = null,
     ) {
+        $this->beforeChild = $beforeChild !== null ? $beforeChild(...) : null;
+        $this->afterChild = $afterChild !== null ? $afterChild(...) : null;
+    }
+
+    /**
+     * A copy of this runner that caches run() outputs in the given store.
+     */
+    public function withCache(EvaluationCacheInterface $cache, bool $refresh = false): static
+    {
+        $runner = clone $this;
+        $runner->cache = $cache;
+        $runner->refresh = $refresh;
+
+        return $runner;
     }
 
     /**
@@ -87,7 +112,7 @@ class EvaluatorRunner
 
         foreach ($data as $index => $item) {
             $tasks[] = fn (): EvaluatorResult => $this->ensureSerializable(
-                $this->runItem($evaluator, $index, $item)
+                $this->runItem($evaluator, $index, $item, forked: true)
             );
         }
 
@@ -97,9 +122,12 @@ class EvaluatorRunner
     }
 
     /**
+     * A failing child hook fails the item like any other error: a child that
+     * throws is killed before it writes its result.
+     *
      * @param array<string, mixed> $item
      */
-    protected function runItem(EvaluatorInterface $evaluator, int $index, array $item): EvaluatorResult
+    protected function runItem(EvaluatorInterface $evaluator, int $index, array $item, bool $forked = false): EvaluatorResult
     {
         $startTime = microtime(true);
         $error = null;
@@ -108,22 +136,32 @@ class EvaluatorRunner
         $cachedRun = false;
 
         try {
-            $cacheKey = $this->cache instanceof EvaluationCacheInterface
-                ? CacheKey::make($evaluator, $item)
-                : null;
-
-            if ($cacheKey !== null && !$this->refresh && $this->cache?->has($cacheKey) === true) {
-                $output = $this->cache->get($cacheKey);
-                $cachedRun = true;
-            } else {
-                $output = $evaluator->run($item);
-
-                if ($cacheKey !== null) {
-                    $this->cache?->set($cacheKey, $output);
-                }
+            if ($forked && $this->beforeChild instanceof Closure) {
+                ($this->beforeChild)();
             }
 
-            $outcomes = $evaluator->performEvaluation($output, $item);
+            try {
+                $cacheKey = $this->cache instanceof EvaluationCacheInterface
+                    ? CacheKey::make($evaluator, $item)
+                    : null;
+
+                if ($cacheKey !== null && !$this->refresh && $this->cache?->has($cacheKey) === true) {
+                    $output = $this->cache->get($cacheKey);
+                    $cachedRun = true;
+                } else {
+                    $output = $evaluator->run($item);
+
+                    if ($cacheKey !== null) {
+                        $this->cache?->set($cacheKey, $output);
+                    }
+                }
+
+                $outcomes = $evaluator->performEvaluation($output, $item);
+            } finally {
+                if ($forked && $this->afterChild instanceof Closure) {
+                    ($this->afterChild)();
+                }
+            }
         } catch (Throwable $e) {
             $error = $e->getMessage();
         }
@@ -133,7 +171,7 @@ class EvaluatorRunner
         return new EvaluatorResult(
             $evaluator::class,
             $index,
-            $outcomes instanceof AssertionOutcomes && $outcomes->isPassed(),
+            $error === null && $outcomes instanceof AssertionOutcomes && $outcomes->isPassed(),
             $item,
             $output,
             $executionTime,

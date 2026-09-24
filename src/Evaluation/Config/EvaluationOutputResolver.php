@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Config;
 
+use Closure;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use RuntimeException;
 
@@ -14,15 +15,21 @@ use function is_subclass_of;
  * Resolves the `output` config entries into driver instances.
  *
  * Each entry is either:
- *  - a class string of a zero-argument {@see EvaluationOutputInterface}, or
+ *  - a class string of an {@see EvaluationOutputInterface}, built by the resolver, or
  *  - an already-constructed {@see EvaluationOutputInterface} instance.
  *
- * Drivers that need constructor arguments (dependencies, options) must be
- * supplied as concrete instances - the framework's DI container can build
- * them. There is no reflection-based option mapping or callable factory.
+ * A resolver backed by the framework's DI container builds drivers that need
+ * dependencies from their class string. There is no reflection-based option mapping.
  */
 class EvaluationOutputResolver
 {
+    /**
+     * @param Closure(class-string): object $resolver
+     */
+    public function __construct(protected Closure $resolver)
+    {
+    }
+
     /**
      * @param array<int, string|EvaluationOutputInterface> $drivers
      * @return EvaluationOutputInterface[]
@@ -52,7 +59,6 @@ class EvaluationOutputResolver
             throw new RuntimeException("Driver '{$driver}' must implement EvaluationOutputInterface");
         }
 
-        /** @var class-string<EvaluationOutputInterface> $driver */
-        return new $driver();
+        return ($this->resolver)($driver);
     }
 }

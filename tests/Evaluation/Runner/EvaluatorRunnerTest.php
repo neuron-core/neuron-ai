@@ -4,12 +4,33 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Runner;
 
+use NeuronAI\Tests\Evaluation\Stub\ChildProcessEvaluator;
 use NeuronAI\Tests\Evaluation\Stub\StringContainsEvaluator;
+use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+
+use function array_map;
+use function array_unique;
+use function file;
+use function file_put_contents;
+use function getmypid;
+use function sys_get_temp_dir;
+use function tempnam;
+use function unlink;
+
+use const FILE_APPEND;
+use const FILE_IGNORE_NEW_LINES;
+use const PHP_EOL;
 
 class EvaluatorRunnerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        ChildProcessEvaluator::$preparedBy = null;
+    }
+
     public function test_assertion_state_does_not_leak_between_dataset_items(): void
     {
         $evaluator = new StringContainsEvaluator();
@@ -74,6 +95,79 @@ class EvaluatorRunnerTest extends TestCase
         foreach ($summary->getResults() as $result) {
             $this->assertSame(StringContainsEvaluator::class, $result->getEvaluatorClass());
             $this->assertSame('StringContainsEvaluator', $result->getShortEvaluatorClass());
+        }
+    }
+
+    public function test_child_hooks_run_in_each_child_around_its_item(): void
+    {
+        $this->requireForking();
+        $log = tempnam(sys_get_temp_dir(), 'neuron_child_hooks_');
+        $runner = new EvaluatorRunner(
+            beforeChild: static function (): void {
+                ChildProcessEvaluator::$preparedBy = getmypid();
+            },
+            afterChild: static function () use ($log): void {
+                file_put_contents($log, getmypid() . PHP_EOL, FILE_APPEND);
+            },
+        );
+
+        try {
+            $results = $runner->run(new ChildProcessEvaluator(), 2)->getResults();
+            $finishedBy = array_map(intval(...), file($log, FILE_IGNORE_NEW_LINES) ?: []);
+        } finally {
+            unlink($log);
+        }
+
+        $preparedBy = array_map(static fn (EvaluatorResult $result): mixed => $result->getOutput(), $results);
+        $this->assertCount(2, array_unique($preparedBy));
+        $this->assertNotContains(null, $preparedBy);
+        $this->assertNotContains(getmypid(), $preparedBy);
+        $this->assertEqualsCanonicalizing($preparedBy, $finishedBy);
+        $this->assertNull(ChildProcessEvaluator::$preparedBy);
+    }
+
+    public function test_child_hooks_do_not_run_without_child_processes(): void
+    {
+        $runner = new EvaluatorRunner(beforeChild: static function (): void {
+            ChildProcessEvaluator::$preparedBy = getmypid();
+        });
+
+        $results = $runner->run(new ChildProcessEvaluator())->getResults();
+
+        $this->assertNull($results[0]->getOutput());
+        $this->assertNull(ChildProcessEvaluator::$preparedBy);
+    }
+
+    /** @return array<string, array{EvaluatorRunner}> */
+    public static function failingChildHookProvider(): array
+    {
+        $fail = static fn () => throw new RuntimeException('connection refused');
+
+        return [
+            'before' => [new EvaluatorRunner(beforeChild: $fail)],
+            'after' => [new EvaluatorRunner(afterChild: $fail)],
+        ];
+    }
+
+    /** @dataProvider failingChildHookProvider */
+    public function test_a_failing_child_hook_fails_its_item(EvaluatorRunner $runner): void
+    {
+        $this->requireForking();
+
+        $results = $runner->run(new ChildProcessEvaluator(), 2)->getResults();
+
+        $this->assertCount(2, $results);
+        foreach ($results as $result) {
+            $this->assertInstanceOf(EvaluatorResult::class, $result);
+            $this->assertFalse($result->isPassed());
+            $this->assertSame('connection refused', $result->getError());
+        }
+    }
+
+    protected function requireForking(): void
+    {
+        if (!EvaluatorRunner::supportsConcurrency()) {
+            $this->markTestSkipped('Child hooks run in forked processes, which require pcntl and spatie/fork.');
         }
     }
 }

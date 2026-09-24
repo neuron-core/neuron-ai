@@ -4,7 +4,7 @@ Dataset-driven evaluation of agents and workflows, including multi-turn conversa
 
 ## Evaluator = template method
 
-`BaseEvaluator` fixes the shape: `setUp()`, `getDataset()` (the items), `run($item)` (execute the application, return its output) and `evaluate($output, $item)` (assert). `EvaluatorDiscovery` finds evaluator classes in a directory and `EvaluatorRunner` executes them; `vendor/bin/neuron evaluation <path>` is the CLI.
+`BaseEvaluator` fixes the shape: `setUp()`, `getDataset()` (the items), `run($item)` (execute the application, return its output) and `evaluate($output, $item)` (assert). `EvaluatorDiscovery` finds evaluator classes in a directory and `EvaluatorRunner` executes them; `vendor/bin/neuron evaluation <path>` is the CLI. The CLI builds evaluators and class-string output drivers through a resolver, `callable(class-string): object`, taken from `EvaluationCommand`'s constructor or the `resolver` entry of `evaluation.php`, so they can receive constructor dependencies from the application's container; without one it instantiates them with `new`.
 
 ```php
 class RefundEvaluator extends BaseEvaluator
@@ -72,6 +72,8 @@ The key (`Cache/CacheKey`) is a content fingerprint of what determines `run()`'s
 
 `--concurrency=N` forks dataset items into N child processes (`ext-pcntl` + `spatie/fork`, sequential fallback). Each child gets its own evaluator copy, so per-item side effects are invisible across items, and `run()` outputs must be serializable to cross the boundary (non-serializable outputs become a placeholder and are not cached; `Trajectory` serializes through the chat-history format).
 
+`EvaluatorRunner`'s `beforeChild` and `afterChild` hooks run in each child around its item, for the application's connections inherited from the parent; the command takes the runner from its constructor or the `runner` entry of `evaluation.php`, and applies `--cache`/`--fresh` to a copy through `withCache()`. A failing hook fails its item: a child that throws is killed before it writes its result, and the parent would receive an empty string.
+
 ## Output drivers
 
-`evaluation.php` in the project root lists `output` drivers: a class string for a zero-argument driver, or a constructed instance. Drivers with dependencies **must** be instances, which lets the host framework resolve them through its DI container; a custom driver implements `EvaluationOutputInterface::output(EvaluationReport $report)`.
+`evaluation.php` in the project root lists `output` drivers: a class string, built by the resolver after all runs complete, or a constructed instance; a custom driver implements `EvaluationOutputInterface::output(EvaluationReport $report)`.

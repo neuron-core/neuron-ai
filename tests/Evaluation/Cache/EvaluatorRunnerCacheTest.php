@@ -71,6 +71,20 @@ class EvaluatorRunnerCacheTest extends TestCase
         $this->assertSame(0, $summary->getCachedRunCount());
     }
 
+    public function test_with_cache_returns_a_caching_copy_and_leaves_the_runner_unchanged(): void
+    {
+        $runner = new EvaluatorRunner();
+        $cached = $runner->withCache(new FileEvaluationCache($this->directory));
+
+        $cached->run(new CountingEvaluator());
+        $second = $cached->run(new CountingEvaluator());
+        $uncached = $runner->run(new CountingEvaluator());
+
+        $this->assertSame(2, $second->getCachedRunCount());
+        $this->assertSame(0, $uncached->getCachedRunCount());
+        $this->assertSame(4, CountingEvaluator::$runCalls);
+    }
+
     public function test_without_cache_every_run_executes(): void
     {
         (new EvaluatorRunner())->run(new CountingEvaluator());

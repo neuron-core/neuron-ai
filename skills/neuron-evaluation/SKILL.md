@@ -605,7 +605,59 @@ programmatically: `$runner->run($evaluator, concurrency: 4)`.
 file *before* (in addition to) the default Composer autoloader. It's a global
 `vendor/bin/neuron` option, so it works with any command. Use it when evaluators need
 framework bootstrapping (e.g. a Laravel/Symfony bootstrap that sets up the DI
-container) or an autoloader not covered by the project's `composer.json`.
+container) or an autoloader not covered by the project's `composer.json`. To build
+evaluators through that container, configure a resolver (next section).
+
+### Container Integration
+
+Evaluators and output drivers listed as class names are built by a **resolver**: a
+`callable(class-string): object`. Without one they are instantiated with `new`, and a
+class whose constructor needs arguments fails with a message pointing to the resolver.
+Configure it in `evaluation.php`, once the `--autoload-file` bootstrap has booted the
+application:
+
+```php
+return [
+    // Delegate to the application's container, e.g. $container->get($class)
+    'resolver' => fn (string $class): object => app($class),
+];
+```
+
+Evaluators can then receive agents, repositories or clients through their constructor.
+Output drivers with dependencies can stay class names too: they are built after all runs
+complete, so their connections never exist when `--concurrency` forks.
+
+`--concurrency` runs each dataset item in a forked child process. Neuron's HTTP clients
+open their own connections there; the application's own connections (database, Redis)
+need the runner's **child hooks**, which run in each child around its item:
+
+```php
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+
+return [
+    'runner' => new EvaluatorRunner(
+        beforeChild: fn () => ...,  // replace connections inherited from the parent
+        afterChild: fn () => ...,   // release what the child opened
+    ),
+];
+```
+
+A failing hook fails that dataset item. Keep inherited connection objects referenced and
+open new ones: closing an inherited connection in a child closes the parent's too.
+
+A framework console command passes the same collaborators to the command it wraps; they
+win over the `evaluation.php` entries, and `--cache`/`--fresh` apply to a copy of the
+runner (`$runner->withCache($cache, refresh: true)`):
+
+```php
+use NeuronAI\Console\Evaluation\EvaluationCommand;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+
+$exitCode = (new EvaluationCommand(
+    runner: new EvaluatorRunner(beforeChild: $reconnect),
+    resolver: fn (string $class): object => $container->get($class),
+))->run(['neuron', '--path=evaluations', '--concurrency=4']);
+```
 
 ### Run Output Caching (`--cache`)
 
@@ -696,13 +748,13 @@ echo "Success Rate: {$results->getSuccessRate() * 100}%\n";
 
 Create `evaluation.php` in project root. Each `output` entry is either:
 
-- a **class string** of a zero-argument driver (resolved as `new $class()`), or
-- a **fully-constructed driver instance** (required for any driver that needs constructor arguments).
+- a **class string**, built by the resolver (see Container Integration; `new $class()`
+  without one), or
+- a **fully-constructed driver instance**.
 
-Drivers that need dependencies (a DB connection, an HTTP client, options like a
-file path) **must** be supplied as concrete instances. This is what lets a host
-framework (Laravel, Symfony) build them through its DI container — pass the
-resolved instance into the config.
+A driver that needs dependencies (a DB connection, an HTTP client) can stay a class
+string once a container-backed resolver is configured: it is built after all runs
+complete. A driver that needs options, like a file path, is passed as an instance.
 
 ```php
 <?php
@@ -784,11 +836,12 @@ class DatabaseOutput implements EvaluationOutputInterface
 }
 ```
 
-Register the constructed instance (resolve dependencies from your DI container):
+List the class and let the resolver build it with its dependencies, after all runs
+complete:
 ```php
 return [
     'output' => [
-        new DatabaseOutput($container->get(\PDO::class), 'evaluations'),
+        DatabaseOutput::class,
     ],
 ];
 ```
