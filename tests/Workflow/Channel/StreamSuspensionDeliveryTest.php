@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Channel;
 
+use Closure;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
@@ -17,6 +18,7 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_key_last;
@@ -36,8 +38,8 @@ class StreamSuspensionDeliveryTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request)])
-            ->setStreamAdapter(new AGUIAdapter('thread_test', 'run_test'))
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread_test', 'run_test'))
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $state = $workflow->run();
 
@@ -64,7 +66,6 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $pauseFrame = new ProtocolEvent('paused');
         $paused = $this->createMock(StreamAdapterInterface::class);
-        $paused->expects($this->once())->method('reset');
         $paused->expects($this->once())->method('start')->willReturn([]);
         // The InterruptEvent is the suspension terminal, never stream content.
         $paused->expects($this->never())->method('transform');
@@ -77,8 +78,8 @@ class StreamSuspensionDeliveryTest extends TestCase
 
         $workflow = Workflow::make('test-execution')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request), new NodeThree()])
-            ->setStreamAdapter($paused)
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $paused)
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $state = $workflow->run();
 
@@ -89,13 +90,12 @@ class StreamSuspensionDeliveryTest extends TestCase
         // The continuation completes: a fresh adapter for the segment ends normally.
         $doneFrame = new ProtocolEvent('done');
         $completed = $this->createMock(StreamAdapterInterface::class);
-        $completed->expects($this->once())->method('reset');
         $completed->expects($this->once())->method('start')->willReturn([]);
         $completed->expects($this->never())->method('interrupt');
         $completed->expects($this->once())->method('end')->willReturn([$doneFrame]);
 
         $state = $workflow
-            ->setStreamAdapter($completed)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $completed)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($state->isInterrupted());
         $this->assertSame([$pauseFrame, $doneFrame], $channel->getSent());
@@ -103,12 +103,13 @@ class StreamSuspensionDeliveryTest extends TestCase
     }
 
     /**
+     * @param Closure(): StreamAdapterInterface $adapter
      * @param list<string> $firstSegment
      * @param list<string> $continuation
      */
-    #[DataProvider('reusable_adapters')]
-    public function test_one_adapter_instance_serves_a_suspension_and_its_continuation(
-        StreamAdapterInterface $adapter,
+    #[DataProvider('adapters')]
+    public function test_every_segment_frames_its_stream_with_its_own_adapter(
+        Closure $adapter,
         array $firstSegment,
         array $continuation,
     ): void {
@@ -119,15 +120,15 @@ class StreamSuspensionDeliveryTest extends TestCase
         $workflow = Workflow::make('test-execution')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request), new NodeThree()])
             ->setStreamAdapter($adapter)
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $state = $workflow->run();
 
         $this->assertTrue($state->isInterrupted());
         $this->assertSame($firstSegment, $this->types($channel->getSent()));
 
-        // The instance is reset at the segment boundary, so the continuation
-        // is framed again instead of being silently suppressed.
+        // The continuation gets a new adapter, so the finished stream of the
+        // first segment cannot suppress its frames.
         $delivered = count($channel->getSent());
         $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
@@ -137,17 +138,17 @@ class StreamSuspensionDeliveryTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{StreamAdapterInterface, list<string>, list<string>}>
+     * @return iterable<string, array{Closure(): StreamAdapterInterface, list<string>, list<string>}>
      */
-    public static function reusable_adapters(): iterable
+    public static function adapters(): iterable
     {
         yield 'AG-UI' => [
-            new AGUIAdapter('thread_test', 'run_test'),
+            fn (): AGUIAdapter => new AGUIAdapter('thread_test', 'run_test'),
             ['RUN_STARTED', 'STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'],
             ['RUN_STARTED', 'RUN_FINISHED'],
         ];
         yield 'Vercel' => [
-            new VercelAIAdapter(),
+            fn (): VercelAIAdapter => new VercelAIAdapter(),
             ['start', 'tool-input-start', 'tool-input-delta', 'tool-approval-request', 'finish'],
             ['finish'],
         ];

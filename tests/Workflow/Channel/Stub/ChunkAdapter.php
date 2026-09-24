@@ -16,10 +16,6 @@ use Throwable;
  */
 class ChunkAdapter implements StreamAdapterInterface
 {
-    public function reset(): void
-    {
-    }
-
     public function transform(object $chunk): iterable
     {
         if ($chunk instanceof ChunkEvent) {

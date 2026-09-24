@@ -90,8 +90,8 @@ class AsyncExecutor extends WorkflowExecutor
 
                 try {
                     $result = $future->await();
-                    if ($result->streamedEvent instanceof Event) {
-                        yield $result->streamedEvent;
+                    if ($result->streamedEvent !== null) {
+                        yield $result->streamedKey => $result->streamedEvent;
                         $branch = $branches[$branchId];
                         $futures[$branchId] = async(
                             fn (): BranchResult => $this->advanceBranch($branch, true),
@@ -136,7 +136,7 @@ class AsyncExecutor extends WorkflowExecutor
         }
 
         if ($branch->valid()) {
-            return new BranchResult(streamedEvent: $branch->current());
+            return new BranchResult(streamedEvent: $branch->current(), streamedKey: $branch->key());
         }
 
         $terminal = $branch->getReturn();

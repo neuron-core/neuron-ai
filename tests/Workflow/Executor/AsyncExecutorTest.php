@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor;
 
 use Generator;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\SlowImageProcessNode;
@@ -29,6 +31,7 @@ use stdClass;
 
 use function Amp\async;
 use function Amp\delay;
+use function iterator_to_array;
 use function microtime;
 
 class AsyncExecutorTest extends TestCase
@@ -186,5 +189,37 @@ class AsyncExecutorTest extends TestCase
         $this->assertSame(['first', 'second'], $payloads);
         $this->assertTrue($progress->advancedPastFirstEvent);
         $this->assertTrue($stream->getReturn()->get('merge_node_executed'));
+    }
+
+    public function test_branches_stream_any_object_in_the_sequence_of_the_segment(): void
+    {
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): Generator
+            {
+                yield new ChunkEvent('fork');
+
+                return new DocumentParallelEvent([
+                    'text' => new TextProcessEvent(),
+                    'image' => new ImageProcessEvent(),
+                ]);
+            }
+        };
+        $text = new class () extends Node {
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): Generator
+            {
+                yield new TextChunk('msg_1', 'Hello');
+
+                return new StopEvent(result: 'HELLO');
+            }
+        };
+        $workflow = Workflow::make('test-workflow')->addNodes([$fork, $text, new ImageProcessNode(), new MergeNode()]);
+        $this->configure($workflow);
+
+        // Keyed by position: the branch continues the sequence the fork started.
+        $items = iterator_to_array($workflow->events());
+
+        $this->assertCount(2, $items);
+        $this->assertInstanceOf(ChunkEvent::class, $items[0]);
+        $this->assertInstanceOf(TextChunk::class, $items[1]);
     }
 }

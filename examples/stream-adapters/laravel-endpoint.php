@@ -57,7 +57,8 @@ Route::post('/agui', function (Request $request) {
     );
 
     // stream() yields AG-UI ProtocolEvents; SSE framing happens at the HTTP edge.
-    $stream = $agent->setStreamAdapter($adapter)->stream(new UserMessage((string) $last['content']));
+    // The request runs one segment, so the adapter built here is the one it streams with.
+    $stream = $agent->setStreamAdapter(fn (): AGUIAdapter => $adapter)->stream(new UserMessage((string) $last['content']));
 
     return response()->stream(
         function () use ($stream) {

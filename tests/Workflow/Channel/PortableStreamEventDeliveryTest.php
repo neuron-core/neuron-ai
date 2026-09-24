@@ -11,6 +11,8 @@ use NeuronAI\Tests\Workflow\Channel\Stub\PortableProgressNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\WorkflowProgress;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function iterator_to_array;
 use function json_decode;
@@ -29,7 +31,7 @@ class PortableStreamEventDeliveryTest extends TestCase
         );
         $workflow = Workflow::make()
             ->addNodes([new PortableProgressNode()])
-            ->setStreamAdapter($adapter);
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter);
 
         $events = iterator_to_array($workflow->events());
 
@@ -54,8 +56,8 @@ class PortableStreamEventDeliveryTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new PortableProgressNode()])
-            ->setStreamAdapter($adapter)
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $state = $workflow->run();
 

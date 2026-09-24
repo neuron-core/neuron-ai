@@ -25,6 +25,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use InvalidArgumentException;
 use NeuronAI\Tests\Workflow\Channel\Stub\CountingPayload;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_fill;
@@ -223,7 +224,7 @@ class PusherChannelTest extends TestCase
     public function test_streams_an_agent_run_with_protocol_payloads_preserved(): void
     {
         $channel = $this->channel();
-        $agent = Agent::make()->setStreamAdapter(new VercelAIAdapter())->setChannel($channel);
+        $agent = Agent::make()->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $channel);
         $response = 'Hello world from Pusher, streamed in small chunks';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
         $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
@@ -353,11 +354,11 @@ class PusherChannelTest extends TestCase
         }
     }
 
-    public function test_failure_stops_encrypted_data_but_attempts_terminal_and_allows_reuse(): void
+    public function test_failure_stops_encrypted_data_but_attempts_terminal(): void
     {
         $sent = [];
         $stack = HandlerStack::create(new MockHandler([
-            new Response(503, [], 'unavailable'), new Response(200, [], '{}'), new Response(200, [], '{}'),
+            new Response(503, [], 'unavailable'), new Response(200, [], '{}'),
         ]));
         $stack->push(Middleware::history($sent));
         $this->pusher = new Pusher('key', 'secret', 'app', [
@@ -373,13 +374,9 @@ class PusherChannelTest extends TestCase
         $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
         $this->assertCount(1, $sent);
         $channel->completed($this->state(), 'wf-1');
-        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'c']));
-        $this->assertCount(3, $sent);
+        $this->assertCount(2, $sent);
         $terminal = $this->decrypt(json_decode((string) $sent[1]['request']->getBody(), true)['batch'][0]);
-        $reused = $this->decrypt(json_decode((string) $sent[2]['request']->getBody(), true)['batch'][0]);
         $this->assertSame('stream.completed', $terminal['type']);
         $this->assertSame(1, $terminal['sequence']);
-        $this->assertSame(0, $reused['sequence']);
-        $this->assertNotSame($terminal['streamId'], $reused['streamId']);
     }
 }

@@ -132,7 +132,7 @@ $translator = new AGUIInputTranslator();
 $agent = buildAgent($payload['threadId'], $translator->tools($payload));
 
 $adapter = new AGUIAdapter($payload['threadId'], $payload['runId'] ?? null, $messages, $payload['state'] ?? []);
-$agent->setStreamAdapter($adapter);
+$agent->setStreamAdapter(fn (): AGUIAdapter => $adapter);
 
 $continuation = ($payload['resume'] ?? []) !== [] || ($last['role'] ?? null) === 'tool';
 
@@ -155,11 +155,11 @@ $agent = buildAgent($payload['id'], $frontendTools);
 
 if (($last['role'] ?? null) === 'assistant') {
     $adapter = new VercelAIAdapter($last['id'], $last['parts'] ?? []);
-    $agent->setStreamAdapter($adapter);
+    $agent->setStreamAdapter(fn (): VercelAIAdapter => $adapter);
     $frames = $agent->submitInputs($payload, new VercelAIInputTranslator())->events();
 } elseif (($last['role'] ?? null) === 'user') {
     $adapter = new VercelAIAdapter();
-    $agent->setStreamAdapter($adapter);
+    $agent->setStreamAdapter(fn (): VercelAIAdapter => $adapter);
     $text = implode('', array_map(
         fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '',
         $last['parts'] ?? [],

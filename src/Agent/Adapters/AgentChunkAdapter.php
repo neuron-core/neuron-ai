@@ -32,10 +32,6 @@ class AgentChunkAdapter implements CustomizableStreamAdapterInterface
 {
     use MapsStreamEvents;
 
-    public function reset(): void
-    {
-    }
-
     /**
      * @throws StreamAdapterException
      */

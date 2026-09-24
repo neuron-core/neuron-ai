@@ -24,16 +24,16 @@ Live output is **ephemeral**. Nothing yielded during a segment is stored in pers
 
 ## Resources constructed per segment
 
-Use the `streamAdapter()` and `channel()` hooks, or pass a resource factory to
-`setStreamAdapter()` / `setChannel()`:
+Use the `streamAdapter()` and `channel()` hooks, or pass a factory to
+`setStreamAdapter()` / `setChannel()`; the setters take factories only:
 
 ```php
 $agent->setStreamAdapter(fn () => new AGUIAdapter($input['threadId'], $input['runId'] ?? null));
 $state = $agent->run($request);
 ```
 
-These factories run only for an owned execution and return a fresh resource for each
-segment. There is no Workflow-mutating preparation callback; saved outcomes and idle
+These factories run only for an owned execution and return a new adapter or channel
+for each segment: both hold the state of one segment's stream. There is no Workflow-mutating preparation callback; saved outcomes and idle
 polls skip resource construction. The AG-UI run ID is the client's per-request ID from
 its input, not Neuron's durable run ID. Lazy calls capture input at creation and
 execute during iteration. Setters configure the definition; an active execution keeps
@@ -131,8 +131,9 @@ use NeuronAI\Workflow\Streaming\SSEEncoder;
 Route::post('/chat', function (Request $request) {
     $adapter = new VercelAIAdapter();
 
+    // The request runs one segment, so it builds its adapter once and keeps it for the headers.
     $stream = MyAgent::make(workflowId: $request->input('threadId'))
-        ->setStreamAdapter($adapter)
+        ->setStreamAdapter(fn (): VercelAIAdapter => $adapter)
         ->stream(new UserMessage($request->input('message')));
 
     return response()->stream(function () use ($stream) {
@@ -145,7 +146,7 @@ Route::post('/chat', function (Request $request) {
 });
 ```
 
-An adapter is stateful for one stream. Create a new instance per request and never share one between concurrent streams. The Workflow calls `reset()` before every segment, so the same instance can also serve a suspension and its continuation in one process, as a queue worker does.
+An adapter holds the state of one segment's stream. The factory runs for every segment, so a suspension and its continuation in one process, as a queue worker runs them, each get their own adapter. Seed a continuation's adapter with what the client already holds: the AG-UI `messages`, the Vercel message and its `parts`.
 
 ### Terminal frames
 
@@ -207,7 +208,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Custom adapters
 
-Implement `StreamAdapterInterface`: `reset()` opens a segment by dropping the previous segment's stream state, and `start()`, `transform(object)`, `end()`, `interrupt(InterruptRequest)`, `error(Throwable)` each return an iterable of `ProtocolEvent`s. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `interrupt()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
+Implement `StreamAdapterInterface`: `start()`, `transform(object)`, `end()`, `interrupt(InterruptRequest)`, `error(Throwable)` each return an iterable of `ProtocolEvent`s, and an instance serves one segment. Generate ids with `UniqueIdGenerator::generateId('msg_')` and expose the HTTP headers the protocol needs from the adapter itself. Return an empty iterable from `interrupt()` or `error()` when the protocol cannot express that outcome. Add `MapsStreamEvents` and implement `CustomizableStreamAdapterInterface` to support `mapEvent()`.
 
 ## Streaming Channels: Push Delivery
 
@@ -266,8 +267,8 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 
 // Inside a queued job: the HTTP request already returned.
 $agent = MyAgent::make(workflowId: $threadId)
-    ->setStreamAdapter(new VercelAIAdapter())
-    ->setChannel(new CallbackChannel(
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): CallbackChannel => new CallbackChannel(
         onSend: fn (ProtocolEvent $event) => Broadcast::private("chat.{$threadId}")
             ->as($event->type)
             ->with($event->data)
@@ -315,8 +316,8 @@ class MyAgent extends Agent
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 
 $agent = MyAgent::make(workflowId: $threadId)
-    ->setStreamAdapter(new VercelAIAdapter())
-    ->setChannel(new RedisChannel($redis, "chat:{$threadId}"));
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): RedisChannel => new RedisChannel($redis, "chat:{$threadId}"));
 
 $state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage($message)], new AgentRunOptions(stream: true))));
 ```
@@ -344,8 +345,8 @@ $pusher = new Pusher(
 
 // Inside a queued job: the HTTP request already returned.
 $agent = MyAgent::make(workflowId: $threadId)
-    ->setStreamAdapter(new VercelAIAdapter())
-    ->setChannel(new PusherChannel(
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): PusherChannel => new PusherChannel(
         client: $pusher,
         channel: "private-encrypted-chat.{$threadId}",
     ));
@@ -369,7 +370,7 @@ Read [Channel wire contract and consumers](references/channels.md) for the exact
 
 ### Failure policy
 
-A channel error never fails the workflow. Workflow dispatches `ChannelError` with the exception. After the first transport delivery failure, `AbstractChannel` stops ordinary delivery for that segment; it does not retry uncertain batches. At termination it attempts pending data, then separately attempts the terminal notification even if that flush failed. Terminal delivery is not retried. Segment state is cleared even when termination fails, so sequential reuse starts with a fresh stream ID. Never share an instance between concurrent segments or reuse one after abandoning its generator without termination.
+A channel error never fails the workflow. Workflow dispatches `ChannelError` with the exception. After the first transport delivery failure, `AbstractChannel` stops ordinary delivery for that segment; it does not retry uncertain batches. At termination it attempts pending data, then separately attempts the terminal notification even if that flush failed. Terminal delivery is not retried. A channel serves one segment: every segment builds its own through the factory or the hook, with a fresh stream ID.
 
 Clients detect gaps using sequence numbers, bound fragment buffering, and reconcile from application history on a timeout, disconnect, or incomplete segment. Streamed output is not a durable delivery channel.
 
@@ -383,9 +384,10 @@ use NeuronAI\Testing\FakeChannel;
 
 $channel = new FakeChannel();
 
+// The factory returns the same fake, so the test can read what every segment delivered.
 $agent = Agent::make()
-    ->setStreamAdapter(new VercelAIAdapter())
-    ->setChannel($channel);
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): FakeChannel => $channel);
 $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world')))->setStreamChunkSize(5));
 
 $state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Hi')], new AgentRunOptions(stream: true))));

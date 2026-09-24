@@ -35,7 +35,6 @@ use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\PendingExecution;
-use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -59,7 +58,6 @@ use const PHP_EOL;
  * @extends Workflow<AgentState>
  * @method static static make(?string $workflowId = null, ?AgentState $state = null)
  * @method AgentStartEvent getStartEvent()
- * @method static setStreamAdapter(?StreamAdapterInterface $adapter) Configure Workflow-owned stream adaptation.
  */
 class Agent extends Workflow implements AgentInterface
 {

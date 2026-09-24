@@ -32,6 +32,8 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_map;
 use function count;
@@ -48,8 +50,8 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(3)])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $workflow->run();
 
@@ -71,13 +73,13 @@ class ChannelForwardingTest extends TestCase
         $nextChannel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNode(new ChunkStreamingNode(2))
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($firstChannel);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $firstChannel);
 
         $stream = $workflow->events();
         $stream->rewind();
 
-        $workflow->setChannel($nextChannel)->setStreamAdapter(null);
+        $workflow->setChannel(fn (): StreamingChannelInterface => $nextChannel)->setStreamAdapter(null);
 
         $events = iterator_to_array($stream, false);
         $this->assertEquals([
@@ -102,8 +104,8 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(2)])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $state = $workflow->run();
 
@@ -122,8 +124,8 @@ class ChannelForwardingTest extends TestCase
         foreach ([[false, false], [true, false], [false, true], [true, true]] as [$adapter, $channel]) {
             $workflow = Workflow::make('test-workflow')
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
-                ->setStreamAdapter($adapter ? new ChunkAdapter() : null)
-                ->setChannel($channel ? new FakeChannel() : null);
+                ->setStreamAdapter(fn (): ?StreamAdapterInterface => $adapter ? new ChunkAdapter() : null)
+                ->setChannel(fn (): ?StreamingChannelInterface => $channel ? new FakeChannel() : null);
 
             $stream = $workflow->events();
 
@@ -139,8 +141,8 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new PreStreamNode(), new WaitForEventNode(), new PostStreamNode()])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $this->assertTrue($workflow->run()->isInterrupted());
 
@@ -164,8 +166,8 @@ class ChannelForwardingTest extends TestCase
         $errors = [];
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(5)])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
         $workflow->subscribe(ChannelError::class, function (ChannelError $error) use (&$errors): void {
             $errors[] = $error;
         });
@@ -189,7 +191,7 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(3)])
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $pulled = [];
         foreach ($workflow->events() as $item) {
@@ -213,7 +215,7 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request)])
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $pulled = [];
         $generator = $workflow->events();
@@ -244,7 +246,7 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new NodeOne(), new TwoStageInterruptNode(), new NodeThree()])
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $workflow->run();
         // An incomplete payload interrupts again with a new active request.
@@ -275,7 +277,7 @@ class ChannelForwardingTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ThrowingNode()])
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $caught = null;
         try {
@@ -300,8 +302,8 @@ class ChannelForwardingTest extends TestCase
         $firstSegment = new FakeChannel();
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new PreStreamNode(), new InterruptableNode(), new PostStreamNode()])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($firstSegment);
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $firstSegment);
 
         $this->assertTrue($workflow->run()->isInterrupted());
 
@@ -312,7 +314,7 @@ class ChannelForwardingTest extends TestCase
         // Crash-replayed / cached steps yield nothing, so the resume segment's
         // channel never re-broadcasts the pre-suspension stream.
         $resumeSegment = new FakeChannel();
-        $workflow->setChannel($resumeSegment);
+        $workflow->setChannel(fn (): StreamingChannelInterface => $resumeSegment);
         $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
 
         $this->assertFalse($state->isInterrupted());
@@ -333,7 +335,7 @@ class ChannelForwardingTest extends TestCase
         $errors = [];
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(1)])
-            ->setChannel($channel);
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
         $workflow->subscribe(ChannelError::class, function (ChannelError $error) use (&$errors): void {
             $errors[] = $error;
         });
@@ -353,8 +355,8 @@ class ChannelForwardingTest extends TestCase
         $reported = [];
         $workflow = Workflow::make('test-workflow')
             ->addNodes([new ChunkStreamingNode(2)])
-            ->setStreamAdapter(new ChunkAdapter())
-            ->setChannel($channel)
+            ->setStreamAdapter(fn (): ChunkAdapter => new ChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel)
             ->subscribe(ChannelError::class, function () use ($listenerFailure): void {
                 throw $listenerFailure;
             })

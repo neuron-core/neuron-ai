@@ -8,16 +8,13 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 
+/**
+ * Shapes one segment's stream for a protocol. The Workflow builds an adapter
+ * for every segment, so it holds the state of that stream only; a continuation
+ * gets a new adapter, seeded with what the client already holds.
+ */
 interface StreamAdapterInterface
 {
-    /**
-     * Begin a run segment. The Workflow calls it before start() on every
-     * segment, so one instance can serve a suspension and its continuation
-     * in the same process: drop the previous segment's stream state, keep
-     * the seeded protocol identity and snapshot.
-     */
-    public function reset(): void;
-
     /**
      * Transform a Neuron chunk into protocol events.
      *

@@ -24,10 +24,12 @@ $agent = Agent::make()
     );
 
 // The adapter turns Neuron's native chunks into AG-UI protocol events, so
-// stream() yields one ProtocolEvent per wire event. In AG-UI the thread id
-// comes from the client; a CLI demo can make one up.
+// stream() yields one ProtocolEvent per wire event. The factory builds the
+// adapter of every segment. In AG-UI the thread id comes from the client; a
+// CLI demo can make one up.
+$threadId = \uniqid();
 $stream = $agent
-    ->setStreamAdapter(new AGUIAdapter(threadId: \uniqid()))
+    ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter(threadId: $threadId))
     ->stream(new UserMessage('What is the square root of 144?'));
 
 // SSE framing belongs to the HTTP edge: the encoder turns each event into a "data:" line.

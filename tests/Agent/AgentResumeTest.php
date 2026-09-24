@@ -24,6 +24,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_filter;
 use function iterator_to_array;
@@ -60,7 +61,7 @@ class AgentResumeTest extends TestCase
         // Ignition: durable storage shared by both processes.
         $messages = new SqliteMessageStore();
         $agent1->setMessageStore($messages);
-        $agent1->setChannel(new FakeChannel());
+        $agent1->setChannel(fn (): FakeChannel => new FakeChannel());
 
         $handler1 = $agent1->stream(new UserMessage('Search for PHP frameworks'));
         iterator_to_array($handler1);
@@ -82,8 +83,8 @@ class AgentResumeTest extends TestCase
         $agent2->addTool($wakeTool);
         $agent2->setPersistence($persistence);
         $agent2->setMessageStore($messages);
-        $agent2->setChannel($channel);
-        $agent2->setStreamAdapter(new ParityAdapter());
+        $agent2->setChannel(fn (): StreamingChannelInterface => $channel);
+        $agent2->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
 
         // The approval wrapper hides the signal name; run() consumes the persisted stream intent.
         $state = $agent2

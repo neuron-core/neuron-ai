@@ -60,7 +60,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
     protected ?int $leaseTimeout = null;
     protected string $workflowId;
     protected string $runId;
-    protected bool $ownsExecutionSegment = false;
 
     protected bool $pauseRequested = false;
     protected Ignition $ignition;
@@ -81,12 +80,8 @@ class WorkflowExecutor implements WorkflowExecutorInterface
      */
     public function execute(Workflow $workflow, ExecutionRequest $request): Generator
     {
-        $dispatcher = $workflow->getEventDispatcher();
         ExecutionGate::acquire($workflow);
         $runtime = null;
-        $context = null;
-        $failedState = null;
-        $this->ownsExecutionSegment = false;
         $this->pauseRequested = false;
         try {
             $this->leaseTimeout = $workflow->getLeaseTimeout();
@@ -96,84 +91,104 @@ class WorkflowExecutor implements WorkflowExecutorInterface
             if ($terminal instanceof WorkflowState) {
                 return $terminal;
             }
-            $context = new ExecutionContext($this->workflowId, $this->runId, $this->store->control()->executionAttempt, $this->ignition);
-            $runtime = $workflow->createExecution($context);
-            return yield from $runtime->streamExecution(
-                $this->executeOwnedSegment($runtime),
-                fn (Throwable $error) => $this->failSegment($runtime, $error),
-            );
-        } catch (Throwable $e) {
-            if ($runtime !== null) {
-                $this->failSegment($runtime, $e);
-            } elseif ($this->ownsExecutionSegment) {
-                $state = $failedState = new WorkflowState();
-                $this->stampState($state);
-                $state->markAsFailed();
-                $this->markControlFailed();
-                $dispatcher = $context === null ? $dispatcher : new ExecutionEventDispatcher($dispatcher, $context);
-                $this->dispatchEvent($dispatcher, new AgentError($e, false), $workflow);
-            }
-            throw $e;
+            $runtime = $this->openSegment($workflow);
+            return yield from $this->executeOwnedSegment($runtime);
         } finally {
             if ($runtime !== null) {
                 $this->workflowEnd($runtime);
-            } elseif ($failedState !== null) {
-                $this->dispatchEvent($dispatcher, new WorkflowEnd($failedState), $workflow);
             }
             ExecutionGate::release($workflow);
         }
     }
 
-    /** @return Generator<int, object, mixed, WorkflowState> */
+    /**
+     * Build the admitted segment. The run is owned from admission on, so a
+     * segment that cannot be built fails it.
+     *
+     * @throws Throwable
+     */
+    protected function openSegment(Workflow $workflow): WorkflowRuntimeInterface
+    {
+        $context = new ExecutionContext($this->workflowId, $this->runId, $this->store->control()->executionAttempt, $this->ignition);
+        // Listeners registered while the segment is built observe the next one.
+        $dispatcher = new ExecutionEventDispatcher($workflow->getEventDispatcher(), $context);
+        try {
+            return $workflow->createExecution($context);
+        } catch (Throwable $e) {
+            $state = new WorkflowState();
+            $this->stampState($state);
+            $state->markAsFailed();
+            $this->markControlFailed();
+            $this->dispatchEvent($dispatcher, new AgentError($e, false), $workflow);
+            $this->dispatchEvent($dispatcher, new WorkflowEnd($state), $workflow);
+            throw $e;
+        }
+    }
+
+    /**
+     * The segment settles its outcome before the output reports it: a failure
+     * is persisted before any error frame, and the terminal frames follow the
+     * committed suspension or completion.
+     *
+     * @return Generator<int, object, mixed, WorkflowState>
+     */
     protected function executeOwnedSegment(WorkflowRuntimeInterface $workflow): Generator
     {
-        $this->dispatchEvent(
-            $workflow->getEventDispatcher(),
-            new WorkflowStart($workflow->getEventNodeMap()),
-            $workflow,
-        );
+        $output = $workflow->getOutput();
 
-        $terminal = yield from $this->traverse(
-            $workflow,
-            $workflow->getStartEvent(),
-            $workflow->getState(),
-        );
-        $this->stampState($workflow->getState());
-
-        if ($terminal instanceof InterruptEvent || $terminal instanceof BranchPausedEvent) {
-            $request = $this->store->control()->interrupt->request;
-            $workflow->getState()->markAsSuspended($request);
-            $checkpoint = clone $workflow->getState();
-            $checkpoint->markAsSuspended(null);
-            $this->store->commitCheckpoint($checkpoint, $this->store->control()->suspended());
+        try {
+            yield from $output->start();
 
             $this->dispatchEvent(
                 $workflow->getEventDispatcher(),
-                new WorkflowInterrupted($workflow->getState()),
+                new WorkflowStart($workflow->getEventNodeMap()),
                 $workflow,
             );
 
-            yield InterruptEvent::fromRequest($request);
-        } else {
-            $workflow->getState()->clearInterrupt();
-            if ($workflow->shouldRetainCompletionUntilAcknowledged()) {
-                $this->store->commitOutcome($workflow->getState(), $this->store->control()->completed());
+            $terminal = yield from $this->traverse(
+                $workflow,
+                $workflow->getStartEvent(),
+                $workflow->getState(),
+            );
+            $state = $workflow->getState();
+            $this->stampState($state);
+
+            if ($terminal instanceof InterruptEvent || $terminal instanceof BranchPausedEvent) {
+                $state->markAsSuspended($this->store->control()->interrupt->request);
+                $checkpoint = clone $state;
+                $checkpoint->markAsSuspended(null);
+                $this->store->commitCheckpoint($checkpoint, $this->store->control()->suspended());
+
+                $this->dispatchEvent(
+                    $workflow->getEventDispatcher(),
+                    new WorkflowInterrupted($state),
+                    $workflow,
+                );
             } else {
-                $this->deleteOwnedPartition();
+                $state->clearInterrupt();
+                if ($workflow->shouldRetainCompletionUntilAcknowledged()) {
+                    $this->store->commitOutcome($state, $this->store->control()->completed());
+                } else {
+                    $this->deleteOwnedPartition();
+                }
             }
+        } catch (Throwable $e) {
+            $this->failSegment($workflow, $e);
+            yield from $output->failed($e);
+            throw $e;
         }
 
-        return $workflow->getState();
+        yield from ($state->isInterrupted() ? $output->interrupted($state) : $output->completed($state));
+
+        return clone $state;
     }
 
     protected function failSegment(WorkflowRuntimeInterface $workflow, Throwable $e): void
     {
-        if ($this->ownsExecutionSegment && $workflow->getState()->getStatus() !== WorkflowStatus::Failed) {
-            $this->stampState($workflow->getState());
-            $workflow->getState()->markAsFailed();
-            $this->markControlFailed();
-            $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
-        }
+        $this->stampState($workflow->getState());
+        $workflow->getState()->markAsFailed();
+        $this->markControlFailed();
+        $this->dispatchEvent($workflow->getEventDispatcher(), new AgentError($e, false), $workflow);
     }
 
     protected function admit(Workflow $workflow, ExecutionRequest $request): ?WorkflowState
@@ -332,8 +347,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 );
         }
 
-        $this->ownsExecutionSegment = true;
-
         return null;
     }
 
@@ -434,8 +447,6 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         }
 
         $this->store->replaceControl($control->claim($this->leaseExpiry()));
-        $this->ownsExecutionSegment = true;
-
         return null;
     }
 
@@ -648,7 +659,7 @@ class WorkflowExecutor implements WorkflowExecutorInterface
         $timedOut = $input?->kind === ResumeType::Expired;
 
         try {
-            $terminal = yield from $this->runNode(
+            $execution = $this->runNode(
                 $node,
                 $event,
                 $state,
@@ -664,7 +675,12 @@ class WorkflowExecutor implements WorkflowExecutorInterface
                 $workflow->getMiddlewareForNode($node),
                 $branchId,
             );
-
+            // The output shapes what the node streams inside the step, so a
+            // failing adapter fails the step like the node itself would.
+            foreach ($execution as $item) {
+                yield from $workflow->getOutput()->emit($item);
+            }
+            $terminal = $execution->getReturn();
         } catch (Throwable $error) {
             $this->pauseRequested = true;
             throw $error;

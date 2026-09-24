@@ -19,7 +19,7 @@ use Closure;
 
 /**
  * Definitions hold configured services and resource recipes. Persistence and
- * serializer defaults are shared services; output factories resolve per segment. An executor
+ * serializer defaults are shared services; resources and output are built per segment. An executor
  * carries no configuration of its own, so choosing an execution model never
  * affects where state lives.
  */
@@ -37,10 +37,11 @@ trait HandleComponents
 
     protected bool $retainCompletion = false;
 
-    protected StreamingChannelInterface|Closure|null $channel = null;
+    /** @var (Closure(): ?StreamingChannelInterface)|null */
+    protected ?Closure $channel = null;
 
-    /** Optional transform from native stream objects to protocol events. */
-    protected StreamAdapterInterface|Closure|null $streamAdapter = null;
+    /** @var (Closure(): ?StreamAdapterInterface)|null */
+    protected ?Closure $streamAdapter = null;
 
     /** @var (Closure(): WorkflowResources)|null */
     protected ?Closure $resources = null;
@@ -104,19 +105,22 @@ trait HandleComponents
 
     /**
      * Where in-flight output is delivered (a websocket, a broadcast, ...).
-     * Content needs a stream adapter: without one the channel receives only
-     * the segment lifecycle. Null falls back to the channel hook.
-     * Changing this setting leaves an execution's resolved channel unchanged.
+     * The factory runs once for every execution segment and builds that
+     * segment's channel; it wins over the channel() hook, and null falls back
+     * to it. Content needs a stream adapter: without one the channel receives
+     * only the segment lifecycle.
+     *
+     * @param (Closure(): ?StreamingChannelInterface)|null $factory
      */
-    public function setChannel(StreamingChannelInterface|Closure|null $channel): static
+    public function setChannel(?Closure $factory): static
     {
-        $this->channel = $channel;
+        $this->channel = $factory;
         return $this;
     }
 
     final protected function resolveChannel(): ?StreamingChannelInterface
     {
-        return $this->channel instanceof Closure ? ($this->channel)() : ($this->channel ?? $this->channel());
+        return $this->channel instanceof Closure ? ($this->channel)() : $this->channel();
     }
 
     protected function channel(): ?StreamingChannelInterface
@@ -127,18 +131,21 @@ trait HandleComponents
     /**
      * Attach the stream transform used by both pull iteration and channel
      * delivery. Adapter and channel compose — the adapter decides the shape,
-     * the channel the destination. An adapter is stateful for one stream.
-     * Changing this setting leaves an execution's resolved adapter unchanged.
+     * the channel the destination. The factory runs once for every execution
+     * segment and builds that segment's adapter, which holds the state of one
+     * stream; it wins over the streamAdapter() hook, and null falls back to it.
+     *
+     * @param (Closure(): ?StreamAdapterInterface)|null $factory
      */
-    public function setStreamAdapter(StreamAdapterInterface|Closure|null $adapter): static
+    public function setStreamAdapter(?Closure $factory): static
     {
-        $this->streamAdapter = $adapter;
+        $this->streamAdapter = $factory;
         return $this;
     }
 
     final protected function resolveStreamAdapter(): ?StreamAdapterInterface
     {
-        return $this->streamAdapter instanceof Closure ? ($this->streamAdapter)() : ($this->streamAdapter ?? $this->streamAdapter());
+        return $this->streamAdapter instanceof Closure ? ($this->streamAdapter)() : $this->streamAdapter();
     }
 
     protected function streamAdapter(): ?StreamAdapterInterface

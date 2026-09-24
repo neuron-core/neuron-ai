@@ -89,7 +89,7 @@ class AGUIMessageIdentityTest extends TestCase
         $agent = Agent::make(workflowId: 'thread');
         $agent->setMessageStore($this->store)->setPersistence($this->persistence)->setAiProvider($provider);
         $agent->addTool($tool);
-        $agent->setStreamAdapter(new AGUIAdapter('thread'));
+        $agent->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread'));
 
         return $agent;
     }

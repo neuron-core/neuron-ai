@@ -20,6 +20,8 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_map;
@@ -35,8 +37,8 @@ class PushAdapterDeliveryTest extends TestCase
         foreach ([[false, false], [true, false], [false, true], [true, true]] as [$adapter, $channel]) {
             $provider = new FakeAIProvider(new AssistantMessage('Hello'));
             $agent = Agent::make()
-                ->setStreamAdapter($adapter ? new ParityAdapter() : null)
-                ->setChannel($channel ? new FakeChannel() : null);
+                ->setStreamAdapter(fn (): ?StreamAdapterInterface => $adapter ? new ParityAdapter() : null)
+                ->setChannel(fn (): ?StreamingChannelInterface => $channel ? new FakeChannel() : null);
             $agent->setAiProvider($provider);
 
             $stream = $agent->stream(new UserMessage('Hi'));
@@ -52,7 +54,7 @@ class PushAdapterDeliveryTest extends TestCase
     public function test_push_output_is_byte_identical_to_the_pull_path(): void
     {
         // Pull: the caller drains the Workflow-managed adapter output.
-        $pullAgent = Agent::make()->setStreamAdapter(new ParityAdapter());
+        $pullAgent = Agent::make()->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
         $pullAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
@@ -69,12 +71,13 @@ class PushAdapterDeliveryTest extends TestCase
         $pushAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
-        $pushAgent->setStreamAdapter(new ParityAdapter());
-        $pushAgent->setChannel(new CallbackChannel(
+        $pushAgent->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
+        $channel = new CallbackChannel(
             onSend: function (ProtocolEvent $event) use (&$sink): void {
                 $sink[] = $event;
             },
-        ));
+        );
+        $pushAgent->setChannel(fn (): CallbackChannel => $channel);
 
         $state = $pushAgent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));
 
@@ -91,7 +94,7 @@ class PushAdapterDeliveryTest extends TestCase
         // run with the protocol start/end sequences; so must the push path,
         // whose finishDelivery() emits start+end on completion even though no
         // item was ever delivered to send().
-        $pullAgent = Agent::make()->setStreamAdapter(new ParityAdapter());
+        $pullAgent = Agent::make()->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
         $pullAgent->setAiProvider(new FakeAIProvider(new AssistantMessage('')));
 
         $pulled = [];
@@ -104,12 +107,13 @@ class PushAdapterDeliveryTest extends TestCase
         $pushAgent->setAiProvider(
             new FakeAIProvider(new AssistantMessage(''))
         );
-        $pushAgent->setStreamAdapter(new ParityAdapter());
-        $pushAgent->setChannel(new CallbackChannel(
+        $pushAgent->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
+        $channel = new CallbackChannel(
             onSend: function (ProtocolEvent $event) use (&$sink): void {
                 $sink[] = $event;
             },
-        ));
+        );
+        $pushAgent->setChannel(fn (): CallbackChannel => $channel);
 
         $pushAgent->chat(new UserMessage('Hi'));
 
@@ -138,8 +142,8 @@ class PushAdapterDeliveryTest extends TestCase
         $channel = new FakeChannel();
         $agent = Agent::make(workflowId: 'thread-1')
             ->setPersistence(new InMemoryPersistence())
-            ->setStreamAdapter(new AGUIAdapter('thread-1', 'run-1'))
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread-1', 'run-1'))
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
         $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [
             ToolCall::make('geolocation_get', 'call_1', ['save' => true]),
         ])));

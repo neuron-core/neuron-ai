@@ -17,10 +17,6 @@ use Throwable;
  */
 class ParityAdapter implements StreamAdapterInterface
 {
-    public function reset(): void
-    {
-    }
-
     public function start(): iterable
     {
         yield new ProtocolEvent('start');

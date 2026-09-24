@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
-use Closure;
-use Generator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use NeuronAI\Workflow\Streaming\SegmentOutput;
 use Psr\EventDispatcher\EventDispatcherInterface;
-use Throwable;
 
 /** Live segment capabilities consumed by traversal. Implemented by WorkflowExecution. @internal */
 interface WorkflowRuntimeInterface
@@ -27,11 +25,5 @@ interface WorkflowRuntimeInterface
     public function getRunId(): string;
     public function getEventDispatcher(): EventDispatcherInterface;
     public function shouldRetainCompletionUntilAcknowledged(): bool;
-
-    /**
-     * @param Generator<int, object, mixed, WorkflowState> $generator
-     * @param Closure(Throwable): void $onFailure
-     * @return Generator<int, object, mixed, WorkflowState>
-     */
-    public function streamExecution(Generator $generator, Closure $onFailure): Generator;
+    public function getOutput(): SegmentOutput;
 }

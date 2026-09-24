@@ -26,6 +26,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_key_last;
@@ -49,8 +50,8 @@ class StreamFailureDeliveryTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new FailingStreamNode($error, $emitChunk)])
-            ->setStreamAdapter($adapter)
-            ->setChannel($push ? $channel : null);
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
+            ->setChannel(fn (): ?StreamingChannelInterface => $push ? $channel : null);
 
         $pulled = [];
         $caught = null;
@@ -111,8 +112,8 @@ class StreamFailureDeliveryTest extends TestCase
         $channel = new FakeChannel();
         $workflow = Workflow::make()
             ->addNodes([new FailingStreamNode($error, false)])
-            ->setStreamAdapter($adapter)
-            ->setChannel($channel);
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
+            ->setChannel(fn (): StreamingChannelInterface => $channel);
 
         $caught = null;
         try {
@@ -136,7 +137,7 @@ class StreamFailureDeliveryTest extends TestCase
         $workflow = Workflow::make(workflowId: 'adapter-failure')
             ->setPersistence($persistence)
             ->addNodes([new ChunkStreamingNode(2)])
-            ->setStreamAdapter($this->adapterFailingWith($error))
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $this->adapterFailingWith($error))
             ->subscribe(AgentError::class, function (AgentError $event) use (&$observed): void {
                 $observed[] = $event->exception;
             });
@@ -171,7 +172,7 @@ class StreamFailureDeliveryTest extends TestCase
             ->setPersistence($persistence)
             ->setExecutor(new AsyncExecutor())
             ->addNodes([new ImageFirstForkNode(), new StreamingImageProcessNode(), new TextProcessNode(), new MergeNode()])
-            ->setStreamAdapter($this->adapterFailingWith($error));
+            ->setStreamAdapter(fn (): StreamAdapterInterface => $this->adapterFailingWith($error));
 
         $caught = null;
         try {

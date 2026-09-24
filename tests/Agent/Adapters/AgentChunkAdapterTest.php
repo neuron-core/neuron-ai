@@ -40,6 +40,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
 use Throwable;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_filter;
@@ -225,8 +226,8 @@ class AgentChunkAdapterTest extends TestCase
     {
         $channel = new FakeChannel();
         $agent = Agent::make()
-            ->setStreamAdapter(new AgentChunkAdapter())
-            ->setChannel($channel)
+            ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setAiProvider((new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('get_weather', 'call_1', ['location' => 'Rome'])]),
                 new AssistantMessage('It is sunny in Rome.'),
@@ -251,8 +252,8 @@ class AgentChunkAdapterTest extends TestCase
         $channel = new FakeChannel();
         $agent = Agent::make(workflowId: 'thread-1')
             ->setPersistence(new InMemoryPersistence())
-            ->setStreamAdapter(new AgentChunkAdapter())
-            ->setChannel($channel)
+            ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter())
+            ->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('get_weather', 'call_1', ['location' => 'Rome'])]),
             ))

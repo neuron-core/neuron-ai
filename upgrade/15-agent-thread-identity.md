@@ -37,10 +37,9 @@ What changed:
                                               new FileChatHistory($dir, $key);       // unchanged order
    ```
 
-5. **The `Closure` (resolver/factory) forms of `setChatHistory()` AND
-   `setChannel()` are removed.** They existed to defer construction until
-   the threadId was known; binding makes deferral unnecessary (and no
-   thread-scoped channel exists in core — pass a concrete channel).
+5. **The `Closure` (resolver/factory) form of `setChatHistory()` is
+   removed.** It existed to defer construction until the threadId was known;
+   binding makes deferral unnecessary.
 6. **Conflicting identity claims throw** (`AgentException` on the agent,
    `ChatHistoryException` on the history): explicit `workflowId:` vs a
    pre-bound history with a different key; the ignition record vs an

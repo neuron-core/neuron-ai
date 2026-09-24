@@ -30,7 +30,7 @@ use const JSON_THROW_ON_ERROR;
 use const PHP_INT_MAX;
 
 /**
- * Owns the channel envelope, fragmentation and segment-local delivery policy.
+ * Owns the channel envelope, fragmentation and delivery policy of one segment.
  * Transports encode envelopes and batches, then deliver within their measured byte limits.
  */
 abstract class AbstractChannel implements StreamingChannelInterface
@@ -132,11 +132,6 @@ abstract class AbstractChannel implements StreamingChannelInterface
             $this->flush();
         } catch (Throwable $e) {
             $failure ??= $e;
-        } finally {
-            $this->pending = [];
-            $this->streamId = null;
-            $this->sequence = 0;
-            $this->stopped = false;
         }
 
         if ($failure instanceof Throwable) {

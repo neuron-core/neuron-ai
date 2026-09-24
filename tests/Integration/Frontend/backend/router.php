@@ -79,7 +79,7 @@ function agui(Fixture $fixture, array $payload): void
     $translator = new AGUIInputTranslator();
     $agent = $fixture->agent($threadId, $translator->tools($payload));
     $adapter = new AGUIAdapter($threadId, $payload['runId'] ?? null, $payload['messages'] ?? [], $payload['state'] ?? []);
-    $agent->setStreamAdapter($adapter);
+    $agent->setStreamAdapter(fn (): AGUIAdapter => $adapter);
 
     $continuation = ($payload['resume'] ?? []) !== [] || ($last['role'] ?? null) === 'tool';
     $frames = match (true) {
@@ -111,7 +111,7 @@ function vercel(Fixture $fixture, array $payload): void
         'user' => new VercelAIAdapter(),
         default => badRequest('Vercel chat requests must end with a user or assistant message.'),
     };
-    $agent->setStreamAdapter($adapter);
+    $agent->setStreamAdapter(fn (): VercelAIAdapter => $adapter);
 
     $frames = $last['role'] === 'assistant'
         ? $agent->submitInputs($payload, new VercelAIInputTranslator())->events()

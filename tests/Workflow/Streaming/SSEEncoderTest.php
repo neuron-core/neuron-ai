@@ -108,7 +108,7 @@ class SSEEncoderTest extends TestCase
                     return new StopEvent();
                 }
             }])
-            ->setStreamAdapter(new VercelAIAdapter());
+            ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter());
 
         $types = [];
         $caught = null;

@@ -56,19 +56,19 @@ class AbstractChannelTest extends TestCase
         $this->assertSame(['delta' => 'a', 'type' => 'payload-type'], $events[0]['data']);
     }
 
-    public function test_lifecycle_payloads_expose_only_the_workflow_id_and_reset_the_segment(): void
+    public function test_lifecycle_payloads_expose_only_the_workflow_id(): void
     {
-        $channel = new RecordingChannel();
-        $channel->interrupted($this->state());
-        $channel->completed($this->state(), 'wf-1');
-        $channel->failed(new RuntimeException('internal details'), 'wf-1');
-        $events = $this->events($channel);
+        $interrupted = new RecordingChannel();
+        $interrupted->interrupted($this->state());
+        $completed = new RecordingChannel();
+        $completed->completed($this->state(), 'wf-1');
+        $failed = new RecordingChannel();
+        $failed->failed(new RuntimeException('internal details'), 'wf-1');
+        $events = [...$this->events($interrupted), ...$this->events($completed), ...$this->events($failed)];
 
         $this->assertSame(['stream.interrupted', 'stream.completed', 'stream.failed'], array_column($events, 'type'));
         $this->assertSame([['workflowId' => 'wf-1'], ['workflowId' => 'wf-1'], ['workflowId' => 'wf-1']], array_column($events, 'data'));
         $this->assertSame([0, 0, 0], array_column($events, 'sequence'));
-        $this->assertNotSame($events[0]['streamId'], $events[1]['streamId']);
-        $this->assertNotSame($events[1]['streamId'], $events[2]['streamId']);
     }
 
     public function test_batch_count_flushes_data_and_terminal_delivery_is_separate(): void
@@ -195,10 +195,6 @@ class AbstractChannelTest extends TestCase
         $this->assertSame(2, $channel->attempts);
         $this->assertSame(['stream.completed'], array_column($this->events($channel), 'type'));
         $this->assertSame(2, $this->events($channel)[0]['sequence']);
-        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'new segment']));
-        $channel->completed($this->state(), 'wf-2');
-        $this->assertSame(0, $this->events($channel)[1]['sequence']);
-        $this->assertNotSame($this->events($channel)[0]['streamId'], $this->events($channel)[1]['streamId']);
     }
 
     public function test_terminal_notification_survives_failure_flushing_pending_data(): void
@@ -227,9 +223,6 @@ class AbstractChannelTest extends TestCase
         } catch (RuntimeException) {
         }
         $this->assertSame(2, $channel->attempts);
-        $channel->alwaysFail = false;
-        $channel->completed($this->state(), 'wf-2');
-        $this->assertSame(0, $this->events($channel)[0]['sequence']);
     }
 
     public function test_payload_serialization_runs_once_for_plain_and_fragmented_events(): void

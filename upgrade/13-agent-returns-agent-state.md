@@ -19,7 +19,7 @@ with `run()` (eager → state) and `events()` (lazy → generator):
 
 `chat()` runs eagerly and returns the final `AgentState` directly — there is no longer a
 separate `->run()` step. `stream()` *is* the generator: iterate it directly. Configure a
-`StreamAdapterInterface` (Vercel / AG-UI / SSE) through `setStreamAdapter()` when you want
+`StreamAdapterInterface` (Vercel / AG-UI / SSE) through a `setStreamAdapter()` factory when you want
 protocol-formatted lines instead of raw Neuron chunks.
 
 For Agent tool responses, stage `submitApprovalDecisions($decisions)` or
@@ -125,10 +125,11 @@ foreach ($handler->events(new VercelAIAdapter()) as $line) {
 }
 ```
 
-After — configure the Workflow component, then stream normally:
+After — configure the Workflow component, then stream normally. The factory builds the
+adapter of every execution segment, because an adapter holds the state of one stream:
 
 ```php
-$agent->setStreamAdapter(new VercelAIAdapter());
+$agent->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter());
 
 foreach ($agent->stream(new UserMessage($input)) as $line) {
     echo $line;
@@ -229,5 +230,5 @@ public function handle(AgentState $state): void { /* ... */ }
 - [ ] No `->events(` calls remain on an Agent result — streaming iterates `stream()` directly
 - [ ] No `->interrupted(` / `->getState(` / `->getProviderResponse(` remain on Agent results
 - [ ] `->getResult()` after a consumed stream is replaced with `$generator->getReturn()`
-- [ ] UI-adapter streaming configures the adapter through `setStreamAdapter()`
+- [ ] UI-adapter streaming configures the adapter through a `setStreamAdapter()` factory
 - [ ] The application's test suite and static analysis pass

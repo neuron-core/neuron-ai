@@ -25,6 +25,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function iterator_to_array;
 use function serialize;
@@ -118,7 +120,7 @@ class WorkflowManagedExecutionTest extends TestCase
     {
         $channel = new FakeChannel();
         $workflow = Workflow::make('order')->setExecutor($async ? new AsyncExecutor() : new WorkflowExecutor())
-            ->addNode(new ChunkStreamingNode(2))->setChannel($channel);
+            ->addNode(new ChunkStreamingNode(2))->setChannel(fn (): StreamingChannelInterface => $channel);
         $workflow->setStreamAdapter(function () use ($workflow, $channel): ChunkAdapter {
             self::assertSame('order', $workflow->getWorkflowId());
             self::assertSame('reserved', $workflow->inspect()->runId);
@@ -240,7 +242,7 @@ class WorkflowManagedExecutionTest extends TestCase
     public function test_zero_chunk_run_builds_resources_before_adapter_starts(): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make('order')->addNode(new MemoizingNode())->setChannel($channel)
+        $workflow = Workflow::make('order')->addNode(new MemoizingNode())->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setStreamAdapter(fn (): \NeuronAI\Agent\Adapters\AGUIAdapter => new \NeuronAI\Agent\Adapters\AGUIAdapter('order', 'client-run'));
         $state = $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
@@ -285,7 +287,7 @@ class WorkflowManagedExecutionTest extends TestCase
     public function test_adapter_start_failure_is_durable_before_error_output_without_running_nodes(): void
     {
         $workflow = Workflow::make('order')->addNode(new \NeuronAI\Tests\Workflow\Stub\NodeOne());
-        $workflow->setStreamAdapter(new class () extends ChunkAdapter {
+        $workflow->setStreamAdapter(fn (): StreamAdapterInterface => new class () extends ChunkAdapter {
             public function start(): iterable
             {
                 throw new RuntimeException('Cannot start adapter');

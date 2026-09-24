@@ -25,6 +25,7 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 
 use function array_column;
 use function array_filter;
@@ -77,7 +78,7 @@ class FrontendProtocolFlowTest extends TestCase
         };
         $messages = [['id' => 'user', 'role' => 'user', 'content' => 'Read the page']];
         $agent = $factory();
-        $agent->setStreamAdapter($agui ? new AGUIAdapter('frontend-flow', 'wire-1', $messages) : new VercelAIAdapter());
+        $agent->setStreamAdapter(fn (): StreamAdapterInterface => $agui ? new AGUIAdapter('frontend-flow', 'wire-1', $messages) : new VercelAIAdapter());
         $first = $this->decode($agent->stream(new UserMessage('Read the page')));
         $this->assertNotContains('TOOL_CALL_START', array_column($first, 'type'));
         $this->assertNotContains('tool-input-available', array_column($first, 'type'));
@@ -95,7 +96,7 @@ class FrontendProtocolFlowTest extends TestCase
             $payload = ['messages' => [['id' => $messageId, 'role' => 'assistant', 'parts' => $parts]]];
         }
         $agent = $factory();
-        $agent->setStreamAdapter($agui ? new AGUIAdapter('frontend-flow', 'wire-2', $messages) : new VercelAIAdapter($messageId, $parts));
+        $agent->setStreamAdapter(fn (): StreamAdapterInterface => $agui ? new AGUIAdapter('frontend-flow', 'wire-2', $messages) : new VercelAIAdapter($messageId, $parts));
         $stream = $agent->submitInputs($payload, $translator)->events();
         $second = [];
         foreach ($stream as $frame) {
@@ -128,7 +129,7 @@ class FrontendProtocolFlowTest extends TestCase
             $payload = ['messages' => [['id' => $messageId, 'role' => 'assistant', 'parts' => $parts]]];
         }
         $agent = $factory();
-        $agent->setStreamAdapter($agui ? new AGUIAdapter('frontend-flow', 'wire-3', $messages) : new VercelAIAdapter($messageId, $parts));
+        $agent->setStreamAdapter(fn (): StreamAdapterInterface => $agui ? new AGUIAdapter('frontend-flow', 'wire-3', $messages) : new VercelAIAdapter($messageId, $parts));
         $stream = $agent->submitInputs($payload, $translator)->events();
         $last = $this->decode($stream);
         $this->assertFalse($stream->getReturn()->isInterrupted());

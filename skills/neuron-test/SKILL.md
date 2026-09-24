@@ -134,9 +134,10 @@ use NeuronAI\Testing\FakeChannel;
 
 $channel = FakeChannel::make();
 
+// Return the same fake from the factory to inspect every segment's delivery
 $agent = Agent::make()
-    ->setStreamAdapter(new VercelAIAdapter())
-    ->setChannel($channel);
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): FakeChannel => $channel);
 
 // Simulate a broken transport: the framework reports the error and keeps the run alive
 $channel->setThrowOnSend(new \RuntimeException('transport down'));

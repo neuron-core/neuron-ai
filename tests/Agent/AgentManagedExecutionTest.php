@@ -22,6 +22,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use LogicException;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function iterator_to_array;
 
@@ -48,7 +49,7 @@ class AgentManagedExecutionTest extends TestCase
         $channel = new FakeChannel();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
-            ->setAiProvider($provider)->setMessageStore($messageStore)->setStreamAdapter(new AgentChunkAdapter())->setChannel($channel);
+            ->setAiProvider($provider)->setMessageStore($messageStore)->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter())->setChannel(fn (): StreamingChannelInterface => $channel);
         $first = $make();
         $request = ExecutionRequest::start(new AgentStartEvent([new UserMessage('One')], new AgentRunOptions(stream: true)), 'first');
         $provider->assertCallCount(0);
@@ -78,7 +79,7 @@ class AgentManagedExecutionTest extends TestCase
         $channel = new FakeChannel();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
-            ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel($channel)
+            ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter());
         $first = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Question')], new AgentRunOptions(stream: true)), 'reserved'));
         self::assertTrue($first->isInterrupted());

@@ -163,13 +163,12 @@ including the latest user message; do not reconstruct this from backend history
 with different message IDs:
 
 ```php
-$adapter = new AGUIAdapter(
+$agent->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter(
     $authorizedThreadId,
     $payload['runId'],
     $payload['messages'],
     $payload['state'] ?? [],
-);
-$agent->setStreamAdapter($adapter);
+));
 ```
 
 The adapter retains this snapshot and adds the text, reasoning, activities, calls,
@@ -184,7 +183,7 @@ For Vercel, reuse the latest assistant message and its tool parts on a continuat
 ```php
 $last = $payload['messages'][array_key_last($payload['messages'])] ?? null;
 $continuingAssistant = ($last['role'] ?? null) === 'assistant';
-$agent->setStreamAdapter(new VercelAIAdapter(
+$agent->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter(
     messageId: $continuingAssistant ? $last['id'] : null,
     parts: $continuingAssistant ? $last['parts'] : [],
 ));

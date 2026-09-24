@@ -7,16 +7,11 @@ namespace NeuronAI\Workflow;
 use NeuronAI\Observability\ExecutionEventDispatcher;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Psr\EventDispatcher\EventDispatcherInterface;
-use Closure;
-use Generator;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
-use Throwable;
+use NeuronAI\Workflow\Streaming\SegmentOutput;
 
 use function array_merge;
 
@@ -28,8 +23,7 @@ class WorkflowExecution implements WorkflowRuntimeInterface
     protected Event $startEvent;
     protected EventDispatcherInterface $dispatcher;
     protected bool $retainCompletion;
-    protected ?StreamAdapterInterface $streamAdapter = null;
-    protected ?StreamingChannelInterface $channel = null;
+    protected SegmentOutput $output;
 
     /** @param array<class-string<NodeInterface>, array<WorkflowMiddleware>> $middleware */
     public function __construct(
@@ -65,8 +59,12 @@ class WorkflowExecution implements WorkflowRuntimeInterface
 
     public function setOutput(?StreamAdapterInterface $adapter, ?StreamingChannelInterface $channel): void
     {
-        $this->streamAdapter = $adapter;
-        $this->channel = $channel;
+        $this->output = new SegmentOutput($adapter, $channel, $this->dispatcher, $this->definition, $this->context->workflowId);
+    }
+
+    public function getOutput(): SegmentOutput
+    {
+        return $this->output;
     }
 
     public function getState(): WorkflowState
@@ -110,16 +108,6 @@ class WorkflowExecution implements WorkflowRuntimeInterface
         return $this->retainCompletion;
     }
 
-    protected function getStreamAdapter(): ?StreamAdapterInterface
-    {
-        return $this->streamAdapter;
-    }
-
-    protected function getChannel(): ?StreamingChannelInterface
-    {
-        return $this->channel;
-    }
-
     public function getEventNodeMap(): array
     {
         return $this->eventNodeMap;
@@ -145,129 +133,5 @@ class WorkflowExecution implements WorkflowRuntimeInterface
         }
 
         return $this->eventNodeMap[$eventClass];
-    }
-
-    public function streamExecution(Generator $generator, Closure $onFailure): Generator
-    {
-        $traversing = false;
-        try {
-            $this->getStreamAdapter()?->reset();
-            yield from $this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->start());
-            $traversing = true;
-            foreach ($generator as $item) {
-                foreach ($this->streamOutput($item) as $output) {
-                    yield $output;
-                }
-            }
-        } catch (Throwable $e) {
-            if ($traversing) {
-                $this->abortExecution($generator, $e);
-            }
-            $onFailure($e);
-            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->error($e)) as $output) {
-                yield $output;
-            }
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->failed($e, $this->context->workflowId));
-            throw $e;
-        }
-
-        $state = $generator->getReturn();
-        if ($state->isInterrupted()) {
-            foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->interrupt($state->getInterruptRequest())) as $output) {
-                yield $output;
-            }
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->interrupted(clone $state));
-
-            return clone $state;
-        }
-
-        foreach ($this->adapterOutput(fn (StreamAdapterInterface $adapter): iterable => $adapter->end()) as $output) {
-            yield $output;
-        }
-
-        if ($state->getStatus() === WorkflowStatus::Completed) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->completed($state, $this->context->workflowId));
-        }
-
-        return clone $state;
-    }
-
-    protected function abortExecution(Generator $generator, Throwable $e): void
-    {
-        if (!$generator->valid()) {
-            return;
-        }
-
-        try {
-            $generator->throw($e);
-            while ($generator->valid()) {
-                $generator->next();
-            }
-        } catch (Throwable) {
-            // The executor rethrows the failure once the run is marked failed.
-        }
-    }
-
-    protected function streamOutput(object $item): Generator
-    {
-        $adapter = $this->getStreamAdapter();
-        if (!$adapter instanceof StreamAdapterInterface) {
-            yield $item;
-            return;
-        }
-
-        if ($item instanceof InterruptEvent) {
-            return;
-        }
-
-        foreach ($adapter->transform($item) as $event) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($event));
-            yield $event;
-        }
-    }
-
-    protected function adapterOutput(Closure $callback): Generator
-    {
-        $adapter = $this->getStreamAdapter();
-        if (!$adapter instanceof StreamAdapterInterface) {
-            return;
-        }
-
-        foreach ($callback($adapter) as $event) {
-            $this->fireChannel(fn (StreamingChannelInterface $channel) => $channel->send($event));
-            yield $event;
-        }
-    }
-
-    protected function fireChannel(Closure $callback): void
-    {
-        if (!$this->getChannel() instanceof StreamingChannelInterface) {
-            return;
-        }
-
-        try {
-            $callback($this->getChannel());
-        } catch (Throwable $e) {
-            $this->reportChannelError($e);
-        }
-    }
-
-    protected function reportChannelError(Throwable $e): void
-    {
-        $event = new ChannelError($e);
-        $event->source = $this;
-
-        try {
-            $this->getEventDispatcher()->dispatch($event);
-        } catch (Throwable $listenerFailure) {
-            $error = new AgentError($listenerFailure, false);
-            $error->source = $this;
-
-            try {
-                $this->getEventDispatcher()->dispatch($error);
-            } catch (Throwable) {
-                // Monitoring failures must not change Workflow execution.
-            }
-        }
     }
 }

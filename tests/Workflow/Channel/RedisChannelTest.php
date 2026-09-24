@@ -16,6 +16,7 @@ use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Redis;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_fill;
@@ -105,7 +106,7 @@ class RedisChannelTest extends TestCase
 
     public function test_streams_an_agent_run_as_the_adapter_events_followed_by_the_completion(): void
     {
-        $agent = Agent::make()->setStreamAdapter(new VercelAIAdapter())->setChannel($this->channel());
+        $agent = Agent::make()->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $this->channel());
         $response = 'Hello world from Redis';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
 
