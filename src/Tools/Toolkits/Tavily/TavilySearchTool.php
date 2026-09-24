@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
-use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
@@ -37,7 +38,9 @@ class TavilySearchTool extends Tool
     public function __construct(
         protected string $key,
         protected array $topics = [],
+        ?HttpClientInterface $httpClient = null,
     ) {
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
         $this->description = 'Use this tool to search the web for additional information '.
             ($this->topics === [] ? '' : 'about '.implode(', ', $this->topics).', or ').
             'if the question is outside the scope of the context you have.';
@@ -89,11 +92,11 @@ class TavilySearchTool extends Tool
         $time_range ??= 'day';
         $days ??= 7;
 
-        $result = $this->getClient()->request(HttpRequest::post('search', array_merge(
+        $result = $this->post('search', array_merge(
             ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
             $this->options,
             ['query' => $search_query]
-        )));
+        ));
 
         $result = $result->json();
 

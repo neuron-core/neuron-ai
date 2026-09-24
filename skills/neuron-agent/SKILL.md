@@ -211,10 +211,12 @@ $files = FileSystemToolkit::make(scope: '/srv/agent-workspace')
 - **MySQLToolkit** / **PGSQLToolkit** — schema inspection, selects, and writes for MySQL/PostgreSQL.
 - **TavilyToolkit** — web search, extraction, and crawling.
 - **JinaToolkit** — web search and URL reading; reranking is a separate RAG component.
-- **SupadataYouTubeToolkit** — video metadata/transcripts and channel/playlist lookup.
-- **ZepLongTermMemoryToolkit** — Zep graph search and ingestion exposed as tools; available independently of RAG conversation retrieval.
+- **SupadataYouTubeToolkit** — video metadata/transcripts and channel/playlist lookup. Deprecated: it will be removed in the next major version.
+- **ZepLongTermMemoryToolkit** — Zep graph search and ingestion exposed as tools; available independently of RAG conversation retrieval. Deprecated: it will be removed in the next major version.
 
-`NeuronAI\Tools\Toolkits\AWS\SESTool` is a standalone email tool, not a `SESToolkit`.
+The HTTP toolkits (Tavily, Jina, Supadata, Zep) take an optional `httpClient` as their last constructor argument and pass it to their tools, so tests and framework adapters control the transport.
+
+`NeuronAI\Tools\Toolkits\AWS\SESTool` is a standalone email tool, not a `SESToolkit`. Deprecated: it will be removed in the next major version.
 
 ### Creating Custom Tools
 

@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
 use NeuronAI\Exceptions\ToolException;
-use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
@@ -16,7 +17,7 @@ use function filter_var;
 use const FILTER_VALIDATE_URL;
 
 /**
- * @method static static make(string $key)
+ * @method static static make(string $key, ?HttpClientInterface $httpClient = null)
  */
 class TavilyCrawlTool extends Tool
 {
@@ -36,7 +37,9 @@ class TavilyCrawlTool extends Tool
      */
     public function __construct(
         protected string $key,
+        ?HttpClientInterface $httpClient = null,
     ) {
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
     }
 
     protected function properties(): array
@@ -57,10 +60,10 @@ class TavilyCrawlTool extends Tool
             throw new ToolException('Invalid URL.');
         }
 
-        $result = $this->getClient()->request(HttpRequest::post('crawl', array_merge(
+        $result = $this->post('crawl', array_merge(
             $this->options,
             ['url' => $url]
-        )));
+        ));
 
         return $result->json();
     }

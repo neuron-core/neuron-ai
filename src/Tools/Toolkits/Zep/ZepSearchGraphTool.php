@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -14,7 +15,8 @@ use function array_map;
 /**
  * https://help.getzep.com/sdk-reference/graph/search
  *
- * @method static static make(string $key, string $user_id)
+ * @method static static make(string $key, string $user_id, ?HttpClientInterface $httpClient = null)
+ * @deprecated The Zep toolkit will be removed in the next major version.
  */
 class ZepSearchGraphTool extends Tool
 {
@@ -27,9 +29,10 @@ class ZepSearchGraphTool extends Tool
 
     public function __construct(
         protected string $key,
-        protected string $user_id
+        protected string $user_id,
+        ?HttpClientInterface $httpClient = null,
     ) {
-        $this->createUser();
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
     }
 
     protected function properties(): array
@@ -53,12 +56,14 @@ class ZepSearchGraphTool extends Tool
 
     public function __invoke(string $query, string $search_scope = 'facts', int $limit = 5): array
     {
-        $response = $this->getClient()->request(HttpRequest::post('graph/search', [
+        $this->createUser();
+
+        $response = $this->post('graph/search', [
             'user_id' => $this->user_id,
             'query' => $query,
             'scope' => $search_scope === 'facts' ? 'edges' : 'nodes',
             'limit' => $limit,
-        ]));
+        ]);
 
         $response = $response->json();
 

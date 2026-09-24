@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Supadata;
 
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 /**
- * @method static static make(string $key)
+ * @method static static make(string $key, ?HttpClientInterface $httpClient = null)
+ * @deprecated The Supadata toolkit will be removed in the next major version.
  */
 class SupadataYouTubeToolkit extends AbstractToolkit
 {
-    public function __construct(protected string $key)
-    {
+    public function __construct(
+        protected string $key,
+        protected ?HttpClientInterface $httpClient = null,
+    ) {
     }
 
     public function guidelines(): ?string
@@ -31,10 +35,10 @@ class SupadataYouTubeToolkit extends AbstractToolkit
     public function provide(): array
     {
         return [
-            SupadataVideoMetadataTool::make($this->key),
-            SupadataVideoTranscriptTool::make($this->key),
-            SupadataYoutubeChannelTool::make($this->key),
-            SupadataYoutubePlaylistTool::make($this->key),
+            SupadataVideoMetadataTool::make($this->key, $this->httpClient),
+            SupadataVideoTranscriptTool::make($this->key, $this->httpClient),
+            SupadataYoutubeChannelTool::make($this->key, $this->httpClient),
+            SupadataYoutubePlaylistTool::make($this->key, $this->httpClient),
         ];
     }
 }

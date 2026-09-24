@@ -14,11 +14,11 @@ use NeuronAI\Tools\ToolProperty;
 use function implode;
 
 /**
- * @method static make(string $key, array $topics)
+ * @method static static make(string $key, array $topics = [], ?HttpClientInterface $httpClient = null)
  */
 class JinaWebSearch extends Tool
 {
-    protected HttpClientInterface $client;
+    protected HttpClientInterface $httpClient;
 
     protected string $name = 'web_search';
     protected ?string $description = 'Use this tool to search the web for additional information if the question is outside the scope of the context you have.';
@@ -26,7 +26,10 @@ class JinaWebSearch extends Tool
     public function __construct(
         protected string $key,
         array $topics = [],
+        ?HttpClientInterface $httpClient = null,
     ) {
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
+
         if ($topics !== []) {
             $this->description = 'Use this tool to search the web for additional information '.
                 'about '.implode(', ', $topics).', or '.
@@ -46,21 +49,14 @@ class JinaWebSearch extends Tool
         ];
     }
 
-    protected function getClient(): HttpClientInterface
-    {
-        return $this->client ??= new CurlHttpClient(
-            customHeaders: [
-                'Authorization' => 'Bearer '.$this->key,
-                'Content-Type' => 'application/json',
-                'X-Respond-With' => 'no-content',
-            ],
-        );
-    }
-
     public function __invoke(string $search_query): string
     {
-        $response = $this->getClient()->request(HttpRequest::post('https://s.jina.ai/', [
+        $response = $this->httpClient->request(HttpRequest::post('https://s.jina.ai/', [
             'q' => $search_query,
+        ], [
+            'Authorization' => 'Bearer '.$this->key,
+            'Content-Type' => 'application/json',
+            'X-Respond-With' => 'no-content',
         ]));
 
         return $response->body;

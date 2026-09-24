@@ -746,13 +746,15 @@ public function __invoke(
 |---------|---------|
 | `CalculatorToolkit` | Math: expression evaluation, exact integer arithmetic, statistics |
 | `MySQLToolkit` | MySQL database queries |
-| `PostgreSQLToolkit` | PostgreSQL database queries |
+| `PGSQLToolkit` | PostgreSQL database queries |
 | `FileSystemToolkit` | File operations (read, write, edit, delete, glob, bash); `make(scope: '/path')` confines the file tools to a directory and anchors bash there |
 | `TavilyToolkit` | Web search and crawling |
 | `JinaToolkit` | URL reading and web search |
-| `SESToolkit` | AWS SES email sending |
+| `SESTool` | AWS SES email sending, a standalone tool. Deprecated: removed in the next major version |
 | `CalendarToolkit` | Date/time operations |
-| `SupadataYouTubeToolkit` | YouTube video metadata and transcripts |
+| `SupadataYouTubeToolkit` | YouTube video metadata and transcripts. Deprecated: removed in the next major version |
+
+`TavilyToolkit`, `JinaToolkit` and `SupadataYouTubeToolkit` take an optional `httpClient` as their last constructor argument and pass it to their tools, so a test can supply a client it controls: `TavilyToolkit::make($key, httpClient: $client)`.
 
 ## CLI Generation
 

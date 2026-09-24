@@ -21,6 +21,7 @@ use const FILTER_VALIDATE_EMAIL;
 
 /**
  * @method static make(SesClient $sesClient, string $fromEmail)
+ * @deprecated SESTool will be removed in the next major version.
  */
 class SESTool extends Tool
 {

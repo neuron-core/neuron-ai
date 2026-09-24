@@ -17,17 +17,18 @@ use function filter_var;
 use const FILTER_VALIDATE_URL;
 
 /**
- * @method static make(string $key)
+ * @method static static make(string $key, ?HttpClientInterface $httpClient = null)
  */
 class JinaUrlReader extends Tool
 {
-    protected HttpClientInterface $client;
+    protected HttpClientInterface $httpClient;
 
     protected string $name = 'url_reader';
     protected ?string $description = 'Get the content of a URL in markdown format.';
 
-    public function __construct(protected string $key)
+    public function __construct(protected string $key, ?HttpClientInterface $httpClient = null)
     {
+        $this->httpClient = $httpClient ?? new CurlHttpClient();
     }
 
     protected function properties(): array
@@ -42,26 +43,19 @@ class JinaUrlReader extends Tool
         ];
     }
 
-    protected function getClient(): HttpClientInterface
-    {
-        return $this->client ??= new CurlHttpClient(
-            customHeaders: [
-                'Authorization' => 'Bearer '.$this->key,
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'X-Return-Format' => 'Markdown',
-            ],
-        );
-    }
-
     public function __invoke(string $url): string
     {
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
             throw new ToolException('Invalid URL.');
         }
 
-        $response = $this->getClient()->request(HttpRequest::post('https://r.jina.ai/', [
+        $response = $this->httpClient->request(HttpRequest::post('https://r.jina.ai/', [
             'url' => $url,
+        ], [
+            'Authorization' => 'Bearer '.$this->key,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'X-Return-Format' => 'Markdown',
         ]));
 
         return $response->body;

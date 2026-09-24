@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
 
 /**
- * @method static static make(string $key)
+ * @method static static make(string $key, ?HttpClientInterface $httpClient = null)
  */
 class TavilyToolkit extends AbstractToolkit
 {
-    public function __construct(protected string $key)
-    {
+    public function __construct(
+        protected string $key,
+        protected ?HttpClientInterface $httpClient = null,
+    ) {
     }
 
     public function guidelines(): ?string
@@ -30,9 +33,9 @@ class TavilyToolkit extends AbstractToolkit
     public function provide(): array
     {
         return [
-            new TavilyExtractTool($this->key),
-            new TavilySearchTool($this->key),
-            new TavilyCrawlTool($this->key),
+            new TavilyExtractTool($this->key, $this->httpClient),
+            new TavilySearchTool($this->key, httpClient: $this->httpClient),
+            new TavilyCrawlTool($this->key, $this->httpClient),
         ];
     }
 }

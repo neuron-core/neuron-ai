@@ -538,6 +538,54 @@ class McpIntegrationTest extends TestCase
 }
 ```
 
+## Testing Agents Built by Application Code
+
+The patterns above hold the Agent in the test. When a controller, job or evaluator builds the Agent, a test reaches it only through the application's container: the fake replaces a binding, so the Agent must take its provider from that binding. Laravel is shown; any container works the same way.
+
+```php
+class SupportAgent extends Agent
+{
+    public function __construct(protected AIProviderInterface $llm)
+    {
+        parent::__construct();
+    }
+
+    protected function provider(): AIProviderInterface
+    {
+        return $this->llm;
+    }
+}
+
+// Application code resolves the agent through the container
+$agent = app(SupportAgent::class)->setThreadId($threadId);
+
+// The test binds one fake instance, drives the application, and asserts on that instance
+$fake = new FakeAIProvider(new AssistantMessage('Hello!'));
+$this->app->instance(AIProviderInterface::class, $fake);
+
+$this->postJson('/support', ['message' => 'Hi'])->assertOk();
+
+$fake->assertCallCount(1);
+```
+
+- An agent built with `SupportAgent::make()`, or a `provider()` hook returning `new Anthropic(...)`, never consults the container, so the test calls the real provider. Build agents through the container wherever tests must reach them.
+- A fake keeps its queued responses and recorded calls on the instance, with no global state. Bind a single instance per test and assert on that object: a binding that builds a new fake on every resolution leaves the test asserting on an instance the application never used.
+- Jobs reach the same binding when the test queue runs them in-process (`sync`); a separate worker process has its own container.
+- To fake at the HTTP level, give the component a client the test controls. Providers, embeddings providers, vector stores, rerankers, MCP transports and the HTTP toolkits accept an `HttpClientInterface`. A framework's own HTTP fake, such as Laravel's `Http::fake()`, only sees requests sent through the framework's client.
+
+```php
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
+
+$client = new GuzzleHttpClient(handler: HandlerStack::create(new MockHandler([
+    new Response(200, [], json_encode(['answer' => 'Answer', 'results' => []])),
+])));
+
+$toolkit = TavilyToolkit::make('test-key', httpClient: $client);
+```
+
 ## Assertion Reference
 
 ### FakeAIProvider Assertions
