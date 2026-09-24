@@ -20,7 +20,7 @@ use Throwable;
 
 use function array_merge;
 
-/** One admitted segment's live graph, state and output resources. @internal */
+/** One admitted segment's live graph, state and output resources. */
 class WorkflowExecution implements WorkflowRuntimeInterface
 {
     /** @var array<class-string, NodeInterface> */

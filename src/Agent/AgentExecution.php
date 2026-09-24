@@ -25,7 +25,7 @@ use function unserialize;
 
 use const PHP_EOL;
 
-/** Agent-specific resources for one execution segment. @internal */
+/** Agent-specific resources for one execution segment. */
 class AgentExecution extends WorkflowExecution
 {
     /** @var ToolInterface[] */
