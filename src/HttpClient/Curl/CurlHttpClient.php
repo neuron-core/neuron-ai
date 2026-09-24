@@ -25,6 +25,7 @@ use function curl_reset;
 use function curl_setopt_array;
 use function curl_share_init;
 use function curl_share_setopt;
+use function getmypid;
 use function is_array;
 use function is_resource;
 use function json_encode;
@@ -69,6 +70,18 @@ class CurlHttpClient implements HttpClientInterface
     protected ?CurlHandle $handle = null;
 
     protected ?CurlShareHandle $shareHandle = null;
+
+    /**
+     * The process that opened the connections the handles hold.
+     */
+    protected ?int $connectionsProcessId = null;
+
+    /**
+     * Handles inherited from a parent process, never used again (see leaveInheritedConnections()).
+     *
+     * @var array<int, array{?CurlHandle, ?CurlShareHandle}>
+     */
+    protected array $inheritedHandles = [];
 
     /**
      * @var array<int, callable(HttpRequest): HttpRequest>
@@ -240,6 +253,8 @@ class CurlHttpClient implements HttpClientInterface
      */
     protected function reusableHandle(): CurlHandle
     {
+        $this->leaveInheritedConnections();
+
         if ($this->handle instanceof CurlHandle) {
             curl_reset($this->handle);
             return $this->handle;
@@ -255,6 +270,8 @@ class CurlHttpClient implements HttpClientInterface
      */
     protected function shareHandle(): CurlShareHandle
     {
+        $this->leaveInheritedConnections();
+
         if (!$this->shareHandle instanceof CurlShareHandle) {
             $this->shareHandle = curl_share_init();
             curl_share_setopt($this->shareHandle, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
@@ -263,6 +280,26 @@ class CurlHttpClient implements HttpClientInterface
         }
 
         return $this->shareHandle;
+    }
+
+    /**
+     * Connections belong to the process that opened them: a forked child writing to its
+     * parent's sockets interleaves its traffic with the parent's and its siblings', and
+     * reads their responses. A new process sets the inherited handles aside and opens its
+     * own connections. The inherited handles stay referenced: destroying them would close
+     * the parent's connections from the child, shutting down their TLS sessions.
+     */
+    protected function leaveInheritedConnections(): void
+    {
+        $processId = (int) getmypid();
+
+        if ($this->connectionsProcessId !== null && $this->connectionsProcessId !== $processId) {
+            $this->inheritedHandles[] = [$this->handle, $this->shareHandle];
+            $this->handle = null;
+            $this->shareHandle = null;
+        }
+
+        $this->connectionsProcessId = $processId;
     }
 
     /**

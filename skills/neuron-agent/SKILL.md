@@ -400,6 +400,8 @@ Execute local tools in parallel (requires `pcntl` and `spatie/fork`):
 $agent->parallelToolCalls(true);
 ```
 
+Each child process opens its own HTTP connections. Use the `beforeChild` and `afterChild` callbacks for the application's own process-bound resources, such as database connections.
+
 ## Persistence and Durability
 
 Agent is built on Workflow, so it inherits the same persistence system. Enable persistence to make agent executions **survive crashes** and **continue after interruptions** (e.g., a tool-approval suspension).

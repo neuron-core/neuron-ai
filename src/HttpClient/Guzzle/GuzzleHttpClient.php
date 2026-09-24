@@ -19,6 +19,7 @@ use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\ResponseInterface;
 
+use function getmypid;
 use function is_array;
 use function is_resource;
 use function method_exists;
@@ -30,7 +31,19 @@ class GuzzleHttpClient implements HttpClientInterface
 
     protected string $baseUri = '';
 
-    protected Client $client;
+    protected ?Client $client = null;
+
+    /**
+     * The process that created the client, and with it its default handler's connections.
+     */
+    protected ?int $clientProcessId = null;
+
+    /**
+     * Clients inherited from a parent process, never used again (see leaveInheritedConnections()).
+     *
+     * @var array<int, Client>
+     */
+    protected array $inheritedClients = [];
 
     /**
      * @param array<string, mixed> $customHeaders
@@ -108,7 +121,9 @@ class GuzzleHttpClient implements HttpClientInterface
 
     protected function createClient(): Client
     {
-        if (isset($this->client)) {
+        $this->leaveInheritedConnections();
+
+        if ($this->client instanceof Client) {
             return $this->client;
         }
 
@@ -124,6 +139,23 @@ class GuzzleHttpClient implements HttpClientInterface
         $this->client = new Client($config);
 
         return $this->client;
+    }
+
+    /**
+     * As in CurlHttpClient, a forked child opens its own connections instead of writing to
+     * its parent's, and keeps the inherited client referenced so they stay open. An
+     * application handler is kept: its connections, like its lifetime, are the application's.
+     */
+    protected function leaveInheritedConnections(): void
+    {
+        $processId = (int) getmypid();
+
+        if (!$this->handler instanceof HandlerStack && $this->client instanceof Client && $this->clientProcessId !== $processId) {
+            $this->inheritedClients[] = $this->client;
+            $this->client = null;
+        }
+
+        $this->clientProcessId = $processId;
     }
 
     /**

@@ -14,7 +14,8 @@ use function usleep;
 
 /**
  * Boots PHP's built-in server on fixtures/server.php so a test class can
- * exercise a real HTTP stack.
+ * exercise a real HTTP stack. A test class boots another fixture by
+ * overriding serverCommand().
  */
 trait BootsFixtureServer
 {
@@ -31,7 +32,7 @@ trait BootsFixtureServer
         static::$baseUri = "http://127.0.0.1:{$port}";
 
         $process = proc_open(
-            ['php', '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/server.php'],
+            static::serverCommand($port),
             [2 => ['pipe', 'w']],
             $pipes,
             null,
@@ -39,11 +40,19 @@ trait BootsFixtureServer
         );
 
         if (!is_resource($process)) {
-            self::fail('Failed to start the built-in PHP server fixture');
+            self::fail('Failed to start the fixture server');
         }
 
         static::$serverProcess = $process;
         static::waitForServer($port);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected static function serverCommand(int $port): array
+    {
+        return ['php', '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/server.php'];
     }
 
     public static function tearDownAfterClass(): void
@@ -64,6 +73,6 @@ trait BootsFixtureServer
             usleep(50_000);
         }
 
-        self::fail('The built-in PHP server fixture never became reachable');
+        self::fail('The fixture server never became reachable');
     }
 }

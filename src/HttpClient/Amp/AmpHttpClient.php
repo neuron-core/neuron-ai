@@ -21,6 +21,7 @@ use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
+use function getmypid;
 use function is_array;
 use function is_resource;
 use function json_encode;
@@ -33,6 +34,18 @@ class AmpHttpClient implements HttpClientInterface
     protected string $baseUri = '';
 
     protected ?HttpClient $client = null;
+
+    /**
+     * The process that created the client, and with it its connection pool.
+     */
+    protected ?int $clientProcessId = null;
+
+    /**
+     * Clients inherited from a parent process, never used again (see leaveInheritedConnections()).
+     *
+     * @var array<int, HttpClient>
+     */
+    protected array $inheritedClients = [];
 
     /**
      * @param array<string, string> $customHeaders
@@ -154,9 +167,27 @@ class AmpHttpClient implements HttpClientInterface
 
     protected function getClient(): HttpClient
     {
+        $this->leaveInheritedConnections();
+
         return $this->client ??= (new HttpClientBuilder())
             ->intercept(new SetRequestHeaderIfUnset('User-Agent', HttpClientInterface::USER_AGENT))
             ->build();
+    }
+
+    /**
+     * As in CurlHttpClient, a forked child opens its own connections instead of writing to
+     * its parent's, and keeps the inherited client referenced so they stay open.
+     */
+    protected function leaveInheritedConnections(): void
+    {
+        $processId = (int) getmypid();
+
+        if ($this->client instanceof HttpClient && $this->clientProcessId !== $processId) {
+            $this->inheritedClients[] = $this->client;
+            $this->client = null;
+        }
+
+        $this->clientProcessId = $processId;
     }
 
     /**
