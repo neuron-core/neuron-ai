@@ -624,6 +624,8 @@ class MyAgent extends Agent
 }
 ```
 
+A connector keeps one session per process and recovers it: an expired HTTP session or a stdio server that exited is replaced on the next request, and a forked child (`parallelToolCalls()`) opens its own. A long-lived connector, such as a container singleton, is safe to reuse.
+
 ## Best Practices
 
 ### 1. Write Clear Descriptions

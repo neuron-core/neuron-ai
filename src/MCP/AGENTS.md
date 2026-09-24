@@ -22,3 +22,10 @@ protected function tools(\NeuronAI\Workflow\ExecutionContext $context): array
 ```
 
 `FakeMcpTransport` (`src/Testing/`) implements the transport contract for tests: queue JSON-RPC responses, then assert what was sent.
+
+## Sessions
+
+- **One session per process.** `McpClient` opens its session on construction; the connector creates the client lazily. A forked child (`parallelToolCalls()`) opens its own session, a new server process or HTTP session, and keeps the inherited transport referenced but unused, so the parent's session stays open. Only the process that opened a session ends it. A custom `transport` instance stays the application's in every process.
+- **A lost session is replaced.** A transport throws `McpSessionLostException` when a request could not reach the server because its session is gone: an HTTP 404 on a request carrying a session ID, or a stdio server that is no longer running. Nothing was processed, so the client opens a new session and sends the request once more. A failure after delivery, such as a server dying mid-request, is not retried: the request may have run. The next request replaces the session.
+- **Messages arrive one at a time.** Stdio reads newline-delimited messages through a buffer kept between reads, and drains the server's stderr while waiting, since a full stderr pipe blocks the server. An SSE response yields each event's payload in order. The client skips notifications, server requests and responses to abandoned requests until its own response arrives; it answers no server request, not even `ping`.
+- `SseHttpTransport`, the legacy HTTP+SSE transport, gets per-process sessions from the client but does not recover an expired one.

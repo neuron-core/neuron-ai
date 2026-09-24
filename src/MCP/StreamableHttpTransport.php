@@ -12,11 +12,15 @@ use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 
+use function array_map;
 use function array_merge;
+use function array_shift;
 use function explode;
 use function filter_var;
+use function implode;
 use function json_decode;
 use function json_encode;
+use function str_replace;
 use function str_starts_with;
 use function substr;
 use function trim;
@@ -30,6 +34,14 @@ class StreamableHttpTransport implements McpTransportInterface
     protected ?string $sessionId = null;
     protected ?string $protocolVersion = null;
     protected ?HttpResponse $lastResponse = null;
+
+    /**
+     * Messages of the last response not received yet: an SSE response may carry
+     * notifications and server requests before the response itself.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    protected array $pendingMessages = [];
 
     /**
      * @param array<string, mixed> $config
@@ -97,8 +109,14 @@ class StreamableHttpTransport implements McpTransportInterface
             }
 
             $this->lastResponse = $response;
+            $this->pendingMessages = [];
 
         } catch (HttpException $e) {
+            // The server ended the session and processed nothing: the client must initialize a new one.
+            if ($e->response?->statusCode === 404 && $this->sessionId !== null) {
+                throw new McpSessionLostException('The MCP session has expired', $e->getCode(), $e);
+            }
+
             if ($e->response?->statusCode === 401) {
                 throw new McpException('Authentication failed: Invalid or expired token', $e->getCode(), $e);
             }
@@ -119,26 +137,38 @@ class StreamableHttpTransport implements McpTransportInterface
      */
     public function receive(): array
     {
-        if (!$this->lastResponse instanceof HttpResponse) {
+        if ($this->lastResponse instanceof HttpResponse) {
+            $this->pendingMessages = $this->decodeMessages($this->lastResponse->body);
+            $this->lastResponse = null;
+        }
+
+        if ($this->pendingMessages === []) {
             throw new McpException('No response available. Call send() first.');
         }
 
+        return array_shift($this->pendingMessages);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     * @throws McpException
+     */
+    protected function decodeMessages(string $body): array
+    {
+        if ($body === '') {
+            throw new McpException('Empty response body');
+        }
+
         try {
-            $response = $this->lastResponse->body;
-            $this->lastResponse = null;
-
-            if ($response === '') {
-                throw new McpException('Empty response body');
-            }
-
             try {
-                return json_decode($response, true, 64, JSON_THROW_ON_ERROR);
-            } catch (JsonException $e) {
+                return [json_decode($body, true, 64, JSON_THROW_ON_ERROR)];
+            } catch (JsonException) {
                 // Streamable HTTP servers may answer with SSE framing instead of plain JSON
-                $json = $this->parseSSEResponse($response);
-                return json_decode($json, true, 64, JSON_THROW_ON_ERROR);
+                return array_map(
+                    fn (string $json): array => json_decode($json, true, 64, JSON_THROW_ON_ERROR),
+                    $this->parseSSEResponse($body),
+                );
             }
-
         } catch (JsonException $e) {
             throw new McpException('Invalid JSON response: ' . $e->getMessage(), $e->getCode(), $e);
         }
@@ -155,6 +185,7 @@ class StreamableHttpTransport implements McpTransportInterface
         $this->sessionId = null;
         $this->protocolVersion = null;
         $this->lastResponse = null;
+        $this->pendingMessages = [];
     }
 
     /**
@@ -172,29 +203,34 @@ class StreamableHttpTransport implements McpTransportInterface
     }
 
     /**
-     * Extract the JSON payload from an SSE-framed response body.
+     * Extract the JSON payloads of an SSE-framed response body, in order: one per event,
+     * whose data lines join into it.
      *
+     * @return array<int, string>
      * @throws McpException
      */
-    protected function parseSSEResponse(string $sseResponse): string
+    protected function parseSSEResponse(string $sseResponse): array
     {
-        $lines = explode("\n", $sseResponse);
+        $payloads = [];
 
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-            // Lines starting with ':' are SSE comments
-            if (str_starts_with($line, ':')) {
-                continue;
+        foreach (explode("\n\n", str_replace(["\r\n", "\r"], "\n", $sseResponse)) as $event) {
+            $data = [];
+            // Only data lines carry the payload: comments start with ':', and event, id and retry fields are ignored.
+            foreach (explode("\n", $event) as $line) {
+                if (str_starts_with($line, 'data:')) {
+                    $data[] = trim(substr($line, 5));
+                }
             }
 
-            if (str_starts_with($line, 'data: ')) {
-                return substr($line, 6);
+            if ($data !== []) {
+                $payloads[] = implode("\n", $data);
             }
         }
 
-        throw new McpException('No JSON data found in SSE response');
+        if ($payloads === []) {
+            throw new McpException('No JSON data found in SSE response');
+        }
+
+        return $payloads;
     }
 }

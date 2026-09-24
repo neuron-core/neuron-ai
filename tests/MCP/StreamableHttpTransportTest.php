@@ -61,7 +61,7 @@ class StreamableHttpTransportTest extends TestCase
         $sseResponse = "event: message\ndata: {\"test\":\"value\"}\n\n";
         $result = $method->invoke($transport, $sseResponse);
 
-        $this->assertEquals('{"test":"value"}', $result);
+        $this->assertSame(['{"test":"value"}'], $result);
     }
 
     public function test_parse_sse_response_with_no_data_throws_exception(): void

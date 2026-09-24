@@ -27,6 +27,9 @@ use function stream_set_read_buffer;
 use function stream_set_write_buffer;
 use function mb_strlen;
 use function microtime;
+use function strpos;
+use function substr;
+use function trim;
 use function usleep;
 
 use const JSON_THROW_ON_ERROR;
@@ -42,6 +45,11 @@ class StdioTransport implements McpTransportInterface
      * @var null|array<int, resource|false> $pipes
      */
     private ?array $pipes = null;
+
+    /**
+     * Bytes read from stdout that do not yet complete a message.
+     */
+    protected string $buffer = '';
 
     /**
      * @param array<string, mixed> $config
@@ -92,6 +100,11 @@ class StdioTransport implements McpTransportInterface
             $error = stream_get_contents($this->pipes[2]);
             throw new McpException("Process failed to start: " . $error);
         }
+
+        // receive() polls stdout for messages and drains stderr.
+        stream_set_blocking($this->pipes[1], false);
+        stream_set_blocking($this->pipes[2], false);
+        $this->buffer = '';
     }
 
     /**
@@ -106,7 +119,7 @@ class StdioTransport implements McpTransportInterface
 
         $status = proc_get_status($this->process);
         if (!$status['running']) {
-            throw new McpException("MCP server process is not running");
+            throw new McpSessionLostException("MCP server process is not running");
         }
 
         $jsonData = json_encode($data);
@@ -132,33 +145,49 @@ class StdioTransport implements McpTransportInterface
             throw new McpException("Process is not running");
         }
 
-        stream_set_blocking($this->pipes[1], false);
-
-        $response = "";
         $startTime = microtime(true);
         $timeout = 30.0;
 
         while (microtime(true) - $startTime < $timeout) {
-            $status = proc_get_status($this->process);
+            // Messages are newline-delimited: one is complete once its newline arrives.
+            $newline = strpos($this->buffer, "\n");
+            if ($newline !== false) {
+                $line = trim(substr($this->buffer, 0, $newline));
+                $this->buffer = substr($this->buffer, $newline + 1);
 
-            if (!$status['running']) {
-                throw new McpException("MCP server process has terminated unexpectedly.");
+                if ($line !== '') {
+                    return json_decode($line, true, 64, JSON_THROW_ON_ERROR);
+                }
+
+                continue;
             }
 
-            $chunk = fread($this->pipes[1], 4096);
-            if ($chunk !== false && $chunk !== '') {
-                $response .= $chunk;
+            $this->discardStderr();
 
-                $decoded = json_decode($response, true, 64, JSON_THROW_ON_ERROR);
-                if ($decoded !== null) {
-                    return $decoded;
-                }
+            $chunk = fread($this->pipes[1], 8192);
+            if ($chunk !== false && $chunk !== '') {
+                $this->buffer .= $chunk;
+                continue;
+            }
+
+            if (!proc_get_status($this->process)['running']) {
+                throw new McpException("MCP server process has terminated unexpectedly.");
             }
 
             usleep(10000); // avoid busy waiting
         }
 
         throw new McpException("Timeout waiting for response from MCP server");
+    }
+
+    /**
+     * A server writing to a full, unread stderr pipe blocks.
+     */
+    protected function discardStderr(): void
+    {
+        do {
+            $chunk = fread($this->pipes[2], 8192);
+        } while ($chunk !== false && $chunk !== '');
     }
 
     /**
