@@ -104,8 +104,8 @@ class Fixture
         $scenario = $this->scenario($threadId);
 
         $agent = Agent::make(workflowId: $threadId);
-        $agent->setMessageStore(new SQLMessageStore($this->pdo));
-        $agent->setPersistence(new DatabasePersistence($this->pdo));
+        $agent->setMessageStore($this->messageStore());
+        $agent->setPersistence($this->persistence());
         $agent->setAiProvider(new ScenarioProvider($this->pdo, $threadId, $scenario));
         $agent->addTool($this->backendTools($scenario, $threadId));
 
@@ -119,6 +119,16 @@ class Fixture
             $agent->addTool($tool);
         }
         return $agent;
+    }
+
+    public function messageStore(): SQLMessageStore
+    {
+        return new SQLMessageStore($this->pdo);
+    }
+
+    public function persistence(): DatabasePersistence
+    {
+        return new DatabasePersistence($this->pdo);
     }
 
     protected function scenario(string $threadId): string

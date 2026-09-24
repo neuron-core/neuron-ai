@@ -9,7 +9,7 @@ channel wire contract using real Redis/Pusher encoders and in-memory transport f
 
 | Path | Role |
 |---|---|
-| `backend/router.php` | Example application endpoint for the built-in PHP server: `/agui`, `/vercel`, and test-only `/_test/*` routes |
+| `backend/router.php` | Example application endpoint for the built-in PHP server: `/agui`, the AG-UI reload route `/agui/threads/{id}`, `/vercel`, and test-only `/_test/*` routes |
 | `Stub/Fixture.php` | SQLite-backed application state: workflow persistence, chat history, thread→scenario binding, audit reads |
 | `Stub/ChannelFixture.php` | Real Redis/Pusher channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker |
 | `Stub/ScenarioProvider.php` | Deterministic provider choosing replies from the inference input; every invocation is persisted |
@@ -89,7 +89,8 @@ beyond the scenario table exercise whichever client can express the behaviour.
 
 Beyond scenarios, the specs cover partial and out-of-order results, repeated,
 conflicting and stale submissions, a backend restart on the same database, browser
-reload, dynamic tool registration and client-generated schemas, fragmented
+reload (Vercel from client-side state, CopilotKit from the bridge's memory, the AG-UI
+client from the application's reload route), dynamic tool registration and client-generated schemas, fragmented
 multi-byte delivery, and errors before and after the response headers.
 
 ## Broadcast channel coverage

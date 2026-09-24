@@ -106,7 +106,7 @@ class ScenarioProvider implements AIProviderInterface
     {
         $text = $response->getContent() ?? '';
         if ($text !== '') {
-            yield new TextChunk('scenario_msg', $text);
+            yield new TextChunk($response->getId(), $text);
         }
         return new ProviderResponse(message: $response);
     }

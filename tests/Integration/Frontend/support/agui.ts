@@ -42,6 +42,19 @@ export async function openThread(request: APIRequestContext, scenario: string, p
   return { threadId, agent };
 }
 
+/**
+ * A browser reload: a fresh official client seeded from the application's reload
+ * endpoint, the way a page restores the conversation it rendered.
+ */
+export async function reload(request: APIRequestContext, threadId: string): Promise<HttpAgent> {
+  const response = await request.get(`${BACKEND}/agui/threads/${encodeURIComponent(threadId)}`);
+  if (!response.ok()) throw new Error(`Reload failed: ${await response.text()}`);
+  const { messages, interrupts } = await response.json();
+  const agent = new HttpAgent({ url: `${BACKEND}/agui`, threadId, initialMessages: messages });
+  agent.pendingInterrupts = interrupts;
+  return agent;
+}
+
 /** Run the official client once and observe what it surfaced to the application. */
 export async function run(agent: HttpAgent, resume?: ResumeEntry[], tools: Tool[] = FRONTEND_TOOLS): Promise<RunObservation> {
   const observation: RunObservation = { calls: [], interrupts: [], resultFrames: {} };

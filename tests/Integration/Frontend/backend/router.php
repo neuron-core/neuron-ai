@@ -19,6 +19,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Integration\Frontend\Stub\Fixture;
 use NeuronAI\Tests\Integration\Frontend\Stub\ChannelFixture;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
+use NeuronAI\Workflow\WorkflowInspector;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
 
@@ -89,6 +90,16 @@ function agui(Fixture $fixture, array $payload): void
     streamFrames($frames, $adapter->getHeaders());
 }
 
+/**
+ * A page reload: the latest stored messages and a fresh read of the run, in the
+ * shape the live AG-UI stream left the client with.
+ */
+function aguiReload(Fixture $fixture, string $threadId): void
+{
+    $run = (new WorkflowInspector($fixture->persistence()))->inspect($threadId);
+    respondJson(200, (new AGUIAdapter($threadId))->hydrate($fixture->messageStore()->loadAll($threadId, limit: 50), $run));
+}
+
 /** @param array<string, mixed> $payload */
 function vercel(Fixture $fixture, array $payload): void
 {
@@ -123,6 +134,8 @@ try {
         respondJson(200, $fixture->observe(\rawurldecode(\substr($path, \strlen('/_test/threads/')))));
     } elseif ($method === 'POST' && $path === '/agui') {
         agui($fixture, $payload);
+    } elseif ($method === 'GET' && \str_starts_with($path, '/agui/threads/')) {
+        aguiReload($fixture, \rawurldecode(\substr($path, \strlen('/agui/threads/'))));
     } elseif ($method === 'POST' && $path === '/vercel') {
         vercel($fixture, $payload);
     } else {
