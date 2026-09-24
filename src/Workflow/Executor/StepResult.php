@@ -37,19 +37,6 @@ class StepResult
         return $this->event;
     }
 
-    /**
-     * A copy of this result carrying the given event — used at the
-     * deserialization boundary, where the workflow restores a recalled
-     * event's transient capability before it re-enters traversal.
-     */
-    public function withEvent(Event $event): static
-    {
-        $clone = clone $this;
-        $clone->event = $event;
-
-        return $clone;
-    }
-
     public function withState(WorkflowState $state): static
     {
         $clone = clone $this;

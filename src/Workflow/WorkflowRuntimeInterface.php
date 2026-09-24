@@ -25,7 +25,6 @@ interface WorkflowRuntimeInterface
     public function getWorkflowId(): string;
     public function getRunId(): string;
     public function getEventDispatcher(): EventDispatcherInterface;
-    public function restoreEvent(Event $event): Event;
     public function restoreState(WorkflowState $state): WorkflowState;
     public function shouldRetainCompletionUntilAcknowledged(): bool;
 

@@ -27,7 +27,7 @@ interface WorkflowInterface
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      */
-    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null): PendingExecution;
+    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingExecution;
 
     /** Conditionally purge a retained completed generation. */
     public function acknowledgeCompletion(string $expectedRunId): void;

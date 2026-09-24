@@ -10,8 +10,8 @@ use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ActionDecision;
+use NeuronAI\Agent\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\ActionDecision;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

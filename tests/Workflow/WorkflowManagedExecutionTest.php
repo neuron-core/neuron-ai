@@ -26,7 +26,6 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
-use function hash;
 use function iterator_to_array;
 use function serialize;
 use function str_repeat;
@@ -39,7 +38,7 @@ class WorkflowManagedExecutionTest extends TestCase
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('order/42')->setPersistence($store);
         self::assertSame('order/42', $workflow->getWorkflowId());
         $before = serialize($store);
-        $request = ExecutionRequest::start(new StartEvent(), 'reserved-42', 'delivery-1');
+        $request = ExecutionRequest::start(new StartEvent(), 'reserved-42');
         self::assertNull($workflow->inspect()?->runId);
         self::assertNull($workflow->inspect());
         self::assertSame($before, serialize($store));
@@ -47,9 +46,8 @@ class WorkflowManagedExecutionTest extends TestCase
         self::assertSame('reserved-42', $state->getRunId());
         self::assertSame(1, $state->getExecutionAttempt());
         $serializer = new PhpSerializer();
-        foreach (['__control', '__ignition', '__operation/'.hash('sha256', 'delivery-1')] as $key) {
-            $record = $serializer->unserialize($store->get('order/42', $key));
-            self::assertSame('reserved-42', $record->runId ?? $record->ignition->runId);
+        foreach (['__control', '__ignition'] as $key) {
+            self::assertSame('reserved-42', $serializer->unserialize($store->get('order/42', $key))->runId);
         }
     }
 
@@ -68,28 +66,30 @@ class WorkflowManagedExecutionTest extends TestCase
         ExecutionRequest::start(new StartEvent(), $id);
     }
 
-    public function test_duplicate_keeps_its_generation_but_changed_reservation_conflicts(): void
+    public function test_a_different_reservation_cannot_take_a_held_address(): void
     {
         $store = new InMemoryPersistence();
         $make = fn (): KeyedWorkflow => KeyedWorkflow::make('order')->setPersistence($store);
-        $first = $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved-one', idempotencyKey: 'delivery'));
-        self::assertEquals($first, $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved-one', idempotencyKey: 'delivery')));
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('different workflow operation');
-        $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved-two', idempotencyKey: 'delivery'));
+        $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved-one'));
+        try {
+            $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved-two'));
+            self::fail('Another reservation must not replace the held run.');
+        } catch (RunInFlightException $error) {
+            self::assertSame('reserved-one', $error->runId);
+        }
     }
 
-    public function test_lost_initialization_acknowledgement_recovers_the_reserved_operation(): void
+    public function test_resume_recovers_a_reserved_run_after_a_lost_initialization_acknowledgement(): void
     {
         $store = new CrashAfterInitialization();
         $make = fn (): Workflow => Workflow::make('order')->setPersistence($store)->addNode(new MemoizingNode());
         try {
-            $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved', idempotencyKey: 'delivery'));
+            $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
             self::fail('Expected interrupted initialization.');
         } catch (RuntimeException $e) {
             self::assertSame('Lost initialization acknowledgement', $e->getMessage());
         }
-        $state = $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved', idempotencyKey: 'delivery'));
+        $state = $make()->run(ExecutionRequest::resume());
         self::assertSame('reserved', $state->getRunId());
         self::assertSame(2, $state->getExecutionAttempt());
     }
@@ -127,7 +127,7 @@ class WorkflowManagedExecutionTest extends TestCase
             self::assertSame([], $channel->getSent());
             return new ChunkAdapter();
         });
-        $state = $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved', 'delivery'));
+        $state = $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
         self::assertCount(2, $channel->getSent());
         self::assertSame('reserved', $state->getRunId());
         $channel->assertCompleted();
@@ -158,11 +158,12 @@ class WorkflowManagedExecutionTest extends TestCase
             return new ChunkAdapter();
         };
         $make = fn (): KeyedWorkflow => KeyedWorkflow::make('order')->setPersistence($store)->retainCompletionUntilAcknowledged()->setStreamAdapter($factory);
-        $state = $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved', idempotencyKey: 'start'));
-        $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved', idempotencyKey: 'start'));
-        $make()->run(ExecutionRequest::resume(idempotencyKey: 'poll'));
+        $state = $make()->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
+        $make()->run(ExecutionRequest::resume());
         self::assertSame(1, $calls);
-        $make()->run(ExecutionRequest::resume([], $state->getRunId(), $state->getExecutionAttempt(), idempotencyKey: 'reply'));
+        $make()->run(ExecutionRequest::resume([], $state->getRunId(), $state->getExecutionAttempt()));
+        self::assertSame(2, $calls);
+        $make()->run(ExecutionRequest::resume());
         self::assertSame(2, $calls);
     }
 
@@ -174,13 +175,13 @@ class WorkflowManagedExecutionTest extends TestCase
             throw new RuntimeException('configuration failed');
         });
         try {
-            $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved', idempotencyKey: 'start'));
+            $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
             self::fail('Expected setup failure.');
         } catch (RuntimeException $e) {
             self::assertSame('configuration failed', $e->getMessage());
         }
         self::assertSame(WorkflowStatus::Failed, $workflow->inspect()->status);
-        $state = $make()->run(ExecutionRequest::resume(expectedRunId: 'reserved', expectedExecutionAttempt: 1, idempotencyKey: 'recover'));
+        $state = $make()->run(ExecutionRequest::resume(expectedRunId: 'reserved', expectedExecutionAttempt: 1));
         self::assertSame('reserved', $state->getRunId());
         self::assertSame(2, $state->getExecutionAttempt());
     }
@@ -230,9 +231,9 @@ class WorkflowManagedExecutionTest extends TestCase
     {
         $store = new InMemoryPersistence();
         $make = fn (): Workflow => Workflow::make('order')->setPersistence($store)->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged();
-        $make()->run(ExecutionRequest::start(new StartEvent(), 'first', idempotencyKey: 'first'));
+        $make()->run(ExecutionRequest::start(new StartEvent(), 'first'));
         $make()->acknowledgeCompletion('first');
-        $make()->run(ExecutionRequest::start(new StartEvent(), 'second', idempotencyKey: 'second'));
+        $make()->run(ExecutionRequest::start(new StartEvent(), 'second'));
         $this->expectException(StaleWorkflowRunException::class);
         $make()->acknowledgeCompletion('first');
     }
@@ -257,7 +258,7 @@ class WorkflowManagedExecutionTest extends TestCase
             self::fail('A refused worker cannot build resources.');
         });
         try {
-            $other->run(ExecutionRequest::resume(expectedRunId: 'reserved', expectedExecutionAttempt: 1, idempotencyKey: 'other-worker'));
+            $other->run(ExecutionRequest::resume(expectedRunId: 'reserved', expectedExecutionAttempt: 1));
             self::fail('Expected live lease refusal.');
         } catch (WorkflowException) {
             self::assertSame(WorkflowStatus::Running, $workflow->inspect()->status);

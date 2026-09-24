@@ -8,6 +8,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +19,6 @@ use function fclose;
 use function fgets;
 use function function_exists;
 use function fwrite;
-use function hash;
 use function is_resource;
 use function json_decode;
 use function json_encode;
@@ -61,7 +61,7 @@ class ReservedGenerationConcurrencyTest extends TestCase
                     fgets($sockets[1]);
                     try {
                         $result = Workflow::make('shared')->setPersistence(new DatabasePersistence($pdo))
-                            ->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new StartEvent(), $runId, idempotencyKey: $runId));
+                            ->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new StartEvent(), $runId));
                         $outcome = ['runId' => $result->getRunId()];
                     } catch (WorkflowException $e) {
                         $outcome = ['refused' => true];
@@ -93,9 +93,7 @@ class ReservedGenerationConcurrencyTest extends TestCase
             self::assertCount(1, array_filter($results, fn (array $result): bool => isset($result['refused'])));
             $store = new DatabasePersistence(new PDO('sqlite:'.$path));
             $winner = Workflow::make('shared')->setPersistence($store)->inspect()->runId;
-            $loser = $winner === 'first' ? 'second' : 'first';
-            self::assertNull($store->get('shared', '__operation/'.hash('sha256', $loser)));
-            self::assertNotNull($store->get('shared', '__operation/'.hash('sha256', $winner)));
+            self::assertSame($winner, (new PhpSerializer())->unserialize($store->get('shared', '__ignition'))->runId);
         } finally {
             foreach ($workers as [$pid, $socket]) {
                 if (is_resource($socket)) {

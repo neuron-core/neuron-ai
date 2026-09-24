@@ -7,7 +7,6 @@ namespace NeuronAI\Agent\Interrupt;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 

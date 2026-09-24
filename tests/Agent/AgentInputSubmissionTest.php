@@ -18,7 +18,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\PendingExecution;

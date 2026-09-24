@@ -14,11 +14,9 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
-use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronAI\Workflow\Persistence\PhpSerializer;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -147,26 +145,6 @@ class ThreadIdentityTest extends TestCase
         $this->assertSame('thread-1', $second->getThreadId());
         $this->assertSame('thread-1', $second->getChatHistory()->getThreadId());
         $this->assertCount(2, $second->getChatHistory()->getMessages());
-    }
-
-    public function test_thread_id_is_recorded_in_the_ignition_context(): void
-    {
-        $persistence = $this->retainingPersistence();
-
-        $agent = Agent::make(workflowId: 'thread-42');
-        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
-            ->setInstructions('test');
-        $agent->setPersistence($persistence);
-        $agent->retainCompletionUntilAcknowledged();
-
-        $agent->chat(new UserMessage('hello'))->getMessage();
-
-        $record = $persistence->get('thread-42', '__ignition');
-        $this->assertNotNull($record);
-
-        $ignition = (new PhpSerializer())->unserialize($record);
-        $this->assertInstanceOf(Ignition::class, $ignition);
-        $this->assertSame(['threadId' => 'thread-42'], $ignition->context);
     }
 
     public function test_blank_instance_adopts_the_thread_id_and_materializes_resolvers(): void

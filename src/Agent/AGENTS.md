@@ -46,8 +46,6 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 | `submitApprovalDecisions($decisions)` | Return `PendingExecution<AgentState>`; chain `->run()` or `->events()` |
 | `submitToolResults($results)` | Return `PendingExecution<AgentState>`; chain `->run()` or `->events()` |
 
-`chat()`, `stream()`, and `structured()` also accept an optional `idempotencyKey`, included in the execution request. Reconstructed messages with identical content/options can reuse the key: generated message display IDs are excluded from the start fingerprint. Saved outcomes replay without provider calls; receipts last only as long as the stored run.
-
 `AgentState::getMessage()` reads the final assistant message off the stored provider response; `isInterrupted()` / `getInterruptRequest()` surface an approval pause on the state itself, like any `WorkflowState`.
 
 Hooks take no argument and run once per execution segment, after admission. Dependencies from an application container arrive through the constructor: resolve the agent from the container, then bind its conversation.
@@ -254,7 +252,7 @@ One live run per thread has these consequences:
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
 - `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
-**Persisted wins.** Every durable run writes an ignition record at first execution: run ID, start event (messages + intent) and the context bag (`threadId`). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setMessageStore()` may replace the store between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current segment's history or durable writes.
+**Persisted wins.** Every durable run writes an ignition record at first execution: run ID and start event (messages + intent). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setMessageStore()` may replace the store between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current segment's history or durable writes.
 
 **Security.** The threadId is untrusted input used as a storage key: it selects which conversation is read, written and resumed. Authorize user ↔ thread ownership before opening a history with it; the framework performs no access control.
 
@@ -262,7 +260,7 @@ One live run per thread has these consequences:
 ## Caller-managed execution
 
 Build an `ExecutionRequest::start(new AgentStartEvent($messages, $options),
-runId: $reservedRunId, idempotencyKey: $key)` and call `run($request)` for eager
+runId: $reservedRunId)` and call `run($request)` for eager
 execution or `events($request)` for lazy output. Both use the same engine as chat,
 stream and structured conveniences. The thread is bound before resources are
 constructed, so hooks read it from `getThreadId()`. Graph hooks read the run identity

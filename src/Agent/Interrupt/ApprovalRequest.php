@@ -6,7 +6,6 @@ namespace NeuronAI\Agent\Interrupt;
 
 use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 
 use function array_map;

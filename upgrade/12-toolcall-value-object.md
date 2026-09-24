@@ -43,9 +43,8 @@ live registry at execution time.
    its constructor.
 8. **The workflow contract split in two.** `WorkflowInterface` is now the
    application contract only; the engine-facing methods (`getStartEvent`, `getState`,
-   `getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode`, `getEventDispatcher`, and
-   the new `restoreEventNode` — the seam where a workflow restores transient capability on
-   events recalled from persisted steps) moved to `WorkflowRuntimeInterface`, which
+   `getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode` and `getEventDispatcher`)
+   moved to `WorkflowRuntimeInterface`, which
    executors type against. `Workflow` implements both, so subclasses are unaffected; code
    that held a `WorkflowInterface` and called engine methods must hold the concrete
    workflow (or the runtime interface) instead.

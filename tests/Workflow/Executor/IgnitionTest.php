@@ -52,7 +52,6 @@ class IgnitionTest extends TestCase
         $this->assertInstanceOf(Ignition::class, $ignition);
         $this->assertInstanceOf(IgnitionStartEvent::class, $ignition->startEvent);
         $this->assertSame('hello', $ignition->startEvent->message);
-        $this->assertSame([], $ignition->context);
     }
 
     public function test_ignition_record_is_swept_by_clean_completion(): void

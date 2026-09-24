@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\InputTranslationException;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
@@ -115,7 +116,7 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertSame($payload, $completed->get('received_payload'));
     }
 
-    public function test_submission_uses_the_bound_identity_and_retains_its_idempotency_key(): void
+    public function test_submission_uses_the_bound_identity_and_delivers_its_input_once(): void
     {
         $persistence = new InMemoryPersistence();
         $started = $this->workflow($persistence)->run();
@@ -126,11 +127,7 @@ class WorkflowInputSubmissionTest extends TestCase
         $translator->expects($this->once())->method('translate')->willReturn(['registered' => 'user@example.com']);
 
         $workflow->setWorkflowId('signup');
-        $pending = $workflow->submitInputs(
-            ['email' => 'user@example.com'],
-            $translator,
-            idempotencyKey: 'signup-response',
-        );
+        $pending = $workflow->submitInputs(['email' => 'user@example.com'], $translator);
         $completed = $pending->run();
         $this->assertFalse($completed->isInterrupted());
         $this->assertSame('signup', $completed->getWorkflowId());
@@ -138,9 +135,12 @@ class WorkflowInputSubmissionTest extends TestCase
         $this->assertSame(['registered' => 'user@example.com'], $completed->get('received_payload'));
 
         $before = serialize($persistence);
-        $events = $pending->events();
-        $this->assertSame([], iterator_to_array($events));
-        $this->assertEquals($completed, $events->getReturn());
+        try {
+            $pending->run();
+            $this->fail('A pending execution must deliver its input once.');
+        } catch (WorkflowException $error) {
+            $this->assertStringContainsString('Stale continuation', $error->getMessage());
+        }
         $this->assertSame($before, serialize($persistence));
     }
 

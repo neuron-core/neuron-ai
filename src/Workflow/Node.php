@@ -193,17 +193,9 @@ abstract class Node implements NodeInterface
         return null;
     }
 
-    public function isResuming(): bool
+    protected function isResuming(): bool
     {
         return $this->resuming;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function getResumePayload(): ?array
-    {
-        return $this->payload;
     }
 
     /**

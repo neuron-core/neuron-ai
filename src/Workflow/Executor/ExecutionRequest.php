@@ -25,7 +25,6 @@ final class ExecutionRequest
         public readonly ?int $executionAttempt = null,
         ?array $payload = null,
         public readonly ?string $signal = null,
-        public readonly ?string $idempotencyKey = null,
         public readonly bool $recoverFailed = false,
     ) {
         $this->input = $event === null ? null : serialize($event);
@@ -46,13 +45,12 @@ final class ExecutionRequest
     public static function start(
         ?Event $event = null,
         ?string $runId = null,
-        ?string $idempotencyKey = null,
         bool $recoverFailed = false,
     ): self {
         if ($runId !== null && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/D', $runId) !== 1) {
             throw new WorkflowException('Invalid reserved run ID: use 1-128 ASCII letters, digits, underscores or hyphens, starting with a letter or digit.');
         }
-        return new self(true, event: $event, runId: $runId, idempotencyKey: $idempotencyKey, recoverFailed: $recoverFailed);
+        return new self(true, event: $event, runId: $runId, recoverFailed: $recoverFailed);
     }
 
     /** @param array<string, mixed>|null $payload */
@@ -60,9 +58,8 @@ final class ExecutionRequest
         ?array $payload = null,
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
-        ?string $idempotencyKey = null,
     ): self {
-        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, idempotencyKey: $idempotencyKey);
+        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload);
     }
 
     /** @param array<string, mixed> $payload */
@@ -71,8 +68,7 @@ final class ExecutionRequest
         array $payload = [],
         ?string $expectedRunId = null,
         ?int $expectedExecutionAttempt = null,
-        ?string $idempotencyKey = null,
     ): self {
-        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, signal: $event, idempotencyKey: $idempotencyKey);
+        return new self(false, runId: $expectedRunId, executionAttempt: $expectedExecutionAttempt, payload: $payload, signal: $event);
     }
 }

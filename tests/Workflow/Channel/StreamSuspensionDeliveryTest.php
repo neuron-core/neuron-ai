@@ -11,7 +11,7 @@ use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\SharedRequestInterruptNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;

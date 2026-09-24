@@ -23,8 +23,6 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
-use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 

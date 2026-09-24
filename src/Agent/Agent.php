@@ -25,7 +25,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\PendingExecution;
@@ -33,7 +33,6 @@ use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\WorkflowExecution;
-use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use Throwable;
@@ -42,7 +41,6 @@ use function array_filter;
 use function array_values;
 use function end;
 use function is_array;
-use function hash;
 
 /**
  * @extends Workflow<AgentState>
@@ -264,31 +262,6 @@ class Agent extends Workflow implements AgentInterface
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    protected function ignitionContext(): array
-    {
-        $threadId = $this->getThreadId();
-
-        return $threadId === null ? [] : ['threadId' => $threadId];
-    }
-
-    /** @param array<string, mixed> $context */
-    protected function ignitionFingerprint(Event $event, array $context): string
-    {
-        if (!$event instanceof AgentStartEvent) {
-            return parent::ignitionFingerprint($event, $context);
-        }
-        $event = clone $event;
-        foreach ($event->messages as $index => $message) {
-            $event->messages[$index] = clone $message;
-            // Message construction assigns a fresh display ID on every retry.
-            $event->messages[$index]->addMetadata('__id', null);
-        }
-        return hash('sha256', $this->getSerializer()->serialize([$event, $context]));
-    }
-
     public function getThreadId(): ?string
     {
         return $this->getWorkflowId();
@@ -313,12 +286,12 @@ class Agent extends Workflow implements AgentInterface
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function chat(Message|array $messages = [], ?string $idempotencyKey = null): AgentState
+    public function chat(Message|array $messages = []): AgentState
     {
         $event = $this->startEvent();
         $event->messages = is_array($messages) ? $messages : [$messages];
 
-        return $this->run(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
+        return $this->run(ExecutionRequest::start($event));
     }
 
     /**
@@ -331,12 +304,12 @@ class Agent extends Workflow implements AgentInterface
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function stream(Message|array $messages = [], ?string $idempotencyKey = null): Generator
+    public function stream(Message|array $messages = []): Generator
     {
         $event = $this->startEvent();
         $event->options->stream = true;
         $event->messages = is_array($messages) ? $messages : [$messages];
-        return $this->events(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
+        return $this->events(ExecutionRequest::start($event));
     }
 
     /**
@@ -348,14 +321,13 @@ class Agent extends Workflow implements AgentInterface
         Message|array $messages = [],
         ?string $class = null,
         int $maxRetries = 1,
-        ?string $idempotencyKey = null,
     ): mixed {
         $event = $this->startEvent();
         $event->options->outputClass = $class ?? $this->getOutputClass();
         $event->options->maxRetries = $maxRetries;
         $event->messages = is_array($messages) ? $messages : [$messages];
 
-        $finalState = $this->run(ExecutionRequest::start($event, idempotencyKey: $idempotencyKey));
+        $finalState = $this->run(ExecutionRequest::start($event));
 
         return $finalState->get('structured_output');
     }
@@ -393,9 +365,9 @@ class Agent extends Workflow implements AgentInterface
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitApprovalDecisions(array $decisions, ?string $idempotencyKey = null): PendingExecution
+    public function submitApprovalDecisions(array $decisions): PendingExecution
     {
-        return $this->submitInputs($decisions, new ApprovalTranslator(), $idempotencyKey);
+        return $this->submitInputs($decisions, new ApprovalTranslator());
     }
 
     /**
@@ -403,8 +375,8 @@ class Agent extends Workflow implements AgentInterface
      * @throws InputTranslationException
      * @throws WorkflowException
      */
-    public function submitToolResults(array $results, ?string $idempotencyKey = null): PendingExecution
+    public function submitToolResults(array $results): PendingExecution
     {
-        return $this->submitInputs($results, new ToolResultsTranslator(), $idempotencyKey);
+        return $this->submitInputs($results, new ToolResultsTranslator());
     }
 }

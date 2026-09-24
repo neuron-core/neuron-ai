@@ -6,7 +6,7 @@ namespace NeuronAI\Tests\Workflow\Executor\Stub;
 
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\WorkflowState;
 
 class DurableInterruptNodeB extends CountableNode

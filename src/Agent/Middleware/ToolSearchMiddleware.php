@@ -68,7 +68,7 @@ class ToolSearchMiddleware implements WorkflowMiddleware
 
     /**
      * Re-establish this middleware's contribution on the state request's tool
-     * list after Agent::restoreState() restores the base registry. Each
+     * list after AgentExecution::restoreState() restores the base registry. Each
      * middleware re-supplies what it added — here, the search tool itself plus
      * every tool discovered earlier in the conversation, re-derived from chat
      * history (deterministic for a given pool). On the live path everything is

@@ -14,7 +14,6 @@ use function unserialize;
 final class ExecutionContext
 {
     protected readonly string $input;
-    protected readonly string $domain;
 
     public function __construct(
         public readonly string $workflowId,
@@ -23,17 +22,10 @@ final class ExecutionContext
         Ignition $ignition,
     ) {
         $this->input = serialize($ignition->startEvent);
-        $this->domain = serialize($ignition->context);
     }
 
     public function startEvent(): Event
     {
         return unserialize($this->input);
-    }
-
-    /** @return array<string, mixed> */
-    public function domain(): array
-    {
-        return unserialize($this->domain);
     }
 }

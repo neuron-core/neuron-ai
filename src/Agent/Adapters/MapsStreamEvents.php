@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Streaming\Adapter;
+namespace NeuronAI\Agent\Adapters;
 
 use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
 use NeuronAI\Exceptions\StreamAdapterException;

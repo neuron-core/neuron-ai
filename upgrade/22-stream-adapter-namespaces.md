@@ -22,8 +22,8 @@ location and there is no alias, so any reference to the old namespace is a fatal
 "class not found" error at runtime.
 
 New in 4.x, and therefore never present in a 3.x codebase, are the sibling types
-`NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface`,
-`NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents` and the portable events under
+`NeuronAI\Agent\Adapters\CustomizableStreamAdapterInterface`,
+`NeuronAI\Agent\Adapters\MapsStreamEvents` and the portable events under
 `NeuronAI\Agent\Adapters\Events`. They need no migration.
 
 ## What to Search For

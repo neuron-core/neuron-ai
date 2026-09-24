@@ -50,7 +50,7 @@ class AgentManagedExecutionTest extends TestCase
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider($provider)->setMessageStore($messageStore)->setStreamAdapter(new AgentChunkAdapter())->setChannel($channel);
         $first = $make();
-        $request = ExecutionRequest::start(new AgentStartEvent([new UserMessage('One')], new AgentRunOptions(stream: true)), 'first', 'delivery-one');
+        $request = ExecutionRequest::start(new AgentStartEvent([new UserMessage('One')], new AgentRunOptions(stream: true)), 'first');
         $provider->assertCallCount(0);
         self::assertNull($first->inspect());
         $result = $first->run($request);
@@ -59,7 +59,7 @@ class AgentManagedExecutionTest extends TestCase
         self::assertSame('First answer', $result->getMessage()->getContent());
         self::assertNotEmpty($channel->getSent());
         $first->acknowledgeCompletion('first');
-        $second = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Two')]), 'second', idempotencyKey: 'delivery-two'));
+        $second = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Two')]), 'second'));
         self::assertSame('second', $second->getRunId());
         self::assertFalse($second->request->options->stream);
         self::assertCount(4, $messageStore->loadActive('thread'));
@@ -80,11 +80,11 @@ class AgentManagedExecutionTest extends TestCase
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel($channel)
             ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter());
-        $first = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Question')], new AgentRunOptions(stream: true)), 'reserved', idempotencyKey: 'start'));
+        $first = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Question')], new AgentRunOptions(stream: true)), 'reserved'));
         self::assertTrue($first->isInterrupted());
         $resumed = $make()->setStartEvent(new AgentStartEvent([new UserMessage('Wrong local intent')]));
         $record = new \NeuronAI\Tests\Support\ExecutionRecorder($resumed);
-        $reply = $resumed->submitApprovalDecisions(['call_1' => 'approve'], idempotencyKey: 'answer')->run();
+        $reply = $resumed->submitApprovalDecisions(['call_1' => 'approve'])->run();
         self::assertSame('reserved', $record->context->runId);
         self::assertSame('Question', $record->context->startEvent()->messages[0]->getContent());
         self::assertTrue($record->context->startEvent()->options->stream);
@@ -140,15 +140,14 @@ class AgentManagedExecutionTest extends TestCase
     public function test_saved_outcome_never_opens_runtime_tools_or_output_resources(): void
     {
         $store = new InMemoryPersistence();
-        $input = fn (): AgentStartEvent => new AgentStartEvent([new UserMessage('Hello')]);
         Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Saved')))
-            ->run(ExecutionRequest::start($input(), 'reserved', idempotencyKey: 'key'));
+            ->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Hello')]), 'reserved'));
         $agent = Agent::make(workflowId: 'thread')->setPersistence($store)
             ->setStreamAdapter(function (): never {
                 self::fail('Saved outcomes must not resolve resources.');
             });
-        $result = $agent->run(ExecutionRequest::start($input(), 'reserved', idempotencyKey: 'key'));
+        $result = $agent->run(ExecutionRequest::resume());
         self::assertSame('Saved', $result->getMessage()->getContent());
         self::assertSame([], $result->request->tools);
     }

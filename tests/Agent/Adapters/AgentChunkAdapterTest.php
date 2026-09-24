@@ -32,7 +32,7 @@ use NeuronAI\Tests\Agent\Adapters\Stub\SuppressedProgress;
 use NeuronAI\Tests\Agent\Adapters\Stub\UnsupportedStreamEvent;
 use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\Attributes\DataProvider;

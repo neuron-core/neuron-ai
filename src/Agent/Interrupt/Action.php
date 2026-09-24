@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Interrupt;
+namespace NeuronAI\Agent\Interrupt;
 
 use JsonSerializable;
-use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use stdClass;
 
 /**

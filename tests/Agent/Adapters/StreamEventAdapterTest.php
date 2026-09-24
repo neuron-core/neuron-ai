@@ -17,7 +17,7 @@ use NeuronAI\Tests\Agent\Adapters\Stub\DetailedIndexingProgress;
 use NeuronAI\Tests\Agent\Adapters\Stub\IndexingProgress;
 use NeuronAI\Tests\Agent\Adapters\Stub\SuppressedProgress;
 use NeuronAI\Tests\Agent\Adapters\Stub\UnsupportedStreamEvent;
-use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
+use NeuronAI\Agent\Adapters\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use PHPUnit\Framework\TestCase;
 

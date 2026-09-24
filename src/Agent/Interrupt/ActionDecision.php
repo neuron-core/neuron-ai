@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Interrupt;
+namespace NeuronAI\Agent\Interrupt;
 
 /**
  * Represents the decision state of an interrupt action.

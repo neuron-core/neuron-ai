@@ -30,7 +30,6 @@ final class WorkflowControl
         public readonly int $nextInterruptId = 1,
         public readonly ?ActiveInterrupt $interrupt = null,
         public readonly array $pendingSteps = [],
-        public readonly ?string $operationKey = null,
     ) {
     }
 
@@ -41,11 +40,6 @@ final class WorkflowControl
             'executionAttempt' => $this->executionAttempt + 1,
             'leaseExpiresAt' => $leaseExpiresAt,
         ]);
-    }
-
-    public function withOperation(?string $operationKey): self
-    {
-        return $this->with(['operationKey' => $operationKey]);
     }
 
     public function heartbeat(?int $leaseExpiresAt): self

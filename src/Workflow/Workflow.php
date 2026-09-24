@@ -21,7 +21,6 @@ use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 
 use function array_merge;
 use function is_array;
-use function hash;
 use function preg_match;
 use function array_map;
 
@@ -69,30 +68,7 @@ class Workflow implements WorkflowInterface
 
     public function makeIgnition(string $runId, Event $event): Ignition
     {
-        $context = $this->ignitionContext();
-        return new Ignition($runId, $event, $context, $this->ignitionFingerprint($event, $context));
-    }
-
-    /**
-     * Describe immutable start input, excluding generated transport identifiers
-     * in compositions that have them. This never changes the persisted event.
-     *
-     * @param array<string, mixed> $context
-     */
-    protected function ignitionFingerprint(Event $event, array $context): string
-    {
-        return hash('sha256', $this->getSerializer()->serialize([$event, $context]));
-    }
-
-    /**
-     * Subclass hook: run context persisted into the ignition record. Empty by
-     * default — the engine never learns what a thread or a tenant is.
-     *
-     * @return array<string, mixed>
-     */
-    protected function ignitionContext(): array
-    {
-        return [];
+        return new Ignition($runId, $event);
     }
 
     final public function getStartEvent(): Event
@@ -134,15 +110,6 @@ class Workflow implements WorkflowInterface
     protected function nodes(WorkflowExecution $execution): array
     {
         return [];
-    }
-
-    /**
-     * A plain workflow has no transient capability to restore — subclasses
-     * whose events carry live objects (e.g. Agent's tools) override this.
-     */
-    public function restoreEvent(Event $event): Event
-    {
-        return $event;
     }
 
     public function restoreState(WorkflowState $state): WorkflowState
@@ -281,7 +248,7 @@ class Workflow implements WorkflowInterface
      * @return PendingExecution<TState>
      * @throws InputTranslationException
      */
-    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null, ?string $idempotencyKey = null): PendingExecution
+    public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingExecution
     {
         $run = $this->inspect();
 
@@ -299,7 +266,7 @@ class Workflow implements WorkflowInterface
         // between submission and execution, making these inputs stale.
         return new PendingExecution(
             $this,
-            ExecutionRequest::resume($response, $run->runId, $run->executionAttempt, $idempotencyKey),
+            ExecutionRequest::resume($response, $run->runId, $run->executionAttempt),
         );
     }
 
@@ -314,7 +281,7 @@ class Workflow implements WorkflowInterface
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
 
         if ($request->starting && $request->event() === null) {
-            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->idempotencyKey, $request->recoverFailed);
+            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->recoverFailed);
         }
 
         $workflowId = $this->getWorkflowId();

@@ -19,8 +19,6 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
-use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 

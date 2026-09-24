@@ -71,16 +71,16 @@ interface AgentInterface extends WorkflowInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function chat(Message|array $messages = [], ?string $idempotencyKey = null): AgentState;
+    public function chat(Message|array $messages = []): AgentState;
 
     /**
      * @param Message|Message[] $messages
      * @return Generator<int, object|string, mixed, AgentState>
      */
-    public function stream(Message|array $messages = [], ?string $idempotencyKey = null): Generator;
+    public function stream(Message|array $messages = []): Generator;
 
     /**
      * @param Message|Message[] $messages
      */
-    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1, ?string $idempotencyKey = null): mixed;
+    public function structured(Message|array $messages = [], ?string $class = null, int $maxRetries = 1): mixed;
 }

@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\Workflow\Interrupt;
 
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Interrupt\Action;
-use NeuronAI\Workflow\Interrupt\ActionDecision;
+use NeuronAI\Agent\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\ActionDecision;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;

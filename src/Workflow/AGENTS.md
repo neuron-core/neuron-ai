@@ -28,25 +28,25 @@ A workflow exposes one current interruption through `$state->getInterruptRequest
 
 - `run(ExecutionRequest::resume($payload))` answers the current interruption with one plain array. `resume([])` supplies an empty answer; `resume()` supplies no answer and handles recovery or a due deadline.
 - `run(ExecutionRequest::signal('order.approved', $payload))` answers the same current interruption, additionally requiring its event name to match. A mismatch throws without persisting the payload. Signals are neither broadcast nor queued for future or deferred waits.
-- `submitInputs($payload, $translator, idempotencyKey: $key)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and observed run/attempt fences; the Workflow supplies its fixed address. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
+- `submitInputs($payload, $translator)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and observed run/attempt fences; the Workflow supplies its fixed address. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
 
 
 Parallel branches expose interruptions sequentially. The normal executor stops at the first interruption. AsyncExecutor stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
 
 The current request blocks later requests, including their deadlines. A deferred deadline keeps its original value; it is evaluated by inputless continuation only after that request becomes current. This design requires no live fibers across segments and does not cancel running external operations. A node may take time to reach its boundary: memoization persists an operation but is not a traversal suspension point.
 
-`run(?ExecutionRequest $request = null)` always returns state; `events()` has the same arguments and always returns a lazy generator. Use `ExecutionRequest::start($event, runId:, idempotencyKey:)`, `::resume($payload, expectedRunId:, expectedExecutionAttempt:, idempotencyKey:)`, or `::signal($name, $payload, expectedRunId:, expectedExecutionAttempt:, idempotencyKey:)`. Import the request from `NeuronAI\Workflow\Executor`.
+`run(?ExecutionRequest $request = null)` always returns state; `events()` has the same arguments and always returns a lazy generator. Use `ExecutionRequest::start($event, runId:)`, `::resume($payload, expectedRunId:, expectedExecutionAttempt:)`, or `::signal($name, $payload, expectedRunId:, expectedExecutionAttempt:)`. Import the request from `NeuronAI\Workflow\Executor`.
 
-Requests are independent read-only envelopes, not staged fields on Workflow. Constructing another request cannot overwrite an earlier one. Without a request, the terminals start or automatically recover a failed run. Explicit unkeyed starts select a new generation; keyed/reserved starts refuse existing generations. Inputless resume handles recovery, due deadlines, or retained completion.
+Requests are independent read-only envelopes, not staged fields on Workflow. Constructing another request cannot overwrite an earlier one. Without a request, the terminals start or automatically recover a failed run. Explicit starts without a reserved run ID select a new generation; reserved starts refuse existing generations. Inputless resume handles recovery, due deadlines, or retained completion.
 
 
-With a key, duplicates replay the saved operation outcome or recover the same unfinished operation under lease rules. A saved failure is replayed; deliberate recovery needs a new key. Keyed starts refuse existing generations instead of automatically replacing or recovering them. Receipts are removed during normal run cleanup; there is no post-cleanup deduplication guarantee. See [operation idempotency](../../docs/workflow-idempotency.md).
+A duplicate request is refused, never executed twice. A retried reserved start fails with `RunInFlightException` naming its run; a retried resume carrying the run ID and execution attempt its caller observed fails as stale. Neither replays the original response: read the result through `inspect()` or a retained completion. A resume that may be retried must carry both fences from what the caller saw. `submitInputs()` captures them when called, so a repeated HTTP request picks up the new attempt, unless its translator matches the answer to the current interrupt's IDs, as the AG-UI and Vercel translators do.
 
 ## Platform-owned coordination
 
-The core has no scheduler interface and no suspend/resume/complete callbacks. A platform SDK is an invocation gateway: reconstruct the workflow and its live dependencies through its own factory, configure persistence, serializer, lease and completion retention, build a resume request and call `run($request)`, inspect the returned status, run ID, execution attempt and current interruption, then reconcile its own timers, subscriptions and jobs. HTTP round trips, queue workers and CLI loops are equivalent callers; platform transport details and factory identity never enter Workflow persistence; an SDK may supply its stable delivery ID as the generic operation idempotency key.
+The core has no scheduler interface and no suspend/resume/complete callbacks. A platform SDK is an invocation gateway: reconstruct the workflow and its live dependencies through its own factory, configure persistence, serializer, lease and completion retention, build a resume request and call `run($request)`, inspect the returned status, run ID, execution attempt and current interruption, then reconcile its own timers, subscriptions and jobs. HTTP round trips, queue workers and CLI loops are equivalent callers; platform transport details and factory identity never enter Workflow persistence; an SDK may use its stable delivery ID as the reserved run ID of a start.
 
-The complete `InterruptRequest` stays authoritative in Workflow persistence; a platform stores only the projection it needs to route work (`workflowId`, `runId`, `interruptId`, type, event name, deadline). A delivery job retains the observed run ID and execution attempt and passes both fences to `ExecutionRequest::resume($payload, ...)`; retries must not rematch by name against a later wait. Accepted input remains immutable until its node settles. Timer jobs use the current request's deadline and invoke a fenced resume request without a payload. Reconstruction is the factory's job: ignition context may restore small domain identity (the Agent's thread ID), but it is not a dependency container.
+The complete `InterruptRequest` stays authoritative in Workflow persistence; a platform stores only the projection it needs to route work (`workflowId`, `runId`, `interruptId`, type, event name, deadline). A delivery job retains the observed run ID and execution attempt and passes both fences to `ExecutionRequest::resume($payload, ...)`; retries must not rematch by name against a later wait. Accepted input remains immutable until its node settles. Timer jobs use the current request's deadline and invoke a fenced resume request without a payload. Reconstruction is the factory's job.
 
 ## Standalone inspection
 
@@ -65,8 +65,7 @@ All records for a workflow ID live in one persistence partition:
 
 | key | purpose |
 |---|---|
-| `__ignition` | immutable start event, run ID, engine-opaque context |
-| `__operation/<key-hash>` | request fingerprint, ignition binding, and saved operation outcome; removed with the run |
+| `__ignition` | immutable start event and run ID |
 | `__control` | mutable lifecycle authority: run ID, status, execution attempt, lease deadline, next interrupt ID, current interruption with its accepted input, deferred step IDs |
 | `<runId>/__checkpoint` | the suspended run's state |
 | `<runId>/__outcome` | the retained terminal state (completion retention only) |
@@ -137,20 +136,21 @@ executor. A continuation requires an already bound Workflow. Later runs share th
 workflow ID and have separate run IDs; executors do not generate or bind the
 instance identity.
 
-`ExecutionRequest` carries execution input, run/attempt fences and idempotency,
-not the workflow address. `inspect()`, `submitInputs()`, `acknowledgeCompletion()`
+`ExecutionRequest` carries execution input and run/attempt fences, not the
+workflow address. `inspect()`, `submitInputs()`, `acknowledgeCompletion()`
 and `abandonRun()` use the instance identity and accept no address override.
 Inspection and lazy generator creation do not bind an instance; unbound inspection
 returns null. Pending submissions retain the bound Workflow and an independent
 request capturing the inspected run and attempt, so later submissions cannot
 overwrite their input and another worker's continuation cannot silently retarget it.
-Generated identities support idempotent retries on the same instance. Queue jobs
+A generated identity stays on its instance, so a retry on that instance addresses
+the same workflow. Queue jobs
 must transport the workflow address separately and bind their reconstructed
 Workflow before submitting a continuation. Execution contexts, results, snapshots
 and persistence retain identity metadata.
 
 Requests serialize input data at creation. `event()` and `payload()` return detached
-copies; context `startEvent()` and `domain()` do likewise. Lazy calls capture input
+copies; context `startEvent()` does likewise. Lazy calls capture input
 when created and choose configuration when consumed. Never serialize live clients
 or closures into input/state. Configured state seeds are copied as serializable data;
 `state()` is a factory for fresh state. State subclasses retain responsibility for
@@ -169,8 +169,8 @@ Listener registration preserves earlier dispatcher snapshots. The executor captu
 storage, serializer and lease settings before admission. Its local usage gate only
 protects overlapping execution and cleanup operations; persisted ownership is separate.
 Sharing clients does not imply concurrent safety or protect against direct mutation
-of a supplied service. Restoration hooks (`restoreEvent()`, `restoreState()`) reattach
-transient dependencies to recalled data; an execution that resolved its own resources
+of a supplied service. The restoration hook, `restoreState()`, reattaches
+transient dependencies to recalled state; an execution that resolved its own resources
 restores from them, as `AgentExecution` does with the segment's tools, rather than
 from changing definition settings.
 

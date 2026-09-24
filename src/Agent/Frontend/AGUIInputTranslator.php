@@ -9,7 +9,7 @@ use NeuronAI\Agent\Interrupt\ToolInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Tools\FrontendTool;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use DateTimeImmutable;

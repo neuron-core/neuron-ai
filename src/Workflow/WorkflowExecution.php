@@ -60,7 +60,6 @@ class WorkflowExecution implements WorkflowRuntimeInterface
         if (!isset($this->eventNodeMap[$this->startEvent::class])) {
             throw new WorkflowException('No nodes found that handle ' . $this->startEvent::class);
         }
-        $this->startEvent = $this->restoreEvent($this->startEvent);
     }
 
     public function setOutput(?StreamAdapterInterface $adapter, ?StreamingChannelInterface $channel): void
@@ -103,11 +102,6 @@ class WorkflowExecution implements WorkflowRuntimeInterface
     public function shouldRetainCompletionUntilAcknowledged(): bool
     {
         return $this->retainCompletion;
-    }
-
-    public function restoreEvent(Event $event): Event
-    {
-        return $this->definition->restoreEvent($event);
     }
 
     public function restoreState(WorkflowState $state): WorkflowState

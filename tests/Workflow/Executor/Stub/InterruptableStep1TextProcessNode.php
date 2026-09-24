@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor\Stub;
 
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 

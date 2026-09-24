@@ -10,7 +10,7 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\WorkflowStatus;
 use RuntimeException;
 
-class CrashAfterOperationClaim extends InMemoryPersistence
+class CrashAfterClaim extends InMemoryPersistence
 {
     public bool $crash = false;
 

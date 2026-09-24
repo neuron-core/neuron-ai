@@ -7,7 +7,7 @@ namespace NeuronAI\Tests\Workflow\Executor\Stub;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
 

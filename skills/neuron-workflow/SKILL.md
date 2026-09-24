@@ -129,7 +129,7 @@ Import `NeuronAI\Workflow\Executor\ExecutionRequest`. Execution is explicit:
 
 | Call | Meaning |
 |---|---|
-| `run(ExecutionRequest::start($event, runId: $id, idempotencyKey: $key))` | Fresh input with an optional caller-reserved generation. |
+| `run(ExecutionRequest::start($event, runId: $id))` | Fresh input with an optional caller-reserved generation. |
 | `run()` | Start or recover a failed run and return state. |
 | `run(ExecutionRequest::resume())` | Recover, process a due deadline, or retrieve a retained outcome. |
 | `run(ExecutionRequest::resume($answer, expectedRunId: $id, expectedExecutionAttempt: $attempt))` | Deliver a fenced answer. |
@@ -146,8 +146,8 @@ Signals are neither queued nor broadcast.
 `PendingExecution` objects holding a workflow and its immutable fenced request.
 Chain `->run()` or `->events()` on the result. `submitInputs($payload)` accepts a
 native interruption response; optionally supply a translator as the second argument
-for external payloads. These helpers optionally accept an
-`idempotencyKey`; retain the pending execution for retries in the same process.
+for external payloads. Running the same pending execution twice fails as stale:
+its input is delivered once.
 Use resource hooks or factories for per-segment resources. They return a fresh resource and never mutate a running definition. See `src/Workflow/AGENTS.md` for execution ownership and hook signatures.
 
 ## Workflow State
@@ -222,7 +222,7 @@ automatically, reusing completed steps and memoized operations.
 Use `run(ExecutionRequest::resume())` for explicit inputless continuation, including due timers,
 recovery of a process that died without recording failure, and retained outcomes.
 Use `run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` for fenced delivery.
-All staging methods are inert; `run()` and `events()` accept an optional operation idempotency key.
+All staging methods are inert. A retried reserved start or fenced resume is refused, never executed twice.
 Configure context-aware resource factories on the definition before invoking the terminal.
 
 ### Persistence Backends
@@ -380,7 +380,7 @@ serializable; inject live services into the node instead. On a
 continuation, `interrupt()` returns the inbound payload array:
 
 ```php
-use NeuronAI\Agent\Interrupt\ApprovalRequest;use NeuronAI\Workflow\Interrupt\Action;
+use NeuronAI\Agent\Interrupt\ApprovalRequest;use NeuronAI\Agent\Interrupt\Action;
 
 class DangerousOperationNode extends Node
 {
