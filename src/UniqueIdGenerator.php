@@ -4,81 +4,46 @@ declare(strict_types=1);
 
 namespace NeuronAI;
 
-use function md5;
+use function bin2hex;
+use function chr;
+use function explode;
 use function microtime;
-use function mt_rand;
+use function ord;
+use function pack;
+use function random_bytes;
+use function str_split;
 use function substr;
-use function usleep;
-use function hexdec;
-use function sprintf;
+use function vsprintf;
 
 /**
- * Timestamp (41 bits) + Machine ID (10 bits) + Sequence (12 bits) = 64 bits PHP integer limit
+ * RFC 9562 UUIDv7: a 48-bit Unix timestamp in milliseconds followed by 74 random bits,
+ * so IDs sort by creation time to the millisecond. Generation keeps no state: forked
+ * children and uncoordinated workers cannot repeat each other's IDs.
  */
 class UniqueIdGenerator
 {
-    protected static ?int $machineId = null;
-    protected static int $sequence = 0;
-    protected static int $lastTimestamp = 0;
-
     public static function generateId(string $prefix = ''): string
     {
-        // Initialize machine ID once (you can set this based on server/process)
-        if (self::$machineId === null) {
-            self::$machineId = mt_rand(1, 1023); // 10 bits
-        }
-
-        $timestamp = self::getCurrentTimestamp();
-
-        // If same millisecond, increment sequence
-        if ($timestamp === self::$lastTimestamp) {
-            self::$sequence = (self::$sequence + 1) & 4095; // 12 bits max
-
-            // If the sequence overflows, wait for the next millisecond
-            if (self::$sequence === 0) {
-                $timestamp = self::waitForNextTimestamp(self::$lastTimestamp);
-            }
-        } else {
-            self::$sequence = 0;
-        }
-
-        self::$lastTimestamp = $timestamp;
-
-        // Combine: timestamp (41 bits) + machine ID (10 bits) + sequence (12 bits)
-        $id = ($timestamp << 22) | (self::$machineId << 12) | self::$sequence;
-
-        return $prefix . $id;
+        return $prefix . self::generateUUID();
     }
 
-    public static function generateUUID(string|int|null $id = null): string
+    public static function generateUUID(): string
     {
-        $hex = md5((string) ($id ?? self::generateId()));
+        $bytes = substr(pack('J', self::currentMilliseconds()), 2) . random_bytes(10);
+        $bytes[6] = chr(0x70 | (ord($bytes[6]) & 0x0F)); // version 7
+        $bytes[8] = chr(0x80 | (ord($bytes[8]) & 0x3F)); // variant 10
 
-        // Set version 4 (byte 6 high nibble)
-        $hex = substr($hex, 0, 12) . '4' . substr($hex, 13);
-        // Set RFC 4122 variant (byte 8 high bits = 10xx)
-        $variant = (hexdec($hex[16] . $hex[17]) & 0x3f) | 0x80;
-        $hex = substr($hex, 0, 16) . sprintf('%02x', $variant) . substr($hex, 18);
-
-        return substr($hex, 0, 8) . '-'
-            . substr($hex, 8, 4) . '-'
-            . substr($hex, 12, 4) . '-'
-            . substr($hex, 16, 4) . '-'
-            . substr($hex, 20, 12);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
     }
 
-    protected static function getCurrentTimestamp(): int
+    /**
+     * Read from microtime()'s string form: the float form can round down across a
+     * millisecond boundary.
+     */
+    protected static function currentMilliseconds(): int
     {
-        return (int)(microtime(true) * 1000);
-    }
+        [$fraction, $seconds] = explode(' ', microtime());
 
-    protected static function waitForNextTimestamp(int $lastTimestamp): int
-    {
-        $timestamp = self::getCurrentTimestamp();
-        while ($timestamp <= $lastTimestamp) {
-            usleep(100); // Wait 0.1ms
-            $timestamp = self::getCurrentTimestamp();
-        }
-        return $timestamp;
+        return (int) ($seconds . substr($fraction, 2, 3));
     }
 }

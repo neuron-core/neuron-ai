@@ -4,296 +4,106 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests;
 
+use DateTimeImmutable;
 use NeuronAI\UniqueIdGenerator;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
+use Spatie\Fork\Fork;
 
+use function array_fill;
+use function array_merge;
 use function array_unique;
+use function class_exists;
 use function count;
-use function max;
-use function microtime;
+use function function_exists;
+use function hexdec;
 use function sort;
+use function str_replace;
+use function substr;
 use function usleep;
 
-use const PHP_INT_MAX;
+use const SORT_STRING;
 
 class UniqueIdGeneratorTest extends TestCase
 {
-    protected function setUp(): void
+    protected const UUID_V7 = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+
+    public function test_uuid_follows_the_rfc_9562_version_7_layout(): void
     {
-        // Reset static properties before each test
-        $this->resetStaticProperties();
+        $this->assertMatchesRegularExpression('/^' . self::UUID_V7 . '$/', UniqueIdGenerator::generateUUID());
     }
 
-    protected function tearDown(): void
+    public function test_id_is_the_prefix_followed_by_a_uuid(): void
     {
-        // Clean up after each test
-        $this->resetStaticProperties();
+        $this->assertMatchesRegularExpression('/^msg_' . self::UUID_V7 . '$/', UniqueIdGenerator::generateId('msg_'));
     }
 
-    /**
-     * Reset static properties using reflection
-     */
-    private function resetStaticProperties(): void
+    public function test_uuid_embeds_its_creation_time_in_milliseconds(): void
     {
-        $reflection = new ReflectionClass(UniqueIdGenerator::class);
+        $before = $this->currentMilliseconds();
+        $uuid = UniqueIdGenerator::generateUUID();
+        $after = $this->currentMilliseconds();
 
-        // Reset machineId
-        $machineIdProperty = $reflection->getProperty('machineId');
-        if ($machineIdProperty->isInitialized()) {
-            $machineIdProperty->setValue(null, null);
-        }
+        $timestamp = hexdec(substr(str_replace('-', '', $uuid), 0, 12));
 
-        // Reset sequence
-        $sequenceProperty = $reflection->getProperty('sequence');
-        $sequenceProperty->setValue(null, 0);
-
-        // Reset lastTimestamp
-        $lastTimestampProperty = $reflection->getProperty('lastTimestamp');
-        $lastTimestampProperty->setValue(null, 0);
+        $this->assertGreaterThanOrEqual($before, $timestamp);
+        $this->assertLessThanOrEqual($after, $timestamp);
     }
 
-    /**
-     * Test that generateId returns an integer
-     */
-    public function test_generate_id_returns_integer(): void
-    {
-        $id = UniqueIdGenerator::generateId('id_');
-        $this->assertStringStartsWith('id_', $id);
-    }
-
-    /**
-     * Test that multiple calls generate unique IDs
-     */
-    public function test_generate_multiple_unique_ids(): void
+    public function test_ids_from_later_milliseconds_sort_after_earlier_ones(): void
     {
         $ids = [];
-        $count = 1000;
-
-        for ($i = 0; $i < $count; $i++) {
-            $ids[] = UniqueIdGenerator::generateId('id_');
+        for ($i = 0; $i < 5; $i++) {
+            $ids[] = UniqueIdGenerator::generateId('msg_');
+            usleep(1100);
         }
 
-        // All IDs should be unique
-        $this->assertCount($count, array_unique($ids));
+        $sorted = $ids;
+        sort($sorted, SORT_STRING);
 
-        // All IDs should be positive integers
-        foreach ($ids as $id) {
-            $this->assertStringStartsWith('id_', $id);
-        }
+        $this->assertSame($ids, $sorted);
     }
 
-    /**
-     * Test that IDs are generally increasing (due to timestamp component)
-     */
-    public function test_ids_are_generally_increasing(): void
-    {
-        $id1 = UniqueIdGenerator::generateId();
-
-        // Small delay to ensure different timestamp
-        usleep(1000); // 1ms
-
-        $id2 = UniqueIdGenerator::generateId();
-
-        $this->assertNotEquals($id1, $id2);
-    }
-
-    /**
-     * Test machine ID is within valid range (1-1023)
-     */
-    public function test_machine_id_within_valid_range(): void
-    {
-        $id = (int) UniqueIdGenerator::generateId();
-
-        // Extract machine ID from generated ID
-        $machineId = ($id >> 12) & 1023; // Extract 10 bits for machine ID
-
-        $this->assertGreaterThanOrEqual(1, $machineId);
-        $this->assertLessThanOrEqual(1023, $machineId);
-    }
-
-    /**
-     * Test sequence increments within same millisecond
-     */
-    public function test_sequence_increments_within_same_millisecond(): void
-    {
-        // Generate multiple IDs rapidly to likely hit same millisecond
-        $ids = [];
-        for ($i = 0; $i < 100; $i++) {
-            $ids[] = (int) UniqueIdGenerator::generateId();
-        }
-
-        // Check that we have some IDs with incrementing sequences
-        $sequences = [];
-        foreach ($ids as $id) {
-            $sequence = $id & 4095; // Extract 12 bits for sequence
-            $sequences[] = $sequence;
-        }
-
-        // Should have at least some non-zero sequences if we hit same millisecond
-        $this->assertTrue(max($sequences) > 0 || count(array_unique($sequences)) > 1);
-    }
-
-    /**
-     * Test that machine ID remains consistent across multiple calls
-     */
-    public function test_machine_id_consistency(): void
-    {
-        $id1 = (int) UniqueIdGenerator::generateId();
-        $id2 = (int) UniqueIdGenerator::generateId();
-
-        $machineId1 = ($id1 >> 12) & 1023;
-        $machineId2 = ($id2 >> 12) & 1023;
-
-        $this->assertEquals($machineId1, $machineId2);
-    }
-
-    /**
-     * Test ID bit composition (timestamp + machine + sequence = 64 bits)
-     */
-    public function test_id_bit_composition(): void
-    {
-        $id = (int) UniqueIdGenerator::generateId();
-
-        // Verify ID fits in 64-bit signed integer
-        $this->assertLessThanOrEqual(PHP_INT_MAX, $id);
-
-        // Extract components
-        $timestamp = $id >> 22; // 41 bits
-        $machineId = ($id >> 12) & 1023; // 10 bits
-        $sequence = $id & 4095; // 12 bits
-
-        // Verify ranges
-        $this->assertGreaterThan(0, $timestamp);
-        $this->assertGreaterThanOrEqual(1, $machineId);
-        $this->assertLessThanOrEqual(1023, $machineId);
-        $this->assertGreaterThanOrEqual(0, $sequence);
-        $this->assertLessThanOrEqual(4095, $sequence);
-
-        // Reconstruct ID and verify it matches
-        $reconstructedId = ($timestamp << 22) | ($machineId << 12) | $sequence;
-        $this->assertEquals($id, $reconstructedId);
-    }
-
-    /**
-     * Test sequence overflow handling
-     */
-    public function test_sequence_overflow(): void
-    {
-        // Use reflection to manipulate internal state
-        $reflection = new ReflectionClass(UniqueIdGenerator::class);
-
-        // Set sequence to near overflow
-        $sequenceProperty = $reflection->getProperty('sequence');
-        $sequenceProperty->setValue(null, 4094); // Near max (4095)
-
-        // Set last timestamp to current time
-        $lastTimestampProperty = $reflection->getProperty('lastTimestamp');
-        $currentTime = (int)(microtime(true) * 1000);
-        $lastTimestampProperty->setValue(null, $currentTime);
-
-        // Generate IDs - should handle overflow gracefully
-        $id1 = (int) UniqueIdGenerator::generateId();
-        $id2 = (int) UniqueIdGenerator::generateId();
-
-        $this->assertNotEquals($id1, $id2);
-    }
-
-    /**
-     * Test concurrent generation simulation
-     */
-    public function test_concurrent_generation_simulation(): void
+    public function test_ids_are_unique(): void
     {
         $ids = [];
-        $iterations = 10000;
+        for ($i = 0; $i < 10000; $i++) {
+            $ids[] = UniqueIdGenerator::generateId();
+        }
 
-        for ($i = 0; $i < $iterations; $i++) {
-            $ids[] = (int) UniqueIdGenerator::generateId();
+        $this->assertCount(10000, array_unique($ids));
+    }
 
-            // Occasionally add tiny delays to simulate varying timing
-            if ($i % 100 === 0) {
-                usleep(50);
+    public function test_forked_processes_never_repeat_an_id(): void
+    {
+        if (!function_exists('pcntl_fork') || !class_exists(Fork::class)) {
+            $this->markTestSkipped('Forking requires the pcntl extension and spatie/fork.');
+        }
+
+        // Children inherit whatever state the parent's earlier IDs left behind.
+        UniqueIdGenerator::generateId();
+        $start = $this->currentMilliseconds() + 50;
+
+        $batches = Fork::new()->run(...array_fill(0, 4, function () use ($start): array {
+            // Start together, so the children generate within the same milliseconds.
+            while ($this->currentMilliseconds() < $start) {
+                usleep(100);
             }
-        }
 
-        // All should be unique
-        $this->assertCount($iterations, array_unique($ids));
-
-        // Should be generally sorted (allowing for some same-millisecond variations)
-        $sortedIds = $ids;
-        sort($sortedIds);
-
-        // Calculate how many are in correct order
-        $correctOrder = 0;
-        for ($i = 0; $i < count($ids) - 1; $i++) {
-            if ($ids[$i] <= $ids[$i + 1]) {
-                $correctOrder++;
+            $ids = [];
+            while ($this->currentMilliseconds() < $start + 5) {
+                $ids[] = UniqueIdGenerator::generateId();
             }
-        }
 
-        // Should be mostly in order (>90%)
-        $orderPercentage = $correctOrder / (count($ids) - 1);
-        $this->assertGreaterThan(0.9, $orderPercentage);
+            return $ids;
+        }));
+
+        $ids = array_merge(...$batches);
+
+        $this->assertCount(count($ids), array_unique($ids));
     }
 
-    /**
-     * Test timestamp extraction and validation
-     */
-    public function test_timestamp_extraction(): void
+    protected function currentMilliseconds(): int
     {
-        $beforeTime = (int)(microtime(true) * 1000);
-        $id = (int) UniqueIdGenerator::generateId();
-        $afterTime = (int)(microtime(true) * 1000);
-
-        $extractedTimestamp = $id >> 22;
-
-        $this->assertGreaterThanOrEqual($beforeTime, $extractedTimestamp);
-        $this->assertLessThanOrEqual($afterTime, $extractedTimestamp);
-    }
-
-    /**
-     * Test performance - should generate IDs quickly
-     */
-    public function test_performance(): void
-    {
-        $startTime = microtime(true);
-        $count = 1000;
-
-        for ($i = 0; $i < $count; $i++) {
-            UniqueIdGenerator::generateId();
-        }
-
-        $endTime = microtime(true);
-        $duration = $endTime - $startTime;
-
-        // Should generate 1000 IDs in less than 1 second
-        $this->assertLessThan(1.0, $duration);
-
-        // Should average less than 1ms per ID
-        $averageTime = ($duration * 1000) / $count;
-        $this->assertLessThan(1.0, $averageTime);
-    }
-
-    /**
-     * Test that static properties maintain state correctly
-     */
-    public function test_static_state_management(): void
-    {
-        // Generate first ID
-        $id1 = (int) UniqueIdGenerator::generateId();
-
-        // Use reflection to check machine ID was set
-        $reflection = new ReflectionClass(UniqueIdGenerator::class);
-        $machineIdProperty = $reflection->getProperty('machineId');
-
-        $this->assertTrue($machineIdProperty->isInitialized());
-
-        // Generate second ID - should use the same machine ID
-        $id2 = (int) UniqueIdGenerator::generateId();
-
-        $machineId1 = ($id1 >> 12) & 1023;
-        $machineId2 = ($id2 >> 12) & 1023;
-
-        $this->assertEquals($machineId1, $machineId2);
+        return (int) (new DateTimeImmutable())->format('Uv');
     }
 }
