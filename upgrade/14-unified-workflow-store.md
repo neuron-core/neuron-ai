@@ -153,34 +153,33 @@ OrderWorkflow::make(orderId: $orderId)->setPersistence($persistence)->resume($pa
 ## Required migration
 
 `DatabasePersistence` / `EloquentPersistence` users create the new table
-(`partition` and `key` are reserved words in MySQL — quote them):
+(`partition` and `key` are reserved words in MySQL — quote them). Partition
+names and keys are stored hex-encoded, so their 255-byte limit needs 510
+characters; values are base64-encoded. On MySQL, ASCII identifiers keep the
+composite primary key within InnoDB's 3072-byte limit, and `LONGTEXT` holds
+states beyond `TEXT`'s 64 KB:
 
 ```sql
 -- ANSI (PostgreSQL, SQLite)
 CREATE TABLE workflow_store (
-    "partition" VARCHAR(255) NOT NULL,
-    "key"       VARCHAR(255) NOT NULL,
+    "partition" VARCHAR(510) NOT NULL,
+    "key"       VARCHAR(510) NOT NULL,
     "value"     TEXT NOT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("partition", "key")
 );
 
--- MySQL / MariaDB
+-- MySQL / MariaDB (strict SQL mode)
 CREATE TABLE workflow_store (
-    `partition` VARCHAR(255) NOT NULL,
-    `key`       VARCHAR(255) NOT NULL,
-    `value`     TEXT NOT NULL,
+    `partition` VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `key`       VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `value`     LONGTEXT CHARACTER SET ascii NOT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`partition`, `key`)
-);
+) ENGINE=InnoDB;
 ```
-
-Existing `workflow_steps` data is shape-identical (`run_id`→`partition`,
-`step_id`→`key`, `result`→`value`), so in-flight runs can survive via a
-rename migration — but note the record-format change below before relying on
-that.
 
 `EloquentPersistence` takes a model class and uses native model queries and mutations.
 For its table, replace the composite primary key shown above with a normal model

@@ -19,6 +19,7 @@ use function fileperms;
 use function file_put_contents;
 use function is_dir;
 use function json_encode;
+use function mkdir;
 use function rmdir;
 use function scandir;
 use function str_repeat;
@@ -285,9 +286,21 @@ class PersistenceContractTest extends TestCase
         $this->assertNull($first->get('workflow', 'step'));
     }
 
+    public function test_file_backend_creates_its_directory_on_first_write(): void
+    {
+        $store = new FilePersistence($this->directory);
+        $this->assertNull($store->get('workflow', '__control'));
+        $this->assertDirectoryDoesNotExist($this->directory);
+
+        $this->assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner'));
+
+        $this->assertDirectoryExists($this->directory);
+        $this->assertSame('owner', $store->get('workflow', '__control'));
+    }
+
     public function test_file_backend_reads_the_legacy_json_map(): void
     {
-        new FilePersistence($this->directory);
+        mkdir($this->directory, 0o700);
         file_put_contents($this->directory . '/workflow.store', json_encode([
             '__control' => 'attempt-1',
             'step' => 'result',
@@ -301,7 +314,7 @@ class PersistenceContractTest extends TestCase
 
     public function test_file_backend_rejects_corrupted_partitions(): void
     {
-        new FilePersistence($this->directory);
+        mkdir($this->directory, 0o700);
         file_put_contents($this->directory . '/corrupt.store', '{invalid');
 
         $this->expectException(\NeuronAI\Exceptions\PersistenceException::class);

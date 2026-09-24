@@ -42,9 +42,6 @@ class FilePersistence implements PersistenceInterface
     public function __construct(
         protected string $directory,
     ) {
-        if (!is_dir($this->directory) && !mkdir($this->directory, 0o700, true)) {
-            throw new WorkflowException("Unable to create directory '{$this->directory}'");
-        }
     }
 
     public function get(string $partition, string $key): ?string
@@ -175,6 +172,10 @@ class FilePersistence implements PersistenceInterface
                 $e->getCode(),
                 previous: $e,
             );
+        }
+
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o700, true) && !is_dir($this->directory)) {
+            throw new WorkflowException("Unable to create directory '{$this->directory}'");
         }
 
         $temporaryPath = @tempnam($this->directory, '.workflow-');

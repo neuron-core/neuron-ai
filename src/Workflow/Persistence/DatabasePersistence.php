@@ -22,6 +22,10 @@ use function strlen;
  * belongs to the backend: serializers and callers may supply arbitrary bytes.
  * Identifiers support up to 255 bytes before encoding.
  *
+ * The PDO must use PDO::ERRMODE_EXCEPTION, the default since PHP 8. Inside a
+ * transaction the application opened on it, each operation runs in a savepoint
+ * and commits or rolls back with the enclosing transaction.
+ *
  * PostgreSQL / SQLite:
  * CREATE TABLE workflow_store (
  *     "partition" VARCHAR(510) NOT NULL,
@@ -42,26 +46,28 @@ use function strlen;
  */
 class DatabasePersistence implements PersistenceInterface
 {
+    protected const SAVEPOINT = 'neuron_workflow';
+
     protected string $driver;
     protected bool $mysql;
+    protected bool $strictModeVerified = false;
     protected string $partitionCol;
     protected string $keyCol;
     protected string $valueCol;
 
+    /**
+     * @throws PersistenceException
+     */
     public function __construct(
         protected PDO $pdo,
         protected string $table = 'workflow_store',
     ) {
+        if ($this->pdo->getAttribute(PDO::ATTR_ERRMODE) !== PDO::ERRMODE_EXCEPTION) {
+            throw new PersistenceException('Workflow persistence requires the PDO error mode PDO::ERRMODE_EXCEPTION, so that no failed write passes unnoticed.');
+        }
+
         $this->driver = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         $this->mysql = $this->driver === 'mysql';
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-        if ($this->mysql) {
-            $mode = (string) $this->pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn();
-            if (!str_contains($mode, 'STRICT_TRANS_TABLES') && !str_contains($mode, 'STRICT_ALL_TABLES')) {
-                throw new PersistenceException('Workflow persistence requires MySQL strict SQL mode to prevent truncated records.');
-            }
-        }
 
         $quote = $this->mysql ? '`' : '"';
         $this->table = $quote . str_replace($quote, $quote . $quote, $this->table) . $quote;
@@ -122,6 +128,7 @@ class DatabasePersistence implements PersistenceInterface
         array $writes = [],
         bool $deletePartition = false,
     ): bool {
+        $this->verifyStrictMode();
         $partition = $this->encodeKey($partition);
         $initialValue = null;
         if ($expectedValue === null) {
@@ -136,7 +143,7 @@ class DatabasePersistence implements PersistenceInterface
             $encoded[] = [$this->encodeKey((string) $key), base64_encode($value)];
         }
 
-        return $this->transaction(function () use ($partition, $conditionKey, $expectedValue, $initialValue, $encoded, $deletePartition): bool {
+        return $this->atomically(function () use ($partition, $conditionKey, $expectedValue, $initialValue, $encoded, $deletePartition): bool {
             if ($initialValue !== null) {
                 if (!$this->insertIfAbsent($partition, $conditionKey, $initialValue)) {
                     return false;
@@ -210,6 +217,30 @@ class DatabasePersistence implements PersistenceInterface
         }
     }
 
+    /**
+     * The supplied PDO keeps one session, so a single check covers every write.
+     *
+     * @throws PersistenceException
+     */
+    protected function verifyStrictMode(): void
+    {
+        if (!$this->mysql || $this->strictModeVerified) {
+            return;
+        }
+
+        $mode = (string) $this->pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn();
+        if (!str_contains($mode, 'STRICT_TRANS_TABLES') && !str_contains($mode, 'STRICT_ALL_TABLES')) {
+            throw new PersistenceException('Workflow persistence requires MySQL strict SQL mode to prevent truncated records.');
+        }
+
+        $this->strictModeVerified = true;
+    }
+
+    protected function atomically(Closure $operation): bool
+    {
+        return $this->pdo->inTransaction() ? $this->savepoint($operation) : $this->transaction($operation);
+    }
+
     protected function transaction(Closure $operation): bool
     {
         $this->pdo->beginTransaction();
@@ -223,6 +254,35 @@ class DatabasePersistence implements PersistenceInterface
                 $this->pdo->rollBack();
             }
             throw $e;
+        }
+    }
+
+    /**
+     * The application's transaction owns the commit; the savepoint lets a failed
+     * operation undo only its own writes.
+     */
+    protected function savepoint(Closure $operation): bool
+    {
+        $this->pdo->exec('SAVEPOINT ' . self::SAVEPOINT);
+        try {
+            $result = $operation();
+            $this->pdo->exec('RELEASE SAVEPOINT ' . self::SAVEPOINT);
+
+            return $result;
+        } catch (Throwable $e) {
+            $this->rollBackToSavepoint();
+            throw $e;
+        }
+    }
+
+    protected function rollBackToSavepoint(): void
+    {
+        try {
+            $this->pdo->exec('ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT);
+            $this->pdo->exec('RELEASE SAVEPOINT ' . self::SAVEPOINT);
+        } catch (PDOException) {
+            // A MySQL deadlock already rolled back the enclosing transaction, savepoint
+            // included: the operation's own failure is the one to report.
         }
     }
 

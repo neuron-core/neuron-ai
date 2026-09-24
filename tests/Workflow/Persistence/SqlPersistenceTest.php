@@ -98,6 +98,12 @@ class SqlPersistenceTest extends TestCase
         return $backends;
     }
 
+    /** @return array<string, array{string}> */
+    public static function driverProvider(): array
+    {
+        return ['sqlite' => ['sqlite'], 'mysql' => ['mysql'], 'pgsql' => ['pgsql']];
+    }
+
     /** @dataProvider backendProvider */
     public function test_binary_values_and_distinct_identifiers_round_trip(string $driver, bool $eloquent): void
     {
@@ -174,15 +180,81 @@ class SqlPersistenceTest extends TestCase
         self::assertNull($store->get('workflow', 'step'));
     }
 
-    public function test_mysql_requires_strict_mode(): void
+    /** @dataProvider driverProvider */
+    public function test_database_commits_remain_inside_the_callers_transaction(string $driver): void
+    {
+        $store = $this->backend($driver, false);
+        $this->pdo->beginTransaction();
+        try {
+            self::assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner', ['step' => 'value']));
+            self::assertTrue($this->pdo->inTransaction());
+            self::assertSame('value', $store->get('workflow', 'step'));
+        } finally {
+            $this->pdo->rollBack();
+        }
+        self::assertNull($store->get('workflow', '__control'));
+        self::assertNull($store->get('workflow', 'step'));
+    }
+
+    /** @dataProvider driverProvider */
+    public function test_a_failed_operation_undoes_only_its_own_writes_in_the_callers_transaction(string $driver): void
+    {
+        $store = $this->backend($driver, false);
+        $this->pdo->beginTransaction();
+        try {
+            self::assertTrue($store->initializeIfAbsent('earlier', '__control', 'owner'));
+            try {
+                $store->initializeIfAbsent('workflow', '__control', 'owner', ['step' => 'forbidden']);
+                self::fail('Expected the related record to violate the check constraint.');
+            } catch (PDOException) {
+                self::assertNull($store->get('workflow', '__control'));
+            }
+            self::assertTrue($store->writeIfUnchanged('earlier', '__control', 'owner', ['step' => 'value']));
+            $this->pdo->commit();
+        } finally {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        }
+        self::assertSame('value', $store->get('earlier', 'step'));
+        self::assertNull($store->get('workflow', '__control'));
+    }
+
+    public function test_an_operation_that_loses_the_callers_transaction_reports_its_own_failure(): void
+    {
+        $store = $this->backend('sqlite', false);
+        // RAISE(ROLLBACK) ends the enclosing transaction, as a MySQL deadlock does.
+        $this->pdo->exec("CREATE TRIGGER lose_transaction BEFORE INSERT ON {$this->table} BEGIN SELECT RAISE(ROLLBACK, 'deadlock victim'); END");
+        $this->pdo->beginTransaction();
+
+        $this->expectException(PDOException::class);
+        $this->expectExceptionMessage('deadlock victim');
+        $store->initializeIfAbsent('workflow', '__control', 'owner');
+    }
+
+    public function test_database_rejects_a_silent_pdo_without_changing_its_error_mode(): void
+    {
+        $this->pdo = SqlPersistenceFactory::connect('sqlite', $this->sqliteFile);
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+        try {
+            new DatabasePersistence($this->pdo, $this->table);
+            self::fail('Expected a PDO outside exception mode to be rejected.');
+        } catch (PersistenceException $e) {
+            self::assertStringContainsString('ERRMODE_EXCEPTION', $e->getMessage());
+        }
+        self::assertSame(PDO::ERRMODE_SILENT, $this->pdo->getAttribute(PDO::ATTR_ERRMODE));
+    }
+
+    public function test_database_checks_mysql_strict_mode_at_the_first_write(): void
     {
         $this->backend('mysql', false);
         $mode = $this->pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn();
         $this->pdo->exec("SET SESSION sql_mode = ''");
         try {
+            $store = new DatabasePersistence($this->pdo, $this->table);
             $this->expectException(PersistenceException::class);
             $this->expectExceptionMessage('strict SQL mode');
-            new DatabasePersistence($this->pdo, $this->table);
+            $store->initializeIfAbsent('workflow', 'control', 'owner');
         } finally {
             $this->pdo->exec('SET SESSION sql_mode = ' . $this->pdo->quote($mode));
         }

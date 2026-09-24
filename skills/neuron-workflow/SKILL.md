@@ -231,10 +231,10 @@ Configure context-aware resource factories on the definition before invoking the
 use NeuronAI\Workflow\Persistence\DatabasePersistence;use NeuronAI\Workflow\Persistence\EloquentPersistence;use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\RedisPersistence;
 
-// File system — directory is auto-created if it doesn't exist
+// File system — the directory is created on the first write
 $persistence = new FilePersistence('/path/to/storage');
 
-// Database via PDO — requires a workflow_store table
+// Database via a PDO in exception mode — requires a workflow_store table
 $persistence = new DatabasePersistence($pdo);
 
 // Eloquent model — requires a model with partition, key, value columns
@@ -248,6 +248,10 @@ $persistence = new RedisPersistence($redis, prefix: 'neuron:workflow:');
 
 For multiple workers, use `DatabasePersistence`, `EloquentPersistence`, or
 `RedisPersistence`. File storage is for controlled single-process use.
+
+Inside a transaction your application opened on the same connection, the SQL
+backends join it: each operation runs in a savepoint and commits or rolls back
+with your transaction, so tests wrapped in a transaction work unchanged.
 
 Redis stores each workflow partition in one hash and uses Lua scripts for atomic
 conditional writes and deletion. Pass a connected `\Redis` client outside a
@@ -294,17 +298,34 @@ suspended run holds no lease, so a pause never expires on its own.
 
 ### Database Table Schema
 
-When using `DatabasePersistence`, create the single store table (`partition`
-and `key` are reserved words in MySQL — quote them with backticks there):
+When using `DatabasePersistence`, create the single store table. Partition names
+and keys are stored hex-encoded, so their 255-byte limit needs 510 characters;
+values are base64-encoded.
+
+PostgreSQL / SQLite:
 
 ```sql
 CREATE TABLE workflow_store (
-    "partition" VARCHAR(255) NOT NULL,
-    "key"       VARCHAR(255) NOT NULL,
+    "partition" VARCHAR(510) NOT NULL,
+    "key"       VARCHAR(510) NOT NULL,
     "value"     TEXT NOT NULL,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY ("partition", "key")
 );
+```
+
+MySQL / MariaDB, in strict SQL mode. ASCII identifiers keep the composite primary
+key within InnoDB's 3072-byte limit, and `LONGTEXT` holds states beyond `TEXT`'s
+64 KB:
+
+```sql
+CREATE TABLE workflow_store (
+    `partition` VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `key`       VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `value`     LONGTEXT CHARACTER SET ascii NOT NULL,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`partition`, `key`)
+) ENGINE=InnoDB;
 ```
 
 `EloquentPersistence` takes a model class and uses native model queries and mutations.
