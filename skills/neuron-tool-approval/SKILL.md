@@ -169,7 +169,7 @@ function pendingApprovalsEndpoint(string $threadId): array
 
 Reach for it when:
 
-- **The client models approvals apart from messages.** AG-UI delivers them as interrupts on `RUN_FINISHED`, not as entries of the message list, so after a page refresh there is no message to restore them from. Serve `pendingApprovals()` on mount and rebuild the interrupt UI from it.
+- **The client models approvals apart from messages.** AG-UI delivers them as interrupts on `RUN_FINISHED`, not as entries of the message list, so after a page refresh there is no message to restore them from. An AG-UI client gets them back, in the shape the live stream sent, from `AGUIAdapter::hydrate()` (see **neuron-frontend-integration**); any other client can serve `pendingApprovals()` on mount and rebuild the interrupt UI from it.
 - **You submit per click.** Unlike the history tail, the persisted request reflects the decisions delivered so far: an action already approved or rejected is no longer returned, so the reloaded page shows only what is still open.
 
 A client that renders from the message list (the JSON above, or Vercel `approval-requested` parts) can keep reading the tail.

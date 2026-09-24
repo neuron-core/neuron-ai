@@ -12,25 +12,47 @@ use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StreamEventInterface;
+use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\UniqueIdGenerator;
+use NeuronAI\Workflow\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Streaming\Adapter\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Adapter\MapsStreamEvents;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
+use NeuronAI\Workflow\WorkflowRunSnapshot;
+use NeuronAI\Workflow\WorkflowStatus;
 use Throwable;
 
+use function array_filter;
+use function array_key_exists;
+use function array_map;
+use function implode;
+use function in_array;
+use function is_string;
 use function json_encode;
 use function array_values;
 
@@ -59,6 +81,9 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
 
     /** @var array<string, bool> */
     protected array $toolCallStarted = [];
+
+    /** @var array<string, string> Tool call ID to the ID of the message holding the call */
+    protected array $parentMessageIds = [];
 
     /** @var array<string, bool> Started tool calls whose TOOL_CALL_END was not emitted yet */
     protected array $openToolCalls = [];
@@ -110,6 +135,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         $this->runFailed = false;
         $this->finished = false;
         $this->toolCallIds = [];
+        $this->parentMessageIds = [];
         $this->openToolCalls = [];
         $this->argumentDeltas = [];
         $this->reasoningStarted = false;
@@ -289,17 +315,17 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
 
     protected function handleToolCall(ToolCallChunk $chunk): iterable
     {
-        $this->resolveToolCallId($chunk);
+        $this->parentMessageIds[$this->resolveToolCallId($chunk->tool)] = $chunk->messageId;
         return [];
     }
 
     protected function publishToolCall(ToolCall $call): iterable
     {
-        $toolCallId = $this->resolveToolCallId(new ToolCallChunk($call));
+        $toolCallId = $this->resolveToolCallId($call);
         if (isset($this->toolCallStarted[$toolCallId])) {
             return;
         }
-        $parentMessageId = $this->currentMessageId ?? UniqueIdGenerator::generateId('msg_');
+        $parentMessageId = $this->parentMessageIds[$toolCallId] ?? $this->currentMessageId ?? UniqueIdGenerator::generateId('msg_');
         foreach ($this->endReasoning() as $frame) {
             yield $frame;
         }
@@ -309,8 +335,8 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         foreach ($this->startToolCall($toolCallId, $call->getName(), $parentMessageId) as $frame) {
             yield $frame;
         }
-        $arguments = json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR);
-        foreach ($this->argumentDeltas[$toolCallId] ?? [$arguments] as $delta) {
+        $toolCall = $this->toolCall($toolCallId, $call);
+        foreach ($this->argumentDeltas[$toolCallId] ?? [$toolCall['function']['arguments']] as $delta) {
             yield new ProtocolEvent('TOOL_CALL_ARGS', ['toolCallId' => $toolCallId, 'delta' => $delta]);
         }
         unset($this->argumentDeltas[$toolCallId]);
@@ -318,40 +344,57 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             yield $frame;
         }
         $this->messages[$parentMessageId] ??= ['id' => $parentMessageId, 'role' => 'assistant', 'content' => ''];
-        $this->messages[$parentMessageId]['toolCalls'][] = [
-            'id' => $toolCallId,
-            'type' => 'function',
-            'function' => ['name' => $call->getName(), 'arguments' => $arguments],
-        ];
+        $this->messages[$parentMessageId]['toolCalls'][] = $toolCall;
     }
 
     protected function handleToolResult(ToolResultChunk $chunk): iterable
     {
-        $toolCallId = $this->resolveToolCallId($chunk);
+        $toolCallId = $this->resolveToolCallId($chunk->tool);
         if (isset($this->knownResults[$toolCallId])) {
             return;
         }
         foreach ($this->publishToolCall($chunk->tool) as $frame) {
             yield $frame;
         }
-        $result = $chunk->tool->getResult();
-        $id = UniqueIdGenerator::generateId('msg_');
-        $message = [
-            'id' => $id, 'role' => 'tool', 'toolCallId' => $toolCallId, 'content' => (string) $result,
-        ];
-        if ($result instanceof ToolOutput && $result->isError()) {
-            $message['error'] = $result->getText();
-        }
+        $message = $this->toolResult($toolCallId, $chunk->tool->getResult());
+        $id = $message['id'];
         $this->messages[$id] = $message;
         $this->knownResults[$toolCallId] = true;
         unset($message['id']);
         yield new ProtocolEvent('TOOL_CALL_RESULT', ['messageId' => $id, ...$message]);
     }
 
-    protected function resolveToolCallId(ToolCallChunk|ToolResultChunk $chunk): string
+    /**
+     * @return array{id: string, type: string, function: array{name: string, arguments: string}}
+     * @throws JsonException
+     */
+    protected function toolCall(string $toolCallId, ToolCall $call): array
     {
-        $toolName = $chunk->tool->getName();
-        $toolCallId = $chunk->tool->getCallId()
+        return [
+            'id' => $toolCallId,
+            'type' => 'function',
+            'function' => ['name' => $call->getName(), 'arguments' => json_encode((object) $call->getInputs(), JSON_THROW_ON_ERROR)],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function toolResult(string $toolCallId, string|ToolOutput|null $result): array
+    {
+        // Derived from the call, so a reload rebuilds the same ID from the stored result.
+        $message = ['id' => 'result_' . $toolCallId, 'role' => 'tool', 'toolCallId' => $toolCallId, 'content' => (string) $result];
+        if ($result instanceof ToolOutput && $result->isError()) {
+            $message['error'] = $result->getText();
+        }
+
+        return $message;
+    }
+
+    protected function resolveToolCallId(ToolCall $call): string
+    {
+        $toolName = $call->getName();
+        $toolCallId = $call->getCallId()
             ?? $this->toolCallIds[$toolName]
             ?? UniqueIdGenerator::generateId('call_');
         $this->toolCallIds[$toolName] = $toolCallId;
@@ -446,19 +489,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
                 }
             }
         } elseif ($request instanceof ApprovalRequest) {
-            foreach ($request->getActions() as $action) {
-                $interrupts[] = $this->withExpiry([
-                    'id' => $action->id,
-                    'reason' => 'confirmation',
-                    'message' => $action->reason ?? $request->getMessage(),
-                    'responseSchema' => [
-                        'type' => 'object',
-                        'properties' => ['approved' => ['type' => 'boolean'], 'reason' => ['type' => 'string']],
-                        'required' => ['approved'],
-                    ],
-                    'metadata' => $action->jsonSerialize(),
-                ], $request);
-            }
+            $interrupts = $this->confirmations($request);
         } else {
             $interrupts[] = $this->interruption($request);
         }
@@ -477,6 +508,200 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             'runId' => $this->runId,
             'outcome' => ['type' => 'interrupt', 'interrupts' => $interrupts],
         ]);
+    }
+
+    /**
+     * What a client held when the live stream ended, rebuilt from storage for a page
+     * reload: `messages` seed the client's initial messages, `interrupts` its pending
+     * interrupts. Pass the run's snapshot only with the latest page; older pages take null.
+     *
+     * @param Message[] $messages Stored messages in insertion order.
+     * @return array{messages: list<array<string, mixed>>, interrupts: list<array<string, mixed>>}
+     * @throws JsonException
+     * @throws WorkflowException
+     */
+    public function hydrate(array $messages, ?WorkflowRunSnapshot $run): array
+    {
+        $messages = [...$messages, ...$this->uncommittedInput($messages, $run)];
+        $waiting = $run?->status === WorkflowStatus::Suspended ? $run->interrupt : null;
+
+        // Frontend calls a suspended run waits on: null while pending, else the accepted result.
+        $dispatched = [];
+        if ($waiting instanceof ToolResultsRequest) {
+            foreach ($waiting->getToolCalls() as $call) {
+                $dispatched[$call->getCallId()] = null;
+            }
+            foreach ($waiting->getResults() as $callId => $result) {
+                $dispatched[$callId] = $this->acceptedResult($result);
+            }
+        }
+        $answered = [];
+        foreach ($messages as $message) {
+            foreach ($message instanceof ToolResultMessage ? $message->getToolCalls() : [] as $call) {
+                $answered[$call->getCallId()] = true;
+            }
+        }
+
+        $hydrated = [];
+        foreach ($messages as $message) {
+            if ($message instanceof ToolResultMessage) {
+                foreach ($message->getToolCalls() as $call) {
+                    $hydrated[] = $this->toolResult((string) $call->getCallId(), $call->getResult());
+                }
+            } elseif ($message instanceof AssistantMessage) {
+                // On the latest page only the batch in progress lacks results. Like the live
+                // stream, publish its calls once dispatched to the frontend, never before.
+                $calls = array_filter(
+                    $message instanceof ToolCallMessage ? $message->getToolCalls() : [],
+                    static fn (ToolCall $call): bool => !$run instanceof WorkflowRunSnapshot
+                        || isset($answered[$call->getCallId()])
+                        || array_key_exists((string) $call->getCallId(), $dispatched),
+                );
+                $hydrated = [...$hydrated, ...$this->assistant($message, $calls)];
+                foreach ($calls as $call) {
+                    if (isset($dispatched[$call->getCallId()])) {
+                        $hydrated[] = $this->toolResult((string) $call->getCallId(), $dispatched[$call->getCallId()]);
+                    }
+                }
+            } else {
+                $hydrated[] = ['id' => $message->getId(), 'role' => $message->getRole(), 'content' => $this->content($message)];
+            }
+        }
+
+        return [
+            'messages' => $hydrated,
+            'interrupts' => match (true) {
+                $waiting === null => [],
+                $waiting instanceof ApprovalRequest => $this->confirmations($waiting),
+                default => [$this->interruption($waiting)],
+            },
+        ];
+    }
+
+    /**
+     * The run's input not yet in history: a user message is written only after the
+     * run's first inference succeeds, and keeps its ID when it is.
+     *
+     * @param Message[] $messages
+     * @return Message[]
+     */
+    protected function uncommittedInput(array $messages, ?WorkflowRunSnapshot $run): array
+    {
+        if (!$run instanceof WorkflowRunSnapshot || $run->status === WorkflowStatus::Completed || !$run->startEvent instanceof AgentStartEvent) {
+            return [];
+        }
+        $stored = array_map(static fn (Message $message): string => $message->getId(), $messages);
+
+        return array_filter($run->startEvent->messages, static fn (Message $message): bool => !in_array($message->getId(), $stored, true));
+    }
+
+    /**
+     * @param ToolCall[] $calls The calls the client may see.
+     * @return list<array<string, mixed>>
+     * @throws JsonException
+     */
+    protected function assistant(AssistantMessage $message, array $calls): array
+    {
+        $hydrated = [];
+        $reasoning = implode('', array_map(
+            static fn (ContentBlockInterface $block): string => $block->getContent(),
+            array_filter($message->getContentBlocks(), static fn (ContentBlockInterface $block): bool => $block instanceof ReasoningContent),
+        ));
+        if ($reasoning !== '') {
+            $hydrated[] = ['id' => 'reasoning_' . $message->getId(), 'role' => 'reasoning', 'content' => $reasoning];
+        }
+        if ($message->getContent() !== null || $calls !== []) {
+            $assistant = ['id' => $message->getId(), 'role' => 'assistant', 'content' => $message->getContent() ?? ''];
+            if ($calls !== []) {
+                $assistant['toolCalls'] = array_values(array_map(
+                    fn (ToolCall $call): array => $this->toolCall((string) $call->getCallId(), $call),
+                    $calls,
+                ));
+            }
+            $hydrated[] = $assistant;
+        }
+
+        return $hydrated;
+    }
+
+    /**
+     * Text stays a plain string; media become AG-UI input parts.
+     *
+     * @return string|list<array<string, mixed>>
+     */
+    protected function content(Message $message): string|array
+    {
+        $parts = array_values(array_filter(array_map($this->part(...), $message->getContentBlocks())));
+        foreach ($parts as $part) {
+            if ($part['type'] !== 'text') {
+                return $parts;
+            }
+        }
+
+        return $message->getContent() ?? '';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function part(ContentBlockInterface $block): ?array
+    {
+        return match (true) {
+            $block instanceof ImageContent => $this->media('image', $block->content, $block->sourceType, $block->mediaType),
+            $block instanceof AudioContent => $this->media('audio', $block->content, $block->sourceType, $block->mediaType),
+            $block instanceof VideoContent => $this->media('video', $block->content, $block->sourceType, $block->mediaType),
+            $block instanceof FileContent => $this->media('document', $block->content, $block->sourceType, $block->mediaType),
+            $block instanceof TextContent && !$block instanceof ReasoningContent => ['type' => 'text', 'text' => $block->content],
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function media(string $type, string $content, SourceType $sourceType, ?string $mediaType): ?array
+    {
+        return match ($sourceType) {
+            SourceType::URL => ['type' => $type, 'source' => ['type' => 'url', 'value' => $content] + ($mediaType === null ? [] : ['mimeType' => $mediaType])],
+            SourceType::BASE64 => ['type' => $type, 'source' => ['type' => 'data', 'value' => $content, 'mimeType' => $mediaType ?? 'application/octet-stream']],
+            // A provider-hosted file ID has no AG-UI form.
+            SourceType::ID => null,
+        };
+    }
+
+    /**
+     * A result accepted from a partial frontend delivery, settled as the waiting node settles it.
+     *
+     * @param array{result?: mixed, error?: string} $result
+     * @throws JsonException
+     */
+    protected function acceptedResult(array $result): string|ToolOutput
+    {
+        if (isset($result['error'])) {
+            return ToolOutput::error($result['error']);
+        }
+
+        return is_string($result['result']) ? $result['result'] : json_encode($result['result'], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * One confirmation per action, answered by the action ID.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function confirmations(ApprovalRequest $request): array
+    {
+        return array_map(fn (Action $action): array => $this->withExpiry([
+            'id' => $action->id,
+            'reason' => 'confirmation',
+            'message' => $action->reason ?? $request->getMessage(),
+            'responseSchema' => [
+                'type' => 'object',
+                'properties' => ['approved' => ['type' => 'boolean'], 'reason' => ['type' => 'string']],
+                'required' => ['approved'],
+            ],
+            'metadata' => $action->jsonSerialize(),
+        ], $request), $request->getActions());
     }
 
     /**

@@ -112,7 +112,7 @@ trait HandleStream
                     $message = $this->createToolCallMessage(
                         $this->streamState->getToolCalls(),
                         $this->streamState->getContentBlocks()
-                    )->setUsage($this->streamState->getUsage());
+                    )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
                     return new ProviderResponse(message: $message);
                 }
 
@@ -163,7 +163,7 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        $message->setUsage($this->streamState->getUsage());
+        $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
         if ($lastFinishReason !== null) {
             $message->setStopReason($lastFinishReason);

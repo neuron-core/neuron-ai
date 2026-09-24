@@ -154,7 +154,7 @@ class OpenAITextToSpeech implements AIProviderInterface
         $message = new AssistantMessage(
             new AudioContent($content, SourceType::BASE64)
         );
-        $message->setUsage($usage);
+        $message->setId($msgId)->setUsage($usage);
         return new ProviderResponse(message: $message);
     }
 

@@ -88,7 +88,7 @@ class ToolNode extends Node implements AgentNodeInterface
         $approvalGated = $this->resolveToolApprovals($event->toolCallMessage);
 
         $calls = $event->toolCallMessage->getToolCalls();
-        $executed = yield from $this->executeLocalTools($calls);
+        $executed = yield from $this->executeLocalTools($calls, $event->toolCallMessage->getId());
         $deferred = $this->filterDeferredCalls($calls);
 
         if ($deferred !== []) {
@@ -102,7 +102,7 @@ class ToolNode extends Node implements AgentNodeInterface
                     $this->handleError($e, $call);
                     $executed[$index] = $call;
                     unset($deferred[$index]);
-                    yield new ToolCallChunk($call);
+                    yield new ToolCallChunk($event->toolCallMessage->getId(), $call);
                     yield new ToolResultChunk($call);
                     $this->emit(new ToolCalled($call));
                 }
@@ -112,7 +112,7 @@ class ToolNode extends Node implements AgentNodeInterface
                 $this->addToChatHistory($event->toolCallMessage, 'history.toolcall');
                 foreach ($deferred as $call) {
                     $this->emit(new ToolCalling($call));
-                    yield new ToolCallChunk($call);
+                    yield new ToolCallChunk($event->toolCallMessage->getId(), $call);
                 }
 
                 // Go to the deferred tool management node
@@ -395,15 +395,16 @@ class ToolNode extends Node implements AgentNodeInterface
      * Returns locally settled calls, including rejections, with original indexes.
      *
      * @param array<int, ToolCall> $calls
+     * @param string $messageId The ToolCallMessage holding the calls, carried by their chunks.
      * @return Generator<int, ToolCallChunk|ToolResultChunk, mixed, array<int, ToolCall>>
      * @throws Throwable
      * @throws ToolRunsExceededException
      */
-    protected function executeLocalTools(array $calls): Generator
+    protected function executeLocalTools(array $calls, string $messageId): Generator
     {
         $local = array_diff_key($calls, $this->filterDeferredCalls($calls));
         foreach ($local as $index => $call) {
-            yield new ToolCallChunk($call);
+            yield new ToolCallChunk($messageId, $call);
             $this->executeSingleTool($call, $index);
             yield new ToolResultChunk($call);
         }

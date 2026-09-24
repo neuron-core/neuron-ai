@@ -46,7 +46,7 @@ class Message implements JsonSerializable
             $this->setContents($content);
         }
 
-        $this->addMetadata('__id', UniqueIdGenerator::generateId('msg_'));
+        $this->setId(UniqueIdGenerator::generateId('msg_'));
     }
 
     // A copy owns its blocks, so in-place edits (cache flags, content)
@@ -62,6 +62,12 @@ class Message implements JsonSerializable
     public function getId(): string
     {
         return $this->meta['__id'];
+    }
+
+    public function setId(string $id): static
+    {
+        $this->meta['__id'] = $id;
+        return $this;
     }
 
     /**

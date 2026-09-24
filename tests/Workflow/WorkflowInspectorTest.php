@@ -7,7 +7,9 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -71,17 +73,72 @@ class WorkflowInspectorTest extends TestCase
     public function test_explicit_serializer_is_used_by_the_service_and_workflow_convenience_method(): void
     {
         $persistence = new InMemoryPersistence();
-        $persistence->initializeIfAbsent('custom', '__control', 'custom-encoded-control');
+        $persistence->initializeIfAbsent('custom', '__control', 'custom-encoded-control', ['__ignition' => 'custom-encoded-ignition']);
         $serializer = $this->createMock(Serializer::class);
         $serializer->expects(self::never())->method('serialize');
-        $serializer->expects(self::exactly(2))->method('unserialize')->with('custom-encoded-control')
-            ->willReturn(new WorkflowControl('run', WorkflowStatus::Failed, executionAttempt: 3));
+        $serializer->expects(self::exactly(4))->method('unserialize')->willReturnMap([
+            ['custom-encoded-control', new WorkflowControl('run', WorkflowStatus::Failed, executionAttempt: 3)],
+            ['custom-encoded-ignition', new Ignition('run', new StartEvent())],
+        ]);
 
         $snapshot = (new WorkflowInspector($persistence, $serializer))->inspect('custom');
         self::assertNotNull($snapshot);
         self::assertSame(WorkflowStatus::Failed, $snapshot->status);
         self::assertSame(3, $snapshot->executionAttempt);
+        self::assertInstanceOf(StartEvent::class, $snapshot->startEvent);
         self::assertEquals($snapshot, Workflow::make('custom')->setPersistence($persistence)->setSerializer($serializer)->inspect());
+    }
+
+    public function test_each_snapshot_carries_its_own_copy_of_the_start_event(): void
+    {
+        $persistence = new InMemoryPersistence();
+        KeyedWorkflow::make('started')->setPersistence($persistence)->run();
+        $inspector = new WorkflowInspector($persistence);
+
+        $snapshot = $inspector->inspect('started');
+
+        self::assertInstanceOf(StartEvent::class, $snapshot?->startEvent);
+        self::assertNotSame($snapshot->startEvent, $inspector->inspect('started')?->startEvent);
+    }
+
+    public function test_a_run_ending_between_the_two_reads_is_absent(): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(3))->method('get')->willReturnOnConsecutiveCalls(
+            serialize(new WorkflowControl('run_a', WorkflowStatus::Running)),
+            null,
+            null,
+        );
+
+        self::assertNull((new WorkflowInspector($persistence))->inspect('racing'));
+    }
+
+    public function test_a_run_replaced_between_the_two_reads_is_read_again(): void
+    {
+        $replacement = serialize(new WorkflowControl('run_b', WorkflowStatus::Suspended));
+        $ignition = serialize(new Ignition('run_b', new StartEvent()));
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(4))->method('get')->willReturnOnConsecutiveCalls(
+            serialize(new WorkflowControl('run_a', WorkflowStatus::Running)),
+            $ignition,
+            $replacement,
+            $ignition,
+        );
+
+        $snapshot = (new WorkflowInspector($persistence))->inspect('racing');
+
+        self::assertSame('run_b', $snapshot?->runId);
+        self::assertSame(WorkflowStatus::Suspended, $snapshot->status);
+    }
+
+    public function test_a_run_without_its_ignition_record_is_invalid(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $persistence->initializeIfAbsent('corrupt', '__control', serialize(new WorkflowControl('run_a', WorkflowStatus::Suspended)));
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Run 'run_a' for workflow ID 'corrupt' has no ignition record.");
+        (new WorkflowInspector($persistence))->inspect('corrupt');
     }
 
     public function test_invalid_control_type_is_not_reported_as_a_missing_run(): void

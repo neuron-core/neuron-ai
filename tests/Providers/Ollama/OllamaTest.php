@@ -10,6 +10,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
@@ -190,5 +191,22 @@ class OllamaTest extends TestCase
         ];
 
         $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
+    }
+
+    public function test_tool_calls_receive_distinct_ids(): void
+    {
+        $body = '{"model":"llama3.2","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"tool","arguments":{"city":"Rome"}}},{"function":{"name":"tool","arguments":{"city":"Paris"}}}]},"done":true}';
+        $provider = (new Ollama(url: '', model: 'llama3.2'))
+            ->setTools([new ToolStub('tool')])
+            ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create(new MockHandler([
+                new Response(status: 200, body: $body),
+            ]))));
+
+        $message = $provider->chat(new UserMessage('Weather in Rome and Paris?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        [$rome, $paris] = $message->getToolCalls();
+        $this->assertNotNull($rome->getCallId());
+        $this->assertNotSame($rome->getCallId(), $paris->getCallId());
     }
 }

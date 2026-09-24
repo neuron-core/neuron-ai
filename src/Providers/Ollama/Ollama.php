@@ -14,10 +14,9 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\HandleWithTools;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
-use NeuronAI\Tools\ToolCall;
 
-use function array_map;
 use function array_values;
+use function uniqid;
 
 class Ollama implements AIProviderInterface
 {
@@ -76,11 +75,18 @@ class Ollama implements AIProviderInterface
      */
     protected function createToolCallMessage(array $toolCalls, array|string|null $content = null): ToolCallMessage
     {
-        $tools = array_map(
-            fn (array $item): ToolCall => $this->newToolCall($item['function']['name'], null, $item['function']['arguments']),
-            $toolCalls
-        );
+        $tools = [];
+        foreach (array_values($toolCalls) as $index => $item) {
+            // Ollama sends no call id, but the framework treats callId as per-call identity
+            // (memoization, approval decisions, stream protocols): synthesize a locally-unique
+            // one. The mapper never sends it back, since Ollama matches results by tool name.
+            $tools[] = $this->newToolCall(
+                $item['function']['name'],
+                uniqid($item['function']['name'].'_'.$index.'_'),
+                $item['function']['arguments'],
+            );
+        }
 
-        return new ToolCallMessage($content, array_values($tools));
+        return new ToolCallMessage($content, $tools);
     }
 }

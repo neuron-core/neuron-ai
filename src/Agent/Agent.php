@@ -35,6 +35,7 @@ use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\WorkflowExecution;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use Throwable;
 
 use function array_filter;
@@ -373,14 +374,15 @@ class Agent extends Workflow implements AgentInterface
      */
     public function pendingApprovals(): array
     {
-        $request = $this->inspect()?->interrupt;
+        $run = $this->inspect();
 
-        if (!$request instanceof ApprovalRequest) {
+        // An answered request stays attached while its tools run, and after they fail.
+        if ($run?->status !== WorkflowStatus::Suspended || !$run->interrupt instanceof ApprovalRequest) {
             return [];
         }
 
         return array_values(array_filter(
-            $request->getActions(),
+            $run->interrupt->getActions(),
             static fn (Action $action): bool => $action->isPending(),
         ));
     }

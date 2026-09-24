@@ -143,7 +143,7 @@ trait HandleStream
         if ($toolPositions !== []) {
             $message->addMetadata('aws_tool_positions', $toolPositions);
         }
-        $message->setUsage($this->streamState->getUsage());
+        $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
         return new ProviderResponse(message: $message);
     }

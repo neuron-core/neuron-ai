@@ -33,7 +33,6 @@ use function is_array;
 use function is_string;
 use function json_encode;
 use function mb_str_split;
-use function uniqid;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -119,7 +118,7 @@ class FakeAIProvider implements AIProviderInterface
      */
     protected function streamChunks(Message $response): Generator
     {
-        $messageId = uniqid('fake_msg_');
+        $messageId = $response->getId();
 
         foreach ($response->getContentBlocks() as $block) {
             if (!$block instanceof TextContent) {

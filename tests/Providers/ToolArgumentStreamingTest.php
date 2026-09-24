@@ -132,7 +132,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame(['{"city":', '"Rome"}'], array_map(fn (ToolArgumentChunk $chunk): string => $chunk->delta, $argumentChunks));
         $this->assertSame('tool', $argumentChunks[0]->toolName);
         $this->assertSame('toolu_123', $argumentChunks[0]->toolCallId);
-        $this->assertSame('msg_123', $argumentChunks[0]->messageId);
+        $this->assertSame($message->getId(), $argumentChunks[0]->messageId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());
@@ -182,7 +182,7 @@ class ToolArgumentStreamingTest extends TestCase
         $this->assertSame(['{"city":', '"Rome"}'], array_map(fn (ToolArgumentChunk $chunk): string => $chunk->delta, $argumentChunks));
         $this->assertSame('tool', $argumentChunks[0]->toolName);
         $this->assertSame('call_5', $argumentChunks[0]->toolCallId);
-        $this->assertSame('fc_1', $argumentChunks[0]->messageId);
+        $this->assertSame($message->getId(), $argumentChunks[0]->messageId);
 
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame(['city' => 'Rome'], $message->getToolCalls()[0]->getInputs());

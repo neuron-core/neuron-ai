@@ -12,7 +12,6 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-use function array_slice;
 use function count;
 use function implode;
 
@@ -43,8 +42,8 @@ class OpenAIResponsesReasoningStreamTest extends TestCase
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
         $this->assertCount(1, $message->getContentBlocks());
         $this->assertSame(implode('', $fragments), $message->getReasoning()?->content);
-        foreach (array_slice($chunks, 0, count($expected)) as $chunk) {
-            $this->assertSame('rs-test', $chunk->messageId);
+        foreach ($chunks as $chunk) {
+            $this->assertSame($message->getId(), $chunk->messageId);
         }
         if ($completion === 'tools') {
             $this->assertInstanceOf(ToolCallMessage::class, $message);

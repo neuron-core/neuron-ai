@@ -60,12 +60,12 @@ class BasicStreamState
         return $this->usage;
     }
 
-    public function messageId(?string $id = null): string
+    /**
+     * One Neuron ID per stream: every chunk carries it and the returned message
+     * takes it. Vendor IDs are not used, because message IDs deduplicate storage.
+     */
+    public function messageId(): string
     {
-        if ($id !== null) {
-            $this->messageId = $id;
-        }
-
         if (!isset($this->messageId)) {
             $this->messageId = UniqueIdGenerator::generateId('msg_');
         }

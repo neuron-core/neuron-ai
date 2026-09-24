@@ -122,7 +122,7 @@ class AGUIAdapterTest extends TestCase
             $this->assertSame([], iterator_to_array($adapter->transform(new ToolArgumentChunk('msg', 'calculator', $delta, 'call_1')), false));
         }
         $call = new ToolCall('calculator', 'call_1', ['operation' => 'add'], deferred: true);
-        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk($call)), false));
+        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk('msg', $call)), false));
         $events = $this->decode($adapter->interrupt((new ToolResultsRequest([$call]))->withId(1)));
         $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED'], array_column($events, 'type'));
         $this->assertSame('{"operation":"add"}', $events[1]['delta'] . $events[2]['delta']);
@@ -134,7 +134,7 @@ class AGUIAdapterTest extends TestCase
         $adapter = new AGUIAdapter('thread_test');
         iterator_to_array($adapter->transform(new ToolArgumentChunk('msg', 'calculator', '{"operation":"add"}', 'call_1')), false);
         $tool = $this->createMockTool('calculator', ['operation' => 'add'])->setCallId('call_1');
-        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk($tool)), false));
+        $this->assertSame([], iterator_to_array($adapter->transform(new ToolCallChunk('msg', $tool)), false));
         $tool->setResult('42');
         $events = $this->decode($adapter->transform(new ToolResultChunk($tool)));
         $this->assertSame(['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'TOOL_CALL_RESULT'], array_column($events, 'type'));

@@ -81,7 +81,7 @@ trait HandleStream
                     $toolCall = $this->streamState->getToolCall($event['item_id']);
                     if ($delta !== '' && $toolCall !== null) {
                         yield new ToolArgumentChunk(
-                            $event['item_id'],
+                            $this->streamState->messageId(),
                             $toolCall['name'],
                             $delta,
                             $toolCall['call_id'] ?? null,
@@ -98,7 +98,7 @@ trait HandleStream
                 case 'response.output_text.delta':
                     $content = $event['delta'] ?? '';
                     $this->streamState->updateContentBlock($event['item_id'], $content);
-                    yield new TextChunk($event['item_id'], $content);
+                    yield new TextChunk($this->streamState->messageId(), $content);
                     break;
 
                     /*
@@ -108,14 +108,14 @@ trait HandleStream
                     $content = $event['part']['text'] ?? '';
                     $this->streamState->addContentBlock($event['item_id'], new ReasoningContent($content));
                     if ($content !== '') {
-                        yield new ReasoningChunk($event['item_id'], $content);
+                        yield new ReasoningChunk($this->streamState->messageId(), $content);
                     }
                     break;
                 case 'response.reasoning_summary_text.delta':
                     $content = $event['delta'] ?? '';
                     $this->streamState->updateContentBlock($event['item_id'], $content);
                     if ($content !== '') {
-                        yield new ReasoningChunk($event['item_id'], $content);
+                        yield new ReasoningChunk($this->streamState->messageId(), $content);
                     }
                     break;
 
@@ -143,10 +143,12 @@ trait HandleStream
                         $message = $this->createToolCallMessage(
                             $this->streamState->getToolCalls(),
                             $this->streamState->getContentBlocks(),
-                        )->setUsage($this->streamState->getUsage());
+                        )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
                         return new ProviderResponse(message: $message);
                     }
-                    $message = $this->createAssistantMessage($event['response'])->setUsage($this->streamState->getUsage());
+                    $message = $this->createAssistantMessage($event['response'])
+                        ->setId($this->streamState->messageId())
+                        ->setUsage($this->streamState->getUsage());
                     return new ProviderResponse(message: $message);
 
                 case 'response.failed':
@@ -159,7 +161,8 @@ trait HandleStream
         }
 
         // If we reach here without a response.completed event, return an assistant message
-        return new ProviderResponse(message: new AssistantMessage($this->streamState->getContentBlocks()));
+        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        return new ProviderResponse(message: $message->setId($this->streamState->messageId()));
     }
 
     /**

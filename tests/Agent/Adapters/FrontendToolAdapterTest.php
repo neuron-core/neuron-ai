@@ -67,7 +67,7 @@ class FrontendToolAdapterTest extends TestCase
     {
         $adapter = new VercelAIAdapter();
         $call = new ToolCall('browser', 'a', deferred: true);
-        $preview = $this->decode($adapter->transform(new ToolCallChunk($call)));
+        $preview = $this->decode($adapter->transform(new ToolCallChunk('msg_1', $call)));
         $this->assertNotContains('tool-input-available', array_column($preview, 'type'));
         $frames = iterator_to_array($adapter->interrupt((new ToolResultsRequest([$call]))->withId(1)));
         $events = $this->decode($frames);

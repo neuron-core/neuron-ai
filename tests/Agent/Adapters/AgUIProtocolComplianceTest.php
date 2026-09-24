@@ -110,7 +110,7 @@ class AgUIProtocolComplianceTest extends TestCase
         $adapter = new AGUIAdapter('thread_test');
         $tool = $this->makeTool('search', ['query' => 'test']);
 
-        $callEvents = iterator_to_array($adapter->transform(new ToolCallChunk($tool)));
+        $callEvents = iterator_to_array($adapter->transform(new ToolCallChunk('msg_1', $tool)));
         $tool->setResult('Found 5 results');
         $resultEvents = iterator_to_array($adapter->transform(new ToolResultChunk($tool)));
 
@@ -132,7 +132,7 @@ class AgUIProtocolComplianceTest extends TestCase
         $start = iterator_to_array($adapter->start());
         $text = iterator_to_array($adapter->transform(new TextChunk('msg_1', 'Let me compute')));
         $reasoning = iterator_to_array($adapter->transform(new ReasoningChunk('reason_1', 'Adding numbers')));
-        $call = iterator_to_array($adapter->transform(new ToolCallChunk($tool)));
+        $call = iterator_to_array($adapter->transform(new ToolCallChunk('msg_1', $tool)));
         $tool->setResult('8');
         $result = iterator_to_array($adapter->transform(new ToolResultChunk($tool)));
         $more = iterator_to_array($adapter->transform(new TextChunk('msg_2', 'The answer is 8')));

@@ -32,10 +32,6 @@ trait HandleStream
                 continue;
             }
 
-            if ($line['type'] === 'message-start') {
-                $this->streamState->messageId($line['id']);
-            }
-
             // Capture usage information
             if (!empty($line['usage'])) {
                 $this->streamState->addInputTokens($line['usage']['tokens']['input_tokens'] ?? 0);
@@ -67,7 +63,7 @@ trait HandleStream
                     $this->streamState->getToolCalls(),
                     new TextContent($this->streamState->getToolPlan())
                 );
-                $message->setUsage($this->streamState->getUsage());
+                $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
                 return new ProviderResponse(message: $message);
             }
 
@@ -93,7 +89,7 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        $message->setUsage($this->streamState->getUsage());
+        $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
         return new ProviderResponse(message: $message);
     }

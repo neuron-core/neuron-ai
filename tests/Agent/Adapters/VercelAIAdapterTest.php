@@ -116,7 +116,7 @@ class VercelAIAdapterTest extends TestCase
     {
         iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        $events = $this->decode($this->adapter->transform(new ToolCallChunk($tool)));
+        $events = $this->decode($this->adapter->transform(new ToolCallChunk('msg_123', $tool)));
         $this->assertSame(['text-end', 'tool-input-start', 'tool-input-delta'], array_column($events, 'type'));
         $this->assertSame('calculator', $events[1]['toolName']);
         $this->assertSame('{"operation":"add"}', $events[2]['inputTextDelta']);
@@ -127,7 +127,7 @@ class VercelAIAdapterTest extends TestCase
         // Initialize and call tool first (consume the generators so they execute)
         iterator_to_array($this->adapter->transform(new TextChunk('msg_123', 'init')), false);
         $tool = $this->createMockTool('calculator', ['operation' => 'add']);
-        iterator_to_array($this->adapter->transform(new ToolCallChunk($tool)), false);
+        iterator_to_array($this->adapter->transform(new ToolCallChunk('msg_123', $tool)), false);
 
         // Now send result
         $tool->setResult('42');
@@ -171,7 +171,7 @@ class VercelAIAdapterTest extends TestCase
     {
         iterator_to_array($this->adapter->transform(new ToolArgumentChunk('msg_123', 'calculator', '{}', 'call_1')), false);
         $tool = $this->createMockTool('calculator', []);
-        $this->assertSame([], iterator_to_array($this->adapter->transform(new ToolCallChunk($tool)), false));
+        $this->assertSame([], iterator_to_array($this->adapter->transform(new ToolCallChunk('msg_123', $tool)), false));
         $tool->setResult('42');
         $events = $this->decode($this->adapter->transform(new ToolResultChunk($tool)));
         $this->assertSame('call_1', $events[0]['toolCallId']);

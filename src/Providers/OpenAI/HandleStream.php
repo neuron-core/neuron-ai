@@ -70,8 +70,6 @@ trait HandleStream
                 continue;
             }
 
-            $this->streamState->messageId($line['id'] ?? null);
-
             // Capture usage information
             if (!empty($line['usage'])) {
                 $this->streamState->addInputTokens($line['usage']['prompt_tokens'] ?? 0);
@@ -106,7 +104,7 @@ trait HandleStream
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()
                 );
-                $message->setUsage($this->streamState->getUsage());
+                $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
                 $this->enrichMessage($message);
 
                 return new ProviderResponse(message: $message);
@@ -118,7 +116,7 @@ trait HandleStream
 
         // "enrichMessage" applies streamState metadata
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        $message->setUsage($this->streamState->getUsage());
+        $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
         $this->enrichMessage($message);
 
         return new ProviderResponse(message: $message);

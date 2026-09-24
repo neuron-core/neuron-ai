@@ -209,7 +209,7 @@ class OpenAIImage implements AIProviderInterface
             )
         );
 
-        $result->setUsage($usage);
+        $result->setId($messageId)->setUsage($usage);
 
         return new ProviderResponse(message: $result);
     }

@@ -332,7 +332,8 @@ $snapshot = $inspector->inspect($workflowId);
 The inspector requires only persistence and defaults to `PhpSerializer`. Pass a
 custom serializer as the second argument when the workflow uses one. Each read
 returns a fresh `WorkflowRunSnapshot` containing identity, status, execution
-attempt and the current interruption, or null if there is no persisted control.
+attempt, the current interruption and the run's start event (`startEvent`), or
+null if there is no persisted control.
 Normal completion removes that control; retained completion remains inspectable
 until acknowledged. `$workflow->inspect()` remains available for an already
 configured workflow.

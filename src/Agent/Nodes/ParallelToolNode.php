@@ -57,27 +57,28 @@ class ParallelToolNode extends ToolNode
 
     /**
      * @param array<int, ToolCall> $calls
+     * @param string $messageId The ToolCallMessage holding the calls, carried by their chunks.
      * @return Generator<int, ToolCallChunk|ToolResultChunk, mixed, array<int, ToolCall>>
      * @throws ToolException
      * @throws ToolRunsExceededException
      * @throws Throwable
      */
-    protected function executeLocalTools(array $calls): Generator
+    protected function executeLocalTools(array $calls, string $messageId): Generator
     {
         // Sequential fallbacks: pcntl unavailable (e.g. Windows), spatie/fork
         // not installed, or a single call not worth forking for.
         if (!extension_loaded('pcntl')) {
-            return yield from parent::executeLocalTools($calls);
+            return yield from parent::executeLocalTools($calls, $messageId);
         }
 
         if (!class_exists(Fork::class)) {
-            return yield from parent::executeLocalTools($calls);
+            return yield from parent::executeLocalTools($calls, $messageId);
         }
 
         $calls = array_diff_key($calls, $this->filterDeferredCalls($calls));
 
         if (count($calls) <= 1) {
-            return yield from parent::executeLocalTools($calls);
+            return yield from parent::executeLocalTools($calls, $messageId);
         }
 
         // Only runnable calls enter the concurrent batch; rejected calls
@@ -98,7 +99,7 @@ class ParallelToolNode extends ToolNode
         foreach ($calls as $call) {
             $this->emit(new ToolCalling($call, true));
 
-            yield new ToolCallChunk($call);
+            yield new ToolCallChunk($messageId, $call);
         }
 
         $executedCalls = $rejectedCalls;

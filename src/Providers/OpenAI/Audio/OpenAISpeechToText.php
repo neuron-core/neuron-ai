@@ -155,7 +155,7 @@ class OpenAISpeechToText implements AIProviderInterface
         }
 
         $message = new AssistantMessage($content);
-        $message->setUsage($usage);
+        $message->setId($msgId)->setUsage($usage);
         return new ProviderResponse(message: $message);
     }
 

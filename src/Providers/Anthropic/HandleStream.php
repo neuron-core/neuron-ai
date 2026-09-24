@@ -77,7 +77,8 @@ trait HandleStream
             $message = $this->createToolCallMessage(
                 $this->streamState->getToolCalls(),
                 $this->streamState->getContentBlocks()
-            )->setMetadata($this->streamState->getMetadata())
+            )->setId($this->streamState->messageId())
+             ->setMetadata($this->streamState->getMetadata())
              ->setUsage($this->streamState->getUsage())
              ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
              ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
@@ -86,7 +87,8 @@ trait HandleStream
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
-        $message->setMetadata($this->streamState->getMetadata())
+        $message->setId($this->streamState->messageId())
+            ->setMetadata($this->streamState->getMetadata())
             ->setUsage($this->streamState->getUsage())
             ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
             ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
@@ -100,7 +102,6 @@ trait HandleStream
 
     protected function handleMessageStart(array $message): void
     {
-        $this->streamState->messageId($message['id']);
         $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
         $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
 

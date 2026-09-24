@@ -72,7 +72,7 @@ class AgentChunkAdapterTest extends TestCase
             'image' => [new ImageChunk('msg_1', 'base64-image'), 'image'],
             'audio' => [new AudioChunk('msg_1', 'base64-audio'), 'audio'],
             'tool argument' => [new ToolArgumentChunk('msg_1', 'get_weather', '{"loc', 'call_1'), 'tool-argument'],
-            'tool call' => [new ToolCallChunk($call), 'tool-call'],
+            'tool call' => [new ToolCallChunk('msg_1', $call), 'tool-call'],
             'tool result' => [new ToolResultChunk((clone $call)->setResult('sunny')), 'tool-result'],
         ];
     }
@@ -82,7 +82,7 @@ class AgentChunkAdapterTest extends TestCase
         $call = ToolCall::make('get_weather', 'call_1', ['location' => 'Rome']);
         $adapter = new AgentChunkAdapter();
 
-        $requested = $this->decode($adapter->transform(new ToolCallChunk($call)))[0];
+        $requested = $this->decode($adapter->transform(new ToolCallChunk('msg_1', $call)))[0];
         $settled = $this->decode($adapter->transform(new ToolResultChunk((clone $call)->setResult('sunny'))))[0];
 
         $this->assertSame('call_1', $requested['tool']['callId']);

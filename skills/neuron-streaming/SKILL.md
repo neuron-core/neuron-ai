@@ -190,7 +190,7 @@ Vercel parts are transient, so intermediate information reaches the UI without e
 
 ### Native vocabulary
 
-`AgentChunkAdapter` is stateless and one-to-one: each yielded object becomes one event named after its kind, there are no start or end frames, and unknown objects are ignored. A chunk's payload is its own `toArray()`, so it always includes `messageId` (`null` on tool call and result chunks).
+`AgentChunkAdapter` is stateless and one-to-one: each yielded object becomes one event named after its kind, there are no start or end frames, and unknown objects are ignored. A chunk's payload is its own `toArray()`, so it always includes `messageId`: the ID of the message the chunk belongs to, the `ToolCallMessage` for a tool call chunk, and `null` on tool result chunks.
 
 | Yielded object | Event `type` | `data` |
 |---|---|---|

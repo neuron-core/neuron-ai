@@ -31,7 +31,7 @@ class AlibabaReasoningStreamTest extends TestCase
         $this->assertSame(implode('', $fragments), $message->getReasoning()?->content);
         $this->assertNull($message->getContent());
         foreach ($chunks as $chunk) {
-            $this->assertSame('msg-test', $chunk->messageId);
+            $this->assertSame($message->getId(), $chunk->messageId);
         }
     }
 

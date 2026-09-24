@@ -37,7 +37,7 @@ class CohereReasoningStreamTest extends TestCase
         $this->assertSame(3, $message->getUsage()->inputTokens);
         $this->assertSame(4, $message->getUsage()->outputTokens);
         foreach ($chunks as $chunk) {
-            $this->assertSame('msg-test', $chunk->messageId);
+            $this->assertSame($message->getId(), $chunk->messageId);
         }
     }
 }

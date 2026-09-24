@@ -232,7 +232,9 @@ Approval UI uses `addToolApprovalResponse`; frontend handlers use `addToolOutput
 Cancellation of the HTTP request is not a tool result. Submit an explicit error
 output to settle a cancelled frontend operation. Reloading an in-progress browser
 operation requires application recovery logic; replaying stream frames cannot
-provide exactly-once browser side effects.
+provide exactly-once browser side effects. With AG-UI, `AGUIAdapter::hydrate()`
+restores the waiting calls together with an interrupt the reloaded client resolves
+with results or cancels.
 
 References: [AG-UI tools](https://docs.ag-ui.com/concepts/tools),
 [AG-UI interrupts](https://docs.ag-ui.com/concepts/interrupts),

@@ -32,6 +32,15 @@ class MessageTest extends TestCase
         $this->assertSame('opaque', $message->getMetadata('provider_state'));
     }
 
+    public function test_a_streamed_message_takes_the_id_its_chunks_carried(): void
+    {
+        $message = new AssistantMessage('Hi');
+
+        $message->setId('msg_streamed')->setMetadata(['provider_state' => 'opaque']);
+
+        $this->assertSame('msg_streamed', $message->getId());
+    }
+
     public function test_clone_owns_its_content_blocks(): void
     {
         $block = new SystemContent('Base instructions');

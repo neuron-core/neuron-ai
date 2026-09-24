@@ -203,6 +203,28 @@ Map the eager failures to statuses the client can act on:
 | Vercel part `output-available` with any `output` | `VercelAIInputTranslator` | Objects and arrays as JSON text, `false`/`0`/`null` as `"false"`/`"0"`/`"null"` |
 | Vercel part `output-error` with `errorText` | `VercelAIInputTranslator` | Error result |
 | Vercel part `approval-responded` `{approval: {id, approved, reason?}}` | `VercelAIInputTranslator` | Approve / reject the action |
+| AG-UI `resume[]` resolved with a result map, for the reloaded frontend wait | `AGUIInputTranslator` | The results of the pending calls |
+| AG-UI `resume[]` cancelled, for the reloaded frontend wait | `AGUIInputTranslator` | An error result for every pending call |
+
+### Reloading an AG-UI conversation
+
+A reloaded page rebuilds its client from storage. `AGUIAdapter::hydrate()` returns what the client held when the live stream ended: `messages` for `initialMessages`, `interrupts` for `pendingInterrupts`.
+
+```php
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Workflow\WorkflowInspector;
+
+// GET /agui/threads/{threadId}, after authorizing the thread
+$run = (new WorkflowInspector($persistence))->inspect($threadId);
+$body = (new AGUIAdapter($threadId))->hydrate($messageStore->loadAll($threadId, limit: 50), $run);
+```
+
+- Messages Neuron wrote keep the IDs the client rendered live; messages the browser created (the user's, frontend tool results) come back with their stored IDs.
+- A pending approval comes back as the same `confirmation` interrupts the live stream sent.
+- Frontend calls still waiting for results come back with one interrupt, reason `neuron:wait_for_event`, because the reload discarded the browser execution the live stream had started. Resume it `resolved` with Neuron's result map, or `cancelled` to settle every pending call as an error. Results already delivered come back as tool messages.
+- A running or failed run returns no interrupts, and calls without results stay hidden until they have one. The question of a turn that has no answer yet still shows.
+- Pass the run only with the latest page. Load older pages with `hydrate($olderPage, null)`, using the stored ID of the first loaded message as `loadAll()`'s `before`, never an AG-UI ID such as `result_…`.
+- A reload does not reattach to a stream still running: show the working state from `$run->status` and hydrate again when the run settles.
 
 ## Vercel AI SDK (`useChat`)
 
@@ -310,6 +332,16 @@ Facts the suite established:
 - `runAgent` **resolves** on `RUN_ERROR` and reports it through `onRunErrorEvent`; it rejects only on HTTP failures before the stream (the error message carries the status and JSON body).
 - Neuron marks failed results with `error` on `TOOL_CALL_RESULT`. The event schema is passthrough, so subscribers see it on the frame, but the client builds message state from `content` alone: `agent.messages` never carries `error`. A rejected approval is a plain instruction string with no `error` marker at all.
 - Two calls of the same tool in one batch stay distinct by call ID across requests.
+- **Reload.** Seed a fresh client from the reload endpoint. `runAgent` refuses to run while a pending interrupt is not addressed by `resume`, so the reloaded page answers the persisted approval or frontend wait before anything else. After the run completes, another reload rebuilds exactly the message IDs the client holds.
+
+```ts
+const { messages, interrupts } = await (await fetch(`/agui/threads/${threadId}`)).json();
+const agent = new HttpAgent({ url: "https://app.example/agui", threadId, initialMessages: messages });
+agent.pendingInterrupts = interrupts;
+
+// A frontend wait restored by the reload: deliver the results, or cancel the wait.
+await agent.runAgent({ tools, resume: [{ interruptId: interrupts[0].id, status: "resolved", payload: { call_1: { result: "Page title" } } }] });
+```
 
 ## CopilotKit
 
