@@ -134,9 +134,6 @@ the workflow's event dispatcher (`$context->dispatcher`) and the parallel branch
 the step runs in. The event and the state are not part of it: `run()` receives
 them as arguments.
 
-Custom `WorkflowExecutorInterface` implementations should pass
-`$workflow->getEventDispatcher()` in the `NodeContext` of the nodes they run.
-
 ## 6. Inspector is no longer bundled
 
 In 3.x `inspector-apm/inspector-php` was a hard dependency of the framework and

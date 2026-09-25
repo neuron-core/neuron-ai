@@ -10,7 +10,7 @@ use NeuronAI\Tests\Workflow\Stub\FirstEvent;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -46,7 +46,7 @@ class WorkflowConfigurationTest extends TestCase
 
         self::assertSame($retain, $workflow->inspect() !== null);
         if ($retain) {
-            $workflow->acknowledgeCompletion($stream->getReturn()->getRunId());
+            $workflow->acknowledge($stream->getReturn()->getRunId());
         }
         $workflow->run();
         self::assertSame(!$retain, $workflow->inspect() !== null);
@@ -67,7 +67,7 @@ class WorkflowConfigurationTest extends TestCase
             ->setPersistence($originalStore)->retainCompletionUntilAcknowledged();
         $stream = $workflow->events();
         $stream->rewind();
-        $workflow->setPersistence($nextStore)->setSerializer($serializer)->setLeaseTimeout(30)->setExecutor(new AsyncExecutor());
+        $workflow->setPersistence($nextStore)->setSerializer($serializer)->setLeaseTimeout(30)->setBranchRunner(new AsyncBranchRunner());
         iterator_to_array($stream);
 
         self::assertSame(0, $serializations);

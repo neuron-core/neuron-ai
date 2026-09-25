@@ -19,6 +19,7 @@ use NeuronAI\Tests\Agent\Stub\OutputNode;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -59,7 +60,7 @@ class AgentOutputTest extends TestCase
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
         $this->assertSame($text, $state->get('output'));
         $this->assertSame(1, $state->get('output_runs'));
-        $this->assertSame(OutputNode::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap()[AgentOutputEvent::class]::class);
+        $this->assertSame(OutputNode::class, ExecutionTestFactory::graph($agent)->nodes()[AgentOutputEvent::class]::class);
         $this->assertSame(1, $provider->getCallCount());
     }
 
@@ -83,7 +84,8 @@ class AgentOutputTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
         $messageStore = new InMemoryMessageStore();
-        $first = OutputAgent::make(workflowId: 'output-recovery')->setMessageStore($messageStore);
+        $persistence = new InMemoryPersistence();
+        $first = OutputAgent::make(workflowId: 'output-recovery')->setMessageStore($messageStore)->setPersistence($persistence);
         $firstRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($first);
         $first->setAiProvider($provider);
         $first->addMiddleware(OutputNode::class, (new FakeMiddleware())->setThrowOnBefore(new RuntimeException('Output failed.')));
@@ -96,7 +98,7 @@ class AgentOutputTest extends TestCase
         $this->assertSame(WorkflowStatus::Failed, $firstRecord->state->getStatus());
         $second = OutputAgent::make(workflowId: $first->getWorkflowId());
         $second->setAiProvider($provider);
-        $second->setPersistence($first->getPersistence());
+        $second->setPersistence($persistence);
         $second->setMessageStore($messageStore);
         $state = $second->run();
         $this->assertSame($firstRecord->context?->runId, $state->getRunId());
@@ -110,9 +112,9 @@ class AgentOutputTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setAiProvider(new FakeAIProvider());
-        $runtime = ExecutionTestFactory::runtime($agent);
-        $this->assertInstanceOf(AgentEndNode::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap()[AgentOutputEvent::class]);
-        $graph = (new WorkflowGraphBuilder())->build($agent->getStartEvent()::class, ExecutionTestFactory::runtime($agent)->getEventNodeMap());
+        $runtime = ExecutionTestFactory::graph($agent);
+        $this->assertInstanceOf(AgentEndNode::class, ExecutionTestFactory::graph($agent)->nodes()[AgentOutputEvent::class]);
+        $graph = (new WorkflowGraphBuilder())->build($agent->getStartEvent()::class, ExecutionTestFactory::graph($agent)->nodes());
         $edges = [];
         foreach ($graph->getEdges() as $edge) {
             $edges[] = [$graph->getVertex($edge->from)->label, $graph->getVertex($edge->to)->label];

@@ -14,14 +14,12 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\ListenerRegistry;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 
 use function array_merge;
 use function is_array;
-use function preg_match;
 use function array_map;
 
 /**
@@ -64,11 +62,6 @@ class Workflow implements WorkflowInterface
     {
         $class = static::class;
         return new $class(...$arguments);
-    }
-
-    public function makeIgnition(string $runId, Event $event): Ignition
-    {
-        return new Ignition($runId, $event);
     }
 
     final public function getStartEvent(): Event
@@ -122,30 +115,18 @@ class Workflow implements WorkflowInterface
         if ($declared !== null && $this->workflowId !== null && $declared !== $this->workflowId) {
             throw new WorkflowException("Misidentified run: the workflow declares workflow ID '{$declared}' but was given '{$this->workflowId}'.");
         }
-        $id = $this->workflowId ?? $declared;
-        if ($id !== null) {
-            $this->validateWorkflowId($id);
-        }
-        return $id;
+        return $this->workflowId ?? $declared;
     }
 
     /** Bind the instance address; a bound instance cannot change its address. */
     public function setWorkflowId(string $workflowId): static
     {
-        $this->validateWorkflowId($workflowId);
         $current = $this->getWorkflowId();
         if ($current !== null && $current !== $workflowId) {
             throw new WorkflowException("This workflow is bound to '{$current}' and cannot be re-pointed to '{$workflowId}'.");
         }
         $this->workflowId = $workflowId;
         return $this;
-    }
-
-    protected function validateWorkflowId(string $workflowId): void
-    {
-        if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/u', $workflowId) !== 1) {
-            throw new WorkflowException('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
-        }
     }
 
     /** The business key declared by a subclass, if any. */
@@ -179,7 +160,7 @@ class Workflow implements WorkflowInterface
     /**
      * @throws WorkflowException
      */
-    final public function getLeaseTimeout(): ?int
+    final protected function getLeaseTimeout(): ?int
     {
         if (!$this->leaseTimeoutConfigured) {
             return $this->validateLeaseTimeout($this->leaseTimeout());
@@ -215,7 +196,7 @@ class Workflow implements WorkflowInterface
         return $this;
     }
 
-    final public function shouldRetainCompletionUntilAcknowledged(): bool
+    final protected function shouldRetainCompletionUntilAcknowledged(): bool
     {
         return $this->retainCompletion;
     }
@@ -233,7 +214,9 @@ class Workflow implements WorkflowInterface
 
     public function inspect(): ?WorkflowRunSnapshot
     {
-        return $this->getExecutor()->inspect($this);
+        $workflowId = $this->getWorkflowId();
+
+        return $workflowId === null ? null : $this->getEngine()->inspect($workflowId);
     }
 
     /**
@@ -286,27 +269,46 @@ class Workflow implements WorkflowInterface
                 . 'and the workflow declares none.'
             );
         }
-        $this->setWorkflowId($workflowId ?? UniqueIdGenerator::generateId('workflow_'));
+        $this->setWorkflowId($workflowId ??= UniqueIdGenerator::generateId('workflow_'));
 
-        return yield from $this->getExecutor()->execute($this, $request);
-    }
+        $segment = $this->getEngine()->admit(
+            $workflowId,
+            $request,
+            $this->newState(),
+            $this->getLeaseTimeout(),
+            $this->shouldRetainCompletionUntilAcknowledged(),
+        );
+        if ($segment instanceof WorkflowState) {
+            return $segment;
+        }
 
-    /** @internal Construct fresh execution resources only after admission. */
-    public function createExecution(ExecutionContext $context): WorkflowExecution
-    {
-        $execution = $this->buildGraph($context);
-        $execution->setOutput($this->resolveStreamAdapter(), $this->resolveChannel());
-        return $execution;
+        // Resolved now, so a setter called while the segment runs applies to
+        // the next call; the graph and the output are built after admission.
+        return yield from $segment->run(
+            graph: $this->graph(...),
+            adapter: $this->resolveStreamAdapter(...),
+            channel: $this->resolveChannel(...),
+            branches: $this->getBranchRunner(),
+            dispatcher: $this->getEventDispatcher(),
+            source: $this,
+        );
     }
 
     /**
+     * The graph of one segment: fresh nodes and middleware, and the resources
+     * they share, checked against the run's start event.
+     *
      * @throws WorkflowException
      */
-    protected function buildGraph(ExecutionContext $context): WorkflowExecution
+    final protected function graph(Event $start): Graph
     {
-        $execution = $this->execution($context);
-        $execution->bootstrap(array_merge($this->nodes(), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)));
-        return $execution;
+        return new Graph(
+            $start,
+            $this->resolveResources(),
+            array_merge($this->nodes(), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)),
+            $this->executionMiddleware(),
+            $this->executionGlobalMiddleware(),
+        );
     }
 
     /** @return array<class-string<NodeInterface>, array<WorkflowMiddleware>> */
@@ -332,26 +334,25 @@ class Workflow implements WorkflowInterface
         return array_map(static fn ($item) => $item instanceof Closure ? $item() : clone $item, $list);
     }
 
-    protected function execution(ExecutionContext $context): WorkflowExecution
+    public function acknowledge(string $expectedRunId): void
     {
-        return new WorkflowExecution(
-            $context,
-            $this,
-            $this->newState(),
-            $this->resolveResources(),
-            $this->executionMiddleware(),
-            $this->executionGlobalMiddleware(),
+        $this->getEngine()->acknowledge($this->requireWorkflowId(), $expectedRunId);
+    }
+
+    public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
+    {
+        return $this->getEngine()->abandon($this->requireWorkflowId(), $expectedRunId, $expectedExecutionAttempt);
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function requireWorkflowId(): string
+    {
+        return $this->getWorkflowId() ?? throw new WorkflowException(
+            'Cannot identify the run: no workflow ID was provided '
+            . 'and the workflow declares none.'
         );
-    }
-
-    public function acknowledgeCompletion(string $expectedRunId): void
-    {
-        $this->getExecutor()->acknowledgeCompletion($this, $expectedRunId);
-    }
-
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
-    {
-        return $this->getExecutor()->abandonRun($this, $expectedRunId, $expectedExecutionAttempt);
     }
 
     /**

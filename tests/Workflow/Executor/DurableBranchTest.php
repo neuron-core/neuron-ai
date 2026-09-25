@@ -19,7 +19,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchParallelEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -46,7 +46,7 @@ class DurableBranchTest extends TestCase
                 new MergeNode(),
             ]);
             if ($async) {
-                $workflow->setExecutor(new AsyncExecutor());
+                $workflow->setBranchRunner(new AsyncBranchRunner());
             }
 
             return $workflow;
@@ -112,7 +112,7 @@ class DurableBranchTest extends TestCase
 
     public function test_separate_parallel_forks_do_not_share_branch_steps(): void
     {
-        foreach ([null, new AsyncExecutor()] as $executor) {
+        foreach ([null, new AsyncBranchRunner()] as $runner) {
             $counter = new stdClass();
             $counter->runs = 0;
             $firstFork = new class () extends Node {
@@ -145,8 +145,8 @@ class DurableBranchTest extends TestCase
                 $secondFork,
                 new ThreeBranchMergeNode(),
             ]);
-            if ($executor instanceof AsyncExecutor) {
-                $workflow->setExecutor($executor);
+            if ($runner instanceof AsyncBranchRunner) {
+                $workflow->setBranchRunner($runner);
             }
 
             $state = $workflow->run();

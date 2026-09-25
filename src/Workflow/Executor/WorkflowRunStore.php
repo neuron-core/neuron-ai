@@ -17,8 +17,8 @@ use function array_key_exists;
 /**
  * Persistence protocol for one Workflow run partition.
  *
- * The executor owns lifecycle decisions; this store owns reserved records,
- * serialization, and the raw control snapshot used to fence every mutation.
+ * The engine and the segment own lifecycle decisions; this store owns reserved
+ * records, serialization, and the raw control snapshot used to fence every mutation.
  */
 final class WorkflowRunStore
 {
@@ -59,7 +59,7 @@ final class WorkflowRunStore
     public function __construct(
         protected PersistenceInterface $persistence,
         protected Serializer $serializer,
-        protected string $workflowId,
+        public readonly string $workflowId,
     ) {
     }
 

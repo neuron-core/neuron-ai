@@ -15,8 +15,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -154,7 +153,7 @@ class StreamFailureDeliveryTest extends TestCase
         // failed, observed, and the next ignition supersedes it.
         $this->assertSame($error, $caught);
         $this->assertSame([$error], $observed);
-        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
+        $this->assertSame(WorkflowStatus::Failed, $workflow->inspect()->status);
 
         $state = Workflow::make(workflowId: 'adapter-failure')
             ->setPersistence($persistence)
@@ -170,7 +169,7 @@ class StreamFailureDeliveryTest extends TestCase
         $persistence = new InMemoryPersistence();
         $workflow = Workflow::make(workflowId: 'parallel-adapter-failure')
             ->setPersistence($persistence)
-            ->setExecutor(new AsyncExecutor())
+            ->setBranchRunner(new AsyncBranchRunner())
             ->addNodes([new ImageFirstForkNode(), new StreamingImageProcessNode(), new TextProcessNode(), new MergeNode()])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $this->adapterFailingWith($error));
 
@@ -184,7 +183,7 @@ class StreamFailureDeliveryTest extends TestCase
         // The async executor drains the sibling branch before it surfaces the
         // injected failure, so the run still ends up failed, not running.
         $this->assertSame($error, $caught);
-        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
+        $this->assertSame(WorkflowStatus::Failed, $workflow->inspect()->status);
     }
 
     protected function adapterFailingWith(Throwable $error): StreamAdapterInterface

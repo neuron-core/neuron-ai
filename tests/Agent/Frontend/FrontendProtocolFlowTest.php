@@ -19,7 +19,6 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -102,7 +101,7 @@ class FrontendProtocolFlowTest extends TestCase
         foreach ($stream as $frame) {
             foreach ($this->decode([$frame]) as $event) {
                 if (in_array($event['type'], ['TOOL_CALL_START', 'tool-input-available'], true) && $approved) {
-                    $this->assertSame(WorkflowStatus::Suspended, (new WorkflowExecutor())->inspect($agent)->status);
+                    $this->assertSame(WorkflowStatus::Suspended, $agent->inspect()->status);
                 }
                 $second[] = $event;
             }

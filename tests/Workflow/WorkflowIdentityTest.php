@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow;
 
 use Closure;
 use DateTimeInterface;
-use Generator;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
@@ -22,14 +21,13 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\WorkflowControl;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
@@ -53,20 +51,18 @@ class WorkflowIdentityTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function test_workflow_binds_identity_before_handing_execution_to_a_custom_executor(): void
+    public function test_workflow_binds_identity_before_admission(): void
     {
         foreach ([null, 'explicit-address'] as $address) {
-            $executor = $this->createMock(WorkflowExecutorInterface::class);
-            $executor->expects(self::once())->method('execute')->willReturnCallback(
-                function (Workflow $workflow, ExecutionRequest $request) use ($address): Generator {
-                    self::assertNotNull($workflow->getWorkflowId());
-                    if ($address !== null) {
-                        self::assertSame($address, $workflow->getWorkflowId());
-                    }
-                    return (new WorkflowExecutor())->execute($workflow, $request);
-                },
-            );
-            $workflow = Workflow::make()->addNode(new MemoizingNode())->setExecutor($executor);
+            $workflow = Workflow::make()->addNode(new MemoizingNode());
+            $workflow->setResources(function () use ($workflow, $address): WorkflowResources {
+                // Resources are built after admission, so the run is found under the bound address.
+                self::assertSame(WorkflowStatus::Running, $workflow->inspect()?->status);
+                if ($address !== null) {
+                    self::assertSame($address, $workflow->getWorkflowId());
+                }
+                return new WorkflowResources();
+            });
             if ($address !== null) {
                 $workflow->setWorkflowId($address);
             }
@@ -91,17 +87,19 @@ class WorkflowIdentityTest extends TestCase
         }
     }
 
-    public function test_invalid_setter_identity_leaves_the_workflow_unbound(): void
+    public function test_invalid_identity_is_refused_before_persistence(): void
     {
+        $persistence = new InMemoryPersistence();
+        $before = serialize($persistence);
         foreach (['', '__reserved', "invalid\naddress", str_repeat('a', 256)] as $id) {
-            $workflow = Workflow::make();
             try {
-                $workflow->setWorkflowId($id);
+                Workflow::make()->setWorkflowId($id)->setPersistence($persistence)->addNode(new MemoizingNode())->run();
                 self::fail('Invalid identity should be rejected.');
-            } catch (WorkflowException) {
-                self::assertNull($workflow->getWorkflowId());
+            } catch (WorkflowException $e) {
+                self::assertStringContainsString('Invalid workflow ID', $e->getMessage());
             }
         }
+        self::assertSame($before, serialize($persistence));
     }
 
     public function test_setter_respects_the_subclass_declared_identity(): void
@@ -320,7 +318,7 @@ class WorkflowIdentityTest extends TestCase
         $replayed = $retry->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedRunId: $runId));
 
         $this->assertSame($completed->all(), $replayed->all());
-        $retry->acknowledgeCompletion($runId);
+        $retry->acknowledge($runId);
         $this->assertNull($persistence->get('retained-completion', '__control'));
         $this->assertNull($persistence->get('retained-completion', '__ignition'));
     }
@@ -465,7 +463,8 @@ class WorkflowIdentityTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('mismatched __control and __ignition generations');
 
-        $this->resume(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence, []);
+        // Answered directly: inspecting first would already refuse the corrupt run.
+        KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1')->setPersistence($persistence)->run(ExecutionRequest::resume([]));
     }
 
     public function test_stale_owner_cannot_write_or_sweep_a_successor(): void
@@ -556,7 +555,7 @@ class WorkflowIdentityTest extends TestCase
         $fresh = KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1');
         $freshRecord = new \NeuronAI\Tests\Support\ExecutionRecorder($fresh);
         $this->configure($fresh, $persistence);
-        iterator_to_array((new WorkflowExecutor())->execute($fresh, \NeuronAI\Workflow\Executor\ExecutionRequest::start()));
+        iterator_to_array($fresh->events(ExecutionRequest::start()));
         $state = $freshRecord->state;
 
         $this->assertTrue($state->isInterrupted());
@@ -673,7 +672,7 @@ class WorkflowIdentityTest extends TestCase
         } catch (RunInFlightException $e) {
             $this->assertSame($completedRecord->context?->runId, $e->runId);
             $this->assertSame(WorkflowStatus::Completed, $e->status);
-            $this->assertStringContainsString("acknowledgeCompletion('{$completedRecord->context?->runId}')", $e->getMessage());
+            $this->assertStringContainsString("acknowledge('{$completedRecord->context?->runId}')", $e->getMessage());
         }
     }
 
@@ -710,7 +709,7 @@ class WorkflowIdentityTest extends TestCase
         // decision, and says the sweep lost; no second read is made.
         try {
             $fresh = $this->configure(KeyedWorkflow::make()->withDeclaredWorkflowId('thread_1'), $persistence);
-            iterator_to_array((new WorkflowExecutor())->execute($fresh, \NeuronAI\Workflow\Executor\ExecutionRequest::start()));
+            iterator_to_array($fresh->events(ExecutionRequest::start()));
             $this->fail('The igniter should lose the fenced sweep.');
         } catch (RunInFlightException $e) {
             $this->assertSame($crashedRecord->context?->runId, $e->runId);

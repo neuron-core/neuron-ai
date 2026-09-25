@@ -66,7 +66,7 @@ class AgentAbandonTest extends TestCase
         $threadId = 'thread';
 
         try {
-            $this->makeAgent($provider, $messageStore, $persistence, $tool)->abandonRun();
+            $this->makeAgent($provider, $messageStore, $persistence, $tool)->abandon();
             $this->fail('A pending approval should refuse abandonment.');
         } catch (AgentException $e) {
             $this->assertStringContainsString('submitInputs()', $e->getMessage());
@@ -96,7 +96,7 @@ class AgentAbandonTest extends TestCase
         $threadId = 'thread';
         $this->assertNotNull($persistence->get($threadId, '__control'));
 
-        $this->assertTrue($this->makeAgent($provider, $messageStore, $persistence)->abandonRun());
+        $this->assertTrue($this->makeAgent($provider, $messageStore, $persistence)->abandon());
 
         $this->assertNull($persistence->get($threadId, '__control'));
         $this->assertCount(0, $messageStore->loadActive('thread'));
@@ -106,7 +106,7 @@ class AgentAbandonTest extends TestCase
     {
         $agent = $this->makeAgent(new FakeAIProvider(), new InMemoryMessageStore(), new InMemoryPersistence());
 
-        $this->assertFalse($agent->abandonRun());
+        $this->assertFalse($agent->abandon());
     }
 
     public function test_reset_conversation_frees_the_thread_even_with_a_pending_approval(): void

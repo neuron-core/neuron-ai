@@ -6,13 +6,12 @@ namespace NeuronAI\Workflow\Streaming;
 
 use Closure;
 use Generator;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\ChannelError;
+use NeuronAI\Observability\ExecutionEventDispatcher;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\WorkflowState;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
 /**
@@ -33,8 +32,7 @@ final class SegmentOutput
     public function __construct(
         protected ?StreamAdapterInterface $adapter,
         protected ?StreamingChannelInterface $channel,
-        protected EventDispatcherInterface $dispatcher,
-        protected object $source,
+        protected ExecutionEventDispatcher $events,
         protected string $workflowId,
     ) {
     }
@@ -116,26 +114,7 @@ final class SegmentOutput
         try {
             $delivery($this->channel);
         } catch (Throwable $e) {
-            $this->reportChannelError($e);
-        }
-    }
-
-    protected function reportChannelError(Throwable $e): void
-    {
-        $event = new ChannelError($e);
-        $event->source = $this->source;
-
-        try {
-            $this->dispatcher->dispatch($event);
-        } catch (Throwable $listenerFailure) {
-            $error = new AgentError($listenerFailure, false);
-            $error->source = $this->source;
-
-            try {
-                $this->dispatcher->dispatch($error);
-            } catch (Throwable) {
-                // Monitoring failures must not change Workflow execution.
-            }
+            $this->events->report(new ChannelError($e));
         }
     }
 }

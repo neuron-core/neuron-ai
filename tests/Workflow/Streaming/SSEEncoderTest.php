@@ -9,7 +9,6 @@ use JsonException;
 use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
@@ -122,6 +121,6 @@ class SSEEncoderTest extends TestCase
 
         $this->assertInstanceOf(JsonException::class, $caught);
         $this->assertSame(['start', 'text-start', 'text-delta', 'text-end', 'error'], $types);
-        $this->assertSame(WorkflowStatus::Failed, (new WorkflowExecutor())->inspect($workflow)->status);
+        $this->assertSame(WorkflowStatus::Failed, $workflow->inspect()->status);
     }
 }

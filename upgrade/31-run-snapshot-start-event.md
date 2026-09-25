@@ -3,7 +3,7 @@
 ## Summary
 
 - **`WorkflowRunSnapshot` has a required `startEvent`.** It is the run's original input, the event the run
-  was started with. `WorkflowInspector::inspect()` and `Workflow::inspect()` read it from the run's
+  was started with. `WorkflowEngine::inspect()` and `Workflow::inspect()` read it from the run's
   `__ignition` record, one more read per inspection, and each snapshot carries its own copy. A run that ends
   or is replaced between the two reads is read again, and a control record without its ignition raises
   `WorkflowException`. An Agent's start event holds the user's messages, so a reload can show the question

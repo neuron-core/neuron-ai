@@ -28,7 +28,7 @@ trait ResolveState
      *
      * @return TState
      */
-    final public function newState(): WorkflowState
+    final protected function newState(): WorkflowState
     {
         return $this->initialState === null ? $this->state() : unserialize(serialize($this->initialState));
     }

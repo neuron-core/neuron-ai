@@ -212,10 +212,10 @@ A reloaded page rebuilds its client from storage. `AGUIAdapter::hydrate()` retur
 
 ```php
 use NeuronAI\Agent\Adapters\AGUIAdapter;
-use NeuronAI\Workflow\WorkflowInspector;
+use NeuronAI\Workflow\WorkflowEngine;
 
 // GET /agui/threads/{threadId}, after authorizing the thread
-$run = (new WorkflowInspector($persistence))->inspect($threadId);
+$run = (new WorkflowEngine($persistence))->inspect($threadId);
 $body = (new AGUIAdapter($threadId))->hydrate($messageStore->loadAll($threadId, limit: 50), $run);
 ```
 

@@ -24,6 +24,7 @@ use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tests\RAG\Nodes\Stub\ConversationAgent;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
@@ -89,16 +90,17 @@ class ConversationIngestionNodeTest extends TestCase
     {
         $store = new FakeVectorStore();
         $messages = new InMemoryMessageStore();
+        $persistence = new InMemoryPersistence();
         $first = $this->agent($store, new FakeAIProvider(new ToolCallMessage(null, [
             new ToolCall('get_weather', 'call-1', ['location' => 'Rome']),
         ])));
-        $first->setMessageStore($messages);
+        $first->setMessageStore($messages)->setPersistence($persistence);
         $first->addTool(GetWeatherTool::make()->requireApproval());
         $this->assertTrue($first->chat(new UserMessage('Weather?'))->isInterrupted());
         $store->assertNothingStored();
 
         $second = $this->agent($store, new FakeAIProvider(new AssistantMessage('Sunny.')));
-        $second->setPersistence($first->getPersistence())->setMessageStore($messages);
+        $second->setPersistence($persistence)->setMessageStore($messages);
         $second->addTool(GetWeatherTool::make()->requireApproval());
         $second->submitApprovalDecisions(['call-1' => 'approve'])->run();
         $store->assertDocumentCount(1);
@@ -112,8 +114,9 @@ class ConversationIngestionNodeTest extends TestCase
         $store = new FakeVectorStore();
         $provider = new FakeAIProvider(new AssistantMessage('Hello.'));
         $messages = new InMemoryMessageStore();
+        $persistence = new InMemoryPersistence();
         $first = $this->agent($store, $provider);
-        $first->setMessageStore($messages);
+        $first->setMessageStore($messages)->setPersistence($persistence);
         $middleware = new FakeMiddleware();
         if ($boundary === 'before') {
             $middleware->setThrowOnBefore(new RuntimeException('Ingestion failed.'));
@@ -130,7 +133,7 @@ class ConversationIngestionNodeTest extends TestCase
         $store->assertDocumentCount($boundary === 'before' ? 0 : 1);
 
         $second = $this->agent($store, $provider);
-        $second->setPersistence($first->getPersistence())->setMessageStore($messages);
+        $second->setPersistence($persistence)->setMessageStore($messages);
         $this->assertSame(WorkflowStatus::Completed, $second->run()->getStatus());
         $provider->assertCallCount(1);
         $store->assertDocumentCount(1);

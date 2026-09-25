@@ -92,9 +92,9 @@ After:
 
 ```php
 use NeuronAI\Agent\Adapters\AGUIAdapter;
-use NeuronAI\Workflow\WorkflowInspector;
+use NeuronAI\Workflow\WorkflowEngine;
 
-$run = (new WorkflowInspector($persistence))->inspect($threadId);
+$run = (new WorkflowEngine($persistence))->inspect($threadId);
 $page = (new AGUIAdapter($threadId))->hydrate($messageStore->loadAll($threadId, limit: 50), $run);
 
 return ['messages' => $page['messages'], 'pendingApprovals' => $page['interrupts']];

@@ -7,7 +7,7 @@ description: Build or modify Neuron AI Workflow graphs, including nodes, events,
 
 This skill helps you build custom event-driven workflows in Neuron AI. Workflows are the foundation of the entire framework - Agent and RAG are built on top of Workflow.
 
-Setters configure the reusable definition, including while a segment is running. An execution retains its resolved graph, resources, completion policy and event dispatcher. New listener registrations apply to subsequent segments. The executor still rejects overlapping execution and cleanup operations.
+Setters configure the reusable definition, including while a segment is running. An execution retains its resolved graph, resources, completion policy and event dispatcher. New listener registrations apply to subsequent segments. A call made while a segment is in flight meets the persisted run as another process would: the running generation refuses a new ignition.
 
 ## Core Concepts
 
@@ -135,7 +135,7 @@ Import `NeuronAI\Workflow\Executor\ExecutionRequest`. Execution is explicit:
 | `run(ExecutionRequest::resume($answer, expectedRunId: $id, expectedExecutionAttempt: $attempt))` | Deliver a fenced answer. |
 | `run(ExecutionRequest::signal($name, $payload))` | Require the current interruption's event name to match. |
 | `events($request)` | Always a lazy generator, including when a channel is configured. |
-| `abandonRun($runId, $attempt)` | Fenced cleanup, subject to lease/completion protections. |
+| `abandon($runId, $attempt)` | Fenced cleanup, subject to lease/completion protections. |
 
 `run()` always consumes execution; iteration over `events()` also delivers to any
 configured channel. Requests are independent values and are never staged on the
@@ -327,8 +327,8 @@ $workflow = Workflow::make()
 $finalState = $workflow->run();
 ```
 
-Executors carry no storage of their own. Persistence and serialization are
-workflow-owned seams read by the executor at execution time. The record codec
+The engine carries no storage of its own: the workflow builds it for every call
+from its persistence and serializer, both workflow-owned seams. The record codec
 is configurable via `setSerializer()` (default `PhpSerializer`); timers, event
 subscriptions, and queue jobs belong to the calling platform, not Workflow core.
 
@@ -395,17 +395,19 @@ Model creation, updates, and deletion emit their normal Eloquent events inside t
 conditional transaction. Cancelled mutations roll back the operation. Use
 Laravel's after-commit handling for listeners that publish external effects.
 
-### Read status without constructing a workflow
+### Manage runs without constructing a workflow
 
 ```php
-use NeuronAI\Workflow\WorkflowInspector;
+use NeuronAI\Workflow\WorkflowEngine;
 
-$inspector = new WorkflowInspector($persistence);
-$snapshot = $inspector->inspect($workflowId);
+$engine = new WorkflowEngine($persistence);
+$snapshot = $engine->inspect($workflowId);
 ```
 
-The inspector requires only persistence and defaults to `PhpSerializer`. Pass a
-custom serializer as the second argument when the workflow uses one. Each read
+The engine requires only persistence and defaults to `PhpSerializer`. Pass a
+custom serializer as the second argument when the workflow uses one. It also
+abandons and acknowledges runs by ID with `abandon($workflowId, ...)` and
+`acknowledge($workflowId, $runId)`; an Agent's own verbs add their guards. Each read
 returns a fresh `WorkflowRunSnapshot` containing identity, status, execution
 attempt, the current interruption and the run's start event (`startEvent`), or
 null if there is no persisted control.
@@ -418,7 +420,7 @@ configured workflow.
 By default, successful completion conditionally removes the owned workflow
 partition. A platform that must replay a lost completion response can call
 `retainCompletionUntilAcknowledged()` and later
-`acknowledgeCompletion($runId)`. Interrupted workflows retain their active
+`acknowledge($runId)`. Interrupted workflows retain their active
 requests and step records until continued.
 
 ## Human-in-the-Loop Patterns
@@ -428,7 +430,7 @@ Workflows support interruption for human intervention at any point.
 ### Interrupting a Node
 
 `InterruptRequest` is the canonical portable description of the pause. The
-executor clones it, assigns a positive run-scoped ID, persists it while active,
+engine clones it, assigns a positive run-scoped ID, persists it while active,
 and exposes that same ID-bound request to callers. Keep request fields
 serializable; inject live services into the node instead. On a
 continuation, `interrupt()` returns the inbound payload array:
@@ -588,7 +590,7 @@ expired. The exception carries `runId`, `status`, `executionAttempt`,
 `leaseExpiresAt`, and the current `interrupt`, and its message names the verb
 that settles the state. A failed generation is recovered automatically.
 A running generation whose lease expired is swept on a new start. Settle a pending run with
-`run(ExecutionRequest::signal(...))` or `run(ExecutionRequest::resume($payload))`, or discard it with `abandonRun()`.
+`run(ExecutionRequest::signal(...))` or `run(ExecutionRequest::resume($payload))`, or discard it with `abandon()`.
 Completed records are swept by default,
 so a later explicit continuation such as `run(ExecutionRequest::resume())` throws "No run in flight";
 a no-input `run()` may start a new generation. A continuation with no workflow
@@ -648,7 +650,7 @@ $state = Workflow::make(workflowId: $workflowId)
 When the deadline elapses, a timer worker invokes `run(ExecutionRequest::resume())`. Workflow validates
 the clock, resolves every currently due wait, and `awaitEvent()` returns `null`.
 Branch on the node result rather than comparing clocks inside the node;
-expiry is determined internally by the executor.
+expiry is determined internally by the engine.
 
 ### Sleep until a clock time — `sleepUntil()`
 
@@ -912,7 +914,7 @@ vendor/bin/neuron make:workflow DataProcessingWorkflow
 - Provide clear, actionable descriptions in InterruptRequest
 - Keep request coordination data and metadata serializable; keep services on nodes
 - Use `memoize()` to avoid re-running expensive operations across an interruption
-- Use `abandonRun()` to discard a run whose awaited event or timer will never come, so the workflow ID is free again
+- Use `abandon()` to discard a run whose awaited event or timer will never come, so the workflow ID is free again
 
 ## Common Patterns
 
@@ -982,7 +984,7 @@ ForkNode → ParallelEvent([branch1 => EventA, branch2 => EventB])
 ```
 
 1. A **fork node** returns a `ParallelEvent` subclass with branch-starting events.
-2. The executor runs each branch independently until `StopEvent`.
+2. The branch runner runs each branch independently until `StopEvent`.
 3. Each branch's `StopEvent::getResult()` is collected into the `ParallelEvent`.
 4. A **join node** (whose `__invoke()` accepts the `ParallelEvent` subclass) reads the results.
 
@@ -1115,14 +1117,14 @@ $state = $workflow->run();
 
 ### Sequential vs Concurrent Execution
 
-By default, `WorkflowExecutor` runs branches **sequentially** (one after another). For true concurrency, use `AsyncExecutor`:
+By default, branches run **sequentially** (one after another). For true concurrency, use `AsyncBranchRunner`:
 
 ```php
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Workflow;
 
 $workflow = Workflow::make()
-    ->setExecutor(new AsyncExecutor())
+    ->setBranchRunner(new AsyncBranchRunner())
     ->addNodes([
         new AnalyzeImageForkNode(),
         new ExtractStructuredDataNode(),
@@ -1131,18 +1133,19 @@ $workflow = Workflow::make()
     ]);
 ```
 
-`AsyncExecutor` is a drop-in replacement — it runs branches as concurrent Amp futures while keeping linear (non-parallel) nodes sequential as usual.
+`AsyncBranchRunner` runs branches as concurrent Amp futures while keeping linear (non-parallel) nodes sequential as usual. A subclass can choose it in the `branchRunner()` hook instead of the setter.
 
-Async branch invocations receive shallow-cloned node wrappers so the mutable
-execution context injected by `Node` cannot leak between fibers. Keep durable
-branch data in `WorkflowState` or branch events; injected service objects remain
-shared unless the application gives them their own isolation.
+The branches share the workflow's nodes. A node holds the context of the step it
+runs, so two branches running concurrently must not reach the same node: give
+each branch its own event and node, or keep the sequential runner. Keep durable
+branch data in `WorkflowState` or branch events; services in the resources are
+shared by every branch.
 
 ### AsyncWorkflow with AmpHttpClient
 
-For fully asynchronous execution where branches make HTTP calls to AI providers concurrently, combine `AsyncExecutor` with `AmpHttpClient`:
+For fully asynchronous execution where branches make HTTP calls to AI providers concurrently, combine `AsyncBranchRunner` with `AmpHttpClient`:
 
-- **`AsyncExecutor`** runs parallel branches as concurrent Amp fibers (non-blocking).
+- **`AsyncBranchRunner`** runs parallel branches as concurrent Amp fibers (non-blocking).
 - **`AmpHttpClient`** is the async HTTP client built on `amphp/http-client`. Inject it on the provider via `->setHttpClient(new AmpHttpClient())` to ensure HTTP calls inside each branch are non-blocking.
 
 Without `AmpHttpClient`, each branch's HTTP call would block its fiber, negating the concurrency benefit. With it, all branches make their API calls truly in parallel — a workflow that extracts structured data and generates a description simultaneously completes in the time of the slower branch, not the sum of both.
@@ -1156,8 +1159,8 @@ $provider = (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
 
 ### Parallel Branches with Interruptions
 
-Parallel branches expose one interruption at a time. The normal executor stops
-at the first interruption. AsyncExecutor lets nodes already running finish and
+Parallel branches expose one interruption at a time. The sequential runner stops
+at the first interruption. `AsyncBranchRunner` lets nodes already running finish and
 persist their result or interruption, then starts no further nodes. Streams are
 drained through that node's terminal result. A memo write is durable but does
 not suspend the node midway through its invocation.

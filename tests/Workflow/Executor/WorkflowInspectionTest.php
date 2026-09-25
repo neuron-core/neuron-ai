@@ -8,7 +8,6 @@ use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
@@ -21,8 +20,8 @@ class WorkflowInspectionTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $before = serialize($persistence);
-        $this->assertNull((new WorkflowExecutor())->inspect(Workflow::make('test-workflow')->setPersistence($persistence)));
-        $this->assertNull((new WorkflowExecutor())->inspect(Workflow::make('missing')->setPersistence($persistence)));
+        $this->assertNull(Workflow::make('test-workflow')->setPersistence($persistence)->inspect());
+        $this->assertNull(Workflow::make('missing')->setPersistence($persistence)->inspect());
         $this->assertSame($before, serialize($persistence));
     }
 
@@ -34,7 +33,7 @@ class WorkflowInspectionTest extends TestCase
         $state = $workflow->run();
         $reader = Workflow::make('inspect')->setPersistence($persistence);
         $before = serialize($persistence);
-        $run = (new WorkflowExecutor())->inspect($reader);
+        $run = $reader->inspect();
         $this->assertNotNull($run);
         $this->assertSame($state->getRunId(), $run->runId);
         $this->assertSame($state->getExecutionAttempt(), $run->executionAttempt);
@@ -42,14 +41,14 @@ class WorkflowInspectionTest extends TestCase
         $this->assertSame($before, serialize($persistence));
         $this->assertFalse(method_exists($reader, 'getRunId'));
         $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $run->runId, $run->executionAttempt));
-        $completed = (new WorkflowExecutor())->inspect($reader);
+        $completed = $reader->inspect();
         $this->assertNotNull($completed);
         $this->assertSame(WorkflowStatus::Completed, $completed->status);
         $this->assertNull($completed->interrupt);
         $this->assertSame(WorkflowStatus::Suspended, $run->status);
         $this->assertNotNull($run->interrupt);
-        $workflow->acknowledgeCompletion($run->runId);
-        $this->assertNull((new WorkflowExecutor())->inspect($reader));
+        $workflow->acknowledge($run->runId);
+        $this->assertNull($reader->inspect());
     }
 
     public function test_inspection_rejects_conflicting_explicit_and_declared_workflow_ids(): void
@@ -57,7 +56,7 @@ class WorkflowInspectionTest extends TestCase
         $workflow = KeyedWorkflow::make('explicit')->withDeclaredWorkflowId('declared');
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Misidentified run');
-        (new WorkflowExecutor())->inspect($workflow);
+        $workflow->inspect();
     }
 
 }

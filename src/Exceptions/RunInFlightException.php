@@ -45,7 +45,7 @@ class RunInFlightException extends WorkflowException
                 . 'Deliver the awaited input with run(ExecutionRequest::resume($payload)), or evaluate due deadlines '
                 . 'with run(ExecutionRequest::resume()), before igniting again.',
             WorkflowStatus::Completed => "{$run} completed and its outcome is retained. "
-                . "Call acknowledgeCompletion('{$this->runId}') to release the workflow ID.",
+                . "Call acknowledge('{$this->runId}') to release the workflow ID.",
             WorkflowStatus::Running => $this->describeRunning($run),
             WorkflowStatus::Failed => "{$run} failed, but a concurrent process changed it while it was "
                 . 'being superseded. Retry the ignition.',

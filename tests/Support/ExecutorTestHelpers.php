@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Support;
 
-use NeuronAI\Workflow\Executor\WorkflowControl;
-use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Executor\BranchRunner;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
@@ -33,10 +34,10 @@ trait ExecutorTestHelpers
     }
 
     /**
-     * Executor for runs driven through these helpers; null keeps the
+     * Branch runner for runs driven through these helpers; null keeps the
      * workflow's default. Async test classes override this.
      */
-    protected function executor(): ?WorkflowExecutorInterface
+    protected function branchRunner(): ?BranchRunner
     {
         return null;
     }
@@ -46,9 +47,9 @@ trait ExecutorTestHelpers
         ?PersistenceInterface $persistence = null,
     ): Workflow {
         $this->executionRecords[spl_object_id($workflow)] ??= new ExecutionRecorder($workflow);
-        $executor = $this->executor();
-        if ($executor instanceof WorkflowExecutorInterface) {
-            $workflow->setExecutor($executor);
+        $runner = $this->branchRunner();
+        if ($runner instanceof BranchRunner) {
+            $workflow->setBranchRunner($runner);
         }
 
         if ($persistence instanceof PersistenceInterface) {
@@ -79,25 +80,15 @@ trait ExecutorTestHelpers
     ): WorkflowState {
         $workflow = $this->configure($workflow, $persistence);
         if ($payload === null) {
-            return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(null, expectedRunId: $expectedRunId));
+            return $workflow->run(ExecutionRequest::resume(null, expectedRunId: $expectedRunId));
         }
 
-        $raw = $workflow->getPersistence()->get(
-            (string) ($workflow->getWorkflowId() ?? $workflow->workflowId()),
-            '__control',
-        );
-        $control = $raw === null ? null : $workflow->getSerializer()->unserialize($raw);
-        if (!$control instanceof WorkflowControl || !$control->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt) {
-            return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($payload, $expectedRunId));
-        }
-
-        $active = $control->interrupt;
-
-        $inputs = $timedOut || $active->request->type() === InterruptType::SleepUntil
+        $interrupt = $workflow->inspect()?->interrupt;
+        $inputs = $interrupt instanceof InterruptRequest && ($timedOut || $interrupt->type() === InterruptType::SleepUntil)
             ? null
             : $payload;
 
-        return $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($inputs, $expectedRunId));
+        return $workflow->run(ExecutionRequest::resume($inputs, $expectedRunId));
     }
 
     /**

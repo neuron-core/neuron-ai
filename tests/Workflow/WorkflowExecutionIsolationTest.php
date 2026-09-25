@@ -18,6 +18,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -105,19 +106,20 @@ class WorkflowExecutionIsolationTest extends TestCase
         self::assertSame($first->getRunId(), $completed->getRunId());
         self::assertTrue($first->isInterrupted());
         self::assertFalse($completed->isInterrupted());
-        $workflow->acknowledgeCompletion($completed->getRunId());
+        $workflow->acknowledge($completed->getRunId());
         self::assertNull($workflow->inspect());
     }
 
     public function test_rebinding_a_workflow_is_rejected_before_persistence(): void
     {
-        $workflow = KeyedWorkflow::make('bound');
-        $before = serialize($workflow->getPersistence());
+        $persistence = new InMemoryPersistence();
+        $workflow = KeyedWorkflow::make('bound')->setPersistence($persistence);
+        $before = serialize($persistence);
         try {
             $workflow->setWorkflowId('different');
             self::fail('Expected conflicting address.');
         } catch (WorkflowException) {
-            self::assertSame($before, serialize($workflow->getPersistence()));
+            self::assertSame($before, serialize($persistence));
         }
     }
 

@@ -495,7 +495,7 @@ pending `ApprovalRequest`. Catch it
 to re-render the pending decision, and settle it with `submitApprovalDecisions($decisions)`
 (decline decisions are the cancel path).
 
-`abandonRun()` discards an eligible paused, failed, or dead run without starting
+`abandon()` discards an eligible paused, failed, or dead run without starting
 another and returns `false` when none exists. Agent refuses abandonment while
 history ends in an unanswered tool call, including approval and deferred-result
 waits. Settle that call first, or use `resetConversation()` to abandon the run
@@ -515,7 +515,7 @@ need an inputless continuation to be evaluated.
 Successful runs release their persistence partition by default. For durable
 completion delivery, opt into `retainCompletionUntilAcknowledged()`, retrieve
 retained state with `resume()->run()`, and release that exact generation with
-`acknowledgeCompletion($runId)`. Retained completion blocks a new turn until
+`acknowledge($runId)`. Retained completion blocks a new turn until
 acknowledged. File persistence is for controlled single-process use; choose
 `DatabasePersistence`, `EloquentPersistence`, or `RedisPersistence` for
 multi-process coordination. Redis requires persistence and eviction settings that

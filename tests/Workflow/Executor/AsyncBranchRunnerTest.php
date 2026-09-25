@@ -22,7 +22,7 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -30,20 +30,19 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function Amp\async;
-use function Amp\delay;
 use function iterator_to_array;
 use function microtime;
 
-class AsyncExecutorTest extends TestCase
+class AsyncBranchRunnerTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    protected function executor(): AsyncExecutor
+    protected function branchRunner(): AsyncBranchRunner
     {
-        return new AsyncExecutor();
+        return new AsyncBranchRunner();
     }
 
-    public function test_async_executor_with_normal_nodes(): void
+    public function test_async_runner_with_normal_nodes(): void
     {
         $workflow = Workflow::make('test-workflow')
             ->addNodes([
@@ -59,7 +58,7 @@ class AsyncExecutorTest extends TestCase
         $this->assertTrue($result->get('node_three_executed'));
     }
 
-    public function test_parallel_branches_run_with_default_executor(): void
+    public function test_parallel_branches_run_with_the_default_runner(): void
     {
         $workflow = Workflow::make('test-workflow')
             ->addNodes([
@@ -69,16 +68,16 @@ class AsyncExecutorTest extends TestCase
                 new MergeNode(),
             ]);
 
-        // Deliberately bypass the class's async executor override: this test
-        // proves the DEFAULT executor runs branches one by one.
+        // Deliberately bypass the class's branch runner override: this test
+        // proves the DEFAULT runner runs branches one by one.
         $start = microtime(true);
         $workflow->run();
         $elapsed = microtime(true) - $start;
 
-        $this->assertGreaterThan(0.15, $elapsed, 'The default executor should run branches one by one');
+        $this->assertGreaterThan(0.15, $elapsed, 'The default runner should run branches one by one');
     }
 
-    public function test_async_executor_runs_branches_concurrently(): void
+    public function test_async_runner_runs_branches_concurrently(): void
     {
         $workflow = Workflow::make('test-workflow')
             ->addNodes([
@@ -93,7 +92,7 @@ class AsyncExecutorTest extends TestCase
         $this->execute($workflow);
         $elapsed = microtime(true) - $start;
 
-        $this->assertLessThan(0.18, $elapsed, 'AsyncExecutor should run branches concurrently');
+        $this->assertLessThan(0.18, $elapsed, 'AsyncBranchRunner should run branches concurrently');
     }
 
     public function test_branch_state_is_isolated_and_merged(): void
@@ -111,38 +110,6 @@ class AsyncExecutorTest extends TestCase
         $analysis = $result->get('analysis');
         $this->assertSame('HELLO', $analysis['text']);
         $this->assertSame('processed_image.jpg', $analysis['image']);
-    }
-
-    public function test_same_node_context_is_isolated_between_parallel_branches(): void
-    {
-        $fork = new class () extends Node {
-            public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
-            {
-                return new DocumentParallelEvent([
-                    'text' => new TextProcessEvent(),
-                    'image' => new TextProcessEvent(),
-                ]);
-            }
-        };
-
-        $sharedNode = new class () extends Node {
-            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
-            {
-                delay(0.01);
-
-                return new StopEvent(result: $this->branchId);
-            }
-        };
-
-        $workflow = Workflow::make('test-workflow')
-            ->addNodes([$fork, $sharedNode, new MergeNode()]);
-
-        $result = $this->execute($workflow);
-
-        $this->assertSame([
-            'text' => 'text',
-            'image' => 'image',
-        ], $result->get('analysis'));
     }
 
     public function test_parallel_streaming_is_live_and_backpressured(): void

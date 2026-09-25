@@ -11,7 +11,7 @@ use NeuronAI\Exceptions\WorkflowException;
  *
  * Internal control-flow signal thrown by {@see \NeuronAI\Workflow\Node::interrupt()}
  * and by pausing middleware to unwind to the step boundary
- * ({@see \NeuronAI\Workflow\Executor\WorkflowExecutor::runNode}), which converts
+ * ({@see \NeuronAI\Workflow\Executor\Segment::runNode}), which converts
  * it into an {@see \NeuronAI\Workflow\Events\InterruptEvent}.
  *
  * This is never persisted and never reaches user code — a paused workflow is

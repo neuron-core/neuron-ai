@@ -9,7 +9,7 @@ use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionStartEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionWaitNode;
 use NeuronAI\Workflow\Executor\Ignition;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
@@ -132,7 +132,7 @@ class IgnitionTest extends TestCase
 
         $workflow = Workflow::make(workflowId: 'ign_routing')
             ->setPersistence($store)
-            ->setExecutor(new WorkflowExecutor())
+            ->setBranchRunner(new SequentialBranchRunner())
             ->addNode(new IgnitionWaitNode());
         $workflow->setStartEvent(new IgnitionStartEvent());
 

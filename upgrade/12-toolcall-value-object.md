@@ -41,13 +41,11 @@ live registry at execution time.
    silently executing a dependency-free shell after a failed rehydration. Resolution reads
    the inference event's tool list only — `ToolNode` no longer takes a tool registry in
    its constructor.
-8. **The workflow contract split in two.** `WorkflowInterface` is now the
-   application contract only; the engine-facing methods (`getStartEvent`, `getState`,
-   `getNodeForEvent`, `getEventNodeMap`, `getMiddlewareForNode` and `getEventDispatcher`)
-   moved to `WorkflowRuntimeInterface`, which
-   executors type against. `Workflow` implements both, so subclasses are unaffected; code
-   that held a `WorkflowInterface` and called engine methods must hold the concrete
-   workflow (or the runtime interface) instead.
+8. **The workflow contract is the application contract only.** `getNodeForEvent()`,
+   `getEventNodeMap()` and `getMiddlewareForNode()` left `WorkflowInterface` and
+   `Workflow`: each execution segment builds its own graph internally. `getStartEvent()`
+   and `getEventDispatcher()` stay public on `Workflow`. Code that read the graph of a
+   workflow can render it with `export()`.
 
 Unchanged: the on-disk chat history format (stored tool entries deserialize into
 `ToolCall` transparently; the schema-side `parameters` key is ignored on read and no

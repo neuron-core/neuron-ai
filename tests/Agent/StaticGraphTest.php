@@ -33,7 +33,7 @@ class StaticGraphTest extends TestCase
 
         $agent->chat(new UserMessage('hello'));
 
-        $map = ExecutionTestFactory::runtime($agent)->getEventNodeMap();
+        $map = ExecutionTestFactory::graph($agent)->nodes();
 
         $this->assertInstanceOf(AgentStartNode::class, $map[AgentStartEvent::class] ?? null);
         $this->assertInstanceOf(ChatNode::class, $map[AIInferenceEvent::class] ?? null);

@@ -21,7 +21,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchImageFirstForkNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -88,7 +88,7 @@ class ParallelInterruptTest extends TestCase
 
     public function test_partial_resume_does_not_rerun_unaddressed_interrupts(): void
     {
-        foreach ([null, new AsyncExecutor()] as $index => $executor) {
+        foreach ([null, new AsyncBranchRunner()] as $index => $runner) {
             $counter = new stdClass();
             $counter->runs = 0;
 
@@ -118,8 +118,8 @@ class ParallelInterruptTest extends TestCase
 
             $workflow = Workflow::make(workflowId: "selective-resume-{$index}")
                 ->addNodes([$fork, $node, new MergeNode()]);
-            if ($executor instanceof AsyncExecutor) {
-                $workflow->setExecutor($executor);
+            if ($runner instanceof AsyncBranchRunner) {
+                $workflow->setBranchRunner($runner);
             }
 
             $workflow->run();
@@ -293,7 +293,7 @@ class ParallelInterruptTest extends TestCase
     public function test_async_parallel_interrupt_surfaces_request(): void
     {
         $workflow = Workflow::make(workflowId: 'test-async-token')
-            ->setExecutor(new AsyncExecutor())
+            ->setBranchRunner(new AsyncBranchRunner())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -312,7 +312,7 @@ class ParallelInterruptTest extends TestCase
         $persistence = new InMemoryPersistence();
 
         $workflow = Workflow::make(workflowId: 'test-async-token')
-            ->setExecutor(new AsyncExecutor())
+            ->setBranchRunner(new AsyncBranchRunner())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),
@@ -324,7 +324,7 @@ class ParallelInterruptTest extends TestCase
         $this->assertNotNull($request);
 
         $resumed = Workflow::make(workflowId: 'test-async-token')
-            ->setExecutor(new AsyncExecutor())
+            ->setBranchRunner(new AsyncBranchRunner())
             ->addNodes([
                 new InterruptableBranchProcessing(),
                 new InterruptableTextProcessNode(),

@@ -7,8 +7,8 @@ namespace NeuronAI\Workflow\Executor;
 /**
  * One streamed item or the terminal outcome of an asynchronous branch.
  *
- * AsyncExecutor advances each branch only once per instance, keeping output
- * bounded while the parent forwards events with backpressure.
+ * AsyncBranchRunner advances each branch only once per instance, keeping
+ * output bounded while the parent forwards events with backpressure.
  */
 class BranchResult
 {
@@ -18,7 +18,6 @@ class BranchResult
      * @param bool $paused The branch stopped at a durable boundary.
      */
     public function __construct(
-        public readonly mixed $result = null,
         public readonly ?object $streamedEvent = null,
         public readonly ?int $streamedKey = null,
         public readonly bool $paused = false,

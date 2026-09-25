@@ -14,7 +14,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\RecordingMiddleware;
 use NeuronAI\Tests\Workflow\Executor\Stub\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stub\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\StreamingTextProcessNode;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
@@ -22,9 +22,9 @@ class BranchEdgeCasesTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    protected function executor(): AsyncExecutor
+    protected function branchRunner(): AsyncBranchRunner
     {
-        return new AsyncExecutor();
+        return new AsyncBranchRunner();
     }
 
     public function test_multi_step_branch_executes_all_nodes(): void

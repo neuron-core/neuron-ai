@@ -13,8 +13,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @template-covariant TState of WorkflowState
  *
  * The application-facing contract of a workflow. Configuration is
- * concrete-class API on {@see Workflow}; the engine-facing collaboration
- * points live on {@see WorkflowRuntimeInterface}, implemented by the per-segment runtime.
+ * concrete-class API on {@see Workflow}.
  */
 interface WorkflowInterface
 {
@@ -30,7 +29,7 @@ interface WorkflowInterface
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingExecution;
 
     /** Conditionally purge a retained completed generation. */
-    public function acknowledgeCompletion(string $expectedRunId): void;
+    public function acknowledge(string $expectedRunId): void;
 
     /**
      * Discard the run holding the workflow ID so a new one can ignite: a
@@ -38,7 +37,7 @@ interface WorkflowInterface
      * run under a fresh lease is refused. Optional run and attempt fences
      * protect explicit replacement. False when nothing is in flight.
      */
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool;
+    public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool;
 
     /**
      * Keep the terminal result until the coordinating caller acknowledges it.

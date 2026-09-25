@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Workflow\Executor\WorkflowControl;
@@ -16,11 +17,10 @@ use PHPUnit\Framework\TestCase;
 use function iterator_to_array;
 
 /**
- * A workflow instance runs one segment at a time. A second segment started
- * under a live one used to overwrite the executor's working context, so the
- * live segment finished stamped with another ignition's run ID. It is now
- * refused before anything is touched, and a discarded segment releases the
- * instance.
+ * A workflow instance keeps nothing of a segment, so a call made while one of
+ * its segments is in flight meets the persisted run as another process
+ * would: the running generation refuses a new ignition, a live lease refuses
+ * an abandon, and an abandoned run fences its segment out.
  */
 class WorkflowSegmentOverlapTest extends TestCase
 {
@@ -32,7 +32,7 @@ class WorkflowSegmentOverlapTest extends TestCase
             ->retainCompletionUntilAcknowledged();
     }
 
-    public function test_a_second_segment_is_refused_while_one_is_in_flight(): void
+    public function test_a_second_segment_is_refused_by_the_running_generation(): void
     {
         $persistence = new InMemoryPersistence();
         $workflow = $this->streaming($persistence);
@@ -44,8 +44,9 @@ class WorkflowSegmentOverlapTest extends TestCase
         try {
             $workflow->events()->current();
             $this->fail('The overlapping segment should be refused.');
-        } catch (WorkflowException $e) {
-            $this->assertStringContainsString('already in flight', $e->getMessage());
+        } catch (RunInFlightException $e) {
+            $this->assertSame($runId, $e->runId);
+            $this->assertSame(WorkflowStatus::Running, $e->status);
         }
         iterator_to_array($live, false);
         $state = $live->getReturn();
@@ -57,25 +58,42 @@ class WorkflowSegmentOverlapTest extends TestCase
         $this->assertSame($runId, $control->runId);
     }
 
-    public function test_abandon_and_acknowledge_are_refused_while_a_segment_is_in_flight(): void
+    public function test_a_live_lease_refuses_an_abandon_and_a_running_run_cannot_be_acknowledged(): void
+    {
+        $workflow = $this->streaming(new InMemoryPersistence())->setLeaseTimeout(60);
+        $live = $workflow->events();
+        $live->current();
+
+        try {
+            $workflow->abandon();
+            $this->fail('Abandoning under a live lease should be refused.');
+        } catch (WorkflowException $e) {
+            $this->assertStringContainsString('appears to be executing', $e->getMessage());
+        }
+
+        try {
+            $workflow->acknowledge((string) $workflow->inspect()?->runId);
+            $this->fail('Acknowledging a running run should be refused.');
+        } catch (WorkflowException $e) {
+            $this->assertStringContainsString('is not completed', $e->getMessage());
+        }
+    }
+
+    public function test_an_abandoned_run_fences_its_segment_out(): void
     {
         $workflow = $this->streaming(new InMemoryPersistence());
         $live = $workflow->events();
         $live->current();
 
-        try {
-            $workflow->abandonRun();
-            $this->fail('Abandoning under a live segment should be refused.');
-        } catch (WorkflowException $e) {
-            $this->assertStringContainsString('already in flight', $e->getMessage());
-        }
+        $this->assertTrue($workflow->abandon());
 
         try {
-            $workflow->acknowledgeCompletion((string) $workflow->inspect()?->runId);
-            $this->fail('Acknowledging under a live segment should be refused.');
+            iterator_to_array($live, false);
+            $this->fail('The abandoned segment should not commit.');
         } catch (WorkflowException $e) {
-            $this->assertStringContainsString('already in flight', $e->getMessage());
+            $this->assertStringContainsString('Stale execution attempt', $e->getMessage());
         }
+        $this->assertNull($workflow->inspect());
     }
 
     public function test_a_discarded_segment_releases_the_instance(): void

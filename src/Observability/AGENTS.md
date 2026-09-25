@@ -17,7 +17,7 @@ Listeners are registered on the workflow definition. Each execution captures its
 
 ## Emitting
 
-The executor dispatches the lifecycle (`WorkflowStart`, `WorkflowNodeStart`/`End`, `MiddlewareStart`/`End`, `BranchStart`/`End`, `WorkflowInterrupted`, `AgentError`, `WorkflowEnd`). Nodes emit domain events through `Node::emit()`, where the event object *is* the payload; `emit()` accepts any object (PSR-14 semantics) and is a no-op when the node runs without an executor. A custom event is a subclass of `ObservabilityEvent` plus a subscription to its class.
+Each execution segment dispatches the lifecycle (`WorkflowStart`, `WorkflowNodeStart`/`End`, `MiddlewareStart`/`End`, `BranchStart`/`End`, `WorkflowInterrupted`, `AgentError`, `WorkflowEnd`). Nodes emit domain events through `Node::emit()`, where the event object *is* the payload; `emit()` accepts any object (PSR-14 semantics) and is a no-op when the node runs outside a workflow. A custom event is a subclass of `ObservabilityEvent` plus a subscription to its class.
 
 `WorkflowEnd` reports the execution segment's final state: inspect `state->getStatus()` to distinguish completion, suspension and failure. A suspended segment emits one `WorkflowInterrupted` with the full state and its single current request, then `WorkflowEnd`. Async branches finish their running nodes before this event; deferred requests are reported only when they become current. An `AgentError` can also describe an isolated listener error, so it does not by itself establish that the run failed.
 

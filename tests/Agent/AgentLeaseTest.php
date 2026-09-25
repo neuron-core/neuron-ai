@@ -15,6 +15,7 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
+use Throwable;
 
 use function array_filter;
 use function time;
@@ -29,13 +30,13 @@ class AgentLeaseTest extends TestCase
 {
     public function test_agent_holds_a_ten_minute_lease_by_default(): void
     {
-        $this->assertSame(600, Agent::make()->getLeaseTimeout());
-        $this->assertNull(Workflow::make()->getLeaseTimeout());
+        $this->assertSame(600, $this->admittedLease(Agent::make()));
+        $this->assertNull($this->admittedLease(Workflow::make()));
     }
 
     public function test_null_disables_the_default_lease(): void
     {
-        $this->assertNull(Agent::make()->setLeaseTimeout(null)->getLeaseTimeout());
+        $this->assertNull($this->admittedLease(Agent::make()->setLeaseTimeout(null)));
     }
 
     public function test_the_hook_override_and_the_setter_win_over_the_default(): void
@@ -47,8 +48,8 @@ class AgentLeaseTest extends TestCase
             }
         };
 
-        $this->assertSame(5, $agent->getLeaseTimeout());
-        $this->assertSame(30, $agent->setLeaseTimeout(30)->getLeaseTimeout());
+        $this->assertSame(5, $this->admittedLease($agent));
+        $this->assertSame(30, $this->admittedLease($agent->setLeaseTimeout(30)));
     }
 
     public function test_a_turn_renews_the_lease_with_every_step_commit(): void
@@ -98,5 +99,36 @@ class AgentLeaseTest extends TestCase
 
         // One renewal per node commit: StartNode, ChatNode, then EndNode.
         $this->assertCount(3, $renewals);
+    }
+
+    /**
+     * The lease a run is admitted with: the deadline of its first control
+     * record, in seconds from the moment it was written.
+     */
+    protected function admittedLease(Workflow $workflow): ?int
+    {
+        $persistence = new class () extends InMemoryPersistence {
+            public ?int $lease = null;
+
+            public function initializeIfAbsent(
+                string $partition,
+                string $conditionKey,
+                string $initialValue,
+                array $records = [],
+            ): bool {
+                $control = (new PhpSerializer())->unserialize($initialValue);
+                $this->lease = $control->leaseExpiresAt === null ? null : $control->leaseExpiresAt - time();
+
+                return parent::initializeIfAbsent($partition, $conditionKey, $initialValue, $records);
+            }
+        };
+
+        try {
+            $workflow->setPersistence($persistence)->run();
+        } catch (Throwable) {
+            // Neither a provider nor nodes are configured: only the admission matters.
+        }
+
+        return $persistence->lease;
     }
 }

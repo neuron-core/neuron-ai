@@ -25,7 +25,7 @@ use RuntimeException;
 use function time;
 
 /**
- * abandonRun() discards the generation holding a workflow ID, whatever it
+ * abandon() discards the generation holding a workflow ID, whatever it
  * waits for, behind the same fence as every other mutation. Only a retained
  * completion (acknowledge it instead) and a run under a fresh lease (a worker
  * is evidently executing it) refuse.
@@ -70,7 +70,7 @@ class WorkflowAbandonTest extends TestCase
         return KeyedWorkflow::make()
             ->withDeclaredWorkflowId('thread_1')
             ->setPersistence($persistence)
-            ->abandonRun($expectedRunId);
+            ->abandon($expectedRunId);
     }
 
     public function test_abandon_discards_a_suspended_generation_and_frees_the_workflow_id(): void
@@ -140,7 +140,7 @@ class WorkflowAbandonTest extends TestCase
             $this->abandon($persistence);
             $this->fail('A retained completion should be acknowledged, not abandoned.');
         } catch (WorkflowException $e) {
-            $this->assertStringContainsString('acknowledgeCompletion()', $e->getMessage());
+            $this->assertStringContainsString('acknowledge()', $e->getMessage());
         }
 
         $this->assertNotNull($persistence->get('thread_1', '__control'));
@@ -220,6 +220,6 @@ class WorkflowAbandonTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('the workflow declares none');
 
-        Workflow::make()->setPersistence(new InMemoryPersistence())->abandonRun();
+        Workflow::make()->setPersistence(new InMemoryPersistence())->abandon();
     }
 }

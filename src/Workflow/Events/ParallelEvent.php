@@ -12,7 +12,7 @@ use function is_string;
  * Event that triggers parallel branch execution.
  *
  * Return a ParallelEvent subclass from a fork node and the executor runs all
- * branches (sequentially by default, concurrently with AsyncExecutor). Each
+ * branches (sequentially by default, concurrently with AsyncBranchRunner). Each
  * branch's StopEvent result is stored via setResult(), then the instance is
  * routed through the event→node map to a join node, whose __invoke() accepts
  * the subclass and reads the results back.

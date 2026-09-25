@@ -8,7 +8,6 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\Tool;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use PDO;
 use RuntimeException;
@@ -145,7 +144,7 @@ class Fixture
     /** @return array<string, mixed> */
     public function observe(string $threadId): array
     {
-        $run = (new WorkflowExecutor())->inspect($this->agent($threadId));
+        $run = $this->agent($threadId)->inspect();
 
         $invocations = $this->pdo->prepare('SELECT method, messages, tools, response FROM provider_invocations WHERE thread_id = ? ORDER BY id');
         $invocations->execute([$threadId]);

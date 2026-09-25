@@ -299,6 +299,6 @@ class DeferredToolFlowTest extends TestCase
         $this->agent([new FrontendTool('browser')])->chat(new UserMessage('Go'));
         $this->expectException(AgentException::class);
         $this->expectExceptionMessage('submitInputs()');
-        $this->agent()->abandonRun();
+        $this->agent()->abandon();
     }
 }

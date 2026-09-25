@@ -59,7 +59,7 @@ class AgentManagedExecutionTest extends TestCase
         self::assertSame('first', $result->getRunId());
         self::assertSame('First answer', $result->getMessage()->getContent());
         self::assertNotEmpty($channel->getSent());
-        $first->acknowledgeCompletion('first');
+        $first->acknowledge('first');
         $second = $make()->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Two')]), 'second'));
         self::assertSame('second', $second->getRunId());
         self::assertFalse($second->request->options->stream);

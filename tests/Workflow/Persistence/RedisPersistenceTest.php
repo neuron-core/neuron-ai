@@ -275,7 +275,7 @@ class RedisPersistenceTest extends TestCase
             ->setPersistence($this->store)->retainCompletionUntilAcknowledged();
         $started = $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start());
         $make()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $started->getRunId(), $started->getExecutionAttempt()));
-        $make()->acknowledgeCompletion($started->getRunId());
+        $make()->acknowledge($started->getRunId());
         self::assertSame([], $this->client->keys($this->prefix . '*'));
     }
 

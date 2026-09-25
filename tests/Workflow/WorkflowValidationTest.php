@@ -107,7 +107,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Lease timeout must be a positive number of seconds or null.');
 
-        $workflow->getLeaseTimeout();
+        $workflow->run();
     }
 
     public function test_validation_failure_marks_the_owned_run_as_failed(): void

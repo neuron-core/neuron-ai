@@ -19,7 +19,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Integration\Frontend\Stub\Fixture;
 use NeuronAI\Tests\Integration\Frontend\Stub\ChannelFixture;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
-use NeuronAI\Workflow\WorkflowInspector;
+use NeuronAI\Workflow\WorkflowEngine;
 
 require __DIR__ . '/../../../../vendor/autoload.php';
 
@@ -96,7 +96,7 @@ function agui(Fixture $fixture, array $payload): void
  */
 function aguiReload(Fixture $fixture, string $threadId): void
 {
-    $run = (new WorkflowInspector($fixture->persistence()))->inspect($threadId);
+    $run = (new WorkflowEngine($fixture->persistence()))->inspect($threadId);
     respondJson(200, (new AGUIAdapter($threadId))->hydrate($fixture->messageStore()->loadAll($threadId, limit: 50), $run));
 }
 

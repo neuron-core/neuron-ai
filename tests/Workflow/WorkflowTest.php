@@ -100,7 +100,7 @@ class WorkflowTest extends TestCase
             ]);
 
         $this->execute($workflow);
-        $eventNodeMap = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow)->getEventNodeMap();
+        $eventNodeMap = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow)->nodes();
 
         $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
         $this->assertArrayHasKey(FirstEvent::class, $eventNodeMap);

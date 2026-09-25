@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
-use NeuronAI\Workflow\Executor\WorkflowExecutorInterface;
+use NeuronAI\Workflow\Executor\BranchRunner;
+use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -19,13 +19,13 @@ use Closure;
 
 /**
  * Definitions hold configured services and resource recipes. Persistence and
- * serializer defaults are shared services; resources and output are built per segment. An executor
- * carries no configuration of its own, so choosing an execution model never
- * affects where state lives.
+ * serializer defaults are shared services; resources and output are built per segment. A branch
+ * runner carries no configuration of its own, so choosing how branches run
+ * never affects where state lives.
  */
 trait HandleComponents
 {
-    protected ?WorkflowExecutorInterface $executor = null;
+    protected ?BranchRunner $branchRunner = null;
 
     protected ?PersistenceInterface $persistence = null;
 
@@ -48,20 +48,33 @@ trait HandleComponents
 
     protected ExporterInterface $exporter;
 
-    final protected function getExecutor(): WorkflowExecutorInterface
+    /**
+     * How the branches of a fork run: one after another by default, or
+     * concurrently with an AsyncBranchRunner. It wins over the branchRunner() hook.
+     */
+    public function setBranchRunner(BranchRunner $runner): static
     {
-        return $this->executor === null ? $this->executor() : clone $this->executor;
-    }
-
-    protected function executor(): WorkflowExecutorInterface
-    {
-        return new WorkflowExecutor();
-    }
-
-    public function setExecutor(WorkflowExecutorInterface $executor): static
-    {
-        $this->executor = $executor;
+        $this->branchRunner = $runner;
         return $this;
+    }
+
+    final protected function getBranchRunner(): BranchRunner
+    {
+        return $this->branchRunner ?? $this->branchRunner();
+    }
+
+    protected function branchRunner(): BranchRunner
+    {
+        return new SequentialBranchRunner();
+    }
+
+    /**
+     * Built for every call from the persistence and serializer configured at
+     * that moment, and never cached, so a later change applies to the next call.
+     */
+    final protected function getEngine(): WorkflowEngine
+    {
+        return new WorkflowEngine($this->getPersistence(), $this->getSerializer());
     }
 
     /**
@@ -73,7 +86,7 @@ trait HandleComponents
         return $this;
     }
 
-    final public function getPersistence(): PersistenceInterface
+    final protected function getPersistence(): PersistenceInterface
     {
         return $this->persistence ??= $this->persistence();
     }
@@ -93,7 +106,7 @@ trait HandleComponents
         return $this;
     }
 
-    final public function getSerializer(): Serializer
+    final protected function getSerializer(): Serializer
     {
         return $this->serializer ??= $this->serializer();
     }
@@ -179,11 +192,10 @@ trait HandleComponents
     /**
      * @throws WorkflowException
      */
-    public function export(?ExecutionContext $context = null): string
+    public function export(): string
     {
-        $context ??= new ExecutionContext($this->getWorkflowId() ?? 'preview', 'preview', 0, $this->makeIgnition('preview', $this->getStartEvent()));
-        $execution = $this->buildGraph($context);
-        return $this->exporter->export((new WorkflowGraphBuilder())->build($execution->getStartEvent()::class, $execution->getEventNodeMap()));
+        $start = $this->getStartEvent();
+        return $this->exporter->export((new WorkflowGraphBuilder())->build($start::class, $this->graph($start)->nodes()));
     }
 
     public function setExporter(ExporterInterface $exporter): static

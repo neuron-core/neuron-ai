@@ -270,15 +270,15 @@ class AgentConfigurationTest extends TestCase
 
         $agent->addMiddleware(ChatNode::class, fn () => $middleware);
         $agent->chat(new UserMessage('Parallel'));
-        $this->assertInstanceOf(ParallelToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(ToolCallEvent::class));
-        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(StartEvent::class));
+        $this->assertInstanceOf(ParallelToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[ToolCallEvent::class]);
+        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[StartEvent::class]);
 
         $agent->parallelToolCalls(false)->chat(new UserMessage('Sequential'));
-        $this->assertSame(ToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(ToolCallEvent::class)::class);
+        $this->assertSame(ToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[ToolCallEvent::class]::class);
         $this->assertSame(2, $middleware->agentCalls);
         $this->assertSame(2, $middleware->afterCalls);
         $this->assertSame([ToolNode::class, ParallelToolNode::class, ToolNode::class], $toolNodes);
-        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($agent)->getNodeForEvent(StartEvent::class));
+        $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[StartEvent::class]);
     }
     public function test_configuration_changes_during_streaming_apply_to_the_next_segment(): void
     {
@@ -321,7 +321,7 @@ class AgentConfigurationTest extends TestCase
         $this->assertSame('first-thread', $stream->getReturn()->getWorkflowId());
         $this->assertCount(4, $firstStore->loadActive('first-thread'));
         $this->assertSame([], $nextStore->loadAll('first-thread'));
-        $this->assertNull(Agent::make(workflowId: 'first-thread')->setPersistence($agent->getPersistence())->inspect());
+        $this->assertNull($agent->inspect());
 
         $state = $agent->chat(new UserMessage('Hello'));
         $this->assertSame('first-thread', $state->getWorkflowId());

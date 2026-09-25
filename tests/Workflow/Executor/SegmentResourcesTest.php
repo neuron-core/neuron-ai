@@ -12,7 +12,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\ResourcefulWorkflow;
 use NeuronAI\Tests\Workflow\Executor\Stub\StatefulTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextBranchesFork;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -41,7 +41,7 @@ class SegmentResourcesTest extends TestCase
                 new MergeNode(),
             ]);
             if ($async) {
-                $workflow->setExecutor(new AsyncExecutor());
+                $workflow->setBranchRunner(new AsyncBranchRunner());
             }
 
             return $workflow;

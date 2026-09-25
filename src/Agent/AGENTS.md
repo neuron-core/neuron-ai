@@ -221,7 +221,7 @@ Each entry has exactly one `result` (a JSON-compatible value) or `error` (a stri
 
 The dispatched batch remains valid even if its definitions are absent from the resumed agent. Re-supply dynamically offered tools only when they should remain available for **future** model calls. Client schemas and results are untrusted inputs to the model context; applications must authorize the thread and the capabilities they expose.
 
-The default wait has no deadline. A customized `AwaitToolResultsNode::buildRequest()` can supply a `ToolResultsRequest` deadline (memoize its initial value so partial resumes do not extend it). Workflow's normal expiry continuation settles only the outstanding calls as error results; scheduling that continuation remains the application's responsibility. `abandonRun()` refuses an unanswered tool call; submit error outcomes or explicitly reset the conversation.
+The default wait has no deadline. A customized `AwaitToolResultsNode::buildRequest()` can supply a `ToolResultsRequest` deadline (memoize its initial value so partial resumes do not extend it). Workflow's normal expiry continuation settles only the outstanding calls as error results; scheduling that continuation remains the application's responsibility. `abandon()` refuses an unanswered tool call; submit error outcomes or explicitly reset the conversation.
 
 Use `submitToolResults($results)` for native result maps, including results sent by a custom frontend. Raw AG-UI and Vercel envelopes use their protocol translators through `submitInputs()`; do not pass a messages/parts envelope to the native methods. Use the durable suspension request as the dispatch boundary; a live stream chunk alone does not prove suspension has committed.
 
@@ -266,7 +266,7 @@ One live run per thread has these consequences:
 - A new `chat()` while a run is suspended on the thread is refused with `RunInFlightException`, carrying the pending `ApprovalRequest`; settle it first. The thread stays locked until the full decision set is delivered.
 - A *failed* turn does not lock the thread: the inbound message was never written, so the next `chat()` supersedes the dead generation, while plain `run()` or `events()` recovers it reusing every memoized step (a long tool loop is not re-billed).
 - Every Agent run holds a ten-minute lease (`leaseTimeout()` hook, `setLeaseTimeout()`, `null` disables), so a process killed mid-turn stops refusing the thread once the deadline passes. Raise it above your slowest provider or tool call.
-- `abandonRun()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
+- `abandon()` dismisses a dead turn but refuses while history ends with an unanswered `ToolCallMessage` (approval or external execution); `resetConversation()` frees the thread unconditionally.
 
 **Persisted wins.** Every durable run writes an ignition record at first execution: run ID and start event (messages + intent). On resume the record's intent and instructions win over the factory's current defaults: the factory supplies capability (provider, tools, history), the record supplies intent. `setMessageStore()` may replace the store between interactions. Replacing it during an active execution configures subsequent segments without redirecting the current segment's history or durable writes.
 

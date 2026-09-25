@@ -257,7 +257,7 @@ class WorkflowMiddlewareTest extends TestCase
         $child = new class () extends NodeOne {
         };
 
-        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode($child);
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->middlewareFor($child);
 
         $this->assertCount(1, $resolved);
         $this->assertSame($middleware, $resolved[0]);
@@ -271,7 +271,7 @@ class WorkflowMiddlewareTest extends TestCase
         $workflow->addMiddleware(NodeTwo::class, fn () => $middleware);
 
         // NodeOne is a sibling of NodeTwo, not a subclass — no match.
-        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode(new NodeOne());
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->middlewareFor(new NodeOne());
 
         $this->assertSame([], $resolved);
     }
@@ -286,7 +286,7 @@ class WorkflowMiddlewareTest extends TestCase
         $workflow = Workflow::make('test-workflow');
         $workflow->addMiddleware(ToolNode::class, fn () => $middleware);
 
-        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::runtime($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->getMiddlewareForNode(new ParallelToolNode());
+        $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->middlewareFor(new ParallelToolNode());
 
         $this->assertCount(1, $resolved);
         $this->assertSame($middleware, $resolved[0]);

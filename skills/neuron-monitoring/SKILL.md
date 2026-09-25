@@ -27,7 +27,7 @@ All components emit event objects automatically. Every event class lives in
 `NeuronAI\Observability\ObservabilityEvent`:
 
 ```php
-// Lifecycle (emitted by the executor):
+// Lifecycle (emitted by the workflow engine):
 // WorkflowStart, WorkflowEnd, WorkflowNodeStart, WorkflowNodeEnd,
 // MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd,
 // WorkflowInterrupted (run paused for external input), AgentError (failure)

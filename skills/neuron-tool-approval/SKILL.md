@@ -264,7 +264,7 @@ Treat `message` and `decisions` as mutually exclusive in the request body (400 i
 A pending decision has no clock of its own: a suspended run holds no lease, so
 the approval can arrive minutes or days later unless the request carries an
 `expiresAt`. Cancelling is a decline: deliver `reject` decisions and the model
-gets the rejection template as the tool result. `abandonRun()` refuses while an
+gets the rejection template as the tool result. `abandon()` refuses while an
 approval is pending, because the pre-suspend tool call would be left unanswered
 in history; `resetConversation()` wipes the history and frees the thread instead.
 

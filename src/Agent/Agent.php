@@ -229,8 +229,8 @@ class Agent extends Workflow implements AgentInterface
         $chatHistory = $this->getChatHistory();
 
         // The history is wiped below, so a pending approval cannot dangle:
-        // the engine verb frees the thread without abandonRun()'s guard.
-        parent::abandonRun();
+        // the Workflow verb frees the thread without this class's guard.
+        parent::abandon();
 
         $chatHistory->flushAll();
 
@@ -244,7 +244,7 @@ class Agent extends Workflow implements AgentInterface
      *
      * @throws AgentException
      */
-    public function abandonRun(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
+    public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
         $messages = $this->getChatHistory()->getMessages();
         $lastMessage = end($messages);
@@ -255,7 +255,7 @@ class Agent extends Workflow implements AgentInterface
             );
         }
 
-        return parent::abandonRun($expectedRunId, $expectedExecutionAttempt);
+        return parent::abandon($expectedRunId, $expectedExecutionAttempt);
     }
 
     /**

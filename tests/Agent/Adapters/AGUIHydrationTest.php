@@ -28,7 +28,7 @@ use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
-use NeuronAI\Workflow\WorkflowInspector;
+use NeuronAI\Workflow\WorkflowEngine;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -217,7 +217,7 @@ class AGUIHydrationTest extends TestCase
      */
     protected function reload(): array
     {
-        $run = (new WorkflowInspector($this->persistence))->inspect('thread');
+        $run = (new WorkflowEngine($this->persistence))->inspect('thread');
 
         return (new AGUIAdapter('thread'))->hydrate($this->store->loadAll('thread'), $run);
     }

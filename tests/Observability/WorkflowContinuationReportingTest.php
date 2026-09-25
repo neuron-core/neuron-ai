@@ -28,7 +28,7 @@ use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Workflow;
@@ -143,7 +143,7 @@ class WorkflowContinuationReportingTest extends TestCase
         };
         $trace = (object) ['events' => []];
         $events = [];
-        $workflow = Workflow::make('test-workflow')->setExecutor(new AsyncExecutor())
+        $workflow = Workflow::make('test-workflow')->setBranchRunner(new AsyncBranchRunner())
             ->addNodes([$fork, new ConcurrentWaitNode($trace), $join]);
         $workflow->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event) use (&$events): void {
             if ($event instanceof WorkflowInterrupted) {

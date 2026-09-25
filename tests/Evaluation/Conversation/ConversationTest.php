@@ -21,7 +21,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use PHPUnit\Framework\TestCase;
 
@@ -39,7 +39,7 @@ class ConversationTest extends TestCase
         if ($withApproval) {
             // Attach-time approval config.
             $agent->addTool((new SearchTool())->requireApproval());
-            $agent->setExecutor(new WorkflowExecutor());
+            $agent->setBranchRunner(new SequentialBranchRunner());
         }
 
         return $agent;

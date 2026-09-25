@@ -4,7 +4,7 @@ Neuron's event-driven orchestration foundation. Agent and RAG are compositions b
 
 ## Core model
 
-A workflow routes events through nodes until a `StopEvent`. A node's `__invoke()` input type determines routing; the executor owns traversal, durable replay, suspension and lifecycle transitions, while nodes stay unaware of workers, HTTP requests, queues or cloud platforms.
+A workflow routes events through nodes until a `StopEvent`. A node's `__invoke()` input type determines routing; the engine owns admission and lifecycle transitions, and the segment it opens for each execution owns traversal, durable replay and suspension, while nodes stay unaware of workers, HTTP requests, queues or cloud platforms.
 
 ```php
 $state = Workflow::make(state: $state)
@@ -12,7 +12,7 @@ $state = Workflow::make(state: $state)
     ->run();
 ```
 
-Subclasses build their graph in the `nodes()` hook, which takes no argument and runs fresh at every execution segment, so the graph is always a function of the current configuration. Middleware wraps node execution (`addMiddleware(NodeClass::class, ...)`, subclass-aware, or `addGlobalMiddleware()`): it shapes events before a node acts, while flow control and I/O belong to nodes. Keep platform integration outside middleware and executors; the returned lifecycle outcome is the integration boundary.
+Subclasses build their graph in the `nodes()` hook, which takes no argument and runs fresh at every execution segment, so the graph is always a function of the current configuration. Middleware wraps node execution (`addMiddleware(NodeClass::class, ...)`, subclass-aware, or `addGlobalMiddleware()`): it shapes events before a node acts, while flow control and I/O belong to nodes. Keep platform integration outside middleware and branch runners; the returned lifecycle outcome is the integration boundary.
 
 ## State and resources
 
@@ -65,7 +65,7 @@ A workflow exposes one current interruption through `$state->getInterruptRequest
 - `submitInputs($payload, $translator)` returns a `PendingExecution` holding the workflow and an immutable `ExecutionRequest` with the answer and observed run/attempt fences; the Workflow supplies its fixed address. The translator is optional: omit it for a native response payload, including `[]`, or supply it to translate an external payload. Chain `->run()` or `->events()` on the result. Native Agent approval/tool-result helpers return the same pending execution type. Submission and creating a stream do not execute nodes or write persistence.
 
 
-A node reads the parallel branch it runs in from `$this->branchId`, null outside a branch; the branch is not part of the state. Parallel branches expose interruptions sequentially. The normal executor stops at the first interruption. AsyncExecutor stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
+A node reads the parallel branch it runs in from `$this->branchId`, null outside a branch; the branch is not part of the state. Parallel branches expose interruptions sequentially. The default `SequentialBranchRunner` stops at the first interruption. `AsyncBranchRunner` stops starting new nodes but drains nodes already running, including their streams and memo writes, to their terminal result or interruption. Each result is persisted. Concurrent requests wait in arrival order on their branch step records; control holds only deferred step IDs and the current request. Resolving the current step promotes the oldest deferred request, before any new interruption from that step. An accepted reply reaches its waiting node before other branches start new nodes.
 
 The current request blocks later requests, including their deadlines. A deferred deadline keeps its original value; it is evaluated by inputless continuation only after that request becomes current. This design requires no live fibers across segments and does not cancel running external operations. A node may take time to reach its boundary: memoization persists an operation but is not a traversal suspension point.
 
@@ -82,16 +82,18 @@ The core has no scheduler interface and no suspend/resume/complete callbacks. A 
 
 The complete `InterruptRequest` stays authoritative in Workflow persistence; a platform stores only the projection it needs to route work (`workflowId`, `runId`, `interruptId`, type, event name, deadline). A delivery job retains the observed run ID and execution attempt and passes both fences to `ExecutionRequest::resume($payload, ...)`; retries must not rematch by name against a later wait. Accepted input remains immutable until its node settles. Timer jobs use the current request's deadline and invoke a fenced resume request without a payload. Reconstruction is the factory's job.
 
-## Standalone inspection
+## Standalone engine
 
-`WorkflowInspector` reads persisted status and the current interruption without an Agent or Workflow definition:
+`WorkflowEngine` inspects, abandons and acknowledges runs by workflow ID without an Agent or Workflow definition:
 
 ```php
-$inspector = new \NeuronAI\Workflow\WorkflowInspector($persistence);
-$snapshot = $inspector->inspect($workflowId);
+$engine = new \NeuronAI\Workflow\WorkflowEngine($persistence);
+$snapshot = $engine->inspect($workflowId);
+$engine->abandon($workflowId, $snapshot->runId, $snapshot->executionAttempt);
+$engine->acknowledge($workflowId, $completedRunId);
 ```
 
-Only `PersistenceInterface` is required. The optional second constructor argument is a `Serializer`, defaulting to `PhpSerializer`; use the same serializer as the executing workflow. Each call reads fresh control and the run's ignition through an independent run store and returns `WorkflowRunSnapshot` or null; the snapshot carries `startEvent`, the run's original input, as its own copy. A run that ends or is replaced between the two reads is read again, and a control record without its ignition raises `WorkflowException`. The inspector retains no identity or run cache and performs no writes. `Workflow::inspect()` uses the same reader through its executor, passing the workflow's configured serializer and bound identity. Null means no current persisted run; it does not distinguish never-started workflows from completed runs already cleaned up. Frontend formatting belongs to the protocol adapters (`AGUIAdapter::hydrate()`), full transcripts to `MessageStoreInterface::loadAll()`.
+Only `PersistenceInterface` is required. The optional second constructor argument is a `Serializer`, defaulting to `PhpSerializer`; use the same serializer as the executing workflow. The engine keeps nothing between calls, and every workflow ID is validated where it enters the engine, so reserved `__` partitions are refused on every path. `inspect()` reads fresh control and the run's ignition through an independent run store and returns `WorkflowRunSnapshot` or null; the snapshot carries `startEvent`, the run's original input, as its own copy. A run that ends or is replaced between the two reads is read again, and a control record without its ignition raises `WorkflowException`. Inspection performs no writes. A Workflow builds its engine for every call from its configured persistence and serializer, and its `inspect()`, `abandon()` and `acknowledge()` pass the bound identity. These by-ID verbs are the raw path: Agent's own verbs add guards, such as refusing to abandon a run whose last message is an unanswered tool call. Null means no current persisted run; it does not distinguish never-started workflows from completed runs already cleaned up. Frontend formatting belongs to the protocol adapters (`AGUIAdapter::hydrate()`), full transcripts to `MessageStoreInterface::loadAll()`.
 
 ## One partition, optimistic ownership
 
@@ -112,7 +114,7 @@ All records for a workflow ID live in one persistence partition:
 read control A -> calculate transition -> write only if control is still A
 ```
 
-A successful claim increments the execution attempt; an older process may finish local work but can no longer commit a step, memo, suspension, failure or cleanup. `__control` never carries workflow state (checkpoint and outcome are separate records written in the same conditional write, keyed under the run ID, so an older process reads its own generation's state or nothing). The backend treats keys and values as opaque strings and understands nothing about runs. `WorkflowRunStore` is the internal boundary that owns reserved keys, serialization, the control snapshot, conditional writes and a segment-local record cache; `StepMemoizer` is a step-bound view of it; `WorkflowExecutor` works with typed `WorkflowControl` and never touches raw bytes.
+A successful claim increments the execution attempt; an older process may finish local work but can no longer commit a step, memo, suspension, failure or cleanup. `__control` never carries workflow state (checkpoint and outcome are separate records written in the same conditional write, keyed under the run ID, so an older process reads its own generation's state or nothing). The backend treats keys and values as opaque strings and understands nothing about runs. `WorkflowRunStore` is the internal boundary that owns reserved keys, serialization, the control snapshot, conditional writes and a segment-local record cache; `StepMemoizer` is a step-bound view of it; the engine and the segment work with typed `WorkflowControl` and never touch raw bytes.
 
 Backends: `DatabasePersistence` and `EloquentPersistence` coordinate multiple processes by performing each condition check and its mutation in one transaction; `RedisPersistence` uses one hash per partition and atomic Lua scripts for the same guarantees. `InMemoryPersistence` is process-local; `FilePersistence` gives restart durability for controlled single-process use only and is deliberately not a worker-farm lock manager. Serializers return raw bytes; transport encoding belongs to persistence. Constructing a backend performs no I/O: `FilePersistence` creates its directory on the first write.
 
@@ -132,24 +134,25 @@ State recalled for an owned execution (completed steps and deferred interruption
 
 Leases are opt-in (`setLeaseTimeout()`; `Agent` holds a ten-minute one by default). The deadline lives inside `__control` and every step commit renews it in the same conditional write, so a heartbeat costs nothing; suspension and caught failure clear it. A process killed with no chance to write leaves the record `running`: without a lease only `run(ExecutionRequest::resume())` can take it over, with one the next ignition supersedes it once the deadline passes. A lease is a crash-overlap safeguard, not proof the prior process died: choose a timeout longer than the longest silent node operation.
 
-A caught failure commits `failed` and leaves the partition in place. A plain `run()` or `events()` recovers that generation (committed steps and memos reused, only the failed step reruns, same run ID). Automatic recovery fences the observed failed run and attempt before claiming it. A `running` generation whose lease expired is dead in the same sense. Suspended generations, retained completions and live leases refuse a fresh ignition with `RunInFlightException`, whose message names the verb that settles that state (deliver the awaited input, acknowledge the completion, wait for the lease). `abandonRun()` discards a paused, failed or dead run without igniting a new one; a retained completion or a fresh lease refuses. Every sweep is fenced by the control bytes just read, so a recovery worker that claims first keeps the generation.
+A caught failure commits `failed` and leaves the partition in place. A plain `run()` or `events()` recovers that generation (committed steps and memos reused, only the failed step reruns, same run ID). Automatic recovery fences the observed failed run and attempt before claiming it. A `running` generation whose lease expired is dead in the same sense. Suspended generations, retained completions and live leases refuse a fresh ignition with `RunInFlightException`, whose message names the verb that settles that state (deliver the awaited input, acknowledge the completion, wait for the lease). `abandon()` discards a paused, failed or dead run without igniting a new one; a retained completion or a fresh lease refuses. Every sweep is fenced by the control bytes just read, so a recovery worker that claims first keeps the generation.
 
 ## Completion
 
-A clean `StopEvent` conditionally deletes the whole partition by default, so completed data does not grow and the workflow ID is free for a new generation. A platform that must survive a lost completion response opts into `retainCompletionUntilAcknowledged()`: the terminal state is committed to `<runId>/__outcome` together with `completed` control, retries replay it without executing nodes, and `acknowledgeCompletion($runId)` purges that exact generation. Core keeps no permanent history; history belongs to the platform or application.
+A clean `StopEvent` conditionally deletes the whole partition by default, so completed data does not grow and the workflow ID is free for a new generation. A platform that must survive a lost completion response opts into `retainCompletionUntilAcknowledged()`: the terminal state is committed to `<runId>/__outcome` together with `completed` control, retries replay it without executing nodes, and `acknowledge($runId)` purges that exact generation. Core keeps no permanent history; history belongs to the platform or application.
 
-## Executors and streaming
+## Engine, segments and streaming
 
-`WorkflowExecutor` owns lifecycle decisions and sequential traversal; `AsyncExecutor` changes only parallel branch execution. Admission takes a Workflow definition. Traversal takes `WorkflowRuntimeInterface`, implemented by `WorkflowExecution`; definitions never implement it. Application code uses `WorkflowInterface`. A workflow instance runs one segment at a time: consuming another execution, or calling `abandonRun()` / `acknowledgeCompletion()`, while a segment's generator is in flight throws before anything is touched.
+`WorkflowEngine` admits requests and owns the lifecycle verbs; it never holds a definition. Admission claims the run's next execution attempt and opens a `Segment` for it, which traverses the graph, commits every step and settles the outcome. Whatever fails inside the segment, building its graph and output included, fails the run. A `BranchRunner` decides only how the branches of a fork run: `SequentialBranchRunner` by default, or `AsyncBranchRunner` for concurrent Amp fibers, set with `setBranchRunner()` or the `branchRunner()` hook. The branches share the segment's nodes, so two branches running concurrently must not reach the same node: give each branch its own event and node, or keep the sequential runner. Application code uses `WorkflowInterface`. A workflow instance keeps nothing of its segments, so a call made while one is in flight meets the persisted run as another process would: the running generation refuses a new ignition, a live lease refuses an abandon, and an abandoned run fences its segment out.
 
 Nodes may `yield` live output while a segment streams. Every segment builds its own output, a stream adapter and a channel, and discards it with the segment. The adapter converts each item once into `ProtocolEvent` value objects, inside the step that streamed it, so a failing adapter fails the step like a failing node. `events()` always returns a lazy generator. Iteration delivers adapted events to a configured channel as well as yielding them. `run()` always consumes execution and returns final state. Without an adapter the pull path yields the native objects and a channel receives only the segment lifecycle. The segment's persisted outcome selects the adapter's terminal frames: `end()`, `interrupt($request)` or `error($e)`; a failure is committed before its error frames. A consumer that cannot carry an event throws it into the generator, as `SSEEncoder` does, and the segment fails the same way. The Workflow knows no transport: SSE framing is applied at the HTTP edge by `SSEEncoder`, and a channel encodes for its own transport. RedisChannel and PusherChannel extend `AbstractChannel`, which owns a sequenced JSON envelope `{streamId, sequence, type, data}`, fragmentation, buffering and delivery failure isolation. The stream ID is unique per segment; fragments share their logical event's sequence and carry `{event, index, total, part}` in `data`. Lifecycle payloads contain only `workflowId`. Consumers must reorder by sequence and reconcile gaps from application history; send order is not a transport delivery guarantee. Transports implement `deliver(string $batch)` and optionally `encode()`, `batch()`, `budget()`, `eventBudget()`, `batchBytes()` and `batchSize()`; the base class enforces measured byte limits. SDK transformations must be covered by a conservative `batchBytes()` upper bound. The first transport failure stops ordinary delivery for the segment; termination separately attempts pending data and the terminal event. `CallbackChannel` is a direct lifecycle callback adapter and intentionally bypasses this wire contract. Pusher accepts an application-configured `Pusher\Pusher` client (optional `pusher/pusher-php-server` dependency), delegates encryption and signing to it, and defaults to ten events per batch; encrypted payload limits account for ciphertext expansion. Configure SDK timeouts on that client; partial batches wait for further events or termination. Redis Pub/Sub requires a connected client outside a transaction/pipeline. See [channel wire guidance](../../skills/neuron-streaming/references/channels.md) for consumer ordering and transport extension examples. Yielded output is ephemeral and never replayed; see `src/Agent/Adapters/AGENTS.md`.
 
 
 ## Definition and execution ownership
 
-Workflow retains configuration and resource recipes. Each owned segment creates an
-`ExecutionContext` (workflow ID, run ID, attempt and detached original input) and a
-`WorkflowExecution` containing the state, nodes, middleware and output pipeline.
+Workflow retains configuration and resource recipes; nothing calls back into it. Each
+owned segment carries an `ExecutionContext` (workflow ID, run ID, attempt and detached
+original input), its working state, and a `Graph` of fresh nodes and middleware with
+the resources they share, next to its output.
 There is no `prepare:` callback, adopted run ID, live state getter or graph
 cache on the definition. Read result identity from returned state and live metadata
 from observability events' `execution` property; `source` retains the definition.
@@ -165,14 +168,14 @@ address reads `getWorkflowId()`.
 `setWorkflowId()` binds an unbound instance and accepts the same ID again, but
 rejects a different ID. The optional constructor ID and the `workflowId()`
 declaration hook remain supported. When its `events()` generator starts, Workflow
-generates and retains an ID for an unbound start before handing execution to the
-executor. A continuation requires an already bound Workflow. Later runs share the
-workflow ID and have separate run IDs; executors do not generate or bind the
-instance identity.
+generates and retains an ID for an unbound start before admission. A continuation
+requires an already bound Workflow. Later runs share the workflow ID and have
+separate run IDs; the engine does not generate or bind the instance identity, and
+it refuses an invalid ID before touching persistence.
 
 `ExecutionRequest` carries execution input and run/attempt fences, not the
-workflow address. `inspect()`, `submitInputs()`, `acknowledgeCompletion()`
-and `abandonRun()` use the instance identity and accept no address override.
+workflow address. `inspect()`, `submitInputs()`, `acknowledge()`
+and `abandon()` use the instance identity and accept no address override.
 Inspection and lazy generator creation do not bind an instance; unbound inspection
 returns null. Pending submissions retain the bound Workflow and an independent
 request capturing the inspected run and attempt, so later submissions cannot
@@ -199,15 +202,15 @@ that deliberately return shared objects must support sequential reuse. Resource 
 configure the definition without checking whether a segment is active. Identity
 setters always enforce the fixed instance address. Once resolved,
 resources, graph, middleware, completion policy and dispatcher stay with that segment.
-Listener registration preserves earlier dispatcher snapshots. The executor captures
-storage, serializer and lease settings before admission. Its local usage gate only
-protects overlapping execution and cleanup operations; persisted ownership is separate.
+Listener registration preserves earlier dispatcher snapshots. When the `events()`
+generator starts, the Workflow builds its engine from the configured storage and
+serializer and resolves the lease, completion policy, branch runner and dispatcher
+before admission; persisted ownership arbitrates overlapping calls.
 Sharing clients does not imply concurrent safety or protect against direct mutation
 of a supplied service. Nodes and middleware read services from the segment's
 resources, never from definition settings that may change while the segment runs.
 
 
-`export()` builds a preview graph without admission, output factories or transport
-delivery, under a synthetic preview identity (run ID `preview`, attempt zero). It builds
-the segment's resources like an execution does, so resource construction must stay
-free of business effects.
+`export()` builds the graph for the definition's start event without admission,
+output factories or transport delivery. It builds the segment's resources like an
+execution does, so resource construction must stay free of business effects.

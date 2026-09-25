@@ -90,7 +90,7 @@ may encode those actions individually. `RunInFlightException` exposes `$interrup
 
 ## Parallel interruption order
 
-The default executor stops at the first interruption. AsyncExecutor stops starting
+The default branch runner stops at the first interruption. `AsyncBranchRunner` stops starting
 new nodes and drains nodes already running, including streamed output, until each
 returns or interrupts. Their completed steps and memoized work remain durable.
 Concurrent requests are stored on their branch steps and exposed in arrival order.
@@ -125,7 +125,7 @@ It reconstructs the workflow and its dependencies, configures persistence, and
 reconciles the current returned request. The core has no scheduler interface.
 Use `retainCompletionUntilAcknowledged()` when completion must survive a lost
 response. Replay completion through `resume()->run()` and release its records
-with `acknowledgeCompletion($runId)`.
+with `acknowledge($runId)`.
 
 ## What to search for
 

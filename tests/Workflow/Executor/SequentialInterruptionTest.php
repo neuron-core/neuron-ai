@@ -19,8 +19,8 @@ use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
+use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
@@ -51,7 +51,7 @@ class SequentialInterruptionTest extends TestCase
             }
         };
         return Workflow::make('sequential-interruptions')->setPersistence($persistence)
-            ->setExecutor(new AsyncExecutor())->addNodes([$fork, new ConcurrentWaitNode($trace, $repeat, $expiresAt), $join]);
+            ->setBranchRunner(new AsyncBranchRunner())->addNodes([$fork, new ConcurrentWaitNode($trace, $repeat, $expiresAt), $join]);
     }
 
     protected function request(WorkflowState $state): WaitForEventRequest
@@ -160,7 +160,7 @@ class SequentialInterruptionTest extends TestCase
             }
         };
         $make = fn (): Workflow => Workflow::make('drain-stream')->setPersistence($persistence)
-            ->setExecutor(new AsyncExecutor())->addNodes([new DocumentParallelProcessing(), $stream, $wait, new MergeNode()]);
+            ->setBranchRunner(new AsyncBranchRunner())->addNodes([new DocumentParallelProcessing(), $stream, $wait, new MergeNode()]);
         $events = iterator_to_array($make()->events());
         $this->assertSame([ChunkEvent::class, ChunkEvent::class, InterruptEvent::class], array_map(fn (Event $event): string => $event::class, $events));
         $this->assertSame(['started', 'memoized', 'finished'], $trace->events);
@@ -174,7 +174,7 @@ class SequentialInterruptionTest extends TestCase
     {
         $persistence = new InMemoryPersistence();
         $trace = (object) ['events' => []];
-        $workflow = $this->workflow($persistence, $trace)->setExecutor(new WorkflowExecutor());
+        $workflow = $this->workflow($persistence, $trace)->setBranchRunner(new SequentialBranchRunner());
         $this->assertSame('b', $this->request($workflow->run())->getEventName());
         $this->assertSame(['b.started', 'b.waiting'], $trace->events);
         $this->assertSame('a', $this->request($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([])))->getEventName());

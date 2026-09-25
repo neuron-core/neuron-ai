@@ -15,8 +15,8 @@ use NeuronAI\Tests\Workflow\Executor\Stub\CrashAfterInitialization;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Events\StartEvent;
-use NeuronAI\Workflow\Executor\AsyncExecutor;
-use NeuronAI\Workflow\Executor\WorkflowExecutor;
+use NeuronAI\Workflow\Executor\AsyncBranchRunner;
+use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
@@ -119,7 +119,7 @@ class WorkflowManagedExecutionTest extends TestCase
     public function test_resource_factory_runs_for_the_admitted_run_and_builds_the_push_pipeline(bool $async): void
     {
         $channel = new FakeChannel();
-        $workflow = Workflow::make('order')->setExecutor($async ? new AsyncExecutor() : new WorkflowExecutor())
+        $workflow = Workflow::make('order')->setBranchRunner($async ? new AsyncBranchRunner() : new SequentialBranchRunner())
             ->addNode(new ChunkStreamingNode(2))->setChannel(fn (): StreamingChannelInterface => $channel);
         $workflow->setStreamAdapter(function () use ($workflow, $channel): ChunkAdapter {
             self::assertSame('order', $workflow->getWorkflowId());
@@ -202,7 +202,6 @@ class WorkflowManagedExecutionTest extends TestCase
         $state = $workflow->run(ExecutionRequest::start(new StartEvent(), 'reserved'));
 
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
-        self::assertSame($nextStore, $workflow->getPersistence());
         self::assertNull($workflow->inspect());
         self::assertSame('reserved', Workflow::make('order')->setPersistence($store)->inspect()->runId);
     }
@@ -221,12 +220,12 @@ class WorkflowManagedExecutionTest extends TestCase
         }
         self::assertSame(2, $workflow->inspect()->executionAttempt);
         try {
-            $workflow->abandonRun('reserved', 1);
+            $workflow->abandon('reserved', 1);
             self::fail('Expected stale attempt rejection.');
         } catch (WorkflowException) {
             self::assertSame(2, $workflow->inspect()->executionAttempt);
         }
-        self::assertTrue($workflow->abandonRun('reserved', 2));
+        self::assertTrue($workflow->abandon('reserved', 2));
     }
 
     public function test_delayed_cleanup_cannot_remove_the_next_reserved_turn(): void
@@ -234,10 +233,10 @@ class WorkflowManagedExecutionTest extends TestCase
         $store = new InMemoryPersistence();
         $make = fn (): Workflow => Workflow::make('order')->setPersistence($store)->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged();
         $make()->run(ExecutionRequest::start(new StartEvent(), 'first'));
-        $make()->acknowledgeCompletion('first');
+        $make()->acknowledge('first');
         $make()->run(ExecutionRequest::start(new StartEvent(), 'second'));
         $this->expectException(StaleWorkflowRunException::class);
-        $make()->acknowledgeCompletion('first');
+        $make()->acknowledge('first');
     }
     public function test_zero_chunk_run_builds_resources_before_adapter_starts(): void
     {
@@ -286,7 +285,8 @@ class WorkflowManagedExecutionTest extends TestCase
 
     public function test_adapter_start_failure_is_durable_before_error_output_without_running_nodes(): void
     {
-        $workflow = Workflow::make('order')->addNode(new \NeuronAI\Tests\Workflow\Stub\NodeOne());
+        $store = new InMemoryPersistence();
+        $workflow = Workflow::make('order')->setPersistence($store)->addNode(new \NeuronAI\Tests\Workflow\Stub\NodeOne());
         $workflow->setStreamAdapter(fn (): StreamAdapterInterface => new class () extends ChunkAdapter {
             public function start(): iterable
             {
@@ -300,7 +300,7 @@ class WorkflowManagedExecutionTest extends TestCase
         $stream = $workflow->events(ExecutionRequest::start(runId: 'reserved'));
         self::assertSame('error', $stream->current()->type);
         self::assertSame(WorkflowStatus::Failed, $workflow->inspect()->status);
-        self::assertNull($workflow->getPersistence()->get('order', 'reserved/NodeOne_0'));
+        self::assertNull($store->get('order', 'reserved/NodeOne_0'));
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Cannot start adapter');
         $stream->next();

@@ -91,11 +91,11 @@ class ToolResolutionTest extends TestCase
         $tool = new SearchTool();
         $agent->addTool($tool)->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
 
-        $resources = ExecutionTestFactory::runtime($agent)->getResources();
+        $resources = ExecutionTestFactory::graph($agent)->resources;
 
         $this->assertInstanceOf(AgentResources::class, $resources);
         $this->assertSame([$tool], $resources->tools->all());
-        $this->assertNotSame($resources, ExecutionTestFactory::runtime($agent)->getResources());
+        $this->assertNotSame($resources, ExecutionTestFactory::graph($agent)->resources);
     }
 
     public function test_live_inference_after_a_cached_tool_node_gets_the_agent_tools_back(): void
