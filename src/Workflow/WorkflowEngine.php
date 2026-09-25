@@ -44,6 +44,7 @@ class WorkflowEngine
     /**
      * The run holding the workflow ID, or null when none does.
      *
+     * @phpstan-impure Every call reads the run as persistence holds it now.
      * @throws WorkflowException
      */
     public function inspect(string $workflowId): ?WorkflowRunSnapshot

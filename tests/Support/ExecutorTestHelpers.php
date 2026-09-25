@@ -26,7 +26,7 @@ trait ExecutorTestHelpers
      */
     protected function stepKey(WorkflowInterface $workflow, string $stepId): string
     {
-        $runId = $this->executionRecords[spl_object_id($workflow)]->context?->runId ?? $workflow->inspect()?->runId;
+        $runId = $this->executionRecords[spl_object_id($workflow)]->context->runId ?? $workflow->inspect()?->runId;
         if ($runId === null) {
             throw new LogicException('Record an execution before addressing its steps.');
         }

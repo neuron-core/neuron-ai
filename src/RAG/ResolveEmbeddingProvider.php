@@ -11,7 +11,7 @@ trait ResolveEmbeddingProvider
 {
     protected EmbeddingsProviderInterface $embeddingsProvider;
 
-    public function setEmbeddingsProvider(EmbeddingsProviderInterface $provider): RAG
+    public function setEmbeddingsProvider(EmbeddingsProviderInterface $provider): static
     {
         $this->embeddingsProvider = $provider;
         return $this;

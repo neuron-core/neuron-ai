@@ -9,6 +9,7 @@ use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\History\MessageStoreInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
@@ -312,7 +313,7 @@ class ThreadIdentityTest extends TestCase
         self::assertCount(5, $providerA->getRecorded()[1]->messages);
         self::assertSame(
             ['First', 'One', 'Second', 'Two', 'Third', 'Three'],
-            array_map(fn ($message) => $message->getContent(), $messages->loadActive('thread-a'))
+            array_map(fn (Message $message) => $message->getContent(), $messages->loadActive('thread-a'))
         );
     }
 

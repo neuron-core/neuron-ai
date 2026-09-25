@@ -67,7 +67,7 @@ Read [references/workflow-extension.md](references/workflow-extension.md) when i
 
 Agent provider, history, instructions, tools and tool-execution settings may change while streaming. Changes configure subsequent segments; the active segment retains its resolved resources, graph and conversation address. Resume still restores recorded input and instructions.
 
-Provider/toolkit hooks are lazy; explicit setters take precedence over their corresponding default hooks. Construct graph collaborators in the hooks so reconstructed runs receive live dependencies. Some fluent setters return `AgentInterface` or `Agent`; keep the concrete instance in a separate variable when static analysis needs its Workflow methods or subclass members.
+Provider/toolkit hooks are lazy; explicit setters take precedence over their corresponding default hooks. Construct graph collaborators in the hooks so reconstructed runs receive live dependencies. Fluent setters return `static`, so a chain keeps the concrete type, subclass members included.
 
 ## Agent Execution Methods
 

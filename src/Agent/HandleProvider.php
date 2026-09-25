@@ -14,7 +14,7 @@ trait HandleProvider
      */
     protected AIProviderInterface $provider;
 
-    public function setAiProvider(AIProviderInterface $provider): AgentInterface
+    public function setAiProvider(AIProviderInterface $provider): static
     {
         $this->provider = $provider;
 

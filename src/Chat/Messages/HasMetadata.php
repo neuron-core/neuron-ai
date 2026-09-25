@@ -11,10 +11,7 @@ trait HasMetadata
      */
     protected array $meta = [];
 
-    /**
-     * @param string|array<int, mixed>|null $value
-     */
-    public function addMetadata(string $key, string|array|null $value): self
+    public function addMetadata(string $key, mixed $value): self
     {
         $this->meta[$key] = $value;
         return $this;

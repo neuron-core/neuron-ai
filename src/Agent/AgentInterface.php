@@ -18,11 +18,11 @@ use NeuronAI\Workflow\WorkflowInterface;
 /** @extends WorkflowInterface<AgentState> */
 interface AgentInterface extends WorkflowInterface
 {
-    public function setAiProvider(AIProviderInterface $provider): AgentInterface;
+    public function setAiProvider(AIProviderInterface $provider): static;
 
     public function getProvider(): AIProviderInterface;
 
-    public function setInstructions(SystemMessage|string $instructions): AgentInterface;
+    public function setInstructions(SystemMessage|string $instructions): static;
 
     public function getInstructions(): SystemMessage;
 
@@ -32,15 +32,15 @@ interface AgentInterface extends WorkflowInterface
      *
      * @param array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
      */
-    public function setTools(array $tools): AgentInterface;
+    public function setTools(array $tools): static;
 
     /**
-     * @param ToolInterface|ToolInterface[]|ToolkitInterface $tools
+     * @param ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
      */
-    public function addTool(ToolInterface|ToolkitInterface|array $tools): AgentInterface;
+    public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): static;
 
     /**
-     * @return ToolInterface[]
+     * @return array<ToolInterface|ToolkitInterface|ProviderToolInterface>
      */
     public function getTools(): array;
 
@@ -48,7 +48,7 @@ interface AgentInterface extends WorkflowInterface
      * Where the Agent's conversations are stored. Each execution segment opens
      * its own working history over it.
      */
-    public function setMessageStore(MessageStoreInterface $store): AgentInterface;
+    public function setMessageStore(MessageStoreInterface $store): static;
 
     /**
      * A fresh view of the conversation on every call. Requires a conversation
@@ -59,7 +59,7 @@ interface AgentInterface extends WorkflowInterface
     /**
      * Clear chat history and abandon the pending execution for this conversation.
      */
-    public function resetConversation(): AgentInterface;
+    public function resetConversation(): static;
 
     /**
      * The conversation identity, or null until configured or first executed.

@@ -14,13 +14,13 @@ trait ResolveRetrieval
 
     protected ?FilterExpression $configuredRetrievalScope = null;
 
-    public function setRetrieval(RetrievalInterface $retrieval): RAG
+    public function setRetrieval(RetrievalInterface $retrieval): static
     {
         $this->retrieval = $retrieval;
         return $this;
     }
 
-    public function setRetrievalScope(?FilterExpression $scope): RAG
+    public function setRetrievalScope(?FilterExpression $scope): static
     {
         $this->configuredRetrievalScope = $scope;
         return $this;

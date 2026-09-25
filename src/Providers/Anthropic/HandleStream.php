@@ -80,8 +80,8 @@ trait HandleStream
             )->setId($this->streamState->messageId())
              ->setMetadata($this->streamState->getMetadata())
              ->setUsage($this->streamState->getUsage())
-             ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
-             ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
+             ->addMetadata('cacheWriteTokens', $this->streamState->getCacheWriteTokens())
+             ->addMetadata('cacheReadTokens', $this->streamState->getCacheReadTokens());
 
             return new ProviderResponse(message: $message);
         }
@@ -90,8 +90,8 @@ trait HandleStream
         $message->setId($this->streamState->messageId())
             ->setMetadata($this->streamState->getMetadata())
             ->setUsage($this->streamState->getUsage())
-            ->addMetadata('cacheWriteTokens', (string) $this->streamState->getCacheWriteTokens())
-            ->addMetadata('cacheReadTokens', (string) $this->streamState->getCacheReadTokens());
+            ->addMetadata('cacheWriteTokens', $this->streamState->getCacheWriteTokens())
+            ->addMetadata('cacheReadTokens', $this->streamState->getCacheReadTokens());
 
         if ($this->stopReason !== null) {
             $message->setStopReason($this->stopReason);

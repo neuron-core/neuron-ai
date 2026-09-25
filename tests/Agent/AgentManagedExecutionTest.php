@@ -47,7 +47,6 @@ class AgentManagedExecutionTest extends TestCase
         $messageStore = new InMemoryMessageStore();
         $store = new InMemoryPersistence();
         $channel = new FakeChannel();
-        $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider($provider)->setMessageStore($messageStore)->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter())->setChannel(fn (): StreamingChannelInterface => $channel);
         $first = $make();
@@ -77,7 +76,6 @@ class AgentManagedExecutionTest extends TestCase
         $store = new InMemoryPersistence();
         $messageStore = new InMemoryMessageStore();
         $channel = new FakeChannel();
-        $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged();
         $make = fn (): Agent => Agent::make(workflowId: 'thread')->setPersistence($store)->retainCompletionUntilAcknowledged()
             ->setAiProvider($provider)->setTools([$tool])->setMessageStore($messageStore)->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter());
@@ -87,8 +85,10 @@ class AgentManagedExecutionTest extends TestCase
         $record = new \NeuronAI\Tests\Support\ExecutionRecorder($resumed);
         $reply = $resumed->submitApprovalDecisions(['call_1' => 'approve'])->run();
         self::assertSame('reserved', $record->context->runId);
-        self::assertSame('Question', $record->context->startEvent()->messages[0]->getContent());
-        self::assertTrue($record->context->startEvent()->options->stream);
+        $startEvent = $record->context->startEvent();
+        self::assertInstanceOf(AgentStartEvent::class, $startEvent);
+        self::assertSame('Question', $startEvent->messages[0]->getContent());
+        self::assertTrue($startEvent->options->stream);
         self::assertSame('stream', $provider->getRecorded()[1]->method);
         self::assertSame('reserved', $reply->getRunId());
         self::assertSame(2, $reply->getExecutionAttempt());
@@ -121,8 +121,12 @@ class AgentManagedExecutionTest extends TestCase
     {
         $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
         $agent->subscribe(\NeuronAI\Workflow\Observability\WorkflowStart::class, static function (\NeuronAI\Workflow\Observability\WorkflowStart $event): void {
-            $event->execution->startEvent()->options->stream = true;
-            self::assertFalse($event->execution->startEvent()->options->stream);
+            $mutated = $event->execution->startEvent();
+            self::assertInstanceOf(AgentStartEvent::class, $mutated);
+            $mutated->options->stream = true;
+            $detached = $event->execution->startEvent();
+            self::assertInstanceOf(AgentStartEvent::class, $detached);
+            self::assertFalse($detached->options->stream);
         });
         $state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Hello')]), 'reserved'));
         self::assertFalse($state->request->options->stream);

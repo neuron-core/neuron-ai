@@ -112,7 +112,7 @@ class RAG extends Agent
      * @param PreProcessorInterface[] $preProcessors
      * @throws AgentException
      */
-    public function setPreProcessors(array $preProcessors): RAG
+    public function setPreProcessors(array $preProcessors): static
     {
         foreach ($preProcessors as $processor) {
             if (! $processor instanceof PreProcessorInterface) {
@@ -129,7 +129,7 @@ class RAG extends Agent
      * @param PostProcessorInterface[] $postProcessors
      * @throws AgentException
      */
-    public function setPostProcessors(array $postProcessors): RAG
+    public function setPostProcessors(array $postProcessors): static
     {
         foreach ($postProcessors as $processor) {
             if (! $processor instanceof PostProcessorInterface) {

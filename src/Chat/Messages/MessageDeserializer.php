@@ -19,8 +19,9 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 
+use function array_diff_key;
+use function array_flip;
 use function array_map;
-use function in_array;
 use function is_array;
 use function is_string;
 use function json_decode;
@@ -34,7 +35,7 @@ class MessageDeserializer
     /**
      * Keys the message classes serialize from their own state, never metadata.
      */
-    protected const STRUCTURAL_KEYS = ['role', 'content', 'usage', 'type', 'tools'];
+    protected const STRUCTURAL_KEYS = ['__id', 'role', 'content', 'usage', 'type', 'tools'];
 
     /**
      * @param array<string, mixed> $data
@@ -251,25 +252,38 @@ class MessageDeserializer
      */
     protected function deserializeMeta(array $message, Message $item): void
     {
-        if (isset($message['usage'])) {
-            $item->setUsage(
-                new Usage($message['usage']['input_tokens'], $message['usage']['output_tokens'])
-            );
+        if (isset($message['__id'])) {
+            $item->setId($message['__id']);
         }
 
-        foreach ($message as $key => $value) {
-            if (in_array($key, self::STRUCTURAL_KEYS, true)) {
-                continue;
-            }
-            if ($key === 'citations' && is_array($value)) {
-                $citations = array_map(
-                    Citation::fromArray(...),
-                    $value
-                );
-                $item->addMetadata($key, $citations);
-                continue;
-            }
-            $item->addMetadata($key, $value);
+        if (isset($message['usage'])) {
+            $item->setUsage(new Usage(
+                $message['usage']['input_tokens'],
+                $message['usage']['output_tokens'],
+                $message['usage']['cached_input_tokens'] ?? 0,
+                $message['usage']['reasoning_tokens'] ?? 0,
+            ));
         }
+
+        $item->setMetadata($this->deserializeMetadata($message));
+    }
+
+    /**
+     * Earlier versions stored the metadata beside the message's own fields, not under '__meta'.
+     *
+     * @param array<string, mixed> $message
+     * @return array<string, mixed>
+     */
+    protected function deserializeMetadata(array $message): array
+    {
+        $meta = is_array($message['__meta'] ?? null)
+            ? $message['__meta']
+            : array_diff_key($message, array_flip(self::STRUCTURAL_KEYS));
+
+        if (isset($meta['citations']) && is_array($meta['citations'])) {
+            $meta['citations'] = array_map(Citation::fromArray(...), $meta['citations']);
+        }
+
+        return $meta;
     }
 }

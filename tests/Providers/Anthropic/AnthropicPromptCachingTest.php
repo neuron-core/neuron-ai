@@ -110,8 +110,8 @@ class AnthropicPromptCachingTest extends TestCase
 
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
-        $this->assertSame('50', $response->message()->getMetadata('cacheWriteTokens'));
-        $this->assertSame('30', $response->message()->getMetadata('cacheReadTokens'));
+        $this->assertSame(50, $response->message()->getMetadata('cacheWriteTokens'));
+        $this->assertSame(30, $response->message()->getMetadata('cacheReadTokens'));
     }
 
     public function test_usage_handles_new_cache_creation_object_format(): void
@@ -135,8 +135,8 @@ class AnthropicPromptCachingTest extends TestCase
 
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
-        $this->assertSame('50', $response->message()->getMetadata('cacheWriteTokens')); // 30 + 20
-        $this->assertSame('40', $response->message()->getMetadata('cacheReadTokens'));
+        $this->assertSame(50, $response->message()->getMetadata('cacheWriteTokens')); // 30 + 20
+        $this->assertSame(40, $response->message()->getMetadata('cacheReadTokens'));
     }
 
     public function test_tools_not_cached_by_default(): void
@@ -221,7 +221,7 @@ class AnthropicPromptCachingTest extends TestCase
 
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(5, $usage->outputTokens);
-        $this->assertSame('50', $message->getMetadata('cacheWriteTokens'));
-        $this->assertSame('30', $message->getMetadata('cacheReadTokens'));
+        $this->assertSame(50, $message->getMetadata('cacheWriteTokens'));
+        $this->assertSame(30, $message->getMetadata('cacheReadTokens'));
     }
 }

@@ -139,6 +139,31 @@ class MessageStoreContractTest extends TestCase
     }
 
     #[DataProvider('stores')]
+    public function test_metadata_survives_whatever_its_name_or_value(callable $make): void
+    {
+        $store = $make($this->directory);
+        $metadata = [
+            'type' => 'tool_call',
+            'role' => 'pinned',
+            'content' => 'note',
+            'tools' => ['search'],
+            'archived_at' => 'never',
+            'attempt' => 2,
+            'score' => 0.5,
+            'flagged' => true,
+        ];
+        $store->append('thread', (new UserMessage('Hello'))->setMetadata($metadata));
+
+        foreach ([$store->loadActive('thread'), $store->loadAll('thread')] as $loaded) {
+            $this->assertCount(1, $loaded);
+            $this->assertInstanceOf(UserMessage::class, $loaded[0]);
+            foreach ($metadata as $key => $value) {
+                $this->assertSame($value, $loaded[0]->getMetadata($key));
+            }
+        }
+    }
+
+    #[DataProvider('stores')]
     public function test_append_skips_a_message_already_stored_in_the_thread(callable $make): void
     {
         $store = $make($this->directory);

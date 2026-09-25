@@ -23,6 +23,13 @@ interface WorkflowInterface
     public function run(?ExecutionRequest $request = null): WorkflowState;
 
     /**
+     * The run holding the workflow ID, or null when none does or the instance is unbound.
+     *
+     * @phpstan-impure Every call reads the run as persistence holds it now.
+     */
+    public function inspect(): ?WorkflowRunSnapshot;
+
+    /**
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      */

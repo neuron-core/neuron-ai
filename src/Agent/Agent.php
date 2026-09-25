@@ -85,7 +85,7 @@ class Agent extends Workflow implements AgentInterface
         bool $enabled = true,
         ?callable $beforeChild = null,
         ?callable $afterChild = null,
-    ): AgentInterface {
+    ): static {
         $this->parallelToolCalls = $enabled;
         $this->beforeParallelToolChild = $beforeChild !== null
             ? $beforeChild(...)
@@ -121,7 +121,7 @@ class Agent extends Workflow implements AgentInterface
         return new InMemoryMessageStore();
     }
 
-    public function setMessageStore(MessageStoreInterface $store): self
+    public function setMessageStore(MessageStoreInterface $store): static
     {
         $this->messageStore = $store;
         return $this;
@@ -141,7 +141,7 @@ class Agent extends Workflow implements AgentInterface
         return ChatHistory::DEFAULT_CONTEXT_WINDOW;
     }
 
-    public function setContextWindow(int $tokens): self
+    public function setContextWindow(int $tokens): static
     {
         $this->contextWindow = $tokens;
         return $this;
@@ -224,7 +224,7 @@ class Agent extends Workflow implements AgentInterface
     /**
      * Clear chat history and abandon the pending execution for this conversation.
      */
-    public function resetConversation(): self
+    public function resetConversation(): static
     {
         $chatHistory = $this->getChatHistory();
 

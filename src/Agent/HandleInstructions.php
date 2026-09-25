@@ -19,7 +19,7 @@ trait HandleInstructions
         );
     }
 
-    public function setInstructions(SystemMessage|string $instructions): self
+    public function setInstructions(SystemMessage|string $instructions): static
     {
         $this->instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
         return $this;

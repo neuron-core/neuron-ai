@@ -85,9 +85,13 @@ class WorkflowExecutionIsolationTest extends TestCase
         $event = new AgentStartEvent([new UserMessage('Original')]);
         $request = ExecutionRequest::start($event);
         $event->options->stream = true;
-        $request->event()->messages[0]->setContents('Changed');
-        self::assertFalse($request->event()->options->stream);
-        self::assertSame('Original', $request->event()->messages[0]->getContent());
+        $mutated = $request->event();
+        self::assertInstanceOf(AgentStartEvent::class, $mutated);
+        $mutated->messages[0]->setContents('Changed');
+        $detached = $request->event();
+        self::assertInstanceOf(AgentStartEvent::class, $detached);
+        self::assertFalse($detached->options->stream);
+        self::assertSame('Original', $detached->messages[0]->getContent());
         $answer = (object) ['value' => 'accepted'];
         $resume = ExecutionRequest::resume(['answer' => $answer]);
         $answer->value = 'changed';
@@ -136,12 +140,12 @@ class WorkflowExecutionIsolationTest extends TestCase
     {
         $workflow = KeyedWorkflow::make('setup-failure');
         $ends = [];
-        $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function ($event) use (&$ends): void {
+        $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function (\NeuronAI\Workflow\Observability\WorkflowEnd $event) use (&$ends): void {
             $ends[] = $event;
         });
         $lateEnds = [];
         $workflow->setChannel(function () use ($workflow, &$lateEnds): never {
-            $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function ($event) use (&$lateEnds): void {
+            $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function (\NeuronAI\Workflow\Observability\WorkflowEnd $event) use (&$lateEnds): void {
                 $lateEnds[] = $event;
             });
             throw new RuntimeException('Factory failed');
@@ -173,6 +177,8 @@ class WorkflowExecutionIsolationTest extends TestCase
         });
         $first = $workflow->run();
         $second = $workflow->run();
+        self::assertInstanceOf(\NeuronAI\Tests\Workflow\Stub\OwnedState::class, $first);
+        self::assertInstanceOf(\NeuronAI\Tests\Workflow\Stub\OwnedState::class, $second);
         $second->details->count = 9;
         self::assertSame(1, $first->details->count);
         self::assertSame(0, $seed->details->count);

@@ -18,8 +18,8 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Tools\ToolOutput;
 use stdClass;
 
-use function array_key_exists;
 use function array_map;
+use function is_array;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -82,8 +82,8 @@ class MessageMapper implements MessageMapperInterface
             'content' => $message->getContent(),
         ];
 
-        if (array_key_exists('tool_calls', $message->jsonSerialize())) {
-            $toolCalls = $message->jsonSerialize()['tool_calls'];
+        $toolCalls = $message->getMetadata('tool_calls');
+        if (is_array($toolCalls)) {
             $payload['tool_calls'] = array_map(function (array $toolCall): array {
                 if (empty($toolCall['function']['arguments'])) {
                     $toolCall['function']['arguments'] = new stdClass();

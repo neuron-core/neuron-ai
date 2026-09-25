@@ -13,6 +13,7 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -245,7 +246,7 @@ class AgentDurableHistoryTest extends TestCase
         // The replay recalls the memoized response, so both writes repeat the same messages.
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(['Hi', 'Hello back!'], array_map(
-            fn ($message) => $message->getContent(),
+            fn (Message $message) => $message->getContent(),
             $messages->loadAll($workflowId)
         ));
     }

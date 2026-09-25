@@ -212,6 +212,7 @@ class Workflow implements WorkflowInterface
         return $this->consume($this->events($request));
     }
 
+    /** @phpstan-impure Every call reads the run as persistence holds it now. */
     public function inspect(): ?WorkflowRunSnapshot
     {
         $workflowId = $this->getWorkflowId();
@@ -331,7 +332,7 @@ class Workflow implements WorkflowInterface
      * @return array<WorkflowMiddleware> */
     protected function instantiateMiddleware(array $list): array
     {
-        return array_map(static fn ($item) => $item instanceof Closure ? $item() : clone $item, $list);
+        return array_map(static fn (WorkflowMiddleware|Closure $item): WorkflowMiddleware => $item instanceof Closure ? $item() : clone $item, $list);
     }
 
     public function acknowledge(string $expectedRunId): void

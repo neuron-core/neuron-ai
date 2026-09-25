@@ -73,7 +73,8 @@ Columns:
 - `message_id` — the message identity, unique within its thread (see guide 27).
 - `role` — the message role (`user`, `assistant`, `system`, `tool`).
 - `content` — the message content blocks, JSON encoded (`NULL` when the message has no content).
-- `meta` — everything else carried by the message (usage, tool calls/results, custom metadata), JSON encoded.
+- `meta` — everything else carried by the message (usage, tool calls/results, and custom metadata under `__meta`,
+  see guide 45), JSON encoded. Rows migrated from 3.x keep their metadata beside the other fields; both shapes load.
 
 ## 2. Migrate the existing messages
 

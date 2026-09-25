@@ -38,7 +38,7 @@ trait HandleTools
      *
      * @param callable|null $handler fn(Throwable $e, ToolCall $call): string|ToolOutput|null
      */
-    public function toolErrorHandler(?callable $handler): Agent
+    public function toolErrorHandler(?callable $handler): static
     {
         $this->toolErrorHandler = $handler;
         return $this;
@@ -54,7 +54,7 @@ trait HandleTools
         return null;
     }
 
-    public function toolMaxRuns(int $num): Agent
+    public function toolMaxRuns(int $num): static
     {
         $this->toolMaxRuns = $num;
         return $this;
@@ -85,7 +85,7 @@ trait HandleTools
      * @param array<ToolInterface|ToolkitInterface|ProviderToolInterface> $tools
      * @throws AgentException
      */
-    public function setTools(array $tools): AgentInterface
+    public function setTools(array $tools): static
     {
         $this->validateTools($tools);
         $this->tools = $tools;
@@ -98,7 +98,7 @@ trait HandleTools
      * @param  ToolInterface|ToolkitInterface|ProviderToolInterface|array<ToolInterface|ToolkitInterface|ProviderToolInterface>  $tools
      * @throws AgentException
      */
-    public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): AgentInterface
+    public function addTool(ToolInterface|ToolkitInterface|ProviderToolInterface|array $tools): static
     {
         $tools = is_array($tools) ? $tools : [$tools];
 

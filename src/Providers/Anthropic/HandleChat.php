@@ -117,8 +117,8 @@ trait HandleChat
             $message->setUsage(new Usage($usage['input_tokens'], $usage['output_tokens'], $cacheRead));
 
             if ($cacheWrite > 0 || $cacheRead > 0) {
-                $message->addMetadata('cacheWriteTokens', (string) $cacheWrite)
-                    ->addMetadata('cacheReadTokens', (string) $cacheRead);
+                $message->addMetadata('cacheWriteTokens', $cacheWrite)
+                    ->addMetadata('cacheReadTokens', $cacheRead);
             }
         }
 
