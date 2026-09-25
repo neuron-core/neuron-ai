@@ -90,13 +90,13 @@ class FileMessageStoreTest extends TestCase
         ]));
         $store = new FileMessageStore($this->directory);
 
-        $this->assertSame(['Active answer'], array_map(fn (Message $m) => $m->getContent(), $store->loadActive('thread')));
+        $this->assertSame(['Active answer'], array_map(fn (Message $m): ?string => $m->getContent(), $store->loadActive('thread')));
 
         $store->append('thread', new UserMessage('Next question'));
 
         $ids = array_column(json_decode((string) file_get_contents($path), true), '__id');
         $this->assertCount(3, $ids);
-        $this->assertSame($ids, array_map(fn (Message $m) => $m->getId(), $store->loadAll('thread')));
+        $this->assertSame($ids, array_map(fn (Message $m): string => $m->getId(), $store->loadAll('thread')));
     }
 
     public function test_archival_is_not_exposed_as_message_metadata(): void

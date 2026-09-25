@@ -550,7 +550,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         return [
             'messages' => $hydrated,
             'interrupts' => match (true) {
-                $waiting === null => [],
+                !$waiting instanceof \NeuronAI\Workflow\Interrupt\InterruptRequest => [],
                 $waiting instanceof ApprovalRequest => $this->confirmations($waiting),
                 default => [$this->interruption($waiting)],
             },

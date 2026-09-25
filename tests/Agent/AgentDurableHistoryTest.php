@@ -246,7 +246,7 @@ class AgentDurableHistoryTest extends TestCase
         // The replay recalls the memoized response, so both writes repeat the same messages.
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(['Hi', 'Hello back!'], array_map(
-            fn (Message $message) => $message->getContent(),
+            fn (Message $message): ?string => $message->getContent(),
             $messages->loadAll($workflowId)
         ));
     }

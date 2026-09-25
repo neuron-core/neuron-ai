@@ -313,7 +313,7 @@ class ThreadIdentityTest extends TestCase
         self::assertCount(5, $providerA->getRecorded()[1]->messages);
         self::assertSame(
             ['First', 'One', 'Second', 'Two', 'Third', 'Three'],
-            array_map(fn (Message $message) => $message->getContent(), $messages->loadActive('thread-a'))
+            array_map(fn (Message $message): ?string => $message->getContent(), $messages->loadActive('thread-a'))
         );
     }
 

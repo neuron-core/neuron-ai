@@ -91,7 +91,9 @@ class EloquentPersistence implements PersistenceInterface
         // Eloquent uses a savepoint for a competing unique-key insert,
         // keeping PostgreSQL's enclosing transaction usable on conflict.
         $record = $this->records()->createOrFirst($this->address($partition, $key), ['value' => base64_encode($value)]);
-        $record->exists || throw new PersistenceException('Workflow record creation was cancelled by the Eloquent model.');
+        if (!$record->exists) {
+            throw new PersistenceException('Workflow record creation was cancelled by the Eloquent model.');
+        }
 
         return $record->wasRecentlyCreated;
     }
@@ -115,9 +117,11 @@ class EloquentPersistence implements PersistenceInterface
     protected function save(string $partition, array $records): bool
     {
         foreach ($records as $key => $value) {
-            $this->records()->firstOrNew($this->address($partition, (string) $key))
+            if (!$this->records()->firstOrNew($this->address($partition, (string) $key))
                 ->fill(['value' => base64_encode($value)])
-                ->save() || throw new PersistenceException('Workflow record save was cancelled by the Eloquent model.');
+                ->save()) {
+                throw new PersistenceException('Workflow record save was cancelled by the Eloquent model.');
+            }
         }
 
         return true;

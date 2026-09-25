@@ -259,7 +259,7 @@ class Workflow implements WorkflowInterface
     {
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
 
-        if ($request->starting && $request->event() === null) {
+        if ($request->starting && !$request->event() instanceof \NeuronAI\Workflow\Events\Event) {
             $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->recoverFailed);
         }
 
@@ -315,7 +315,7 @@ class Workflow implements WorkflowInterface
     /** @return array<class-string<NodeInterface>, array<WorkflowMiddleware>> */
     final protected function getMiddleware(): array
     {
-        $configured = array_map(fn (array $list): array => $this->instantiateMiddleware($list), $this->nodeMiddleware);
+        $configured = array_map($this->instantiateMiddleware(...), $this->nodeMiddleware);
         foreach ($this->middleware() as $class => $list) {
             $configured[$class] = array_merge(is_array($list) ? $list : [$list], $configured[$class] ?? []);
         }

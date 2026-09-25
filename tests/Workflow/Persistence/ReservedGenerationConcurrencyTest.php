@@ -63,7 +63,7 @@ class ReservedGenerationConcurrencyTest extends TestCase
                         $result = Workflow::make('shared')->setPersistence(new DatabasePersistence($pdo))
                             ->addNode(new MemoizingNode())->retainCompletionUntilAcknowledged()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new StartEvent(), $runId));
                         $outcome = ['runId' => $result->getRunId()];
-                    } catch (WorkflowException $e) {
+                    } catch (WorkflowException) {
                         $outcome = ['refused' => true];
                     } catch (Throwable $e) {
                         $outcome = ['error' => $e->getMessage()];

@@ -27,7 +27,7 @@ final class ExecutionRequest
         public readonly ?string $signal = null,
         public readonly bool $recoverFailed = false,
     ) {
-        $this->input = $event === null ? null : serialize($event);
+        $this->input = $event instanceof \NeuronAI\Workflow\Events\Event ? serialize($event) : null;
         $this->response = $payload === null ? null : serialize($payload);
     }
 

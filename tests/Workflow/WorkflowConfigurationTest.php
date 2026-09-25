@@ -44,12 +44,12 @@ class WorkflowConfigurationTest extends TestCase
         $workflow->retainCompletionUntilAcknowledged(!$retain);
         iterator_to_array($stream);
 
-        self::assertSame($retain, $workflow->inspect() !== null);
+        self::assertSame($retain, $workflow->inspect() instanceof \NeuronAI\Workflow\WorkflowRunSnapshot);
         if ($retain) {
             $workflow->acknowledge($stream->getReturn()->getRunId());
         }
         $workflow->run();
-        self::assertSame(!$retain, $workflow->inspect() !== null);
+        self::assertSame(!$retain, $workflow->inspect() instanceof \NeuronAI\Workflow\WorkflowRunSnapshot);
     }
 
     public function test_storage_and_serializer_changes_apply_to_the_next_execution(): void
@@ -93,8 +93,8 @@ class WorkflowConfigurationTest extends TestCase
         $workflow->setState(new WorkflowState(['seed' => 'next']))
             ->setStartEvent(new FirstEvent('Next input'))
             ->addNodes([new NodeTwo(), new NodeThree()])
-            ->addGlobalMiddleware(fn () => $middleware)
-            ->addMiddleware(NodeThree::class, fn () => $middleware);
+            ->addGlobalMiddleware(fn (): \PHPUnit\Framework\MockObject\MockObject => $middleware)
+            ->addMiddleware(NodeThree::class, fn (): \PHPUnit\Framework\MockObject\MockObject => $middleware);
         iterator_to_array($stream);
 
         self::assertSame('original', $stream->getReturn()->get('seed'));

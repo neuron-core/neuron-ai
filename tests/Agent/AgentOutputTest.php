@@ -112,7 +112,7 @@ class AgentOutputTest extends TestCase
     {
         $agent = Agent::make();
         $agent->setAiProvider(new FakeAIProvider());
-        $runtime = ExecutionTestFactory::graph($agent);
+        ExecutionTestFactory::graph($agent);
         $this->assertInstanceOf(AgentEndNode::class, ExecutionTestFactory::graph($agent)->nodes()[AgentOutputEvent::class]);
         $graph = (new WorkflowGraphBuilder())->build($agent->getStartEvent()::class, ExecutionTestFactory::graph($agent)->nodes());
         $edges = [];

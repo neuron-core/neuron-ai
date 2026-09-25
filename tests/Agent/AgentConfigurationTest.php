@@ -268,7 +268,7 @@ class AgentConfigurationTest extends TestCase
         $agent->parallelToolCalls(true);
         iterator_to_array($stream);
 
-        $agent->addMiddleware(ChatNode::class, fn () => $middleware);
+        $agent->addMiddleware(ChatNode::class, fn (): \NeuronAI\Tests\Agent\Middleware\Stub\RecordingAgentMiddleware => $middleware);
         $agent->chat(new UserMessage('Parallel'));
         $this->assertInstanceOf(ParallelToolNode::class, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[ToolCallEvent::class]);
         $this->assertEquals($node, \NeuronAI\Tests\Support\ExecutionTestFactory::graph($agent)->nodes()[StartEvent::class]);

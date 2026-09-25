@@ -40,7 +40,7 @@ class EloquentPersistenceTest extends TestCase
     protected function tearDown(): void
     {
         Model::unsetEventDispatcher();
-        if ($this->previousDispatcher !== null) {
+        if ($this->previousDispatcher instanceof \Illuminate\Contracts\Events\Dispatcher) {
             Model::setEventDispatcher($this->previousDispatcher);
         }
     }

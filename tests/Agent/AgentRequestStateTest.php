@@ -42,7 +42,7 @@ class AgentRequestStateTest extends TestCase
             ->setAiProvider($firstProvider)
             ->setInstructions('Agent defaults')
             ->addTool(new SearchTool());
-        $first->addGlobalMiddleware(fn () => $middleware);
+        $first->addGlobalMiddleware(fn (): \NeuronAI\Tests\Agent\Middleware\Stub\RequestEditingMiddleware => $middleware);
 
         $question = new UserMessage('Original question');
         if ($mode === 'stream') {
@@ -68,7 +68,7 @@ class AgentRequestStateTest extends TestCase
             ->setAiProvider($freshProvider)
             ->setInstructions('Changed agent defaults')
             ->addTool(new SearchTool());
-        $resumed->addGlobalMiddleware(fn () => $freshMiddleware);
+        $resumed->addGlobalMiddleware(fn (): \NeuronAI\Tests\Agent\Middleware\Stub\RequestEditingMiddleware => $freshMiddleware);
 
         $reply = $resumed->submitInputs(['call_1' => 'approve'], new ApprovalTranslator());
         $state = $reply->run();

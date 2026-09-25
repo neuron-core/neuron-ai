@@ -24,7 +24,7 @@ class CheckpointParallelTest extends TestCase
         $workflow = Workflow::make(workflowId: 'test-checkpoint-token')
             ->addNodes([
                 new InterruptableBranchProcessing(),
-                fn () => $checkpointNode,
+                fn (): \NeuronAI\Tests\Workflow\Executor\Stub\CheckpointableTextProcessNode => $checkpointNode,
                 new ImageProcessNode(),
                 new MergeNode(),
             ]);
@@ -42,7 +42,7 @@ class CheckpointParallelTest extends TestCase
         $workflow = Workflow::make(workflowId: 'test-checkpoint-resume')
             ->addNodes([
                 new InterruptableBranchProcessing(),
-                fn () => $checkpointNode,
+                fn (): \NeuronAI\Tests\Workflow\Executor\Stub\CheckpointableTextProcessNode => $checkpointNode,
                 new ImageProcessNode(),
                 new MergeNode(),
             ]);
@@ -68,7 +68,7 @@ class CheckpointParallelTest extends TestCase
         $workflow = Workflow::make(workflowId: 'test-checkpoint-order')
             ->addNodes([
                 new ImageFirstForkNode(),
-                fn () => $checkpointNode,
+                fn (): \NeuronAI\Tests\Workflow\Executor\Stub\CheckpointableTextProcessNode => $checkpointNode,
                 new ImageProcessNode(),
                 new MergeNode(),
             ]);

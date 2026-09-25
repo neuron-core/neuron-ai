@@ -32,7 +32,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addGlobalMiddleware(fn () => $middleware)
+                ->addGlobalMiddleware(fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -47,7 +47,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addMiddleware(NodeOne::class, fn () => $middleware)
+                ->addMiddleware(NodeOne::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -98,7 +98,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addGlobalMiddleware(fn () => $middleware)
+                ->addGlobalMiddleware(fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -115,7 +115,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addGlobalMiddleware(fn () => $middleware)
+                ->addGlobalMiddleware(fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -132,8 +132,8 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addGlobalMiddleware(fn () => $global)
-                ->addMiddleware(NodeTwo::class, fn () => $nodeSpecific)
+                ->addGlobalMiddleware(fn (): \NeuronAI\Testing\FakeMiddleware => $global)
+                ->addMiddleware(NodeTwo::class, fn (): \NeuronAI\Testing\FakeMiddleware => $nodeSpecific)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -167,8 +167,8 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addGlobalMiddleware(fn () => $global)
-                ->addMiddleware(NodeOne::class, fn () => $nodeSpecific)
+                ->addGlobalMiddleware(fn (): \NeuronAI\Testing\FakeMiddleware => $global)
+                ->addMiddleware(NodeOne::class, fn (): \NeuronAI\Testing\FakeMiddleware => $nodeSpecific)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -187,7 +187,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $finalState = $this->execute(
             Workflow::make('test-workflow')
-                ->addMiddleware(NodeOne::class, fn () => $middleware)
+                ->addMiddleware(NodeOne::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -200,7 +200,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addMiddleware([NodeOne::class, NodeThree::class], fn () => $middleware)
+                ->addMiddleware([NodeOne::class, NodeThree::class], fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -217,8 +217,8 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addMiddleware(NodeTwo::class, fn () => $middlewareForTwo)
-                ->addMiddleware(NodeThree::class, fn () => $middlewareForThree)
+                ->addMiddleware(NodeTwo::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middlewareForTwo)
+                ->addMiddleware(NodeThree::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middlewareForThree)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -235,7 +235,7 @@ class WorkflowMiddlewareTest extends TestCase
 
         $this->execute(
             Workflow::make('test-workflow')
-                ->addMiddleware(NodeTwo::class, fn () => $middleware)
+                ->addMiddleware(NodeTwo::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware)
                 ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
         );
 
@@ -251,7 +251,7 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $workflow = Workflow::make('test-workflow');
-        $workflow->addMiddleware(NodeOne::class, fn () => $middleware);
+        $workflow->addMiddleware(NodeOne::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
         // A subclass of NodeOne inherits the middleware registered against its parent.
         $child = new class () extends NodeOne {
@@ -268,7 +268,7 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $workflow = Workflow::make('test-workflow');
-        $workflow->addMiddleware(NodeTwo::class, fn () => $middleware);
+        $workflow->addMiddleware(NodeTwo::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
         // NodeOne is a sibling of NodeTwo, not a subclass — no match.
         $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->middlewareFor(new NodeOne());
@@ -284,7 +284,7 @@ class WorkflowMiddlewareTest extends TestCase
         $middleware = FakeMiddleware::make();
 
         $workflow = Workflow::make('test-workflow');
-        $workflow->addMiddleware(ToolNode::class, fn () => $middleware);
+        $workflow->addMiddleware(ToolNode::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
         $resolved = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]))->middlewareFor(new ParallelToolNode());
 

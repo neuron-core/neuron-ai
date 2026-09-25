@@ -45,7 +45,7 @@ class InferenceNodeMiddlewareTest extends TestCase
 
         $agent = Agent::make();
         $agent->setAiProvider($provider);
-        $agent->addMiddleware(InferenceNode::class, fn () => $middleware);
+        $agent->addMiddleware(InferenceNode::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
         $user = $agent->structured(new UserMessage('Generate a user'), User::class);
 
@@ -66,7 +66,7 @@ class InferenceNodeMiddlewareTest extends TestCase
 
         $agent = Agent::make();
         $agent->setAiProvider($provider);
-        $agent->addMiddleware(InferenceNode::class, fn () => $middleware);
+        $agent->addMiddleware(InferenceNode::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
         $run($agent);
 

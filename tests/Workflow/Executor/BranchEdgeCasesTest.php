@@ -109,7 +109,7 @@ class BranchEdgeCasesTest extends TestCase
         $middleware = new RecordingMiddleware();
 
         $workflow = Workflow::make('test-workflow')
-            ->addGlobalMiddleware(fn () => $middleware)
+            ->addGlobalMiddleware(fn (): \NeuronAI\Tests\Workflow\Executor\Stub\RecordingMiddleware => $middleware)
             ->addNodes([
                 new DocumentParallelProcessing(),
                 new MultiStepTextProcessNode(),

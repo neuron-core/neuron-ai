@@ -230,9 +230,9 @@ class WorkflowTest extends TestCase
 
         $this->assertSame($state->getWorkflowId(), $workflow->getWorkflowId());
         $this->assertNotEmpty($state->getWorkflowId());
-        $this->assertStringStartsWith('workflow_', (string) $state->getWorkflowId());
+        $this->assertStringStartsWith('workflow_', $state->getWorkflowId());
         $this->assertNotEmpty($state->getRunId());
-        $this->assertStringStartsWith('run_', (string) $state->getRunId());
+        $this->assertStringStartsWith('run_', $state->getRunId());
     }
 
     public function test_interrupt_state_is_resumable_from_token(): void
