@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Observability;
 
 use NeuronAI\Workflow\ExecutionContext;
+use ReflectionClass;
 
 use function preg_replace;
-use function strrpos;
 use function strtolower;
-use function substr;
 
 /**
  * Base class for all observability events dispatched through the PSR-14
@@ -40,7 +39,7 @@ abstract class ObservabilityEvent
      */
     public function name(): string
     {
-        $basename = substr(static::class, (int) strrpos(static::class, '\\') + 1);
+        $basename = (new ReflectionClass($this))->getShortName();
 
         return strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $basename));
     }

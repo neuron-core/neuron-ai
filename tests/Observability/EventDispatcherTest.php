@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use UnnamespacedEvent;
 
 use function array_column;
 use function array_map;
@@ -219,5 +220,12 @@ class EventDispatcherTest extends TestCase
         $this->assertSame('workflow-node-start', (new WorkflowNodeStart(NodeOne::class, new WorkflowState()))->name());
         $this->assertSame('workflow-end', (new WorkflowEnd(new WorkflowState()))->name());
         $this->assertSame('error', (new WorkflowError(new Exception('boom')))->name());
+    }
+
+    public function test_event_name_derivation_without_a_namespace(): void
+    {
+        require_once __DIR__ . '/Stub/UnnamespacedEvent.php';
+
+        $this->assertSame('unnamespaced-event', (new UnnamespacedEvent())->name());
     }
 }
