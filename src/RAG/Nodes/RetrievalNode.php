@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Observability\Events\Retrieved;
-use NeuronAI\Observability\Events\Retrieving;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
+use NeuronAI\RAG\Observability\Retrieved;
+use NeuronAI\RAG\Observability\Retrieving;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterScope;

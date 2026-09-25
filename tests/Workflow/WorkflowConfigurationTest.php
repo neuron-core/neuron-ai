@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
-use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
-use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\Serializer;
 use NeuronAI\Workflow\Workflow;

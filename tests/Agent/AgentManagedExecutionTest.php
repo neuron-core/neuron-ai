@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use LogicException;
 use NeuronAI\Agent\Adapters\AgentChunkAdapter;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentRunOptions;
@@ -17,12 +18,11 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
-use LogicException;
-use NeuronAI\Workflow\Executor\ExecutionRequest;
-use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function iterator_to_array;
 
@@ -120,7 +120,7 @@ class AgentManagedExecutionTest extends TestCase
     public function test_listeners_cannot_mutate_persisted_inference_intent(): void
     {
         $agent = Agent::make(workflowId: 'thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Done')));
-        $agent->subscribe(\NeuronAI\Observability\Events\WorkflowStart::class, static function (\NeuronAI\Observability\Events\WorkflowStart $event): void {
+        $agent->subscribe(\NeuronAI\Workflow\Observability\WorkflowStart::class, static function (\NeuronAI\Workflow\Observability\WorkflowStart $event): void {
             $event->execution->startEvent()->options->stream = true;
             self::assertFalse($event->execution->startEvent()->options->stream);
         });

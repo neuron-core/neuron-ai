@@ -7,8 +7,6 @@ namespace NeuronAI\Tests\Workflow\Channel;
 use Generator;
 use LogicException;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\ChannelError;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkAdapter;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
@@ -24,7 +22,11 @@ use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Events\InterruptEvent;
+use NeuronAI\Workflow\Observability\ChannelError;
+use NeuronAI\Workflow\Observability\WorkflowError;
+use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
@@ -32,8 +34,6 @@ use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
-use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_map;
 use function count;
@@ -360,7 +360,7 @@ class ChannelForwardingTest extends TestCase
             ->subscribe(ChannelError::class, function () use ($listenerFailure): void {
                 throw $listenerFailure;
             })
-            ->subscribe(AgentError::class, function (AgentError $error) use (&$reported): void {
+            ->subscribe(WorkflowError::class, function (WorkflowError $error) use (&$reported): void {
                 $reported[] = $error->exception;
             });
 

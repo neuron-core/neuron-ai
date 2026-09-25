@@ -22,26 +22,29 @@ registered on the instance and observe every run of it.
 
 ### Event Emission
 
-All components emit event objects automatically. Every event class lives in
-`NeuronAI\Observability\Events` and extends
-`NeuronAI\Observability\ObservabilityEvent`:
+All components emit event objects automatically. Every event class extends
+`NeuronAI\Observability\ObservabilityEvent` and lives in the `Observability`
+namespace of the module that emits it:
 
 ```php
-// Lifecycle (emitted by the workflow engine):
+// NeuronAI\Workflow\Observability — the lifecycle, emitted by the workflow engine:
 // WorkflowStart, WorkflowEnd, WorkflowNodeStart, WorkflowNodeEnd,
-// MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd,
-// WorkflowInterrupted (run paused for external input), AgentError (failure)
+// MiddlewareStart, MiddlewareEnd, BranchStart, BranchEnd, ChannelError,
+// WorkflowInterrupted (run paused for external input), WorkflowError (failure)
 //
-// Domain (emitted by nodes):
+// NeuronAI\Agent\Observability — emitted by agent nodes:
 // InferenceStart, InferenceStop, ToolCalling, ToolCalled,
-// MessageSaving, MessageSaved, Retrieving, Retrieved,
-// PreProcessing, PreProcessed, PostProcessing, PostProcessed,
-// SchemaGeneration, SchemaGenerated, Extracting, Extracted, ...
+// MessageSaving, MessageSaved, SchemaGeneration, SchemaGenerated,
+// Extracting, Extracted, Deserializing, Deserialized, Validating, Validated
+//
+// NeuronAI\RAG\Observability — emitted by RAG nodes:
+// Retrieving, Retrieved, PreProcessing, PreProcessed, PostProcessing, PostProcessed
 ```
 
 Each event carries its own data plus the emission context stamped by the
-framework: `->source` (the emitting component) and `->branchId` (the parallel
-branch, or null). `->name()` returns the string name ('inference-start').
+framework: `->source` (the emitting component), `->execution` (the run identity)
+and `->branchId` (the parallel branch, or null). `->name()` returns the string
+name ('inference-start') and `->toArray()` the event's own data.
 
 ### Subscribing Listeners
 
@@ -49,7 +52,7 @@ Listeners are class-keyed with instanceof matching — subscribe to a specific
 event class, or to `ObservabilityEvent::class` to receive everything:
 
 ```php
-use NeuronAI\Observability\Events\InferenceStop;
+use NeuronAI\Agent\Observability\InferenceStop;
 use NeuronAI\Observability\ObservabilityEvent;
 
 // React to one event type
@@ -67,7 +70,8 @@ $agent->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event
 ### Custom Events
 
 Emit your own events from nodes with `Node::emit()` — the event object is the
-payload. Subclass `ObservabilityEvent` to get `source`/`branchId` stamped:
+payload. Subclass `ObservabilityEvent` to get `source`/`branchId` stamped, and
+override `toArray()` so `LogListener` records the event's data:
 
 ```php
 use NeuronAI\Observability\ObservabilityEvent;
@@ -76,6 +80,11 @@ class DocumentScored extends ObservabilityEvent
 {
     public function __construct(public string $documentId, public float $score)
     {
+    }
+
+    public function toArray(): array
+    {
+        return ['document' => $this->documentId, 'score' => $this->score];
     }
 }
 
@@ -136,7 +145,7 @@ wait without execution does not emit another interruption.
 `submitApprovalDecisions($decisions)` and `submitToolResults($results)` stage input;
 the following `run()` or `events()` emits the normal execution lifecycle. Use the
 status on `WorkflowEnd::state` to distinguish `suspended`, `completed` and `failed`.
-An `AgentError` may report a listener error that the workflow isolated, so count
+A `WorkflowError` may report a listener error that the workflow isolated, so count
 failed runs from their terminal status rather than from error events alone.
 
 The default interruption and end logs include `workflowId`, `runId`,
@@ -174,7 +183,7 @@ $agent->parallelToolCalls(true);
 
 ### Slow or failing conversation memory
 
-Conversation retrieval uses RAG's `Retrieving` / `Retrieved` events. Observe `WorkflowNodeStart` / `WorkflowNodeEnd` for `ConversationIngestionNode` to measure optional ingestion. A failed step emits `AgentError`. These use the existing retrieval and workflow monitoring paths; there are no separate memory events.
+Conversation retrieval uses RAG's `Retrieving` / `Retrieved` events. Observe `WorkflowNodeStart` / `WorkflowNodeEnd` for `ConversationIngestionNode` to measure optional ingestion. A failed step emits `WorkflowError`. These use the existing retrieval and workflow monitoring paths; there are no separate memory events.
 
 ### Poor Response Quality
 
@@ -218,7 +227,7 @@ protected function instructions(): string
 
 **Diagnosis Steps**:
 
-1. **Check the run trace** - see error details (`AgentError` events carry the exception)
+1. **Check the run trace** - see error details (`WorkflowError` events carry the exception)
 2. **Verify tool configuration**:
    - Property types match
    - Required parameters provided
@@ -250,8 +259,8 @@ class MyTool extends Tool
 
 ### PSR-3 Logger Integration
 
-`LogListener` logs every event's name with per-event-class serialized context
-(override its protected `serialize*` methods to customize):
+`LogListener` logs every event's name with the event's `toArray()` as context
+(override its protected `context()` method to redact or enrich it):
 
 ```php
 use NeuronAI\Observability\LogListener;
@@ -332,7 +341,7 @@ platform gives you:
 3. **Context**: Input data, state at time of error
 4. **Patterns**: Repeated issues, common failure modes
 
-Locally, subscribe to the `AgentError` event to capture failures as they happen.
+Locally, subscribe to the `WorkflowError` event to capture failures as they happen.
 
 ### Tracing Node Execution
 

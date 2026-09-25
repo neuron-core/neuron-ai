@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent;
 
+use NeuronAI\Agent\Observability\MessageSaved;
+use NeuronAI\Agent\Observability\MessageSaving;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Observability\Events\MessageSaved;
-use NeuronAI\Observability\Events\MessageSaving;
 
 use function is_array;
 

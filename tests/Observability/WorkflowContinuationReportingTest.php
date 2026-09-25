@@ -7,15 +7,11 @@ namespace NeuronAI\Tests\Observability;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
+use NeuronAI\Agent\Observability\ToolCalled;
+use NeuronAI\Agent\Observability\ToolCalling;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\ToolCalled;
-use NeuronAI\Observability\Events\ToolCalling;
-use NeuronAI\Observability\Events\WorkflowEnd;
-use NeuronAI\Observability\Events\WorkflowInterrupted;
-use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Workflow\Executor\Stub\ConcurrentWaitNode;
@@ -31,6 +27,10 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowError;
+use NeuronAI\Workflow\Observability\WorkflowInterrupted;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -89,7 +89,7 @@ class WorkflowContinuationReportingTest extends TestCase
                 $events[] = ['start'];
             } elseif ($event instanceof ToolCalling || $event instanceof ToolCalled) {
                 $events[] = [$event->name(), $event->tool->getCallId()];
-            } elseif ($event instanceof AgentError) {
+            } elseif ($event instanceof WorkflowError) {
                 $events[] = ['error'];
             }
         });
@@ -152,7 +152,7 @@ class WorkflowContinuationReportingTest extends TestCase
                 $events[] = $request->getEventName();
             } elseif ($event instanceof WorkflowEnd) {
                 $events[] = $event->state->getStatus()->value;
-            } elseif ($event instanceof AgentError) {
+            } elseif ($event instanceof WorkflowError) {
                 $events[] = 'error';
             }
         });

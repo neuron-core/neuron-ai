@@ -6,9 +6,9 @@ namespace NeuronAI\Workflow\Streaming;
 
 use Closure;
 use Generator;
-use NeuronAI\Observability\Events\ChannelError;
-use NeuronAI\Observability\ExecutionEventDispatcher;
 use NeuronAI\Workflow\Events\InterruptEvent;
+use NeuronAI\Workflow\Executor\ExecutionEventDispatcher;
+use NeuronAI\Workflow\Observability\ChannelError;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\WorkflowState;

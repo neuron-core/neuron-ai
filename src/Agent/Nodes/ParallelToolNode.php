@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Closure;
 use Generator;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\Observability\ToolCalled;
+use NeuronAI\Agent\Observability\ToolCalling;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Observability\Events\ToolCalled;
-use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolRegistry;
 use Spatie\Fork\Fork;
-use Closure;
 use Throwable;
 
 use function array_map;

@@ -6,11 +6,6 @@ namespace NeuronAI\Tests\Observability;
 
 use Exception;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\WorkflowEnd;
-use NeuronAI\Observability\Events\WorkflowInterrupted;
-use NeuronAI\Observability\Events\WorkflowNodeStart;
-use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Tests\Observability\Stub\CustomTestEvent;
 use NeuronAI\Tests\Observability\Stub\EmittingNode;
@@ -19,6 +14,11 @@ use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowError;
+use NeuronAI\Workflow\Observability\WorkflowInterrupted;
+use NeuronAI\Workflow\Observability\WorkflowNodeStart;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
@@ -182,7 +182,7 @@ class EventDispatcherTest extends TestCase
         $this->assertCount(count($external->events), $local);
     }
 
-    public function test_interruption_dispatches_dedicated_event_not_agent_error(): void
+    public function test_interruption_dispatches_dedicated_event_not_workflow_error(): void
     {
         $interrupted = [];
         $errors = [];
@@ -192,7 +192,7 @@ class EventDispatcherTest extends TestCase
             ->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event) use (&$interrupted): void {
                 $interrupted[] = $event;
             })
-            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+            ->subscribe(WorkflowError::class, function (WorkflowError $event) use (&$errors): void {
                 $errors[] = $event;
             });
 
@@ -218,6 +218,6 @@ class EventDispatcherTest extends TestCase
     {
         $this->assertSame('workflow-node-start', (new WorkflowNodeStart(NodeOne::class, new WorkflowState()))->name());
         $this->assertSame('workflow-end', (new WorkflowEnd(new WorkflowState()))->name());
-        $this->assertSame('error', (new AgentError(new Exception('boom')))->name());
+        $this->assertSame('error', (new WorkflowError(new Exception('boom')))->name());
     }
 }

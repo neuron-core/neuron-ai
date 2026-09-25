@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
-use NeuronAI\Observability\Events\PostProcessed;
-use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
+use NeuronAI\RAG\Observability\PostProcessed;
+use NeuronAI\RAG\Observability\PostProcessing;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\Workflow\Node;
 

@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\RAG;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
-use NeuronAI\Observability\Events\WorkflowStart;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
@@ -17,6 +16,7 @@ use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use PHPUnit\Framework\TestCase;
 
 class RAGConfigurationTest extends TestCase

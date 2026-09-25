@@ -10,9 +10,9 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
+use NeuronAI\Workflow\Observability\WorkflowError;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
@@ -57,7 +57,7 @@ class InferenceFailureHistoryTest extends TestCase
         $persistence = new InMemoryPersistence();
         $errors = [];
         $agent = $this->makeAgent($provider, $messageStore, $persistence)
-            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+            ->subscribe(WorkflowError::class, function (WorkflowError $event) use (&$errors): void {
                 $errors[] = $event;
             });
 
@@ -130,7 +130,7 @@ class InferenceFailureHistoryTest extends TestCase
         $persistence = new InMemoryPersistence();
         $errors = [];
         $agent = $this->makeAgent($provider, $messageStore, $persistence)
-            ->subscribe(AgentError::class, function (AgentError $event) use (&$errors): void {
+            ->subscribe(WorkflowError::class, function (WorkflowError $event) use (&$errors): void {
                 $errors[] = $event;
             });
 

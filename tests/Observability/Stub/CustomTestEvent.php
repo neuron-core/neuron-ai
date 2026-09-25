@@ -11,4 +11,9 @@ class CustomTestEvent extends ObservabilityEvent
     public function __construct(public string $value)
     {
     }
+
+    public function toArray(): array
+    {
+        return ['value' => $this->value];
+    }
 }

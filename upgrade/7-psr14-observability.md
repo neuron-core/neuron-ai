@@ -75,15 +75,16 @@ custom event classes.
 
 ## 3. Event classes extend `ObservabilityEvent`
 
-All classes in `NeuronAI\Observability\Events` now extend
-`NeuronAI\Observability\ObservabilityEvent` (distinct from the workflow-routing
-`NeuronAI\Workflow\Events\Event`). The base class carries:
+Every event class now extends `NeuronAI\Observability\ObservabilityEvent`
+(distinct from the workflow-routing `NeuronAI\Workflow\Events\Event`), and lives
+in the module that emits it (guide 44). The base class carries:
 
 - `->source` — the component that emitted the event (a Node, the Workflow),
   stamped at dispatch time.
 - `->branchId` — the parallel branch identifier, or null outside branches.
 - `->name()` — the legacy string name (`'inference-start'`), derived from the
   class name unless overridden.
+- `->toArray()` — the event's own data, which `LogListener` logs.
 
 If you constructed these events yourself, note `MiddlewareStart` and
 `MiddlewareEnd` gained a `$phase` parameter (`'before'`|`'after'`), and
@@ -114,9 +115,8 @@ $agent->subscribe(ObservabilityEvent::class, function (ObservabilityEvent $event
 });
 ```
 
-`LogListener` carries the same protected `serialize*` methods as `LogObserver`
-(which is now a thin subclass of it), so serialization overrides port by
-changing the parent class.
+`LogListener` logs each event's `toArray()`. Overrides of the `serialize*`
+methods move to its protected `context()` method (guide 44).
 
 ## 5. `setWorkflowContext()` receives a `NodeContext`
 
@@ -241,10 +241,10 @@ A run that suspends for external input (tool approval, `awaitEvent()`,
 `sleepUntil()`) now dispatches a dedicated `WorkflowInterrupted` event carrying
 the complete interrupted `WorkflowState`. Previously a suspension was invisible to
 observers — only `WorkflowEnd` fired. Interruption is a scheduled pause, not a
-failure, so it is deliberately **not** an `AgentError`:
+failure, so it is deliberately **not** a `WorkflowError`:
 
 ```php
-use NeuronAI\Observability\Events\WorkflowInterrupted;
+use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 
 $agent->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $event): void {
     if ($request = $event->state->getInterruptRequest()) {
@@ -254,4 +254,4 @@ $agent->subscribe(WorkflowInterrupted::class, function (WorkflowInterrupted $eve
 ```
 
 Terminal vocabulary per run: `WorkflowEnd` alone = completed;
-`WorkflowInterrupted` + `WorkflowEnd` = paused; `AgentError` + `WorkflowEnd` = failed.
+`WorkflowInterrupted` + `WorkflowEnd` = paused; `WorkflowError` + `WorkflowEnd` = failed.

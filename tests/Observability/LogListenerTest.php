@@ -5,19 +5,21 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Observability;
 
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Observability\InferenceStart;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Observability\Events\Retrieving;
-use NeuronAI\Observability\Events\WorkflowInterrupted;
-use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Observability\LogListener;
 use NeuronAI\Observability\LogObserver;
 use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\RAG\Observability\Retrieving;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
+use NeuronAI\Tests\Observability\Stub\CustomTestEvent;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -154,5 +156,30 @@ class LogListenerTest extends TestCase
                 ],
             ],
         ], $logger->records[0]['context']['filters']);
+    }
+
+    public function test_custom_event_logs_its_own_data(): void
+    {
+        $logger = $this->recordingLogger();
+
+        (new LogListener($logger))(new CustomTestEvent('scored'));
+
+        $this->assertSame('custom-test-event', $logger->records[0]['message']);
+        $this->assertSame(['value' => 'scored'], $logger->records[0]['context']);
+    }
+
+    public function test_subclass_redacts_through_context(): void
+    {
+        $logger = $this->recordingLogger();
+        $listener = new class ($logger) extends LogListener {
+            protected function context(ObservabilityEvent $event): array
+            {
+                return $event instanceof InferenceStart ? [] : parent::context($event);
+            }
+        };
+
+        $listener(new InferenceStart(new UserMessage('secret')));
+
+        $this->assertSame([], $logger->records[0]['context']);
     }
 }

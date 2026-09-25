@@ -44,4 +44,15 @@ abstract class ObservabilityEvent
 
         return strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $basename));
     }
+
+    /**
+     * The event's own data, ready for a log record or an export. What is
+     * stamped at dispatch time (source, execution, branch) is not part of it.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [];
+    }
 }

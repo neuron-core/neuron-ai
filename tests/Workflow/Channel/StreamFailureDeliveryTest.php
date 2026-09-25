@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Workflow\Channel;
 use Error;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
-use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Tests\Workflow\Channel\Stub\FailingStreamNode;
@@ -16,8 +15,10 @@ use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\StreamingImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
 use NeuronAI\Workflow\Executor\AsyncBranchRunner;
+use NeuronAI\Workflow\Observability\WorkflowError;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -25,7 +26,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
-use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 
 use function array_column;
 use function array_key_last;
@@ -137,7 +137,7 @@ class StreamFailureDeliveryTest extends TestCase
             ->setPersistence($persistence)
             ->addNodes([new ChunkStreamingNode(2)])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $this->adapterFailingWith($error))
-            ->subscribe(AgentError::class, function (AgentError $event) use (&$observed): void {
+            ->subscribe(WorkflowError::class, function (WorkflowError $event) use (&$observed): void {
                 $observed[] = $event->exception;
             });
 

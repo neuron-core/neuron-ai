@@ -85,4 +85,4 @@ $conversationStore->delete(FilterGroup::and(
 ));
 ```
 
-Observe retrieval through `Retrieving` / `Retrieved` and ingestion through `WorkflowNodeStart` / `WorkflowNodeEnd` for `ConversationIngestionNode`. Failures use `AgentError`.
+Observe retrieval through `Retrieving` / `Retrieved` and ingestion through `WorkflowNodeStart` / `WorkflowNodeEnd` for `ConversationIngestionNode`. Failures use `WorkflowError`.

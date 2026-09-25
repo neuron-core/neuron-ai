@@ -9,9 +9,9 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Observability\Events\PreProcessed;
-use NeuronAI\Observability\Events\PreProcessing;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
+use NeuronAI\RAG\Observability\PreProcessed;
+use NeuronAI\RAG\Observability\PreProcessing;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
 use NeuronAI\Workflow\Node;
 

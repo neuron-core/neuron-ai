@@ -24,7 +24,7 @@ You never fight the framework: the architecture you use on day one is the same o
 
 | Module | Purpose                                                       | Dependencies |
 |--------|---------------------------------------------------------------|--------------|
-| `src/Workflow/` | Event-driven orchestration, nodes, interruptions, persistence | None |
+| `src/Workflow/` | Event-driven orchestration, nodes, interruptions, persistence | Observability |
 | `src/Agent/` | AI agent with chat/stream/structured modes                    | Workflow, Chat, Providers, Tools |
 | `src/Chat/` | Messages, stream content blocks, chat history                 | None |
 | `src/Providers/` | AI provider abstractions (Anthropic, OpenAI, etc.)            | Chat, HttpClient |
@@ -33,7 +33,7 @@ You never fight the framework: the architecture you use on day one is the same o
 | `src/StructuredOutput/` | JSON schema extraction                                        | Chat |
 | `src/HttpClient/` | HTTP client abstraction                                       | None |
 | `src/MCP/` | Model Context Protocol connector                              | HttpClient |
-| `src/Observability/` | PSR-14 event dispatching and observers                        | None |
+| `src/Observability/` | PSR-14 event dispatching and observers                        | Workflow |
 | `src/Console/` | CLI commands (make:*, evaluation)                             | Evaluation |
 | `src/Evaluation/` | AI evaluation framework (incl. multi-turn conversation eval)  | Agent, Chat, Workflow, Tools |
 | `src/Testing/` | Test fakes and utilities                                      | Providers |

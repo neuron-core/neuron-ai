@@ -10,9 +10,9 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
-use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
@@ -136,12 +136,12 @@ class WorkflowExecutionIsolationTest extends TestCase
     {
         $workflow = KeyedWorkflow::make('setup-failure');
         $ends = [];
-        $workflow->subscribe(\NeuronAI\Observability\Events\WorkflowEnd::class, function ($event) use (&$ends): void {
+        $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function ($event) use (&$ends): void {
             $ends[] = $event;
         });
         $lateEnds = [];
         $workflow->setChannel(function () use ($workflow, &$lateEnds): never {
-            $workflow->subscribe(\NeuronAI\Observability\Events\WorkflowEnd::class, function ($event) use (&$lateEnds): void {
+            $workflow->subscribe(\NeuronAI\Workflow\Observability\WorkflowEnd::class, function ($event) use (&$lateEnds): void {
                 $lateEnds[] = $event;
             });
             throw new RuntimeException('Factory failed');

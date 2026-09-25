@@ -7,17 +7,6 @@ namespace NeuronAI\Workflow\Executor;
 use Closure;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
-use NeuronAI\Observability\Events\AgentError;
-use NeuronAI\Observability\Events\BranchEnd;
-use NeuronAI\Observability\Events\BranchStart;
-use NeuronAI\Observability\Events\MiddlewareEnd;
-use NeuronAI\Observability\Events\MiddlewareStart;
-use NeuronAI\Observability\Events\WorkflowEnd;
-use NeuronAI\Observability\Events\WorkflowInterrupted;
-use NeuronAI\Observability\Events\WorkflowNodeEnd;
-use NeuronAI\Observability\Events\WorkflowNodeStart;
-use NeuronAI\Observability\Events\WorkflowStart;
-use NeuronAI\Observability\ExecutionEventDispatcher;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\Events\BranchPausedEvent;
 use NeuronAI\Workflow\Events\Event;
@@ -31,6 +20,16 @@ use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
+use NeuronAI\Workflow\Observability\BranchEnd;
+use NeuronAI\Workflow\Observability\BranchStart;
+use NeuronAI\Workflow\Observability\MiddlewareEnd;
+use NeuronAI\Workflow\Observability\MiddlewareStart;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowError;
+use NeuronAI\Workflow\Observability\WorkflowInterrupted;
+use NeuronAI\Workflow\Observability\WorkflowNodeEnd;
+use NeuronAI\Workflow\Observability\WorkflowNodeStart;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\SegmentOutput;
@@ -207,7 +206,7 @@ final class Segment
         $this->stamp($this->state);
         $this->state->markAsFailed();
         $this->markControlFailed();
-        $this->report(new AgentError($e, false));
+        $this->report(new WorkflowError($e, false));
     }
 
     protected function markControlFailed(): void

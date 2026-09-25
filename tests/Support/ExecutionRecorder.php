@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Support;
 
-use NeuronAI\Observability\Events\WorkflowStart;
-use NeuronAI\Observability\Events\WorkflowEnd;
 use NeuronAI\Workflow\ExecutionContext;
+use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 
