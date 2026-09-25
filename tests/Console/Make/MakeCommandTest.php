@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Console\Make;
 
 use NeuronAI\Console\NeuronCli;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
@@ -25,6 +26,9 @@ use function unlink;
 use function fopen;
 use function rewind;
 use function stream_get_contents;
+use function token_get_all;
+
+use const TOKEN_PARSE;
 
 class MakeCommandTest extends TestCase
 {
@@ -76,6 +80,27 @@ class MakeCommandTest extends TestCase
         $file = $this->workDir . '/src/MyTool.php';
         $this->assertFileExists($file);
         $this->assertStringContainsString('namespace App;', (string) file_get_contents($file));
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function commands(): iterable
+    {
+        foreach (['make:agent', 'make:middleware', 'make:node', 'make:tool', 'make:rag', 'make:workflow', 'make:event', 'make:evaluators'] as $command) {
+            yield $command => [$command];
+        }
+    }
+
+    #[DataProvider('commands')]
+    public function test_generates_valid_php(string $command): void
+    {
+        ob_start();
+        $exitCode = (new NeuronCli())->run(['neuron', $command, 'App\\Generated\\Example']);
+        ob_end_clean();
+
+        $this->assertSame(0, $exitCode);
+
+        // A syntax error throws a ParseError.
+        $this->assertNotEmpty(token_get_all((string) file_get_contents($this->workDir . '/src/Generated/Example.php'), TOKEN_PARSE));
     }
 
     public function test_fails_when_file_already_exists(): void

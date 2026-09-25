@@ -11,14 +11,16 @@ never persists it, and hands it to nodes and middleware.
   implementation no longer loads until it declares it.
 - **A node may declare the resources as the third `__invoke()` parameter**, typed `WorkflowResources` or a subclass.
   The parameter is optional. A node asking for a subclass the workflow does not provide fails when the graph is built.
-- **`NodeInterface::run()` passes them on.** Only relevant if you implement `NodeInterface` directly instead of
-  extending `Node`.
+- **`run()` takes them as a third parameter**, on `NodeInterface` and on `Node`. Only relevant if you implement
+  `NodeInterface` directly, override `run()` in a `Node` subclass, or call `run()` on a node yourself, as a unit test
+  of a node may.
 
 | Before (3.x) | After |
 |---|---|
 | `before(NodeInterface $node, Event $event, WorkflowState $state): void` | `before(NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources): void` |
 | `after(NodeInterface $node, Event $result, WorkflowState $state): void` | `after(NodeInterface $node, Event $result, WorkflowState $state, WorkflowResources $resources): void` |
-| `NodeInterface::run(Event $event, WorkflowState $state)` | `NodeInterface::run(Event $event, WorkflowState $state, WorkflowResources $resources)` |
+| `run(Event $event, WorkflowState $state)` on `NodeInterface` and `Node` | `run(Event $event, WorkflowState $state, WorkflowResources $resources)` |
+| `$node->run($event, $state)` | `$node->run($event, $state, new WorkflowResources())` |
 
 ## How to Refactor
 
@@ -97,10 +99,60 @@ $workflow = Workflow::make(state: new AgentState())
 A workflow subclass overrides the `resources()` hook instead, returning `AgentResources`. The factory and the hook run
 once per execution segment, so a continuation gets live services again.
 
-### Case 3: A class implementing `NodeInterface` directly
+### Case 3: A class implementing `NodeInterface`, or a `Node` subclass overriding `run()`
 
-Declare the third parameter of `run()` and pass the resources to the logic that needs them. `setWorkflowContext()`
-changed as well (guide 7).
+Declare the third parameter of `run()` and pass the resources on: an override in a `Node` subclass hands them to
+`parent::run()`, which forwards them to `__invoke()`. A class implementing `NodeInterface` directly also changes
+`setWorkflowContext()` (guide 7).
+
+Before:
+
+```php
+class TrackedNode extends Node
+{
+    public function run(Event $event, WorkflowState $state): Generator|Event
+    {
+        $state->set('last_node', static::class);
+
+        return parent::run($event, $state);
+    }
+}
+```
+
+After:
+
+```php
+use NeuronAI\Workflow\WorkflowResources;
+
+class TrackedNode extends Node
+{
+    public function run(Event $event, WorkflowState $state, WorkflowResources $resources): Generator|Event
+    {
+        $state->set('last_node', static::class);
+
+        return parent::run($event, $state, $resources);
+    }
+}
+```
+
+### Case 4: Code calling `run()` on a node
+
+A unit test that runs a node outside a workflow passes the resources too. Pass a `WorkflowResources`, or the subclass
+the node's `__invoke()` declares; a node with two parameters ignores them.
+
+Before:
+
+```php
+$result = (new SummarizeNode())->run(new StartEvent(), new WorkflowState());
+```
+
+After:
+
+```php
+use NeuronAI\Workflow\WorkflowResources;
+
+$result = (new SummarizeNode())->run(new StartEvent(), new WorkflowState(), new WorkflowResources());
+```
 
 ## What to Search For
 
@@ -108,13 +160,18 @@ changed as well (guide 7).
 grep -rn "implements WorkflowMiddleware" --include="*.php" .
 grep -rnE "function (before|after)\(NodeInterface" --include="*.php" .
 grep -rn "implements NodeInterface" --include="*.php" .
+grep -rnE "function run\(Event" --include="*.php" .
+grep -rn -- "->run(" --include="*.php" .
 grep -rnE "new (ChatNode|StructuredOutputNode|ToolNode|ParallelToolNode)\(" --include="*.php" .
 ```
 
-Follow each node construction to the workflow that registers it: inside an Agent or RAG subclass it needs no change.
+A call to a node's `run()` has two arguments, the event and the state; a workflow's `run()` takes at most one. Follow
+each node construction to the workflow that registers it: inside an Agent or RAG subclass it needs no change.
 
 ## Checklist
 
 - Every `before()` and `after()` of a `WorkflowMiddleware` declares `WorkflowResources $resources`.
 - Every workflow running agent nodes, other than an Agent or RAG, provides `AgentResources`.
-- Direct `NodeInterface` implementations declare `run(Event $event, WorkflowState $state, WorkflowResources $resources)`.
+- Direct `NodeInterface` implementations and `run()` overrides in `Node` subclasses declare
+  `run(Event $event, WorkflowState $state, WorkflowResources $resources)`.
+- Every direct call to a node's `run()` passes the resources.

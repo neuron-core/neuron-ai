@@ -306,13 +306,13 @@ class Workflow implements WorkflowInterface
             $start,
             $this->resolveResources(),
             array_merge($this->nodes(), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)),
-            $this->executionMiddleware(),
-            $this->executionGlobalMiddleware(),
+            $this->getMiddleware(),
+            $this->getGlobalMiddleware(),
         );
     }
 
     /** @return array<class-string<NodeInterface>, array<WorkflowMiddleware>> */
-    protected function executionMiddleware(): array
+    final protected function getMiddleware(): array
     {
         $configured = array_map(fn (array $list): array => $this->instantiateMiddleware($list), $this->nodeMiddleware);
         foreach ($this->middleware() as $class => $list) {
@@ -322,7 +322,7 @@ class Workflow implements WorkflowInterface
     }
 
     /** @return array<WorkflowMiddleware> */
-    protected function executionGlobalMiddleware(): array
+    final protected function getGlobalMiddleware(): array
     {
         return array_merge($this->globalMiddleware(), $this->instantiateMiddleware($this->globalMiddleware));
     }
