@@ -16,7 +16,7 @@ use Psr\EventDispatcher\StoppableEventInterface;
  * framework's PSR-14 implementation) so Neuron events can participate in the
  * wider application.
  */
-class WorkflowEventDispatcher implements EventDispatcherInterface
+class EventDispatcher implements EventDispatcherInterface
 {
     public function __construct(
         protected ListenerProviderInterface $listenerProvider,

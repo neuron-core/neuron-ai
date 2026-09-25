@@ -52,7 +52,7 @@ final class Segment
 {
     protected bool $pauseRequested = false;
 
-    protected ExecutionEventDispatcher $events;
+    protected SegmentEventDispatcher $events;
 
     protected BranchRunner $branches;
 
@@ -90,7 +90,7 @@ final class Segment
         EventDispatcherInterface $dispatcher,
         object $source,
     ): Generator {
-        $this->events = new ExecutionEventDispatcher($dispatcher, $this->context, $source);
+        $this->events = new SegmentEventDispatcher($dispatcher, $this->context, $source);
         $this->branches = $branches;
 
         try {

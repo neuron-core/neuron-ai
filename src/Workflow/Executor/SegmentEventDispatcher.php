@@ -16,7 +16,7 @@ use Throwable;
  *
  * @internal
  */
-final class ExecutionEventDispatcher implements EventDispatcherInterface
+final class SegmentEventDispatcher implements EventDispatcherInterface
 {
     public function __construct(
         protected EventDispatcherInterface $dispatcher,

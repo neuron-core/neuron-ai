@@ -7,7 +7,8 @@ PSR-14 event dispatching for monitoring what a workflow does. Each `Workflow` in
 - `ObservabilityEvent` is the base of every framework event. The event class is the dispatch identity; `name()` derives a string name from it (`InferenceStart` → 'inference-start') for loggers and legacy observers, overridden only where it cannot be derived. `toArray()` returns the event's own data for logs and exports, empty unless the event overrides it. `source` (the emitting component), `execution` (the run identity) and `branchId` (the parallel branch, or null) are stamped at dispatch time, not by the emitter.
 - Events live next to the code that emits them, in each module's `Observability` namespace: `Workflow\Observability` for the lifecycle, `Agent\Observability` for inference, tools, messages and structured output, `RAG\Observability` for retrieval and its processors.
 - `ListenerRegistry` matches listeners with `instanceof` semantics: subscribing to `ObservabilityEvent::class` receives everything, subscribing to a base class receives its subclasses.
-- `WorkflowEventDispatcher` runs the workflow's listeners, then forwards to an optional external PSR-14 dispatcher (`setEventDispatcher()`), which is how a host framework's event system receives every event with no glue code.
+- `EventDispatcher` runs the workflow's listeners, then forwards to an optional external PSR-14 dispatcher (`setEventDispatcher()`), which is how a host framework's event system receives every event with no glue code.
+- Each execution segment wraps the workflow's `EventDispatcher` in an internal `SegmentEventDispatcher`: it stamps every event with the run identity and a default source, and reports a listener failure on the events the engine emits as a `WorkflowError`.
 
 ```php
 $workflow->subscribe(InferenceStop::class, fn (InferenceStop $event) => $metrics->record($event->source, $event->branchId));

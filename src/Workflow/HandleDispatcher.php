@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow;
 
+use NeuronAI\Observability\EventDispatcher;
 use NeuronAI\Observability\ListenerRegistry;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Observability\ObserverAdapter;
 use NeuronAI\Observability\ObserverInterface;
-use NeuronAI\Observability\WorkflowEventDispatcher;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 trait HandleDispatcher
@@ -54,7 +54,7 @@ trait HandleDispatcher
 
     public function getEventDispatcher(): EventDispatcherInterface
     {
-        return $this->dispatcher ??= new WorkflowEventDispatcher(
+        return $this->dispatcher ??= new EventDispatcher(
             $this->listenerRegistry(),
             $this->externalDispatcher,
         );

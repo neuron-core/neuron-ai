@@ -7,7 +7,7 @@ namespace NeuronAI\Workflow\Streaming;
 use Closure;
 use Generator;
 use NeuronAI\Workflow\Events\InterruptEvent;
-use NeuronAI\Workflow\Executor\ExecutionEventDispatcher;
+use NeuronAI\Workflow\Executor\SegmentEventDispatcher;
 use NeuronAI\Workflow\Observability\ChannelError;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
@@ -32,7 +32,7 @@ final class SegmentOutput
     public function __construct(
         protected ?StreamAdapterInterface $adapter,
         protected ?StreamingChannelInterface $channel,
-        protected ExecutionEventDispatcher $events,
+        protected SegmentEventDispatcher $events,
         protected string $workflowId,
     ) {
     }
