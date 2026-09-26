@@ -9,6 +9,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -42,7 +43,7 @@ class OllamaTest extends TestCase
         ))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $response = $provider->chat(new UserMessage('Hi'));
-        $this->assertInstanceOf(\NeuronAI\Chat\Messages\AssistantMessage::class, $response->message());
+        $this->assertInstanceOf(AssistantMessage::class, $response->message());
 
         // Ensure we sent one request
         $this->assertCount(1, $sentRequests);
@@ -124,8 +125,13 @@ class OllamaTest extends TestCase
         $message = (new UserMessage('Describe this image'))
             ->addContent(new ImageContent(content: 'base_64_encoded_image', sourceType: SourceType::URL));
 
-        $this->expectException(ProviderException::class);
-        $provider->chat($message);
+        try {
+            $provider->chat($message);
+            $this->fail('URL images must be rejected.');
+        } catch (ProviderException $exception) {
+            $this->assertSame('Ollama supports only base64 image type.', $exception->getMessage());
+        }
+        $this->assertSame([], $sentRequests);
     }
 
     public function test_tools_payload(): void

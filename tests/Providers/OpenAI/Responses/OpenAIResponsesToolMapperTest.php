@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Providers\OpenAI\Responses;
 
 use NeuronAI\Providers\OpenAI\Responses\ToolMapper;
+use NeuronAI\Tools\ProviderTool;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -12,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 class OpenAIResponsesToolMapperTest extends TestCase
 {
-    private function createTool(string $name, string $description): Tool
+    protected function createTool(string $name, string $description): Tool
     {
         return new class ($name, $description) extends Tool {
             public function __construct(string $name, string $description)
@@ -73,6 +74,19 @@ class OpenAIResponsesToolMapperTest extends TestCase
                     'required' => ['sku'],
                 ],
             ],
+        ], $mapping);
+    }
+
+    public function test_provider_tools_map_type_options_and_optional_name(): void
+    {
+        $mapping = (new ToolMapper())->map([
+            new ProviderTool('web_search', options: ['search_context_size' => 'low']),
+            new ProviderTool('mcp', 'deepwiki', ['server_url' => 'https://mcp.deepwiki.com/mcp']),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'web_search', 'search_context_size' => 'low'],
+            ['type' => 'mcp', 'server_url' => 'https://mcp.deepwiki.com/mcp', 'name' => 'deepwiki'],
         ], $mapping);
     }
 }

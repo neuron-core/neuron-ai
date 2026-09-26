@@ -88,7 +88,7 @@ class BedrockRuntimeTest extends TestCase
 
         $this->assertIsArray($capturedPayload);
         $this->assertSame('model-x', $capturedPayload['modelId']);
-        $this->assertArrayHasKey('messages', $capturedPayload);
+        $this->assertSame([['role' => 'user', 'content' => [['text' => 'Hi']]]], $capturedPayload['messages']);
         $this->assertSame([[ 'text' => 'System prompt' ]], $capturedPayload['system']);
         $this->assertSame([
             'maxTokens' => 100,

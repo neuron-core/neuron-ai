@@ -10,6 +10,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -25,7 +26,6 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
-use function count;
 use function is_array;
 use function json_decode;
 
@@ -164,7 +164,7 @@ class OpenAITest extends TestCase
         $provider = (new OpenAI('', 'gpt-4o'))->setHttpClient(new GuzzleHttpClient(handler: $stack));
 
         $message = (new UserMessage('Describe this document'))
-            ->addContent(new ImageContent(content: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf'));
+            ->addContent(new FileContent(content: 'base_64_encoded_document', sourceType: SourceType::BASE64, mediaType: 'application/pdf', filename: 'document.pdf'));
 
         $response = $provider->chat($message);
 
@@ -180,7 +180,7 @@ class OpenAITest extends TestCase
                     'role' => 'user',
                     'content' => [
                         ['type' => 'text', 'text' => 'Describe this document'],
-                        ['type' => 'image_url', 'image_url' => ['url' => 'data:application/pdf;base64,base_64_encoded_document']],
+                        ['type' => 'file', 'file' => ['filename' => 'document.pdf', 'file_data' => 'data:application/pdf;base64,base_64_encoded_document']],
                     ],
                 ],
             ],
@@ -513,13 +513,11 @@ class OpenAITest extends TestCase
         // Get the final message from generator return value
         $message = $generator->getReturn()->message();
 
-        // Assert we received TextChunk instances (empty strings filtered out)
-        $this->assertGreaterThanOrEqual(3, count($chunks));
+        // Every content delta is forwarded, including the empty opening one.
+        $this->assertCount(4, $chunks);
         foreach ($chunks as $chunk) {
-            $this->assertInstanceOf(TextChunk::class, $chunk);
+            $this->assertSame($message->getId(), $chunk->messageId);
         }
-
-        // Verify chunk contents
         $this->assertInstanceOf(TextChunk::class, $chunks[0]);
         $this->assertInstanceOf(TextChunk::class, $chunks[1]);
         $this->assertInstanceOf(TextChunk::class, $chunks[2]);
@@ -559,13 +557,15 @@ class OpenAITest extends TestCase
 
         // strict mode is active in the request
         $this->assertTrue($payload['response_format']['json_schema']['strict']);
+        $this->assertSame('Person', $payload['response_format']['json_schema']['name']);
+        $this->assertFalse($schema['additionalProperties']);
 
         // Every object in the schema (top-level, nested Address, and Tag array items)
         // must declare additionalProperties = false as required by OpenAI strict mode.
         $this->assertEveryObjectHasAdditionalPropertiesFalse($schema);
     }
 
-    private function assertEveryObjectHasAdditionalPropertiesFalse(array $schema): void
+    protected function assertEveryObjectHasAdditionalPropertiesFalse(array $schema): void
     {
         if (($schema['type'] ?? null) === 'object') {
             $this->assertArrayHasKey('additionalProperties', $schema);

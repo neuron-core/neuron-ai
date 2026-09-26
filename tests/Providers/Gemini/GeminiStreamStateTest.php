@@ -33,6 +33,23 @@ class GeminiStreamStateTest extends TestCase
         $this->assertSame('sig', $calls[0]['thoughtSignature']);
     }
 
+    public function test_only_the_first_function_call_keeps_its_thought_signature(): void
+    {
+        $state = new StreamState();
+
+        $state->composeToolCalls(['candidates' => [['content' => ['parts' => [
+            ['functionCall' => ['name' => 'a', 'args' => []], 'thoughtSignature' => 'sig-a'],
+        ]]]]]);
+        $state->composeToolCalls(['candidates' => [['content' => ['parts' => [
+            ['functionCall' => ['name' => 'b', 'args' => []], 'thoughtSignature' => 'sig-b'],
+        ]]]]]);
+
+        $this->assertSame([
+            ['functionCall' => ['name' => 'a', 'args' => []], 'thoughtSignature' => 'sig-a'],
+            ['functionCall' => ['name' => 'b', 'args' => []]],
+        ], $state->getToolCalls());
+    }
+
     public function test_accumulates_function_calls_split_across_chunks(): void
     {
         $state = new StreamState();

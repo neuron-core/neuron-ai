@@ -42,8 +42,73 @@ class OpenAIImageTest extends TestCase
 
         $this->assertInstanceOf(AssistantMessage::class, $message);
         $blocks = $message->getContentBlocks();
+        $this->assertCount(1, $blocks);
         $this->assertInstanceOf(ImageContent::class, $blocks[0]);
         $this->assertSame('FINAL_BASE64', $blocks[0]->content);
+        $this->assertSame(SourceType::BASE64, $blocks[0]->sourceType);
+        $this->assertSame('image/webp', $blocks[0]->mediaType);
+        $this->assertSame(10, $message->getUsage()->inputTokens);
+        $this->assertSame(20, $message->getUsage()->outputTokens);
+    }
+
+    public function test_chat_request_sends_prompt_format_and_parameters_to_the_generations_endpoint(): void
+    {
+        $sentRequests = [];
+        $stack = HandlerStack::create(new MockHandler([new Response(status: 200, body: '{"data":[{"b64_json":"IMG"}]}')]));
+        $stack->push(Middleware::history($sentRequests));
+        $provider = new OpenAIImage(
+            key: 'test-key',
+            model: 'gpt-image-1',
+            output_format: 'jpeg',
+            parameters: ['size' => '1024x1024', 'quality' => 'low'],
+            httpClient: new GuzzleHttpClient(handler: $stack),
+        );
+
+        $message = $provider->chat(new UserMessage('Ignored'), new UserMessage('A red fox'))->message();
+
+        $request = $sentRequests[0]['request'];
+        $this->assertSame('https://api.openai.com/v1/images/generations', (string) $request->getUri());
+        $this->assertSame('Bearer test-key', $request->getHeaderLine('Authorization'));
+        $this->assertSame([
+            'model' => 'gpt-image-1',
+            'prompt' => 'A red fox',
+            'output_format' => 'jpeg',
+            'size' => '1024x1024',
+            'quality' => 'low',
+        ], json_decode((string) $request->getBody(), true));
+        $this->assertSame('image/jpeg', $message->getImage()->mediaType);
+        $this->assertNull($message->getUsage());
+    }
+
+    public function test_unknown_output_format_leaves_the_media_type_unset(): void
+    {
+        $stack = HandlerStack::create(new MockHandler([new Response(status: 200, body: '{"data":[{"b64_json":"IMG"}]}')]));
+        $provider = new OpenAIImage('test-key', 'gpt-image-1', 'avif', httpClient: new GuzzleHttpClient(handler: $stack));
+
+        $this->assertNull($provider->chat(new UserMessage('A cat'))->message()->getImage()->mediaType);
+    }
+
+    public function test_structured_output_is_not_supported(): void
+    {
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('Structured output is not supported');
+
+        (new OpenAIImage('test-key', 'gpt-image-1'))->structured(new UserMessage('A cat'), 'Image', []);
+    }
+
+    public function test_stream_throws_when_partial_image_event_has_no_b64_json(): void
+    {
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(status: 200, body: 'data: {"type":"image_generation.partial_image","partial_image_index":0,"b64_json":""}'."\n\n"),
+        ]));
+        $provider = new OpenAIImage('test-key', 'gpt-image-1', httpClient: new GuzzleHttpClient(handler: $stack));
+
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('partial image event without b64_json');
+
+        foreach ($provider->stream(new UserMessage('A fox')) as $chunk) {
+            // drain
+        }
     }
 
     public function test_stream_yields_partials_and_uses_completed_event_for_final_image(): void
