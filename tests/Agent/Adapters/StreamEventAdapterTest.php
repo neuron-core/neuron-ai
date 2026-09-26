@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Agent\Adapters;
 
 use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Adapters\AgentChunkAdapter;
 use NeuronAI\Agent\Adapters\Events\ActivityStreamEvent;
 use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
@@ -19,12 +20,15 @@ use NeuronAI\Tests\Agent\Adapters\Stub\SuppressedProgress;
 use NeuronAI\Tests\Agent\Adapters\Stub\UnsupportedStreamEvent;
 use NeuronAI\Agent\Adapters\CustomizableStreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
+use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_column;
 use function iterator_to_array;
 use function json_decode;
 use function json_encode;
+use function preg_quote;
 
 class StreamEventAdapterTest extends TestCase
 {
@@ -146,6 +150,155 @@ class StreamEventAdapterTest extends TestCase
         $this->expectExceptionMessage(UnsupportedStreamEvent::class);
 
         iterator_to_array((new VercelAIAdapter())->transform(new UnsupportedStreamEvent()));
+    }
+
+    /** @return iterable<string, array{CustomizableStreamAdapterInterface}> */
+    public static function adapters(): iterable
+    {
+        yield 'AG-UI' => [new AGUIAdapter('thread-1')];
+        yield 'Vercel' => [new VercelAIAdapter()];
+        yield 'native' => [new AgentChunkAdapter()];
+    }
+
+    #[DataProvider('adapters')]
+    public function test_a_mapper_returning_a_protocol_payload_fails_loudly(CustomizableStreamAdapterInterface $adapter): void
+    {
+        $adapter->mapEvent(IndexingProgress::class, $this->protocolPayloadMapper());
+
+        $this->expectException(StreamAdapterException::class);
+        $this->expectExceptionMessage(
+            'The stream event mapper for ' . IndexingProgress::class . ' must return ' . StreamEventInterface::class . ' or null.'
+        );
+
+        iterator_to_array($adapter->transform(new IndexingProgress('job-1', 5)), false);
+    }
+
+    /** @return iterable<string, array{CustomizableStreamAdapterInterface, array<string, mixed>}> */
+    public static function customTextFrames(): iterable
+    {
+        yield 'AG-UI' => [new AGUIAdapter('thread-1'), ['type' => 'CUSTOM', 'name' => 'text', 'value' => 'Hello']];
+        yield 'Vercel' => [new VercelAIAdapter(), ['type' => 'data-text', 'data' => 'Hello', 'transient' => true]];
+        yield 'native' => [new AgentChunkAdapter(), ['type' => 'custom', 'name' => 'text', 'value' => 'Hello']];
+    }
+
+    /**
+     * @param array<string, mixed> $frame
+     */
+    #[DataProvider('customTextFrames')]
+    public function test_a_mapping_takes_precedence_over_native_chunk_conversion(CustomizableStreamAdapterInterface $adapter, array $frame): void
+    {
+        $adapter->mapEvent(TextChunk::class, static fn (TextChunk $chunk): CustomStreamEvent => new CustomStreamEvent('text', $chunk->content));
+
+        $this->assertSame([$frame], $this->decode($adapter->transform(new TextChunk('msg_1', 'Hello'))));
+    }
+
+    #[DataProvider('adapters')]
+    public function test_a_suppressed_chunk_never_falls_through_to_native_conversion(CustomizableStreamAdapterInterface $adapter): void
+    {
+        $adapter->mapEvent(TextChunk::class, static fn (TextChunk $chunk): ?StreamEventInterface => null);
+
+        $this->assertSame([], $this->decode($adapter->transform(new TextChunk('msg_1', 'Hello'))));
+    }
+
+    /**
+     * @param array<string, mixed> $frame
+     */
+    #[DataProvider('customTextFrames')]
+    public function test_a_portable_event_is_encoded_directly_even_when_mapped(CustomizableStreamAdapterInterface $adapter, array $frame): void
+    {
+        $adapter->mapEvent(CustomStreamEvent::class, static fn (CustomStreamEvent $event): ?StreamEventInterface => null);
+
+        $this->assertSame([$frame], $this->decode($adapter->transform(new CustomStreamEvent('text', 'Hello'))));
+    }
+
+    #[DataProvider('adapters')]
+    public function test_a_later_mapping_replaces_the_earlier_one(CustomizableStreamAdapterInterface $adapter): void
+    {
+        $returned = $adapter
+            ->mapEvent(IndexingProgress::class, static fn (IndexingProgress $event): ?StreamEventInterface => null)
+            ->mapEvent(IndexingProgress::class, static fn (IndexingProgress $event): StepStartedStreamEvent => new StepStartedStreamEvent($event->jobId));
+
+        $this->assertSame($adapter, $returned);
+        $this->assertCount(1, $this->decode($adapter->transform(new IndexingProgress('job-1', 5))));
+    }
+
+    #[DataProvider('adapters')]
+    public function test_unsupported_portable_events_name_the_class(CustomizableStreamAdapterInterface $adapter): void
+    {
+        $this->expectException(StreamAdapterException::class);
+        $this->expectExceptionMessageMatches('/cannot encode stream event ' . preg_quote(UnsupportedStreamEvent::class, '/') . '\.$/');
+
+        iterator_to_array($adapter->transform(new UnsupportedStreamEvent()), false);
+    }
+
+    /** @return iterable<string, array{callable(): StreamEventInterface, string}> */
+    public static function invalidPortableEvents(): iterable
+    {
+        yield 'blank step started' => [static fn (): StreamEventInterface => new StepStartedStreamEvent(" \t\n"), 'A stream step name cannot be empty.'];
+        yield 'empty step finished' => [static fn (): StreamEventInterface => new StepFinishedStreamEvent(''), 'A stream step name cannot be empty.'];
+        yield 'blank activity ID' => [static fn (): StreamEventInterface => new ActivityStreamEvent(' ', 'indexing', []), 'A stream activity ID cannot be empty.'];
+        yield 'empty activity type' => [static fn (): StreamEventInterface => new ActivityStreamEvent('job-1', '', []), 'A stream activity type cannot be empty.'];
+        yield 'blank activity type' => [static fn (): StreamEventInterface => new ActivityStreamEvent('job-1', "\t ", []), 'A stream activity type cannot be empty.'];
+        yield 'blank custom name' => [static fn (): StreamEventInterface => new CustomStreamEvent('  ', 'value'), 'A custom stream event name cannot be empty.'];
+    }
+
+    /**
+     * @param callable(): StreamEventInterface $create
+     */
+    #[DataProvider('invalidPortableEvents')]
+    public function test_portable_events_require_a_name(callable $create, string $message): void
+    {
+        $this->expectException(StreamAdapterException::class);
+        $this->expectExceptionMessage($message);
+
+        $create();
+    }
+
+    public function test_agui_activity_snapshots_replace_each_other_in_the_messages_snapshot(): void
+    {
+        $adapter = new AGUIAdapter('thread-1', 'run-1');
+        iterator_to_array($adapter->transform(new ActivityStreamEvent('job-1', 'indexing', ['processed' => 1])), false);
+        iterator_to_array($adapter->transform(new ActivityStreamEvent('job-1', 'indexing', ['processed' => 2])), false);
+
+        $frames = iterator_to_array($adapter->interrupt((new WaitForEventRequest('done'))->withId(1)), false);
+
+        $this->assertSame(
+            '[{"id":"job-1","role":"activity","activityType":"indexing","content":{"processed":2}}]',
+            json_encode($frames[1]->data['messages']),
+        );
+    }
+
+    public function test_agui_empty_activity_content_stays_a_json_object(): void
+    {
+        $adapter = new AGUIAdapter('thread-1', 'run-1');
+        $frames = iterator_to_array($adapter->transform(new ActivityStreamEvent('job-1', 'indexing', [])), false);
+        $snapshot = iterator_to_array($adapter->interrupt((new WaitForEventRequest('done'))->withId(1)), false);
+
+        $this->assertSame(
+            '{"type":"ACTIVITY_SNAPSHOT","messageId":"job-1","activityType":"indexing","content":{},"replace":true}',
+            json_encode($frames[0]),
+        );
+        $this->assertSame(
+            '[{"id":"job-1","role":"activity","activityType":"indexing","content":{}}]',
+            json_encode($snapshot[1]->data['messages']),
+        );
+    }
+
+    public function test_step_metadata_is_omitted_when_empty(): void
+    {
+        $agui = $this->decode((new AGUIAdapter('thread-1'))->transform(new StepStartedStreamEvent('indexing')));
+        $vercel = $this->decode((new VercelAIAdapter())->transform(new StepStartedStreamEvent('indexing')));
+
+        $this->assertSame([['type' => 'STEP_STARTED', 'stepName' => 'indexing']], $agui);
+        $this->assertSame([['type' => 'data-workflow-step', 'data' => ['name' => 'indexing', 'status' => 'started'], 'transient' => true]], $vercel);
+    }
+
+    /**
+     * A mapper breaking the contract, which the adapters must catch at runtime.
+     */
+    protected function protocolPayloadMapper(): callable
+    {
+        return static fn (IndexingProgress $event): array => ['type' => 'CUSTOM', 'name' => $event->jobId];
     }
 
     /**

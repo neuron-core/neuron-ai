@@ -55,7 +55,8 @@ class FrontendToolAdapterTest extends TestCase
         $b = (new ToolCall('browser', 'b'))->setResult(ToolOutput::error('failed'));
         $events = [...$this->decode($adapter->transform(new ToolResultChunk($b))),
             ...$this->decode($adapter->transform(new ToolResultChunk($a)))];
-        $this->assertIsString($events[0]['messageId']);
+        $this->assertSame('start', $events[0]['type']);
+        $this->assertStringStartsWith('msg_', $events[0]['messageId']);
         $results = array_values(array_filter($events, fn (array $event): bool => str_starts_with($event['type'], 'tool-output-')));
         $this->assertSame(['b', 'a'], array_column($results, 'toolCallId'));
         $this->assertSame('tool-output-error', $results[0]['type']);
@@ -166,11 +167,15 @@ class FrontendToolAdapterTest extends TestCase
 
     public function test_success_closes_parts_and_is_terminal_for_both_adapters(): void
     {
-        foreach ([new AGUIAdapter('thread', 'run'), new VercelAIAdapter()] as $adapter) {
+        $closings = [
+            [new AGUIAdapter('thread', 'run'), ['REASONING_MESSAGE_END', 'REASONING_END', 'RUN_FINISHED']],
+            [new VercelAIAdapter(), ['reasoning-end', 'finish']],
+        ];
+        foreach ($closings as [$adapter, $closing]) {
             $this->decode($adapter->start());
             $this->decode($adapter->transform(new ReasoningChunk('message', 'Thinking')));
             $events = $this->decode($adapter->end());
-            $this->assertNotEmpty($events);
+            $this->assertSame($closing, array_column($events, 'type'));
             $this->assertSame([], $this->decode($adapter->end()));
             $this->assertSame([], $this->decode($adapter->error(new RuntimeException('Late'))));
             $this->assertSame([], $this->decode($adapter->transform(new TextChunk('message', 'Late'))));

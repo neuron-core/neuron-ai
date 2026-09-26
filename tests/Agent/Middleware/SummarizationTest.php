@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Agent\Middleware;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
+use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Middleware\Summarization;
 use NeuronAI\Agent\Nodes\ChatNode;
 use NeuronAI\Agent\Nodes\InferenceNode;
@@ -23,6 +24,8 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Events\Event;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -210,5 +213,185 @@ class SummarizationTest extends TestCase
 
         $provider->assertCallCount(3);
         $this->assertStringContainsString('Summary', (string) $agent->getChatHistory()->getMessages()[0]->getContent());
+    }
+
+    protected function conversation(): ChatHistory
+    {
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history->addMessage(new UserMessage('Question 1'));
+        $history->addMessage((new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)));
+        $history->addMessage(new UserMessage('Question 2'));
+        $history->addMessage((new AssistantMessage('Answer 2'))->setUsage(new Usage(80, 20)));
+
+        return $history;
+    }
+
+    protected function runBefore(Summarization $middleware, ChatHistory $history, AIProviderInterface $provider, ?Event $event = null): void
+    {
+        $middleware->before(new ChatNode(), $event ?? new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $history, $provider));
+    }
+
+    public function test_events_other_than_inference_are_ignored(): void
+    {
+        $history = $this->conversation();
+        $before = $history->getMessages();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(
+            new Summarization($provider, maxTokens: 1, messagesToKeep: 1),
+            $history,
+            $provider,
+            new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('search', 'call_1')])),
+        );
+
+        $provider->assertNothingSent();
+        $this->assertSame($before, $history->getMessages());
+    }
+
+    #[TestWith([0])]
+    #[TestWith([-1])]
+    public function test_a_non_positive_threshold_disables_summarization(int $maxTokens): void
+    {
+        $history = $this->conversation();
+        $before = $history->getMessages();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization($provider, maxTokens: $maxTokens, messagesToKeep: 1), $history, $provider);
+
+        $provider->assertNothingSent();
+        $this->assertSame($before, $history->getMessages());
+    }
+
+    public function test_a_conversation_at_the_threshold_is_left_untouched(): void
+    {
+        $history = $this->conversation();
+        $before = $history->getMessages();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization($provider, maxTokens: $history->calculateTotalUsage(), messagesToKeep: 1), $history, $provider);
+
+        $provider->assertNothingSent();
+        $this->assertSame($before, $history->getMessages());
+    }
+
+    public function test_a_conversation_just_over_the_threshold_is_summarized(): void
+    {
+        $history = $this->conversation();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization($provider, maxTokens: $history->calculateTotalUsage() - 1, messagesToKeep: 1), $history, $provider);
+
+        $provider->assertCallCount(1);
+        $this->assertSame(
+            ["## Previous conversation summary:\n\nSummary", 'Answer 2'],
+            $this->contents($history->getMessages())
+        );
+    }
+
+    public function test_a_conversation_no_longer_than_the_kept_messages_is_left_untouched(): void
+    {
+        $history = $this->conversation();
+        $before = $history->getMessages();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization($provider, maxTokens: 1, messagesToKeep: 4), $history, $provider);
+
+        $provider->assertNothingSent();
+        $this->assertSame($before, $history->getMessages());
+    }
+
+    public function test_a_failed_summary_degrades_to_a_placeholder(): void
+    {
+        $history = $this->conversation();
+        // An empty queue makes the provider throw a ProviderException.
+        $provider = new FakeAIProvider();
+
+        $this->runBefore(new Summarization($provider, maxTokens: 1, messagesToKeep: 1), $history, $provider);
+
+        $this->assertSame(
+            [
+                "## Previous conversation summary:\n\nPrevious conversation contained 3 messages covering various topics.",
+                'Answer 2',
+            ],
+            $this->contents($history->getMessages())
+        );
+    }
+
+    public function test_the_summary_request_describes_the_conversation_and_its_tool_activity(): void
+    {
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history->addMessage(new UserMessage('Search for PHP'));
+        foreach ($this->toolCallPair() as $message) {
+            $history->addMessage($message);
+        }
+        $history->addMessage(new AssistantMessage('PHP is a language'));
+        $history->addMessage(new UserMessage('Thanks'));
+        $history->addMessage(new AssistantMessage('You are welcome'));
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(
+            new Summarization($provider, maxTokens: 1, messagesToKeep: 1, summaryPrompt: 'Summarize:'),
+            $history,
+            $provider,
+        );
+
+        $record = $provider->getRecorded()[0];
+        $this->assertSame('You are a helpful assistant that creates concise, informative summaries of conversations.', $record->systemPrompt?->getContent());
+        $this->assertCount(1, $record->messages);
+        $this->assertSame(
+            "Summarize:\n\n[USER]: Search for PHP\n[ASSISTANT]: Called tools: search\n[USER]: Tool results received\n"
+            . "[ASSISTANT]: PHP is a language\n[USER]: Thanks",
+            $record->messages[0]->getContent()
+        );
+    }
+
+    public function test_the_default_prompt_asks_for_a_comprehensive_summary(): void
+    {
+        $history = $this->conversation();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization($provider, maxTokens: 1, messagesToKeep: 1), $history, $provider);
+
+        $request = (string) $provider->getRecorded()[0]->messages[0]->getContent();
+        $this->assertStringStartsWith('Please provide a comprehensive summary of the following conversation.', $request);
+        $this->assertStringEndsWith("\n\n[USER]: Question 1\n[ASSISTANT]: Answer 1\n[USER]: Question 2", $request);
+    }
+
+    public function test_setters_reconfigure_the_middleware(): void
+    {
+        $history = $this->conversation();
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'));
+        $middleware = new Summarization($provider);
+
+        $this->assertSame($middleware, $middleware->setMaxTokens(1));
+        $this->assertSame($middleware, $middleware->setMessagesToKeep(1));
+        $this->assertSame($middleware, $middleware->setSummaryPrompt('Custom prompt'));
+        $this->runBefore($middleware, $history, $provider);
+
+        $this->assertStringStartsWith("Custom prompt\n\n", (string) $provider->getRecorded()[0]->messages[0]->getContent());
+        $this->assertCount(2, $history->getMessages());
+    }
+
+    public function test_a_dedicated_provider_leaves_the_segment_provider_alone(): void
+    {
+        $history = $this->conversation();
+        $dedicated = new FakeAIProvider(new AssistantMessage('Summary'));
+        $segment = new FakeAIProvider();
+
+        $this->runBefore(new Summarization($dedicated, maxTokens: 1, messagesToKeep: 1), $history, $segment);
+
+        $dedicated->assertCallCount(1);
+        $segment->assertNothingSent();
+    }
+
+    public function test_without_a_dedicated_provider_the_segment_provider_summarizes(): void
+    {
+        $history = $this->conversation();
+        $segment = new FakeAIProvider(new AssistantMessage('Summary'));
+
+        $this->runBefore(new Summarization(maxTokens: 1, messagesToKeep: 1), $history, $segment);
+
+        $segment->assertCallCount(1);
+        $this->assertSame("## Previous conversation summary:\n\nSummary", $history->getMessages()[0]->getContent());
     }
 }

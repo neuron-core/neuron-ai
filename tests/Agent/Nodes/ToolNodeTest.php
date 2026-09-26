@@ -98,6 +98,24 @@ class ToolNodeTest extends TestCase
         $this->assertSame('Missing required parameter: required_input', $result->getText());
     }
 
+    public function test_a_call_runs_on_a_copy_bound_to_its_id_and_inputs(): void
+    {
+        // A tool can use its call ID, e.g. as an idempotency key for the external system it calls.
+        $registered = new class () extends TestToolWithRequiredInput {
+            public function __invoke(string $required_input): string
+            {
+                return "{$this->getCallId()}: {$required_input}";
+            }
+        };
+        $call = ToolCall::make('test_tool', 'call_7', ['required_input' => 'php']);
+
+        $this->runNode([$registered], [$call], new AgentState());
+
+        $this->assertSame('call_7: php', $call->getResult());
+        $this->assertNull($registered->getCallId());
+        $this->assertSame([], $registered->getInputs());
+    }
+
     /**
      * Test that MissingCallbackParameter escapes when no error handler is set.
      */

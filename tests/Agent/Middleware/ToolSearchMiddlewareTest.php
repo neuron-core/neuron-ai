@@ -36,7 +36,7 @@ use function array_map;
 
 class ToolSearchMiddlewareTest extends TestCase
 {
-    private function createTool(string $name, string $description): Tool
+    protected function createTool(string $name, string $description): Tool
     {
         return new class ($name, $description) extends Tool {
             public function __construct(string $name, string $description)
@@ -52,7 +52,7 @@ class ToolSearchMiddlewareTest extends TestCase
         };
     }
 
-    private function createMiddleware(array $toolPool): ToolSearchMiddleware
+    protected function createMiddleware(array $toolPool): ToolSearchMiddleware
     {
         return new ToolSearchMiddleware($toolPool);
     }
@@ -60,12 +60,12 @@ class ToolSearchMiddlewareTest extends TestCase
     /**
      * @param ToolInterface[] $registered
      */
-    private function resources(array $registered = [], ?ChatHistory $history = null): AgentResources
+    protected function resources(array $registered = [], ?ChatHistory $history = null): AgentResources
     {
         return AgentResourcesFactory::make($registered, $history);
     }
 
-    private function state(Message ...$inbound): AgentState
+    protected function state(Message ...$inbound): AgentState
     {
         $state = new AgentState();
         $state->request = new InferenceRequest(new SystemMessage('instructions'), $inbound);
@@ -76,12 +76,12 @@ class ToolSearchMiddlewareTest extends TestCase
     /**
      * @return string[]
      */
-    private function registered(AgentResources $resources): array
+    protected function registered(AgentResources $resources): array
     {
         return array_map(fn (ToolInterface $tool): string => $tool->getName(), $resources->tools->all());
     }
 
-    private function searchResult(string $query): ToolResultMessage
+    protected function searchResult(string $query): ToolResultMessage
     {
         return new ToolResultMessage([
             ToolCall::make('tool_search', 'call_1', ['query' => $query])->setResult('found'),
@@ -186,10 +186,12 @@ class ToolSearchMiddlewareTest extends TestCase
 
     public function test_other_tool_results_register_nothing(): void
     {
+        // Only a tool_search call is a search: another tool's query argument discovers nothing.
+        $middleware = $this->createMiddleware([$this->createTool('query_database', 'Execute SQL queries')]);
         $resources = $this->resources();
-        $state = $this->state(new ToolResultMessage([ToolCall::make('read_file', 'call_1', [])->setResult('file contents')]));
+        $state = $this->state(new ToolResultMessage([ToolCall::make('web_search', 'call_1', ['query' => 'database'])->setResult('results')]));
 
-        $this->createMiddleware([])->before(new ToolNode(), new AIInferenceEvent(), $state, $resources);
+        $middleware->before(new ToolNode(), new AIInferenceEvent(), $state, $resources);
 
         $this->assertSame(['tool_search'], $this->registered($resources));
     }
@@ -219,7 +221,7 @@ class ToolSearchMiddlewareTest extends TestCase
     /**
      * @param ToolInterface[] $tools
      */
-    private function agent(FakeAIProvider $provider, InMemoryPersistence $persistence, InMemoryMessageStore $store, array $tools, array $pool): Agent
+    protected function agent(FakeAIProvider $provider, InMemoryPersistence $persistence, InMemoryMessageStore $store, array $tools, array $pool): Agent
     {
         $agent = Agent::make(workflowId: 'thread')->setPersistence($persistence)->setMessageStore($store)
             ->addGlobalMiddleware(new ToolSearchMiddleware($pool));
@@ -268,6 +270,47 @@ class ToolSearchMiddlewareTest extends TestCase
         $results = $agent->getChatHistory()->getMessages()[4];
         $this->assertInstanceOf(ToolResultMessage::class, $results);
         $this->assertSame('file contents', $results->getToolCalls()[0]->getResult());
+    }
+
+    public function test_a_found_tool_cannot_shadow_a_registered_tool(): void
+    {
+        $own = $this->createTool('query_database', 'Execute SQL queries on the primary');
+        $impostor = $this->createTool('query_database', 'Execute SQL queries on the replica');
+        $resources = $this->resources([$own]);
+
+        $this->createMiddleware([$impostor])
+            ->before(new ToolNode(), new AIInferenceEvent(), $this->state($this->searchResult('database')), $resources);
+
+        $this->assertSame(['query_database', 'tool_search'], $this->registered($resources));
+        $this->assertSame($own, $resources->tools->find('query_database'));
+    }
+
+    public function test_a_search_call_with_a_malformed_query_registers_nothing(): void
+    {
+        $middleware = $this->createMiddleware([$this->createTool('query_database', 'Execute SQL queries')]);
+        $forged = new ToolResultMessage([
+            ToolCall::make('tool_search', 'call_1', ['query' => ['database']])->setResult('found'),
+            ToolCall::make('tool_search', 'call_2', [])->setResult('found'),
+        ]);
+        $resources = $this->resources();
+
+        $middleware->before(new ToolNode(), new AIInferenceEvent(), $this->state($forged), $resources);
+
+        $this->assertSame(['tool_search'], $this->registered($resources));
+    }
+
+    public function test_the_limit_bounds_the_tools_a_search_registers(): void
+    {
+        $pool = [];
+        foreach (['a', 'b', 'c', 'd'] as $suffix) {
+            $pool[] = $this->createTool("report_{$suffix}", 'Build a report');
+        }
+        $resources = $this->resources();
+
+        (new ToolSearchMiddleware($pool, topN: 2))
+            ->before(new ToolNode(), new AIInferenceEvent(), $this->state($this->searchResult('report')), $resources);
+
+        $this->assertSame(['tool_search', 'report_a', 'report_b'], $this->registered($resources));
     }
 
     // --- ToolSearchTool search behavior ---

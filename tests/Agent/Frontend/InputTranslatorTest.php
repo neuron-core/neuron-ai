@@ -138,29 +138,31 @@ class InputTranslatorTest extends TestCase
             ['a' => ['result' => 'original']],
         ))->withId(4);
         $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Tool result 'a' has already been settled with a different outcome.");
         (new AGUIInputTranslator())->translate(['messages' => [
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'changed'],
             ['role' => 'tool', 'toolCallId' => 'b', 'content' => 'new'],
         ]], $request);
     }
 
-    /** @return iterable<string, array{array<string, mixed>}> */
+    /** @return iterable<string, array{array<string, mixed>, string}> */
     public static function invalidAguiApprovals(): iterable
     {
-        yield 'missing coverage' => [['resume' => []]];
-        yield 'unknown ID' => [['resume' => [['interruptId' => 'other', 'status' => 'cancelled']]]];
-        yield 'invalid decision' => [['resume' => [['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => 'yes']]]]];
-        yield 'cancelled payload' => [['resume' => [['interruptId' => 'a', 'status' => 'cancelled', 'payload' => null]]]];
-        yield 'unsupported edits' => [['resume' => [['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => true, 'editedArgs' => []]]]]];
-        yield 'tool result cannot approve' => [['messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'approved']]]];
-        yield 'duplicate response' => [['resume' => [['interruptId' => 'a', 'status' => 'cancelled'], ['interruptId' => 'a', 'status' => 'cancelled']]]];
+        yield 'missing coverage' => [['resume' => []], 'AG-UI resume must address every published interrupt.'];
+        yield 'unknown ID' => [['resume' => [['interruptId' => 'other', 'status' => 'cancelled']]], 'The resume entry does not identify an active interrupt.'];
+        yield 'invalid decision' => [['resume' => [['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => 'yes']]]], 'An approval response requires a boolean approved field.'];
+        yield 'cancelled payload' => [['resume' => [['interruptId' => 'a', 'status' => 'cancelled', 'payload' => null]]], 'A cancelled resume must omit payload.'];
+        yield 'unsupported edits' => [['resume' => [['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => true, 'editedArgs' => []]]]], 'Approval with edited arguments is not supported.'];
+        yield 'tool result cannot approve' => [['messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'approved']]], 'Pending AG-UI interrupts require an explicit resume array.'];
+        yield 'duplicate response' => [['resume' => [['interruptId' => 'a', 'status' => 'cancelled'], ['interruptId' => 'a', 'status' => 'cancelled']]], "Duplicate resume entry 'a'."];
     }
 
     #[DataProvider('invalidAguiApprovals')]
-    public function test_invalid_agui_approval_is_rejected(array $payload): void
+    public function test_invalid_agui_approval_is_rejected(array $payload, string $message): void
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')]))->withId(1);
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage($message);
         (new AGUIInputTranslator())->translate($payload, $request);
     }
 
@@ -168,6 +170,7 @@ class InputTranslatorTest extends TestCase
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')]))->withId(1);
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Tool call 'a' is awaiting approval, not execution results.");
         (new VercelAIInputTranslator())->translate(['messages' => [[
             'role' => 'assistant', 'parts' => [[
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'output-available', 'output' => 'done',
@@ -179,6 +182,7 @@ class InputTranslatorTest extends TestCase
     {
         $request = (new ToolResultsRequest([new ToolCall('browser', 'a', deferred: true)]))->withId(1);
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Conflicting responses for tool call 'a'.");
         (new AGUIInputTranslator())->translate(['messages' => [
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'one'],
             ['role' => 'tool', 'toolCallId' => 'a', 'content' => 'two'],
@@ -203,6 +207,7 @@ class InputTranslatorTest extends TestCase
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')], new DateTimeImmutable('-1 minute')))->withId(1);
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Interrupt 'a' has expired.");
         (new AGUIInputTranslator())->translate(['resume' => [['interruptId' => 'a', 'status' => 'cancelled']]], $request);
     }
 
@@ -219,12 +224,14 @@ class InputTranslatorTest extends TestCase
     {
         $tool = ['name' => 'browser', 'description' => 'Browser', 'parameters' => ['type' => 'object']];
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Duplicate frontend tool 'browser'.");
         (new AGUIInputTranslator())->tools(['tools' => [$tool, $tool]]);
     }
 
     public function test_null_message_list_is_rejected(): void
     {
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("'messages' must be a list.");
         (new VercelAIInputTranslator())->translate(['messages' => null], new WaitForEventRequest('event'));
     }
 
@@ -232,6 +239,7 @@ class InputTranslatorTest extends TestCase
     {
         $request = (new ApprovalRequest('Approve', [new Action('a', 'browser')]))->withId(1);
         $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Approval ID does not match tool call 'a'.");
         (new VercelAIInputTranslator())->translate(['messages' => [[
             'role' => 'assistant', 'parts' => [[
                 'type' => 'tool-browser', 'toolCallId' => 'a', 'state' => 'approval-responded',
@@ -254,5 +262,4 @@ class InputTranslatorTest extends TestCase
         ]]], $request);
         $this->assertSame(['a' => 'reject'], $inputs);
     }
-
 }

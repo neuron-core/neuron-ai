@@ -15,6 +15,7 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
@@ -28,9 +29,12 @@ use NeuronAI\Agent\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_keys;
+use function array_map;
 use function iterator_to_array;
 use function json_encode;
 use function spl_object_id;
@@ -369,8 +373,145 @@ class ToolApprovalFlowTest extends TestCase
         // (resolve-or-throw replaces the silent dehydrated shell).
         $node = $this->node([]);
 
-        $this->expectExceptionMessageMatches('/not registered/');
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('The tool ghost is not registered on this agent: the call cannot be executed.');
         $this->runNode($node, $this->createToolCallEvent([ToolCall::make('ghost', 'call_a')]), new AgentState());
+    }
+
+    /**
+     * @return iterable<string, array{mixed}>
+     */
+    public static function nonConsentingDecisions(): iterable
+    {
+        yield 'approved' => ['approved'];
+        yield 'uppercase' => ['APPROVE'];
+        yield 'padded' => [' approve'];
+        yield 'boolean true' => [true];
+        yield 'integer one' => [1];
+        yield 'null' => [null];
+        yield 'wrapped approval' => [['approve']];
+        yield 'associative approval' => [['decision' => 'approve']];
+    }
+
+    /**
+     * Resume payloads can bypass the translators (a raw signal or resume), so the
+     * node itself must treat anything but the exact 'approve' as silence.
+     */
+    #[DataProvider('nonConsentingDecisions')]
+    public function test_only_an_exact_approval_runs_a_gated_tool(mixed $decision): void
+    {
+        $node = $this->node([$this->gatedTool('delete_file')]);
+        $memoizer = WorkflowTestStore::memoizer($this->stepStore(), 'approval_flow_test', 'ToolNode-1');
+        $this->assertSuspends($node, $this->createToolCallEvent([ToolCall::make('delete_file', 'call_a')]), new AgentState(), memoizer: $memoizer);
+
+        $resumed = ToolCall::make('delete_file', 'call_a');
+        $request = $this->assertSuspends(
+            $node,
+            $this->createToolCallEvent([$resumed]),
+            new AgentState(),
+            payload: ['call_a' => $decision],
+            memoizer: $memoizer,
+        );
+
+        $this->assertEquals(ActionDecision::Pending, $this->actionsById($request)['call_a']->decision);
+        $this->assertSame(ApprovalState::Pending, $resumed->getApprovalState());
+        $this->assertFalse($resumed->hasResult(), 'The gated tool never ran');
+    }
+
+    public function test_a_rejection_without_reason_tells_the_model_the_tool_did_not_run(): void
+    {
+        $node = $this->node([$this->gatedTool('delete_file')]);
+        $memoizer = WorkflowTestStore::memoizer($this->stepStore(), 'approval_flow_test', 'ToolNode-1');
+        $this->assertSuspends($node, $this->createToolCallEvent([ToolCall::make('delete_file', 'call_a')]), new AgentState(), memoizer: $memoizer);
+
+        $call = ToolCall::make('delete_file', 'call_a');
+        $state = new AgentState();
+        $this->assertExecutes($node, $this->createToolCallEvent([$call]), $state, payload: ['call_a' => 'reject'], memoizer: $memoizer);
+
+        $this->assertSame(ApprovalState::Rejected, $call->getApprovalState());
+        $this->assertSame(
+            "TOOL NOT EXECUTED. The user rejected this action. User instruction: No specific instruction provided.. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
+            $call->getResult()
+        );
+        $result = $state->request->messages[0];
+        $this->assertInstanceOf(ToolResultMessage::class, $result);
+        $this->assertSame([$call], $result->getToolCalls());
+    }
+
+    public function test_a_gated_batch_runs_nothing_before_every_decision_arrives(): void
+    {
+        $plainRuns = 0;
+        $plain = new class ($plainRuns) extends Tool {
+            public function __construct(public int &$runs)
+            {
+            }
+
+            public function __invoke(): string
+            {
+                $this->runs++;
+                return 'plain executed';
+            }
+        };
+        $plain->setName('read_file')->setDescription('Plain read_file');
+
+        $node = $this->node([$this->gatedTool('delete_file'), $plain]);
+        $memoizer = WorkflowTestStore::memoizer($this->stepStore(), 'approval_flow_test', 'ToolNode-1');
+        $calls = fn (): ToolCallEvent => $this->createToolCallEvent([
+            ToolCall::make('read_file', 'call_plain'),
+            ToolCall::make('delete_file', 'call_gated'),
+        ]);
+
+        $this->assertSuspends($node, $calls(), new AgentState(), memoizer: $memoizer);
+        $this->assertSame(0, $plainRuns, 'A suspended batch executes none of its calls');
+
+        $this->assertExecutes($node, $calls(), new AgentState(), payload: ['call_gated' => 'approve'], memoizer: $memoizer);
+        $this->assertSame(1, $plainRuns);
+    }
+
+    /**
+     * @return iterable<string, array{string[], string}>
+     */
+    public static function approvalMessages(): iterable
+    {
+        yield 'one call' => [['a'], '1 tool call requires approval before execution'];
+        yield 'many calls' => [['a', 'b', 'c'], '3 tool calls require approval before execution'];
+    }
+
+    /**
+     * @param string[] $names
+     */
+    #[DataProvider('approvalMessages')]
+    public function test_the_approval_request_counts_the_gated_calls(array $names, string $message): void
+    {
+        $tools = [];
+        $calls = [];
+        foreach ($names as $name) {
+            $tools[] = $this->gatedTool($name);
+            $calls[] = ToolCall::make($name, "call_{$name}");
+        }
+
+        $request = $this->assertSuspends($this->node($tools), $this->createToolCallEvent($calls), new AgentState());
+
+        $this->assertSame($message, $request->getMessage());
+        $this->assertSame(
+            array_map(fn (string $name): string => "call_{$name}", $names),
+            array_keys($this->actionsById($request))
+        );
+    }
+
+    public function test_an_action_without_arguments_says_so(): void
+    {
+        $request = $this->assertSuspends(
+            $this->node([$this->gatedTool('ping')]),
+            $this->createToolCallEvent([ToolCall::make('ping', 'call_a')]),
+            new AgentState()
+        );
+
+        $action = $this->actionsById($request)['call_a'];
+        $this->assertSame('ping', $action->name);
+        $this->assertSame('(no arguments)', $action->description);
+        $this->assertSame([], $action->inputs);
+        $this->assertNull($action->reason);
     }
 
     public function test_partial_resume_re_suspends_with_progress(): void

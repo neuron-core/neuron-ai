@@ -16,6 +16,7 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
@@ -25,12 +26,15 @@ use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Throwable;
 
+use function array_map;
 use function iterator_to_array;
 
 class ToolRunLimitTest extends TestCase
@@ -210,6 +214,68 @@ class ToolRunLimitTest extends TestCase
                 $this->assertSame(1, $state->getToolRuns('browser'));
             }
         }
+    }
+
+    public function test_a_tool_limit_overrides_the_agent_limit(): void
+    {
+        $this->provider->addResponses(
+            new ToolCallMessage(null, [
+                new ToolCall('lookup', 'a', ['query' => 'PHP']),
+                new ToolCall('lookup', 'b', ['query' => 'Rust']),
+                new ToolCall('lookup', 'c', ['query' => 'Go']),
+            ]),
+            new ToolCallMessage(null, [new ToolCall('lookup', 'd', ['query' => 'Zig'])]),
+        );
+        $agent = $this->agent([(new CountingTool())->setMaxRuns(3)], limit: 1);
+
+        try {
+            $agent->chat(new UserMessage('Go'));
+            $this->fail('The fourth call must exceed the tool limit.');
+        } catch (ToolRunsExceededException $exception) {
+            $this->assertStringStartsWith('Tool lookup has been executed too many times - 3 -', $exception->getMessage());
+        }
+
+        $this->assertSame(3, CountingTool::$executions);
+    }
+
+    public function test_only_the_calls_over_the_limit_are_settled_by_the_error_handler(): void
+    {
+        $this->provider->addResponses(
+            new ToolCallMessage(null, [
+                new ToolCall('lookup', 'a', ['query' => 'PHP']),
+                new ToolCall('lookup', 'b', ['query' => 'Rust']),
+                new ToolCall('lookup', 'c', ['query' => 'Go']),
+            ]),
+            new AssistantMessage('Done'),
+        );
+        $agent = $this->agent([new CountingTool()], limit: 2);
+        $agent->toolErrorHandler(fn (Throwable $error, ToolCall $call): string => "{$call->getCallId()}: " . $error::class);
+
+        $state = $agent->chat(new UserMessage('Go'));
+
+        $this->assertSame('Done', $state->getMessage()?->getContent());
+        $this->assertSame(2, CountingTool::$executions);
+        $this->assertSame(3, $state->getToolRuns('lookup'), 'The refused call still consumed its attempt');
+        $result = $this->messages->loadActive('tool-run-limit')[2];
+        $this->assertInstanceOf(ToolResultMessage::class, $result);
+        $this->assertSame(
+            ['Results for: PHP', 'Results for: Rust', 'c: ' . ToolRunsExceededException::class],
+            array_map(static fn (ToolCall $call): string|ToolOutput => $call->getResult(), $result->getToolCalls())
+        );
+    }
+
+    public function test_a_zero_limit_refuses_the_first_call(): void
+    {
+        $this->provider->addResponses(new ToolCallMessage(null, [new ToolCall('lookup', 'a', ['query' => 'PHP'])]));
+
+        try {
+            $this->agent([new CountingTool()], limit: 0)->chat(new UserMessage('Go'));
+            $this->fail('A zero limit allows no call.');
+        } catch (ToolRunsExceededException $exception) {
+            $this->assertStringStartsWith('Tool lookup has been executed too many times - 0 -', $exception->getMessage());
+        }
+
+        $this->assertSame(0, CountingTool::$executions);
     }
 
     /**

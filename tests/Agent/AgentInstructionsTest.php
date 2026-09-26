@@ -21,10 +21,14 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\Toolkits\AbstractToolkit;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function substr_count;
 
 class AgentInstructionsTest extends TestCase
 {
@@ -313,5 +317,75 @@ class AgentInstructionsTest extends TestCase
             $this->assertSame('Cached instructions', $blocks[1]->content);
             $this->assertTrue($blocks[1]->isCached());
         }
+    }
+
+    public function test_toolkit_guidelines_never_accumulate_across_turns(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('First'), new AssistantMessage('Second'));
+        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent->addTool(new WeatherToolkit());
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+        $agent->chat(new UserMessage('And in Paris?'));
+
+        $this->assertCount(2, $provider->getRecorded());
+        foreach ($provider->getRecorded() as $record) {
+            $prompt = (string) $record->systemPrompt?->getContent();
+            $this->assertStringStartsWith("You are a helpful assistant.\n\n<TOOLS-GUIDELINES>\n# WeatherToolkit\n", $prompt);
+            $this->assertSame(1, substr_count($prompt, '<TOOLS-GUIDELINES>'));
+            $this->assertSame(1, substr_count($prompt, 'Always report temperatures in Celsius.'));
+        }
+        $this->assertSame('You are a helpful assistant.', $agent->getInstructions()->getContent(), 'The configured instructions stay untouched');
+    }
+
+    public function test_a_toolkit_without_guidelines_adds_no_guidelines_block(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent->addTool(new class () extends AbstractToolkit {
+            public function provide(): array
+            {
+                return [new GetWeatherTool()];
+            }
+        });
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+
+        $record = $provider->getRecorded()[0];
+        $this->assertSame('You are a helpful assistant.', $record->systemPrompt?->getContent());
+        $this->assertSame(['get_weather'], array_map(static fn (ToolInterface|ProviderToolInterface $tool): string => $tool->getName(), $record->tools));
+    }
+
+    public function test_a_plain_string_from_the_instructions_hook_becomes_a_system_message(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = new class () extends Agent {
+            protected function instructions(): string
+            {
+                return 'Hook instructions';
+            }
+        };
+        $agent->setAiProvider($provider);
+
+        $agent->chat(new UserMessage('Hi'));
+
+        $this->assertInstanceOf(SystemMessage::class, $agent->getInstructions());
+        $this->assertSame('Hook instructions', $provider->getRecorded()[0]->systemPrompt?->getContent());
+    }
+
+    public function test_explicit_instructions_win_over_the_hook(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = new class () extends Agent {
+            protected function instructions(): string
+            {
+                return 'Hook instructions';
+            }
+        };
+        $agent->setAiProvider($provider)->setInstructions(new SystemMessage('Explicit instructions'));
+
+        $agent->chat(new UserMessage('Hi'));
+
+        $this->assertSame('Explicit instructions', $provider->getRecorded()[0]->systemPrompt?->getContent());
     }
 }

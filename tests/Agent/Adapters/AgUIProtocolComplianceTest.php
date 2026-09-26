@@ -10,6 +10,7 @@ use NeuronAI\Agent\Adapters\Events\CustomStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepFinishedStreamEvent;
 use NeuronAI\Agent\Adapters\Events\StepStartedStreamEvent;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
@@ -141,6 +142,36 @@ class AgUIProtocolComplianceTest extends TestCase
         $events = $this->collect($start, $text, $reasoning, $call, $result, $more, $end);
 
         $this->assertCompliant($events);
+        $this->assertSame([
+            'RUN_STARTED',
+            'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END',
+            'REASONING_START', 'REASONING_MESSAGE_START', 'REASONING_MESSAGE_CONTENT',
+            'REASONING_MESSAGE_END', 'REASONING_END',
+            'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'TOOL_CALL_RESULT',
+            'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END',
+            'RUN_FINISHED',
+        ], array_column($events, 'type'));
+    }
+
+    public function test_deferred_handoff_flow_is_compliant(): void
+    {
+        $adapter = new AGUIAdapter('thread_test');
+        $call = new ToolCall('browser', 'call_1', ['selector' => 'h1'], deferred: true);
+
+        $events = $this->collect(
+            $adapter->start(),
+            $adapter->transform(new TextChunk('msg_1', 'Reading the page')),
+            $adapter->transform(new ToolArgumentChunk('msg_1', 'browser', '{"selector":', 'call_1')),
+            $adapter->transform(new ToolArgumentChunk('msg_1', 'browser', '"h1"}', 'call_1')),
+            $adapter->transform(new ToolCallChunk('msg_1', $call)),
+            $adapter->interrupt((new ToolResultsRequest([$call]))->withId(1)),
+        );
+
+        $this->assertCompliant($events);
+        $this->assertSame([
+            'RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END',
+            'TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'RUN_FINISHED',
+        ], array_column($events, 'type'));
     }
 
     public function test_empty_deltas_are_skipped(): void

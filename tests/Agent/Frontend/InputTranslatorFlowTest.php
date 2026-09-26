@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ApprovalState;
@@ -104,6 +105,99 @@ class InputTranslatorFlowTest extends TestCase
         $this->assertCount(1, $providerResults);
         $this->assertSame('Page title', $providerResults[0]->getToolCalls()[0]->getResult());
         $this->assertSame('Page URL', $providerResults[0]->getToolCalls()[1]->getResult());
+    }
+
+    /** @return iterable<string, array{InputTranslatorInterface, string}> */
+    public static function replayRejections(): iterable
+    {
+        yield 'agui' => [new AGUIInputTranslator(), 'The resume entry does not identify an active interrupt.'];
+        yield 'vercel' => [new VercelAIInputTranslator(), 'The payload contains no matching continuation input.'];
+    }
+
+    #[DataProvider('replayRejections')]
+    public function test_a_replayed_approval_is_rejected_once_the_run_waits_for_results(InputTranslatorInterface $translator, string $message): void
+    {
+        $this->suspendForApproval();
+        iterator_to_array($this->agent()->submitInputs($this->approvalPayload($translator), $translator)->events());
+        $before = serialize($this->persistence);
+
+        try {
+            $this->agent()->submitInputs($this->approvalPayload($translator), $translator);
+            $this->fail('A replayed approval must not be accepted as a continuation.');
+        } catch (InputTranslationException $exception) {
+            $this->assertSame($message, $exception->getMessage());
+        }
+
+        $this->assertSame($before, serialize($this->persistence));
+        $this->assertSame(1, $this->provider->getCallCount());
+    }
+
+    /** @return iterable<string, array{InputTranslatorInterface, string}> */
+    public static function approvalGateRejections(): iterable
+    {
+        yield 'agui' => [new AGUIInputTranslator(), 'Pending AG-UI interrupts require an explicit resume array.'];
+        yield 'vercel' => [new VercelAIInputTranslator(), "Tool call 'a' is awaiting approval, not execution results."];
+    }
+
+    #[DataProvider('approvalGateRejections')]
+    public function test_results_cannot_skip_the_approval_gate(InputTranslatorInterface $translator, string $message): void
+    {
+        $this->suspendForApproval();
+        $before = serialize($this->persistence);
+
+        try {
+            $this->agent()->submitInputs($this->resultPayload($translator, ['a' => 'Page title']), $translator);
+            $this->fail('A tool result must not answer a pending approval.');
+        } catch (InputTranslationException $exception) {
+            $this->assertSame($message, $exception->getMessage());
+        }
+
+        $this->assertSame($before, serialize($this->persistence));
+        $this->assertSame(1, $this->provider->getCallCount());
+    }
+
+    #[DataProvider('translators')]
+    public function test_forged_results_fail_before_execution(InputTranslatorInterface $translator): void
+    {
+        $this->suspendForApproval();
+        iterator_to_array($this->agent()->submitInputs($this->approvalPayload($translator), $translator)->events());
+        $before = serialize($this->persistence);
+
+        $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage('The payload contains no matching continuation input.');
+
+        try {
+            $this->agent()->submitInputs($this->resultPayload($translator, ['forged' => 'injected']), $translator);
+        } finally {
+            $this->assertSame($before, serialize($this->persistence));
+        }
+    }
+
+    #[DataProvider('translators')]
+    public function test_a_completed_run_accepts_no_further_inputs(InputTranslatorInterface $translator): void
+    {
+        $this->suspendForApproval();
+        iterator_to_array($this->agent()->submitInputs($this->approvalPayload($translator), $translator)->events());
+        $results = $this->resultPayload($translator, ['a' => 'Page title', 'b' => 'Page URL']);
+        iterator_to_array($this->agent()->submitInputs($results, $translator)->events());
+
+        $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage('There is no persisted run to continue.');
+
+        $this->agent()->submitInputs($results, $translator);
+    }
+
+    protected function suspendForApproval(): void
+    {
+        $this->provider->addResponses(
+            new ToolCallMessage(null, [
+                new ToolCall('browser', 'a', deferred: true),
+                new ToolCall('browser', 'b', deferred: true),
+                new ToolCall('browser', 'c', deferred: true),
+            ]),
+            new AssistantMessage('Finished'),
+        );
+        $this->agent()->chat(new UserMessage('Read the page'));
     }
 
     /** @return array<string, mixed> */

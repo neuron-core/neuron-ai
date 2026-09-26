@@ -128,9 +128,12 @@ class DeferredToolFlowTest extends TestCase
         $this->assertSame('User cancelled', $calls[1]->getResult()->getText());
     }
 
-    /** @param array<array-key, mixed> $payload */
+    /**
+     * @param array<array-key, mixed> $payload
+     * @param class-string<Throwable> $exception
+     */
     #[DataProvider('invalidResults')]
-    public function test_invalid_results_do_not_poison_the_pending_run(array $payload): void
+    public function test_invalid_results_do_not_poison_the_pending_run(array $payload, string $exception, string $message): void
     {
         $this->provider->addResponses(
             new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true), new ToolCall('browser', 'b', deferred: true)]),
@@ -143,7 +146,9 @@ class DeferredToolFlowTest extends TestCase
             $invocationAgent = $this->agent();
             $invocationAgent->submitInputs($payload, new ToolResultsTranslator())->run();
             $this->fail('Invalid results must be rejected before acceptance.');
-        } catch (WorkflowException|InputTranslationException) {
+        } catch (WorkflowException|InputTranslationException $error) {
+            $this->assertSame($exception, $error::class);
+            $this->assertSame($message, $error->getMessage());
         }
         $invocationAgent = $this->agent();
         $this->assertFalse($invocationAgent->submitInputs(['b' => ['result' => null]], new ToolResultsTranslator())->run()->isInterrupted());
@@ -154,12 +159,15 @@ class DeferredToolFlowTest extends TestCase
 
     public static function invalidResults(): array
     {
+        $shape = "Tool result 'b' must contain either 'result' or a string 'error'.";
+
         return [
-            'unknown call' => [['unknown' => ['result' => 'data']]],
-            'malformed' => [['b' => 'data']],
-            'ambiguous' => [['b' => ['result' => 'data', 'error' => 'failed']]],
-            'invalid error' => [['b' => ['error' => null]]],
-            'conflicting redelivery' => [['a' => ['result' => 'changed']]],
+            'unknown call' => [['unknown' => ['result' => 'data']], InputTranslationException::class, "No matching request for tool call 'unknown'."],
+            'malformed' => [['b' => 'data'], WorkflowException::class, $shape],
+            'ambiguous' => [['b' => ['result' => 'data', 'error' => 'failed']], WorkflowException::class, $shape],
+            'invalid error' => [['b' => ['error' => null]], WorkflowException::class, $shape],
+            'conflicting redelivery' => [['a' => ['result' => 'changed']], WorkflowException::class, "Tool result 'a' has already been settled with a different outcome."],
+            'one valid and one forged' => [['b' => ['result' => 'ok'], 'forged' => ['result' => 'x']], InputTranslationException::class, "No matching request for tool call 'forged'."],
         ];
     }
 
