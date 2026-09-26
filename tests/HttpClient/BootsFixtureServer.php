@@ -7,15 +7,19 @@ namespace NeuronAI\Tests\HttpClient;
 use function fclose;
 use function fsockopen;
 use function is_resource;
+use function parse_url;
 use function proc_open;
 use function proc_terminate;
-use function random_int;
+use function stream_socket_get_name;
+use function stream_socket_server;
 use function usleep;
+
+use const PHP_URL_PORT;
 
 /**
  * Boots PHP's built-in server on fixtures/server.php so a test class can
  * exercise a real HTTP stack. A test class boots another fixture by
- * overriding serverCommand().
+ * overriding serverCommand(), and sizes the worker pool through serverEnvironment().
  */
 trait BootsFixtureServer
 {
@@ -28,7 +32,7 @@ trait BootsFixtureServer
 
     public static function setUpBeforeClass(): void
     {
-        $port = random_int(49152, 65000);
+        $port = static::freePort();
         static::$baseUri = "http://127.0.0.1:{$port}";
 
         $process = proc_open(
@@ -36,7 +40,7 @@ trait BootsFixtureServer
             [2 => ['pipe', 'w']],
             $pipes,
             null,
-            ['PHP_CLI_SERVER_WORKERS' => '2'],
+            static::serverEnvironment(),
         );
 
         if (!is_resource($process)) {
@@ -55,9 +59,32 @@ trait BootsFixtureServer
         return ['php', '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/server.php'];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    protected static function serverEnvironment(): array
+    {
+        return ['PHP_CLI_SERVER_WORKERS' => '2'];
+    }
+
     public static function tearDownAfterClass(): void
     {
         proc_terminate(static::$serverProcess);
+    }
+
+    /**
+     * A port the OS just handed out: a random one may belong to a server started concurrently.
+     */
+    protected static function freePort(): int
+    {
+        $socket = stream_socket_server('tcp://127.0.0.1:0');
+        if ($socket === false) {
+            self::fail('No free port for the fixture server');
+        }
+        $port = (int) parse_url('tcp://' . stream_socket_get_name($socket, false), PHP_URL_PORT);
+        fclose($socket);
+
+        return $port;
     }
 
     protected static function waitForServer(int $port): void

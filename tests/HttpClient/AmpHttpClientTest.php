@@ -4,113 +4,119 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Amp\AmpHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 
 use function fclose;
-use function file_put_contents;
 use function fopen;
-use function sys_get_temp_dir;
-use function tempnam;
-use function unlink;
+use function fwrite;
+use function rewind;
+use function trim;
 
 class AmpHttpClientTest extends TestCase
 {
     use BootsFixtureServer;
 
-    public function test_is_multipart_data_detection(): void
+    public function test_array_body_is_sent_as_json(): void
     {
-        $tmpFile = tempnam(sys_get_temp_dir(), 'test');
-        file_put_contents($tmpFile, 'test content');
-        $fileResource = fopen($tmpFile, 'r');
+        $echo = (new AmpHttpClient())->request(HttpRequest::post(static::$baseUri . '/echo', ['key' => 'value', 'n' => 1]))->json();
 
-        $client = new AmpHttpClient();
-
-        // Test with file resource - should be multipart
-        $reflection = new ReflectionClass($client);
-        $method = $reflection->getMethod('isMultipartData');
-
-        $isMultipart = $method->invoke($client, ['file' => $fileResource]);
-        $this->assertTrue($isMultipart);
-
-        // Test with regular array - should not be multipart
-        $isMultipart = $method->invoke($client, ['key' => 'value', 'number' => 123]);
-        $this->assertFalse($isMultipart);
-
-        // Test with nested array containing resource - should be multipart
-        $isMultipart = $method->invoke($client, [
-            'data' => ['contents' => $fileResource],
-        ]);
-        $this->assertTrue($isMultipart);
-
-        fclose($fileResource);
-        unlink($tmpFile);
+        $this->assertSame('POST', $echo['method']);
+        $this->assertSame('application/json', $echo['contentType']);
+        $this->assertSame('{"key":"value","n":1}', $echo['body']);
     }
 
-    public function test_with_base_uri(): void
+    public function test_raw_string_body_and_its_content_type_are_sent_unchanged(): void
     {
-        $client = new AmpHttpClient();
-        $result = $client->withBaseUri('https://api.example.com');
+        $echo = (new AmpHttpClient())->request(
+            new HttpRequest(HttpMethod::PUT, static::$baseUri . '/echo', ['Content-Type' => 'text/plain'], "raw\nbody")
+        )->json();
 
-        $this->assertSame($client, $result);
+        $this->assertSame('PUT', $echo['method']);
+        $this->assertSame('text/plain', $echo['contentType']);
+        $this->assertSame("raw\nbody", $echo['body']);
     }
 
-    public function test_with_headers(): void
+    public function test_multipart_part_is_uploaded_with_its_filename(): void
     {
-        $client = new AmpHttpClient();
-        $result = $client->withHeaders(['X-Custom-Header' => 'value']);
+        $file = fopen('php://temp', 'w+');
+        fwrite($file, 'audio bytes');
+        rewind($file);
 
-        $this->assertSame($client, $result);
+        try {
+            $result = (new AmpHttpClient())->request(new HttpRequest(
+                method: HttpMethod::POST,
+                uri: static::$baseUri . '/multipart',
+                body: ['file' => ['contents' => $file, 'filename' => 'audio.mp3'], 'model' => 'whisper-1'],
+            ))->json();
+        } finally {
+            fclose($file);
+        }
+
+        $this->assertSame(['model' => 'whisper-1'], $result['fields']);
+        $this->assertSame('audio.mp3', $result['files']['file']['name']);
+        $this->assertSame('audio bytes', $result['files']['file']['content']);
     }
 
-    public function test_with_timeout(): void
+    public function test_relative_requests_resolve_against_the_base_uri(): void
     {
         $client = new AmpHttpClient();
-        $result = $client->withTimeout(60.0);
+        $this->assertSame($client, $client->withBaseUri(static::$baseUri . '/'));
 
-        $this->assertSame($client, $result);
+        $this->assertSame(['status' => 'success'], $client->request(HttpRequest::get('/json'))->json());
     }
 
-    public function test_request_json_body_structure(): void
+    public function test_with_headers_merges_defaults_case_insensitively(): void
     {
-        $request = new HttpRequest(
-            method: HttpMethod::POST,
-            uri: 'https://example.com/api/endpoint',
-            body: ['key' => 'value', 'number' => 123]
-        );
+        $client = new AmpHttpClient(customHeaders: ['authorization' => 'Bearer old', 'X-Hook' => 'kept']);
+        $this->assertSame($client, $client->withHeaders(['Authorization' => 'Bearer new']));
 
-        // Since we don't have a mock server for Amp, we just verify the request is created correctly
-        $this->assertEquals(HttpMethod::POST, $request->method);
-        $this->assertIsArray($request->body);
-        $this->assertArrayHasKey('key', $request->body);
+        $echo = $client->request(HttpRequest::get(static::$baseUri . '/echo'))->json();
+
+        $this->assertSame('Bearer new', $echo['authorization']);
+        $this->assertSame('kept', $echo['xHook']);
     }
 
-    public function test_multipart_request_structure(): void
+    public function test_with_timeout_applies_to_later_requests(): void
     {
-        $tmpFile = tempnam(sys_get_temp_dir(), 'test');
-        file_put_contents($tmpFile, 'test file content');
-        $fileResource = fopen($tmpFile, 'r');
+        $client = new AmpHttpClient();
+        $this->assertSame($client, $client->withTimeout(0.01));
 
-        $request = new HttpRequest(
-            method: HttpMethod::POST,
-            uri: 'https://example.com/upload',
-            body: [
-                'file' => $fileResource,
-                'name' => 'test.txt',
-                'description' => 'Test file upload',
-            ]
-        );
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessageMatches('/^Network error during GET .*\/delay: /');
 
-        // Verify request structure
-        $this->assertEquals(HttpMethod::POST, $request->method);
-        $this->assertIsArray($request->body);
-        $this->assertIsResource($request->body['file']);
+        $client->request(HttpRequest::get(static::$baseUri . '/delay'));
+    }
 
-        fclose($fileResource);
-        unlink($tmpFile);
+    public function test_a_response_cut_short_throws_a_network_error(): void
+    {
+        try {
+            (new AmpHttpClient())->request(HttpRequest::get(static::$baseUri . '/truncated'));
+            $this->fail('A truncated response must not be returned as complete');
+        } catch (HttpException $exception) {
+            $this->assertNull($exception->response);
+            $this->assertStringStartsWith('Network error during GET ' . static::$baseUri . '/truncated: ', $exception->getMessage());
+            $this->assertNotNull($exception->getPrevious());
+        }
+    }
+
+    public function test_stream_delivers_the_body_line_by_line(): void
+    {
+        $stream = (new AmpHttpClient())->stream(HttpRequest::get(static::$baseUri . '/sse'));
+
+        $lines = [];
+        while (!$stream->eof()) {
+            $line = trim($stream->readLine());
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+        $stream->close();
+
+        $this->assertSame(['data: chunk0', 'data: chunk1', 'data: chunk2'], $lines);
     }
 
     public function test_sends_neuron_user_agent_by_default(): void

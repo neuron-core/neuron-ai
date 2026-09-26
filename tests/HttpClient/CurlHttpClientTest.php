@@ -9,18 +9,25 @@ use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\HttpClient\StreamInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
 use function file_put_contents;
 use function fopen;
+use function implode;
 use function json_decode;
 use function microtime;
 use function rtrim;
+use function sprintf;
 use function str_repeat;
+use function strlen;
 use function sys_get_temp_dir;
 use function trim;
 use function unlink;
+
+use const CURLOPT_USERAGENT;
 
 /**
  * Exercises the real curl stack against PHP's built-in server, including
@@ -119,7 +126,39 @@ class CurlHttpClientTest extends TestCase
             $this->assertNotNull($exception->response);
             $this->assertEquals(422, $exception->response->statusCode);
             $this->assertEquals(['error' => 'invalid input'], $exception->response->json());
-            $this->assertStringContainsString('HTTP 422 error', $exception->getMessage());
+            $this->assertSame(
+                'HTTP 422 error during GET ' . static::$baseUri . '/error: {"error":"invalid input"}',
+                $exception->getMessage(),
+            );
+            $this->assertSame(static::$baseUri . '/error', $exception->request?->uri);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{bool}>
+     */
+    public static function transfers(): iterable
+    {
+        yield 'buffered' => [false];
+        yield 'streamed' => [true];
+    }
+
+    #[DataProvider('transfers')]
+    public function test_status_400_is_the_first_error(bool $stream): void
+    {
+        $client = new CurlHttpClient();
+        $send = fn (int $status): string => $stream
+            ? $this->drain($client->stream(HttpRequest::get(static::$baseUri . "/status?code={$status}")))
+            : $client->request(HttpRequest::get(static::$baseUri . "/status?code={$status}"))->body;
+
+        $this->assertSame('status 399', $send(399));
+
+        try {
+            $send(400);
+            $this->fail('A 400 response must throw HttpException');
+        } catch (HttpException $exception) {
+            $this->assertSame(400, $exception->response?->statusCode);
+            $this->assertSame('status 400', $exception->response->body);
         }
     }
 
@@ -132,7 +171,7 @@ class CurlHttpClientTest extends TestCase
             $this->fail('Expected HttpException was not thrown');
         } catch (HttpException $exception) {
             $this->assertNull($exception->response);
-            $this->assertStringContainsString('Network error', $exception->getMessage());
+            $this->assertStringStartsWith('Network error during GET http://127.0.0.1:9/unreachable: ', $exception->getMessage());
         }
     }
 
@@ -265,14 +304,12 @@ class CurlHttpClientTest extends TestCase
                 $observed = [$response->statusCode, $response->body, $response->header('Content-Type')];
             });
 
-        $stream = $client->stream(HttpRequest::get(static::$baseUri . '/sse'));
-        $stream->close();
+        $stream = $client->stream(HttpRequest::get(static::$baseUri . '/echo'));
+        $echo = json_decode($this->drain($stream), true);
 
+        $this->assertSame('streamed', $echo['xHook']);
         // The body is a live stream, so the hook sees status and headers with an empty body.
-        $this->assertNotNull($observed);
-        $this->assertEquals(200, $observed[0]);
-        $this->assertEquals('', $observed[1]);
-        $this->assertStringContainsString('text/event-stream', (string) $observed[2]);
+        $this->assertSame([200, '', 'application/json'], $observed);
     }
 
     public function test_curl_handle_is_reused_across_requests(): void
@@ -289,5 +326,208 @@ class CurlHttpClientTest extends TestCase
         $this->assertEquals(200, $first->statusCode);
         $this->assertEquals(200, $second->statusCode);
         $this->assertSame($handleAfterFirst, $handleAfterSecond);
+    }
+
+    public function test_raw_string_body_and_its_content_type_are_sent_unchanged(): void
+    {
+        $body = "{\"jsonrpc\":\"2.0\"}\ncaf\u{e9}";
+
+        $echo = (new CurlHttpClient())->request(
+            new HttpRequest(HttpMethod::POST, static::$baseUri . '/echo', ['Content-Type' => 'text/plain'], $body)
+        )->json();
+
+        $this->assertSame($body, $echo['body']);
+        $this->assertSame('text/plain', $echo['contentType']);
+    }
+
+    public function test_reused_handle_does_not_carry_a_previous_request_over(): void
+    {
+        $client = new CurlHttpClient();
+        $client->request(new HttpRequest(HttpMethod::PUT, static::$baseUri . '/echo', ['X-Hook' => 'first'], ['key' => 'value']));
+
+        $echo = $client->request(HttpRequest::get(static::$baseUri . '/echo'))->json();
+
+        $this->assertSame('GET', $echo['method']);
+        $this->assertSame('', $echo['xHook']);
+        $this->assertSame('', $echo['body']);
+        $this->assertSame('', $echo['contentType']);
+    }
+
+    public function test_with_headers_merges_defaults_case_insensitively(): void
+    {
+        $client = (new CurlHttpClient(customHeaders: ['authorization' => 'Bearer old', 'X-Hook' => 'kept']))
+            ->withHeaders(['Authorization' => 'Bearer new']);
+
+        $echo = $client->request(HttpRequest::get(static::$baseUri . '/echo'))->json();
+
+        $this->assertSame('Bearer new', $echo['authorization']);
+        $this->assertSame('kept', $echo['xHook']);
+    }
+
+    public function test_with_timeout_applies_to_later_requests(): void
+    {
+        $client = (new CurlHttpClient())->withTimeout(0.01);
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessageMatches('/^Network error during GET .*\/delay: /');
+
+        $client->request(HttpRequest::get(static::$baseUri . '/delay'));
+    }
+
+    public function test_raw_curl_options_override_transport_defaults(): void
+    {
+        $client = new CurlHttpClient(curlOptions: [CURLOPT_USERAGENT => 'raw-agent/2.0']);
+
+        $this->assertSame('raw-agent/2.0', $client->request(HttpRequest::get(static::$baseUri . '/echo'))->json()['userAgent']);
+    }
+
+    public function test_multipart_string_part_is_uploaded_as_a_named_file_with_its_type(): void
+    {
+        $response = (new CurlHttpClient())->request(new HttpRequest(
+            method: HttpMethod::POST,
+            uri: static::$baseUri . '/multipart',
+            body: [
+                'file' => ['contents' => 'col1,col2', 'filename' => 'data.csv', 'headers' => ['Content-Type' => 'text/csv']],
+                'purpose' => 'batch',
+            ],
+        ));
+
+        $this->assertSame(
+            ['authorization' => '', 'fields' => ['purpose' => 'batch'], 'files' => ['file' => ['name' => 'data.csv', 'type' => 'text/csv', 'content' => 'col1,col2']]],
+            $response->json(),
+        );
+    }
+
+    public function test_multipart_part_without_filename_or_type_is_a_binary_file_named_after_its_field(): void
+    {
+        $response = (new CurlHttpClient())->request(new HttpRequest(
+            method: HttpMethod::POST,
+            uri: static::$baseUri . '/multipart',
+            body: ['document' => ['contents' => 'plain bytes']],
+        ));
+
+        $this->assertSame(
+            ['document' => ['name' => 'document', 'type' => 'application/octet-stream', 'content' => 'plain bytes']],
+            $response->json()['files'],
+        );
+    }
+
+    public function test_request_failing_midway_throws_a_network_error(): void
+    {
+        try {
+            (new CurlHttpClient())->request(HttpRequest::get(static::$baseUri . '/truncated'));
+            $this->fail('A truncated response must not be returned as complete');
+        } catch (HttpException $exception) {
+            $this->assertNull($exception->response);
+            $this->assertStringStartsWith('Network error during GET ' . static::$baseUri . '/truncated: ', $exception->getMessage());
+        }
+    }
+
+    public function test_stream_failing_midway_throws_instead_of_ending_early(): void
+    {
+        try {
+            $this->drain((new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/truncated')));
+            $this->fail('A truncated stream must not look like a complete one');
+        } catch (HttpException $exception) {
+            $this->assertNull($exception->response);
+            $this->assertStringStartsWith('Network error during GET ' . static::$baseUri . '/truncated: ', $exception->getMessage());
+        }
+    }
+
+    public function test_stream_connection_failure_throws_without_response(): void
+    {
+        try {
+            (new CurlHttpClient(connectTimeout: 0.5))->stream(HttpRequest::get('http://127.0.0.1:9/unreachable'));
+            $this->fail('Expected HttpException was not thrown');
+        } catch (HttpException $exception) {
+            $this->assertNull($exception->response);
+            $this->assertStringStartsWith('Network error during GET http://127.0.0.1:9/unreachable: ', $exception->getMessage());
+        }
+    }
+
+    public function test_stream_error_hook_sees_the_drained_body(): void
+    {
+        $observed = null;
+        $client = (new CurlHttpClient())->onResponse(function (HttpResponse $response) use (&$observed): void {
+            $observed = [$response->statusCode, $response->body];
+        });
+
+        try {
+            $client->stream(HttpRequest::get(static::$baseUri . '/error'));
+            $this->fail('Expected HttpException was not thrown');
+        } catch (HttpException) {
+            $this->assertSame([422, '{"error":"invalid input"}'], $observed);
+        }
+    }
+
+    public function test_stream_read_line_joins_split_lines_and_returns_the_unterminated_tail(): void
+    {
+        $stream = (new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/lines'));
+
+        $lines = [];
+        while (!$stream->eof()) {
+            $lines[] = $stream->readLine();
+        }
+        $stream->close();
+
+        $this->assertSame(["alpha\n", "beta\n", 'gamma'], $lines);
+    }
+
+    public function test_stream_mixed_reads_reassemble_a_body_larger_than_the_buffer_threshold(): void
+    {
+        $stream = (new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/large'));
+
+        $expected = '';
+        for ($line = 0; $line < 10_000; $line++) {
+            $expected .= sprintf("line-%05d\n", $line);
+        }
+
+        $body = '';
+        while (!$stream->eof()) {
+            $body .= $stream->readLine();
+            $body .= $stream->read(7);
+        }
+        $stream->close();
+
+        $this->assertSame($expected, $body);
+    }
+
+    public function test_stream_read_never_exceeds_the_requested_length(): void
+    {
+        $stream = (new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/json'));
+
+        $chunks = [];
+        while (!$stream->eof()) {
+            $chunks[] = $stream->read(3);
+        }
+        $stream->close();
+
+        foreach ($chunks as $chunk) {
+            $this->assertLessThanOrEqual(3, strlen($chunk));
+        }
+        $this->assertSame('{"status":"success"}', implode('', $chunks));
+    }
+
+    public function test_closed_stream_is_at_eof_and_reads_nothing(): void
+    {
+        $stream = (new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/sse'));
+        $stream->readLine();
+
+        $stream->close();
+
+        $this->assertTrue($stream->eof());
+        $this->assertSame('', $stream->read(1024));
+        $this->assertSame('', $stream->readLine());
+    }
+
+    protected function drain(StreamInterface $stream): string
+    {
+        $body = '';
+        while (!$stream->eof()) {
+            $body .= $stream->read(8192);
+        }
+        $stream->close();
+
+        return $body;
     }
 }

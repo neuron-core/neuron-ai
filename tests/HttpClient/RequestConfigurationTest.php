@@ -135,6 +135,29 @@ class RequestConfigurationTest extends TestCase
         }
     }
 
+    /**
+     * @param class-string<CurlHttpClient|GuzzleHttpClient|AmpHttpClient> $class
+     */
+    #[DataProvider('clients')]
+    public function test_multipart_requests_time_out(string $class, bool $stream): void
+    {
+        $file = fopen('php://temp', 'w+');
+        fwrite($file, 'audio bytes');
+        rewind($file);
+        $request = new HttpRequest(HttpMethod::POST, static::$baseUri . '/delay', body: ['file' => ['contents' => $file, 'filename' => 'audio.mp3']], timeout: 0.01);
+
+        try {
+            $this->send(new $class(timeout: 2.0), $request, $stream);
+            self::fail('A multipart request must honour its timeout');
+        } catch (HttpException $exception) {
+            self::assertNull($exception->response);
+        } finally {
+            if (is_resource($file)) {
+                fclose($file);
+            }
+        }
+    }
+
     public function test_raw_curl_options_cannot_replace_request_destination_or_headers(): void
     {
         $client = new CurlHttpClient(curlOptions: [
