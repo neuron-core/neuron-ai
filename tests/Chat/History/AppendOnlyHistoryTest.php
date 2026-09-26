@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
 
 class AppendOnlyHistoryTest extends TestCase
 {
-    private function toolWithState(string $name, string $callId, ?ApprovalState $state = null): ToolCall
+    protected function toolWithState(string $name, string $callId, ?ApprovalState $state = null): ToolCall
     {
         $tool = ToolCall::make($name, $callId, [], "desc {$name}");
 
@@ -48,5 +48,4 @@ class AppendOnlyHistoryTest extends TestCase
         $this->assertSame($first, $history->getMessages()[1]);
         $this->assertSame($duplicate, $history->getMessages()[2]);
     }
-
 }

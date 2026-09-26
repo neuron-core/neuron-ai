@@ -29,7 +29,7 @@ use function unlink;
 
 class ContentBlockDeserializationTest extends TestCase
 {
-    private string $testDir;
+    protected string $testDir;
 
     protected function setUp(): void
     {

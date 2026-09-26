@@ -27,22 +27,21 @@ class ApprovalSerializationTest extends TestCase
 
         $message = new ToolCallMessage(tools: [$pending, $rejected]);
 
-        $restored = [(new MessageDeserializer())->deserialize($message->jsonSerialize())];
+        $restored = (new MessageDeserializer())->deserialize($message->jsonSerialize());
 
-        $this->assertCount(1, $restored);
-        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
-
-        $restoredMessage = $restored[0];
-        $this->assertInstanceOf(ToolCallMessage::class, $restoredMessage);
-        $tools = $restoredMessage->getToolCalls();
+        $this->assertInstanceOf(ToolCallMessage::class, $restored);
+        $tools = $restored->getToolCalls();
         $this->assertCount(2, $tools);
 
-        $this->assertEquals(ApprovalState::Pending, $tools[0]->getApprovalState());
+        $this->assertSame(['c1', 'c2'], [$tools[0]->getCallId(), $tools[1]->getCallId()]);
+        $this->assertSame(['a' => 1], $tools[0]->getInputs());
+        $this->assertSame(ApprovalState::Pending, $tools[0]->getApprovalState());
         $this->assertNull($tools[0]->getRejectReason());
         $this->assertSame('This action is irreversible', $tools[0]->getApprovalReason());
 
-        $this->assertEquals(ApprovalState::Rejected, $tools[1]->getApprovalState());
+        $this->assertSame(ApprovalState::Rejected, $tools[1]->getApprovalState());
         $this->assertSame('too risky', $tools[1]->getRejectReason());
+        $this->assertNull($tools[1]->getApprovalReason());
     }
 
     public function test_legacy_shape_without_approval_key_loads_as_null(): void
@@ -63,15 +62,15 @@ class ApprovalSerializationTest extends TestCase
             ],
         ];
 
-        $restored = [(new MessageDeserializer())->deserialize($legacyMessage)];
+        $restored = (new MessageDeserializer())->deserialize($legacyMessage);
 
-        $this->assertCount(1, $restored);
-        $this->assertInstanceOf(ToolCallMessage::class, $restored[0]);
-
-        $restoredMessage = $restored[0];
-        $this->assertInstanceOf(ToolCallMessage::class, $restoredMessage);
-        $tools = $restoredMessage->getToolCalls();
+        $this->assertInstanceOf(ToolCallMessage::class, $restored);
+        $tools = $restored->getToolCalls();
         $this->assertCount(1, $tools);
+        $this->assertSame('legacy_tool', $tools[0]->getName());
         $this->assertNull($tools[0]->getApprovalState());
+        $this->assertNull($tools[0]->getApprovalReason());
+        $this->assertNull($tools[0]->getRejectReason());
+        $this->assertFalse($tools[0]->hasResult());
     }
 }

@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
-use NeuronAI\Chat\History\HistoryTrimmer;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function array_slice;
 use function count;
 use function sort;
 use function str_repeat;
@@ -23,52 +24,19 @@ use function uniqid;
 
 class ChatHistoryTrimmerTest extends TestCase
 {
-    private const CONTEXT_WINDOW = 200000; // 200K context window
+    protected const CONTEXT_WINDOW = 200000; // 200K context window
 
-    private ChatHistory $chatHistory;
+    protected InMemoryMessageStore $store;
+
+    protected ChatHistory $chatHistory;
+
+    protected int $added = 0;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->chatHistory = new ChatHistory(new InMemoryMessageStore(), 'thread', self::CONTEXT_WINDOW);
-    }
-
-    protected function tearDown(): void
-    {
-        $this->chatHistory->flushAll();
-    }
-
-    public function test_validation_rejects_user_message_directly_after_tool_call(): void
-    {
-        // Sequences that bypass addMessage() (e.g. loaded from storage) are caught
-        // by the trimmer's whole-history validation with the same alternation rule.
-        $tool = ToolCall::make('search', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']);
-
-        $messages = [
-            new UserMessage('Question'),
-            new ToolCallMessage(null, [$tool]),
-            new UserMessage('Another question'),
-        ];
-
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('a UserMessage cannot directly follow a ToolCallMessage');
-
-        (new HistoryTrimmer())->trim($messages, self::CONTEXT_WINDOW);
-    }
-
-    public function test_validation_accepts_tool_result_after_tool_call(): void
-    {
-        $tool = ToolCall::make('search', description: 'd')->setCallId('c1')->setInputs(['q' => 'x']);
-        $toolWithResult = (clone $tool)->setResult('Results');
-
-        $messages = [
-            new UserMessage('Question'),
-            new ToolCallMessage(null, [$tool]),
-            new ToolResultMessage([$toolWithResult]),
-            new AssistantMessage('Here is the answer'),
-        ];
-
-        $this->assertCount(4, (new HistoryTrimmer())->trim($messages, self::CONTEXT_WINDOW));
+        $this->store = new InMemoryMessageStore();
+        $this->chatHistory = new ChatHistory($this->store, 'thread', self::CONTEXT_WINDOW);
     }
 
     public function test_trimmer_with_high_number_of_messages(): void
@@ -157,31 +125,35 @@ class ChatHistoryTrimmerTest extends TestCase
         // Verify message alternation is valid
         $this->assertMessageAlternationIsValid($messages);
 
-        // Performance assertion: trimming should be efficient
-        // After many iterations beyond the window, we should still have a reasonable number of messages
-        $this->assertLessThan(
-            1000,
-            count($messages),
-            'Trimmed history should not have excessive message count'
-        );
+        // The store archived exactly what the trimming dropped, and deleted nothing.
+        $this->assertSame($this->ids($messages), $this->ids($this->store->loadActive('thread')));
+        $all = $this->store->loadAll('thread');
+        $this->assertCount($this->added, $all);
+        $this->assertSame($this->ids($messages), $this->ids(array_slice($all, -count($messages))));
     }
 
-    private function addRegularPair(int $iteration, int $cumulativeTokens): void
+    protected function add(Message $message): void
+    {
+        $this->chatHistory->addMessage($message);
+        $this->added++;
+    }
+
+    protected function addRegularPair(int $iteration, int $cumulativeTokens): void
     {
         // Create substantial content to simulate real usage
         $userContent = $this->generateContent($iteration, 'user');
         $assistantContent = $this->generateContent($iteration, 'assistant');
 
-        $this->chatHistory->addMessage(new UserMessage($userContent));
+        $this->add(new UserMessage($userContent));
 
         $assistant = new AssistantMessage($assistantContent);
         // Cumulative usage: input_tokens includes all prior context
         $outputTokens = 300 + ($iteration % 200);
         $assistant->setUsage(new Usage($cumulativeTokens - $outputTokens, $outputTokens));
-        $this->chatHistory->addMessage($assistant);
+        $this->add($assistant);
     }
 
-    private function addToolSequence(int $iteration, int $cumulativeTokens): void
+    protected function addToolSequence(int $iteration, int $cumulativeTokens): void
     {
         $toolName = "tool_{$iteration}";
         $callId = "call_{$iteration}_" . uniqid();
@@ -196,25 +168,25 @@ class ChatHistoryTrimmerTest extends TestCase
             ->setResult($this->generateContent($iteration, 'tool_result'));
 
         // User message
-        $this->chatHistory->addMessage(new UserMessage($this->generateContent($iteration, 'user')));
+        $this->add(new UserMessage($this->generateContent($iteration, 'user')));
 
         // Tool call
         $toolCall = new ToolCallMessage(tools: [$tool]);
         $outputTokens1 = 100;
         $toolCall->setUsage(new Usage($cumulativeTokens - 600 - $outputTokens1, $outputTokens1));
-        $this->chatHistory->addMessage($toolCall);
+        $this->add($toolCall);
 
         // Tool result
-        $this->chatHistory->addMessage(new ToolResultMessage([$toolWithResult]));
+        $this->add(new ToolResultMessage([$toolWithResult]));
 
         // Assistant response - this is where the checkpoint is
         $assistant = new AssistantMessage($this->generateContent($iteration, 'assistant'));
         $outputTokens2 = 500;
         $assistant->setUsage(new Usage($cumulativeTokens - $outputTokens2, $outputTokens2));
-        $this->chatHistory->addMessage($assistant);
+        $this->add($assistant);
     }
 
-    private function generateContent(int $iteration, string $type): string
+    protected function generateContent(int $iteration, string $type): string
     {
         // Generate realistic content that would contribute to token count
         $baseContent = match ($type) {
@@ -232,7 +204,19 @@ class ChatHistoryTrimmerTest extends TestCase
         return $baseContent . $padding;
     }
 
-    private function assertToolPairsAreValid(array $messages): void
+    /**
+     * @param Message[] $messages
+     * @return string[]
+     */
+    protected function ids(array $messages): array
+    {
+        return array_map(fn (Message $message): string => $message->getId(), $messages);
+    }
+
+    /**
+     * @param Message[] $messages
+     */
+    protected function assertToolPairsAreValid(array $messages): void
     {
         $toolCallIds = [];
         $toolResultIds = [];
@@ -269,7 +253,10 @@ class ChatHistoryTrimmerTest extends TestCase
         }
     }
 
-    private function assertMessageAlternationIsValid(array $messages): void
+    /**
+     * @param Message[] $messages
+     */
+    protected function assertMessageAlternationIsValid(array $messages): void
     {
         $expectingUser = true;
 

@@ -29,7 +29,7 @@ use function unlink;
 
 class MultimodalToolResultHistoryTest extends TestCase
 {
-    private string $testDir;
+    protected string $testDir;
 
     protected function setUp(): void
     {
@@ -210,14 +210,15 @@ class MultimodalToolResultHistoryTest extends TestCase
             ->setResult(new ToolOutput([]));
 
         $history = new ChatHistory(new FileMessageStore($this->testDir), $key);
+        $history->addMessage(new UserMessage('Do nothing'));
         $history->addMessage(new ToolCallMessage(null, [$callTool]));
         $history->addMessage(new ToolResultMessage([$resultTool]));
 
         $reloaded = new ChatHistory(new FileMessageStore($this->testDir), $key);
         $messages = $reloaded->getMessages();
 
-        $this->assertInstanceOf(ToolResultMessage::class, $messages[1]);
-        $result = $messages[1]->getToolCalls()[0]->getResult();
+        $this->assertInstanceOf(ToolResultMessage::class, $messages[2]);
+        $result = $messages[2]->getToolCalls()[0]->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertSame([], $result->getBlocks());
         $this->assertSame('', $result->getText());

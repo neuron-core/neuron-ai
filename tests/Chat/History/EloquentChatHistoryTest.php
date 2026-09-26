@@ -11,6 +11,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\EloquentMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -19,6 +20,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function count;
 use function uniqid;
 
@@ -159,24 +161,24 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_truncates_history_when_context_window_exceeded(): void
     {
-        // Create history with small context window
         $smallHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), $this->threadId, 100);
 
         $this->addMessagesBeyondContextWindow($smallHistory);
 
+        // Every turn overflows the window, so only the latest one stays in the context.
         $messages = $smallHistory->getMessages();
-
-        // Should have fewer messages due to truncation
-        $this->assertLessThan(20, count($messages));
-        $this->assertGreaterThan(0, count($messages));
-
-        // First message should be a user message (valid sequence)
-        $this->assertInstanceOf(UserMessage::class, $messages[0]);
+        $this->assertSame(['User message 19 with some text', 'Assistant message 20 with some text'], array_map(
+            fn (Message $message): ?string => $message->getContent(),
+            $messages
+        ));
 
         // The trimmed messages are archived in the database, not deleted
         $rows = ChatMessage::query()->where('thread_id', $this->threadId);
-        $this->assertEquals(count($messages), (clone $rows)->whereNull('archived_at')->count());
-        $this->assertEquals(20 - count($messages), (clone $rows)->whereNotNull('archived_at')->count());
+        $this->assertSame(
+            array_map(fn (Message $message): string => $message->getId(), $messages),
+            (clone $rows)->whereNull('archived_at')->orderBy('id')->pluck('message_id')->all()
+        );
+        $this->assertSame(18, (clone $rows)->whereNotNull('archived_at')->count());
     }
 
     public function test_loads_only_unarchived_messages(): void
@@ -234,29 +236,44 @@ class EloquentChatHistoryTest extends TestCase
         $this->assertEquals(1, ChatMessage::query()->where('thread_id', $thread2)->count());
     }
 
-    public function test_set_messages_maintains_database_consistency(): void
+    public function test_rows_follow_the_insertion_order_of_the_key(): void
     {
-        // Add initial messages
-        $this->history->addMessage(new UserMessage('Message 1'));
-        $this->history->addMessage(new AssistantMessage('Message 2'));
+        $messages = [new UserMessage('Message 1'), new AssistantMessage('Message 2'), new UserMessage('Message 3')];
+        foreach ($messages as $message) {
+            $this->history->addMessage($message);
+        }
 
-        $this->assertEquals(2, ChatMessage::query()->where('thread_id', $this->threadId)->count());
-
-        // The setMessages method is used internally by addMessage
-        // Verify that in-memory and database are in sync
-        $messages = $this->history->getMessages();
-        $dbRecords = ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->count();
-
-        $this->assertEquals(count($messages), $dbRecords);
+        $this->assertSame(
+            array_map(fn (Message $message): string => $message->getId(), $messages),
+            ChatMessage::query()->where('thread_id', $this->threadId)->orderBy('id')->pluck('message_id')->all()
+        );
     }
 
-    public function test_handles_empty_thread_id(): void
+    public function test_an_empty_thread_id_is_a_thread_of_its_own(): void
     {
         $emptyThreadHistory = new ChatHistory(new EloquentMessageStore(ChatMessage::class), '');
         $emptyThreadHistory->addMessage(new UserMessage('Test'));
+        $this->history->addMessage(new UserMessage('Other'));
 
-        // Should still work with empty thread_id
-        $this->assertCount(1, $emptyThreadHistory->getMessages());
+        $reloaded = new ChatHistory(new EloquentMessageStore(ChatMessage::class), '');
+        $this->assertCount(1, $reloaded->getMessages());
+        $this->assertSame('Test', $reloaded->getMessages()[0]->getContent());
+    }
+
+    public function test_the_meta_column_holds_no_role_or_content(): void
+    {
+        $message = (new AssistantMessage('Hi'))->setUsage(new Usage(10, 5))->setStopReason('end_turn');
+        $this->history->addMessage(new UserMessage('Hello'));
+        $this->history->addMessage($message);
+
+        $record = ChatMessage::query()->where('message_id', $message->getId())->firstOrFail();
+
+        $this->assertSame('assistant', $record->role);
+        $this->assertSame([
+            '__id' => $message->getId(),
+            'usage' => ['input_tokens' => 10, 'output_tokens' => 5, 'cached_input_tokens' => 0, 'reasoning_tokens' => 0],
+            '__meta' => ['stop_reason' => 'end_turn'],
+        ], $record->meta);
     }
 
     public function test_serializes_message_meta_correctly(): void
@@ -281,5 +298,10 @@ class EloquentChatHistoryTest extends TestCase
 
         $response = $agent->chat(new UserMessage('Hello'))->getMessage();
         $this->assertEquals('Hello!', $response->getContent());
+
+        $records = ChatMessage::query()->orderBy('id')->get();
+        $this->assertSame(['user', 'assistant'], $records->pluck('role')->all());
+        $this->assertSame($records[0]->thread_id, $records[1]->thread_id);
+        $this->assertSame($response->getId(), $records[1]->message_id);
     }
 }

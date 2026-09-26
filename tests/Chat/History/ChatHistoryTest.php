@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Chat\History;
 
 use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\History\HistoryTrimmerInterface;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
@@ -14,35 +15,43 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tools\ToolCall;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 use function array_map;
+use function array_pop;
+use function array_slice;
 use function count;
-use function end;
-use function sort;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 class ChatHistoryTest extends TestCase
 {
-    private ChatHistory $chatHistory;
-
-    protected function setUp(): void
+    public function test_an_added_message_joins_the_context_and_the_store(): void
     {
-        parent::setUp();
-        // Use a small context window for testing
-        $this->chatHistory = $this->history(1000);
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $message = new UserMessage('Hello!');
+
+        $history->addMessage($message);
+
+        $this->assertSame([$message], $history->getMessages());
+        $this->assertSame([$message->getId()], $this->ids($store->loadActive('thread')));
+        $this->assertSame('thread', $history->getThreadId());
     }
 
-    protected function tearDown(): void
+    public function test_a_history_writes_only_to_its_own_thread(): void
     {
-        $this->chatHistory->flushAll();
-    }
+        $store = new InMemoryMessageStore();
+        $store->append('other', new UserMessage('Elsewhere'));
 
-    public function test_chat_history_add_message(): void
-    {
-        $history = $this->history();
-        $history->addMessage(new UserMessage('Hello!'));
-        $this->assertCount(1, $history->getMessages());
+        (new ChatHistory($store, 'thread'))->addMessage(new UserMessage('Here'));
+
+        $this->assertCount(1, $store->loadAll('other'));
+        $this->assertSame('Here', $store->loadAll('thread')[0]->getContent());
+        $this->assertSame('Elsewhere', (new ChatHistory($store, 'other'))->getLastMessage()->getContent());
     }
 
     public function test_user_message_after_tool_call_is_rejected(): void
@@ -62,349 +71,193 @@ class ChatHistoryTest extends TestCase
     public function test_tool_result_after_tool_call_is_allowed(): void
     {
         $tool = ToolCall::make('delete_file', description: 'd')->setCallId('c1')->setInputs(['path' => '/tmp/x']);
-        $toolWithResult = (clone $tool)->setResult('File deleted');
+        $messages = [
+            new UserMessage('Delete the file'),
+            new ToolCallMessage(null, [$tool]),
+            new ToolResultMessage([(clone $tool)->setResult('File deleted')]),
+        ];
 
         $history = $this->history();
-        $history->addMessage(new UserMessage('Delete the file'));
-        $history->addMessage(new ToolCallMessage(null, [$tool]));
-        $history->addMessage(new ToolResultMessage([$toolWithResult]));
-
-        $this->assertCount(3, $history->getMessages());
-    }
-
-    public function test_chat_history_truncate_and_validate(): void
-    {
-        $history = $this->history(13);
-
-        $message = new UserMessage('Hello!');
-        $history->addMessage($message);
-        $this->assertCount(1, $history->getMessages());
-
-        $message = new AssistantMessage('Hello!');
-        $message->setUsage(new Usage(15, 12));
-        $history->addMessage($message);
-
-        // The trimmer uses bidirectional search to find the closest UserMessage.
-        // Even though both messages exceed the context window (27 tokens > 13),
-        // the backward search finds the UserMessage at index 0 and keeps both.
-        // This is the intentional trade-off: minimize context loss while ensuring valid sequence.
-        $this->assertCount(2, $history->getMessages());
-    }
-
-    public function test_chat_history_clear(): void
-    {
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 1: expected role assistant, got user');
-
-        $history = $this->history();
-        $history->addMessage(new UserMessage('Hello!'));
-        $history->addMessage(new UserMessage('Hello2!'));
-    }
-
-    public function test_multiple_tool_call_pairs_are_handled_correctly(): void
-    {
-        // Create two different tools
-        $tool1 = ToolCall::make('tool_1', description: 'First tool')
-            ->setInputs(['param1' => 'value1'])
-            ->setCallId('call_1');
-
-        $tool1WithResult = ToolCall::make('tool_1', description: 'First tool')
-            ->setInputs(['param1' => 'value1'])
-            ->setCallId('call_1')
-            ->setResult('First tool result');
-
-        $tool2 = ToolCall::make('tool_2', description: 'Second tool')
-            ->setInputs(['param2' => 'value2'])
-            ->setCallId('call_2');
-
-        $tool2WithResult = ToolCall::make('tool_2', description: 'Second tool')
-            ->setInputs(['param2' => 'value2'])
-            ->setCallId('call_2')
-            ->setResult('Second tool result');
-
-        // Add a large message that should trigger context window cutting
-        $largeMessage = new UserMessage('Test message');
-        $this->chatHistory->addMessage($largeMessage);
-
-        // Add the first tool call pair
-        $toolCall1 = new ToolCallMessage(tools: [$tool1]);
-        $this->chatHistory->addMessage($toolCall1);
-
-        $toolResult1 = new ToolResultMessage([$tool1WithResult]);
-        $this->chatHistory->addMessage($toolResult1);
-
-        // Add the second tool call pair
-        $toolCall2 = new ToolCallMessage(tools: [$tool2]);
-        $this->chatHistory->addMessage($toolCall2);
-
-        $toolResult2 = new ToolResultMessage([$tool2WithResult]);
-        $this->chatHistory->addMessage($toolResult2);
-
-        $messages = $this->chatHistory->getMessages();
-
-        $this->assertCount(5, $messages);
-
-        // Check that we have consistent tool call/result pairs
-        $toolCallNames = [];
-        $toolResultNames = [];
-
         foreach ($messages as $message) {
-            if ($message instanceof ToolCallMessage) {
-                foreach ($message->getToolCalls() as $tool) {
-                    $toolCallNames[] = $tool->getName();
-                }
-            }
-            if ($message instanceof ToolResultMessage) {
-                foreach ($message->getToolCalls() as $tool) {
-                    $toolResultNames[] = $tool->getName();
-                }
-            }
+            $history->addMessage($message);
         }
 
-        sort($toolCallNames);
-        sort($toolResultNames);
+        $this->assertSame($messages, $history->getMessages());
+    }
 
-        $this->assertEquals($toolCallNames, $toolResultNames, 'Tool call names should match tool result names');
+    public function test_the_only_user_turn_is_kept_even_over_the_window(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread', 13);
+        $history->addMessage(new UserMessage('Hello!'));
+
+        $history->addMessage((new AssistantMessage('Hello!'))->setUsage(new Usage(15, 12)));
+
+        // 27 tokens exceed the window, but trimming may only start at a user message:
+        // the backward search finds the first one and nothing is dropped.
+        $this->assertCount(2, $history->getMessages());
+        $this->assertCount(2, $store->loadActive('thread'));
+    }
+
+    /**
+     * @return array<string, array{callable(): Message[], string}>
+     */
+    public static function invalidAppends(): array
+    {
+        $call = static fn (): ToolCall => new ToolCall('mixed_tool', '123', ['param' => 'value']);
+
+        return [
+            'two user messages' => [
+                static fn (): array => [new UserMessage('Hello!'), new UserMessage('Hello2!')],
+                'Invalid message sequence at position 1: expected role assistant, got user',
+            ],
+            'user after a tool result' => [
+                static fn (): array => [
+                    new UserMessage('User message'),
+                    (new ToolCallMessage(tools: [$call()]))->setUsage(new Usage(120, 150)),
+                    new ToolResultMessage([$call()->setResult('Mixed tool result')]),
+                    new UserMessage('User message'),
+                ],
+                'Invalid message sequence at position 3: expected role assistant, got user',
+            ],
+            'two assistant messages' => [
+                static fn (): array => [
+                    new UserMessage('User message'),
+                    (new AssistantMessage('Assistant message 1'))->setUsage(new Usage(12, 15)),
+                    new AssistantMessage('Assistant message 2'),
+                ],
+                'Invalid message sequence at position 2: expected role user, got assistant',
+            ],
+            'an assistant first' => [
+                static fn (): array => [new AssistantMessage('Test message')],
+                'Invalid message sequence at position 0: expected role user, got assistant',
+            ],
+        ];
+    }
+
+    /**
+     * @param callable(): Message[] $sequence
+     */
+    #[DataProvider('invalidAppends')]
+    public function test_an_invalid_append_is_rejected_before_anything_is_stored(callable $sequence, string $error): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $messages = $sequence();
+        $rejected = array_pop($messages);
+        foreach ($messages as $message) {
+            $history->addMessage($message);
+        }
+
+        try {
+            $history->addMessage($rejected);
+            $this->fail('The append should be rejected.');
+        } catch (ChatHistoryException $exception) {
+            $this->assertSame($error, $exception->getMessage());
+        }
+
+        $this->assertSame($this->ids($messages), $this->ids($store->loadAll('thread')));
+        $this->assertSame($messages, $history->getMessages());
+    }
+
+    public function test_a_loaded_sequence_is_validated_on_the_next_append(): void
+    {
+        $store = new InMemoryMessageStore();
+        $store->append('thread', new UserMessage('Delete it'));
+        $store->append('thread', new ToolCallMessage(null, [new ToolCall('delete_file', 'c1')]));
+        $history = new ChatHistory($store, 'thread');
+
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('position 2: a UserMessage cannot directly follow a ToolCallMessage');
+
+        $history->addMessage(new UserMessage('Never mind'));
+    }
+
+    public function test_tool_rounds_are_kept_in_order(): void
+    {
+        $first = ToolCall::make('tool_1', description: 'First tool')->setInputs(['param1' => 'value1'])->setCallId('call_1');
+        $second = ToolCall::make('tool_2', description: 'Second tool')->setInputs(['param2' => 'value2'])->setCallId('call_2');
+        $messages = [
+            new UserMessage('Test message'),
+            new ToolCallMessage(tools: [$first]),
+            new ToolResultMessage([(clone $first)->setResult('First tool result')]),
+            new ToolCallMessage(tools: [$second]),
+            new ToolResultMessage([(clone $second)->setResult('Second tool result')]),
+        ];
+        $history = $this->history(1000);
+
+        foreach ($messages as $message) {
+            $history->addMessage($message);
+        }
+
+        $this->assertSame($messages, $history->getMessages());
     }
 
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
-        // Add several regular messages that exceed the context window.
-        // Assistant messages have usage: (200,150), (400,150), (600,150), (800,150), (1000,150)
+        $history = $this->history(1000);
+
         // AI providers report inputTokens as cumulative context, so the last checkpoint
-        // (inputTokens + outputTokens) = 1000 + 150 = 1150 represents the total tokens.
+        // (1000 + 150) is the total: the overflow of 150 is covered by the first checkpoint
+        // (200 + 150), so the first turn is trimmed.
         for ($i = 1; $i <= 10; $i++) {
-            $message = $i % 2 === 0
+            $history->addMessage($i % 2 === 0
                 ? (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100 * $i, 150))
-                : new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
-            $this->chatHistory->addMessage($message);
+                : new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."));
         }
 
-        // Trimming logic:
-        // - Total tokens = 1150 (from last checkpoint)
-        // - Threshold = 1150 - 1000 = 150 (need to remove at least 150 tokens)
-        // - First checkpoint with tokens >= 150 is at index 1 (tokens=350)
-        // - Trim at index 2, keeping messages 2-9 (8 messages)
-        // - New total = 1150 - 350 = 800 (within the context window)
-        $this->assertCount(8, $this->chatHistory->getMessages());
-
-        // Verify we're within the context window
-        $this->assertLessThanOrEqual(1000, $this->chatHistory->calculateTotalUsage());
-
-        // Verify the alternation is valid (starts with user, ends with assistant)
-        $messages = $this->chatHistory->getMessages();
-        $this->assertEquals('user', $messages[0]->getRole());
-        $this->assertEquals('assistant', end($messages)->getRole());
-    }
-
-    public function test_remove_intermediate_invalid_message_types(): void
-    {
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 3: expected role assistant, got user');
-
-        $tool = ToolCall::make('mixed_tool', description: 'A mixed tool')
-            ->setInputs(['param' => 'value'])
-            ->setCallId('123');
-
-        $toolWithResult = ToolCall::make('mixed_tool', description: 'A mixed tool')
-            ->setInputs(['param' => 'value'])
-            ->setCallId('123')
-            ->setResult('Mixed tool result');
-
-        // Add a mix of different message types
-        $userMessage = new UserMessage('User message');
-        $this->chatHistory->addMessage($userMessage);
-
-        $toolCall = new ToolCallMessage(tools: [$tool]);
-        $toolCall->setUsage(new Usage(120, 150));
-        $this->chatHistory->addMessage($toolCall);
-
-        $toolResult = new ToolResultMessage([$toolWithResult]);
-        $this->chatHistory->addMessage($toolResult);
-
-        // Adding another user message after the tool result is invalid
-        // (should be an assistant message)
-        $userMessage = new UserMessage('User message');
-        $this->chatHistory->addMessage($userMessage);
-    }
-
-    public function test_double_assistant_messages(): void
-    {
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 2: expected role user, got assistant');
-
-        $userMessage = new UserMessage('User message');
-        $this->chatHistory->addMessage($userMessage);
-        $assistantMessage = new AssistantMessage('Assistant message 1');
-        $assistantMessage->setUsage(new Usage(12, 15));
-        $this->chatHistory->addMessage($assistantMessage);
-        $assistantMessage2 = new AssistantMessage('Assistant message 2');
-        $this->chatHistory->addMessage($assistantMessage2);
-    }
-
-    public function test_history_if_no_user_message(): void
-    {
-        // A single assistant message is invalid - should throw an exception
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user, got assistant');
-
-        $this->chatHistory->addMessage(new AssistantMessage('Test message'));
-    }
-
-    public function test_invalid_assistant_message_before_the_first_user_message(): void
-    {
-        // Assistant followed by user is an invalid sequence - should throw exception
-        $this->expectException(ChatHistoryException::class);
-        $this->expectExceptionMessage('Invalid message sequence at position 0: expected role user, got assistant');
-
-        $this->chatHistory->addMessage(new AssistantMessage('Test message'));
-        $this->chatHistory->addMessage(new UserMessage('Test message'));
+        $messages = $history->getMessages();
+        $this->assertCount(8, $messages);
+        $this->assertSame('Message 3 - Lorem ipsum dolor sit amet, consectetur adipiscing elit.', $messages[0]->getContent());
+        $this->assertSame(800, $history->calculateTotalUsage());
     }
 
     public function test_find_trim_point_progressively_exceeds_context_window(): void
     {
-        // Use a small context window to trigger trimming
         $history = $this->history(500);
+        $turns = [];
 
-        // AI providers report input_tokens as CUMULATIVE (including all prior context).
-        // So the last checkpoint (input + output) IS the total tokens used.
-        //
-        // Checkpoint 1: Usage(150, 50) → total = 200 (within the window)
-        // Checkpoint 2: Usage(350, 50) → total = 400 (within the window, input includes pair 1)
-        // Checkpoint 3: Usage(550, 50) → total = 600 (exceeds 500, triggers trim)
+        // Cumulative checkpoints: 200 and 400 fit in the window, 600 overflows it by 100.
+        foreach ([150, 350, 550] as $index => $inputTokens) {
+            $turn = [
+                new UserMessage('User message ' . ($index + 1)),
+                (new AssistantMessage('Assistant message ' . ($index + 1)))->setUsage(new Usage($inputTokens, 50)),
+            ];
+            foreach ($turn as $message) {
+                $history->addMessage($message);
+            }
+            $turns = [...$turns, ...$turn];
+        }
 
-        // Pair 1: stays within the window (total: 200)
-        $history->addMessage(new UserMessage('User message 1'));
-        $assistant1 = new AssistantMessage('Assistant message 1');
-        $assistant1->setUsage(new Usage(150, 50));
-        $history->addMessage($assistant1);
-        $this->assertCount(2, $history->getMessages());
-
-        // Pair 2: still within the window (total: 400)
-        $history->addMessage(new UserMessage('User message 2'));
-        $assistant2 = new AssistantMessage('Assistant message 2');
-        $assistant2->setUsage(new Usage(350, 50)); // input includes prior context
-        $history->addMessage($assistant2);
-        $this->assertCount(4, $history->getMessages());
-
-        // Pair 3: exceeds the window (total: 600) - triggers trimming
-        $history->addMessage(new UserMessage('User message 3'));
-        $assistant3 = new AssistantMessage('Assistant message 3');
-        $assistant3->setUsage(new Usage(550, 50)); // cumulative total = 600
-        $history->addMessage($assistant3);
-
-        // After trimming, older messages are removed to fit within window
-        $messages = $history->getMessages();
-
-        // Verify we stay within the context window
-        $this->assertLessThanOrEqual(500, $history->calculateTotalUsage());
-
-        // Verify alternation is maintained (starts with user, ends with assistant)
-        $this->assertEquals('user', $messages[0]->getRole());
-        $this->assertEquals('assistant', end($messages)->getRole());
-
-        // Verify we have an even number of messages (complete pairs)
-        $this->assertEquals(0, count($messages) % 2, 'Message count should be even (complete pairs)');
+        // The first checkpoint covering the overflow is the first turn (200 tokens).
+        $this->assertSame($this->ids(array_slice($turns, 2)), $this->ids($history->getMessages()));
+        $this->assertSame(400, $history->calculateTotalUsage());
     }
 
     public function test_find_trim_point_preserves_tool_call_result_pairs(): void
     {
-        // Use a small context window so trimming is triggered
         $history = $this->history(300);
+        $search = ToolCall::make('search_tool', description: 'Search for information')->setInputs(['query' => 'test query 1'])->setCallId('call_1');
+        $weather = ToolCall::make('weather_tool', description: 'Get weather info')->setInputs(['location' => 'London'])->setCallId('call_2');
 
-        // Create tools for multiple tool call/result pairs
-        $tool1 = ToolCall::make('search_tool', description: 'Search for information')
-            ->setInputs(['query' => 'test query 1'])
-            ->setCallId('call_1');
-
-        $tool1WithResult = ToolCall::make('search_tool', description: 'Search for information')
-            ->setInputs(['query' => 'test query 1'])
-            ->setCallId('call_1')
-            ->setResult('Search result 1');
-
-        $tool2 = ToolCall::make('weather_tool', description: 'Get weather info')
-            ->setInputs(['location' => 'London'])
-            ->setCallId('call_2');
-
-        $tool2WithResult = ToolCall::make('weather_tool', description: 'Get weather info')
-            ->setInputs(['location' => 'London'])
-            ->setCallId('call_2')
-            ->setResult('Sunny, 25°C');
-
-        // Pair 1: User + ToolCall + ToolResult + Assistant
-        // This pair will be trimmed when the context window is exceeded
-        $history->addMessage(new UserMessage('What is the weather?'));
-        $toolCall1 = new ToolCallMessage(tools: [$tool1]);
-        $toolCall1->setUsage(new Usage(50, 30)); // Checkpoint 1: total = 80
-        $history->addMessage($toolCall1);
-        $history->addMessage(new ToolResultMessage([$tool1WithResult]));
-        $assistant1 = new AssistantMessage('Based on the search...');
-        $assistant1->setUsage(new Usage(120, 40)); // Checkpoint 2: total = 160 (within 300)
-        $history->addMessage($assistant1);
-
-        $this->assertCount(4, $history->getMessages());
-
-        // Pair 2: User + ToolCall + ToolResult + Assistant
-        // This pair will exceed the context window and trigger trimming
-        // The trim point could fall in the middle of the tool call pair
-        $history->addMessage(new UserMessage('Tell me more'));
-        $toolCall2 = new ToolCallMessage(tools: [$tool2]);
-        $toolCall2->setUsage(new Usage(200, 35)); // Checkpoint 3: total = 235
-        $history->addMessage($toolCall2);
-        $history->addMessage(new ToolResultMessage([$tool2WithResult]));
-        $assistant2 = new AssistantMessage('The weather in London...');
-        $assistant2->setUsage(new Usage(350, 50)); // Checkpoint 4: total = 400 (exceeds 300!)
-        $history->addMessage($assistant2);
-
-        $messages = $history->getMessages();
-
-        // Verify we stay within the context window after trimming
-        $this->assertLessThanOrEqual(300, $history->calculateTotalUsage());
-        $this->assertGreaterThan(0, $history->calculateTotalUsage());
-
-        // Verify the message sequence is valid
-        // Should start with UserMessage (not ToolResultMessage or ToolCallMessage)
-        $this->assertInstanceOf(UserMessage::class, $messages[0]);
-
-        // Verify ToolResultMessage is always preceded by ToolCallMessage
-        $previousMessage = null;
+        $messages = [
+            new UserMessage('What is the weather?'),
+            (new ToolCallMessage(tools: [$search]))->setUsage(new Usage(50, 30)),
+            new ToolResultMessage([(clone $search)->setResult('Search result 1')]),
+            (new AssistantMessage('Based on the search...'))->setUsage(new Usage(120, 40)),
+            new UserMessage('Tell me more'),
+            (new ToolCallMessage(tools: [$weather]))->setUsage(new Usage(200, 35)),
+            new ToolResultMessage([(clone $weather)->setResult('Sunny, 25°C')]),
+            (new AssistantMessage('The weather in London...'))->setUsage(new Usage(350, 50)),
+        ];
         foreach ($messages as $message) {
-            if ($message instanceof ToolResultMessage) {
-                $this->assertInstanceOf(
-                    ToolCallMessage::class,
-                    $previousMessage,
-                    'ToolResultMessage must be preceded by ToolCallMessage'
-                );
-            }
-            $previousMessage = $message;
+            $history->addMessage($message);
         }
 
-        // Verify we end with an assistant message (not a tool result or tool call)
-        $lastMessage = end($messages);
-        $this->assertInstanceOf(AssistantMessage::class, $lastMessage);
-
-        // Verify alternation: user -> (tool_call -> tool_result)* -> assistant
-        $expectingUser = true;
-        foreach ($messages as $index => $message) {
-            if ($message instanceof ToolResultMessage) {
-                // Tool result doesn't change the expected role for the next regular message
-                $expectingUser = false;
-                continue;
-            }
-            if ($message instanceof ToolCallMessage) {
-                // After a tool call, expect a tool result
-                $expectingUser = true;
-                continue;
-            }
-
-            $expectedRole = $expectingUser ? 'user' : 'assistant';
-            $this->assertEquals(
-                $expectedRole,
-                $message->getRole(),
-                "Message at index $index has wrong role. Expected: $expectedRole, Got: {$message->getRole()}"
-            );
-            $expectingUser = !$expectingUser;
-        }
+        // The 400 tokens overflow by 100: the first turn (160 tokens) goes as a whole,
+        // its tool call and result together.
+        $this->assertSame($this->ids(array_slice($messages, 4)), $this->ids($history->getMessages()));
+        $this->assertSame(240, $history->calculateTotalUsage());
     }
 
     public function test_loading_is_deferred_to_first_use(): void
@@ -439,10 +292,45 @@ class ChatHistoryTest extends TestCase
         try {
             $history->getMessages();
             $this->fail('The first load should fail.');
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Connection lost', $exception->getMessage());
         }
 
         $this->assertCount(1, $history->getMessages());
+    }
+
+    public function test_a_failed_write_leaves_the_context_unchanged_and_can_be_replayed(): void
+    {
+        $store = new class () extends InMemoryMessageStore {
+            public bool $failing = false;
+
+            public function append(string $threadId, Message $message): void
+            {
+                if ($this->failing) {
+                    $this->failing = false;
+                    throw new RuntimeException('Connection lost');
+                }
+
+                parent::append($threadId, $message);
+            }
+        };
+        $history = new ChatHistory($store, 'thread');
+        $question = new UserMessage('Hello');
+        $history->addMessage($question);
+        $answer = new AssistantMessage('Hi');
+
+        $store->failing = true;
+        try {
+            $history->addMessage($answer);
+            $this->fail('The write should fail.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertSame([$question], $history->getMessages());
+
+        $history->addMessage($answer);
+        $this->assertSame([$question, $answer], $history->getMessages());
+        $this->assertSame($this->ids([$question, $answer]), $this->ids($store->loadAll('thread')));
     }
 
     public function test_a_message_already_in_the_context_is_skipped(): void
@@ -455,6 +343,20 @@ class ChatHistoryTest extends TestCase
         $history->addMessage($message);
 
         $this->assertCount(1, $history->getMessages());
+        $this->assertCount(1, $store->loadAll('thread'));
+    }
+
+    public function test_a_replayed_message_is_recognized_by_its_identity(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $message = new UserMessage('Hello');
+        $history->addMessage($message);
+
+        // The same message rebuilt from storage is another object with the same identity.
+        $history->addMessage((new UserMessage('Hello'))->setId($message->getId()));
+
+        $this->assertSame([$message], $history->getMessages());
         $this->assertCount(1, $store->loadAll('thread'));
     }
 
@@ -474,20 +376,36 @@ class ChatHistoryTest extends TestCase
         $this->assertCount(10, $store->loadAll('thread'));
     }
 
-    public function test_an_invalid_sequence_is_rejected_before_anything_is_stored(): void
+    public function test_the_store_archives_exactly_what_the_trimmer_dropped(): void
     {
-        $store = new InMemoryMessageStore();
-        $history = new ChatHistory($store, 'thread');
-        $history->addMessage(new UserMessage('Hello'));
+        $trimmer = new class () implements HistoryTrimmerInterface {
+            public ?int $contextWindow = null;
 
-        try {
-            $history->addMessage(new UserMessage('Hello again'));
-            $this->fail('Two consecutive user messages should be rejected.');
-        } catch (ChatHistoryException) {
+            public function getTotalTokens(): int
+            {
+                return 0;
+            }
+
+            public function trim(array $messages, int $contextWindow): array
+            {
+                $this->contextWindow = $contextWindow;
+
+                // Keep the last two messages.
+                return array_slice($messages, -2);
+            }
+        };
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread', 1234, $trimmer);
+        $messages = [new UserMessage('1'), new AssistantMessage('2'), new UserMessage('3'), new AssistantMessage('4')];
+
+        foreach ($messages as $message) {
+            $history->addMessage($message);
         }
 
-        $this->assertCount(1, $store->loadAll('thread'));
-        $this->assertCount(1, $history->getMessages());
+        $this->assertSame(1234, $trimmer->contextWindow);
+        $this->assertSame(array_slice($messages, 2), $history->getMessages());
+        $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($store->loadActive('thread')));
+        $this->assertSame($this->ids($messages), $this->ids($store->loadAll('thread')));
     }
 
     public function test_usage_is_measured_on_a_freshly_loaded_history(): void
@@ -503,6 +421,55 @@ class ChatHistoryTest extends TestCase
         $this->assertSame($writer->calculateTotalUsage(), $reader->calculateTotalUsage());
     }
 
+    public function test_measuring_the_usage_never_trims(): void
+    {
+        // Stored by a history with a larger window: two turns, 1000 tokens.
+        $store = new InMemoryMessageStore();
+        $store->append('thread', new UserMessage('Hello'));
+        $store->append('thread', (new AssistantMessage('Hi'))->setUsage(new Usage(400, 100)));
+        $store->append('thread', new UserMessage('Again'));
+        $store->append('thread', (new AssistantMessage('Hi again'))->setUsage(new Usage(900, 100)));
+        $history = new ChatHistory($store, 'thread', 10);
+
+        $this->assertSame(1000, $history->calculateTotalUsage());
+        $this->assertCount(4, $history->getMessages());
+        $this->assertSame(900, $history->getLastMessage()->getUsage()?->inputTokens);
+        $this->assertCount(4, $store->loadActive('thread'));
+    }
+
+    public function test_an_empty_history_measures_zero(): void
+    {
+        $this->assertSame(0, $this->history()->calculateTotalUsage());
+    }
+
+    public function test_the_last_message_is_the_latest_in_the_context(): void
+    {
+        $history = $this->history();
+        $history->addMessage(new UserMessage('Hello'));
+        $answer = new AssistantMessage('Hi');
+        $history->addMessage($answer);
+
+        $this->assertSame($answer, $history->getLastMessage());
+    }
+
+    public function test_an_empty_history_has_no_last_message(): void
+    {
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage('No messages in the chat history.');
+
+        $this->history()->getLastMessage();
+    }
+
+    public function test_the_history_serializes_as_its_active_messages(): void
+    {
+        $history = $this->history();
+        $question = new UserMessage('Hello');
+        $history->addMessage($question);
+
+        $this->assertSame([$question], $history->jsonSerialize());
+        $this->assertSame(json_encode([$question], JSON_THROW_ON_ERROR), json_encode($history, JSON_THROW_ON_ERROR));
+    }
+
     public function test_flush_all_removes_the_thread_from_the_store(): void
     {
         $store = new InMemoryMessageStore();
@@ -513,6 +480,24 @@ class ChatHistoryTest extends TestCase
 
         $this->assertSame([], $history->getMessages());
         $this->assertSame([], $store->loadAll('thread'));
+    }
+
+    public function test_flush_all_erases_the_archived_messages_too(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread', 100);
+        for ($i = 1; $i <= 6; $i++) {
+            $history->addMessage($i % 2 === 0
+                ? (new AssistantMessage("Answer {$i}"))->setUsage(new Usage(60 * $i, 10))
+                : new UserMessage("Question {$i}"));
+        }
+        $this->assertGreaterThan(count($store->loadActive('thread')), count($store->loadAll('thread')));
+
+        $history->flushAll();
+
+        $this->assertSame([], $store->loadAll('thread'));
+        $history->addMessage(new UserMessage('A fresh start'));
+        $this->assertCount(1, $store->loadAll('thread'));
     }
 
     protected function history(int $contextWindow = 50000): ChatHistory
