@@ -31,8 +31,35 @@ class ToolWasRejectedTest extends TrajectoryAssertionTestCase
         $result = (new ToolWasRejected('refund_order'))->evaluate($this->trajectoryWithTools($tool));
 
         $this->assertFalse($result->passed);
-        $this->assertStringContainsString('no call was rejected', $result->message);
-        $this->assertStringContainsString('approved', $result->message);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame("Tool 'refund_order' was called, but no call was rejected (approval states: approved)", $result->message);
+    }
+
+    public function test_passes_when_any_call_of_the_tool_was_rejected(): void
+    {
+        $approved = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1');
+        $approved->setApprovalState(ApprovalState::Approved);
+        $rejected = $this->makeTool('refund_order', ['order_id' => '2'], 'call_2');
+        $rejected->setApprovalState(ApprovalState::Rejected, 'wrong order');
+
+        $result = (new ToolWasRejected('refund_order'))->evaluate($this->trajectoryWithTools($approved, $rejected));
+
+        $this->assertTrue($result->passed);
+    }
+
+    public function test_lists_the_approval_state_of_every_call(): void
+    {
+        $pending = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1');
+        $pending->setApprovalState(ApprovalState::Pending);
+        $ungated = $this->makeTool('refund_order', ['order_id' => '2'], 'call_2');
+
+        $result = (new ToolWasRejected('refund_order'))->evaluate($this->trajectoryWithTools($pending, $ungated));
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(
+            "Tool 'refund_order' was called, but no call was rejected (approval states: pending, not approval-gated)",
+            $result->message
+        );
     }
 
     public function test_fails_when_tool_was_never_called(): void
@@ -40,6 +67,6 @@ class ToolWasRejectedTest extends TrajectoryAssertionTestCase
         $result = (new ToolWasRejected('refund_order'))->evaluate($this->emptyTrajectory());
 
         $this->assertFalse($result->passed);
-        $this->assertStringContainsString('never called', $result->message);
+        $this->assertSame("Expected tool 'refund_order' to be rejected, but it was never called (no tool was called)", $result->message);
     }
 }

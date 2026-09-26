@@ -105,6 +105,37 @@ class EvaluationReportTest extends TestCase
         $this->assertEqualsWithDelta(2.0, $suite->getDuration(), 0.000001);
     }
 
+    public function test_results_are_merged_in_evaluator_order_and_failures_propagate(): void
+    {
+        $at = new DateTimeImmutable('2026-09-03T10:00:00+00:00');
+        $first = $this->makeResult(StringContainsEvaluator::class, 0);
+        $failed = new EvaluatorResult(ScoreBasedEvaluator::class, 0, false, [], 'output', 0.1, 0, 1);
+        $second = $this->makeResult(ScoreBasedEvaluator::class, 1);
+
+        $passing = new EvaluatorReport(StringContainsEvaluator::class, new EvaluationResults([$first]), $at, $at);
+        $failing = new EvaluatorReport(ScoreBasedEvaluator::class, new EvaluationResults([$failed, $second]), $at, $at);
+
+        $this->assertFalse($passing->hasFailures());
+        $this->assertTrue($failing->hasFailures());
+        $this->assertFalse($failing->hasError());
+        $this->assertFalse((new EvaluationReport([$passing], $at, $at))->hasFailures());
+
+        $suite = new EvaluationReport([$passing, $failing], $at, $at);
+        $this->assertTrue($suite->hasFailures());
+        $this->assertSame([$first, $failed, $second], $suite->getResults()->getResults());
+        $this->assertSame('ScoreBasedEvaluator', $failing->getShortEvaluatorClass());
+    }
+
+    public function test_empty_report_has_no_failures(): void
+    {
+        $at = new DateTimeImmutable('2026-09-03T10:00:00+00:00');
+        $suite = new EvaluationReport([], $at, $at);
+
+        $this->assertFalse($suite->hasFailures());
+        $this->assertSame(0, $suite->getResults()->getTotalCount());
+        $this->assertSame(0.0, $suite->getDuration());
+    }
+
     protected function makeResult(string $evaluatorClass, int $index): EvaluatorResult
     {
         return new EvaluatorResult($evaluatorClass, $index, true, [], 'output', 0.1, 1, 0);

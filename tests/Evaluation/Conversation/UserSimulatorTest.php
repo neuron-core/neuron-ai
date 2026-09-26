@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
@@ -67,13 +68,48 @@ class UserSimulatorTest extends TestCase
         $this->assertNull($message);
     }
 
+    /**
+     * @return iterable<string, array{bool, string|null}>
+     */
+    public static function stopDecisions(): iterable
+    {
+        yield 'stop with a message' => [true, 'One more thing...'];
+        yield 'continue with an empty message' => [false, ''];
+    }
+
+    #[DataProvider('stopDecisions')]
+    public function test_next_turn_ends_the_conversation_unless_a_message_is_to_be_sent(bool $stop, ?string $message): void
+    {
+        $provider = new FakeAIProvider($this->simulatorResponse(stop: $stop, message: $message));
+
+        $this->assertNull($this->makeSimulator($provider)->nextTurn($this->emptyTrajectory()));
+    }
+
+    public function test_first_turn_prompt_is_exact(): void
+    {
+        $provider = new FakeAIProvider($this->simulatorResponse(stop: false, message: 'Hello!'));
+        $simulator = UserSimulator::make()->withGoal('Book a table for two');
+        $simulator->setAiProvider($provider);
+
+        $simulator->nextTurn($this->emptyTrajectory());
+
+        $this->assertSame(
+            "**Your persona:** An everyday user.\n\n"
+            . "**Your goal:** Book a table for two\n\n"
+            . "**The conversation so far:**\n(the conversation has not started yet — you speak first)\n\n"
+            . 'Decide your next move: if your goal has been satisfied, or you have decided to give up, stop'
+            . ' the conversation. Otherwise write your next message to the assistant, staying in character.',
+            $provider->getRecorded()[0]->messages[0]->getContent()
+        );
+    }
+
     public function test_next_turn_without_goal_throws(): void
     {
         $simulator = UserSimulator::make()->withPersona('Anyone');
         $simulator->setAiProvider(new FakeAIProvider());
 
         $this->expectException(EvaluationException::class);
-        $this->expectExceptionMessage('no goal');
+        $this->expectExceptionMessage('The user simulator has no goal. Configure one with withGoal().');
 
         $simulator->nextTurn($this->emptyTrajectory());
     }

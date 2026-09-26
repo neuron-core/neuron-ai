@@ -21,6 +21,7 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function serialize;
 use function unserialize;
 
@@ -283,5 +284,234 @@ class TrajectoryTest extends TestCase
 
         $this->assertStringContainsString('User: Refund this receipt', $transcript);
         $this->assertStringContainsString('[attached: image (image/jpeg), file "invoice.pdf" (application/pdf)]', $transcript);
+    }
+
+    public function test_result_with_an_unknown_call_id_is_ignored(): void
+    {
+        $pending = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1');
+        $pending->setApprovalState(ApprovalState::Pending);
+        $forged = $this->makeTool('refund_order', ['order_id' => '999'], 'call_forged');
+        $forged->setApprovalState(ApprovalState::Approved);
+        $forged->setResult('refunded 999');
+
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage('Refund order 1'),
+            new ToolCallMessage(null, [$pending]),
+            new ToolResultMessage([$forged]),
+        ]);
+
+        $calls = $trajectory->toolCalls();
+        $this->assertCount(1, $calls);
+        $this->assertSame($pending, $calls[0]);
+        $this->assertSame(ApprovalState::Pending, $calls[0]->getApprovalState());
+        $this->assertFalse($calls[0]->hasResult());
+    }
+
+    public function test_result_without_a_preceding_tool_call_adds_no_call(): void
+    {
+        $orphan = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1')->setResult('refunded');
+
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage('Hello'),
+            new ToolResultMessage([$orphan]),
+            new AssistantMessage('Hi.'),
+        ]);
+
+        $this->assertSame([], $trajectory->toolCalls());
+        $this->assertNull($trajectory->lastToolCall());
+    }
+
+    public function test_a_result_only_resolves_calls_of_the_immediately_preceding_round(): void
+    {
+        $first = $this->makeTool('search', ['q' => 'a'], 'call_1');
+        $firstDone = $this->makeTool('search', ['q' => 'a'], 'call_1')->setResult('A');
+        $second = $this->makeTool('search', ['q' => 'b'], 'call_2');
+        // A late duplicate of the first round's result must not rewrite history
+        $replayed = $this->makeTool('search', ['q' => 'a'], 'call_1')->setResult('tampered');
+
+        $trajectory = Trajectory::fromMessages([
+            new ToolCallMessage(null, [$first]),
+            new ToolResultMessage([$firstDone]),
+            new ToolCallMessage(null, [$second]),
+            new ToolResultMessage([$replayed]),
+        ]);
+
+        $calls = $trajectory->toolCalls();
+        $this->assertCount(2, $calls);
+        $this->assertSame('A', $calls[0]->getResult());
+        $this->assertSame($second, $calls[1]);
+        $this->assertFalse($calls[1]->hasResult());
+    }
+
+    public function test_a_duplicated_result_message_does_not_rewrite_a_resolved_call(): void
+    {
+        $call = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1');
+        $resolved = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1')->setResult('refunded');
+        $duplicate = $this->makeTool('refund_order', ['order_id' => '1'], 'call_1')->setResult('tampered');
+
+        $trajectory = Trajectory::fromMessages([
+            new ToolCallMessage(null, [$call]),
+            new ToolResultMessage([$resolved]),
+            new ToolResultMessage([$duplicate]),
+        ]);
+
+        $this->assertSame([$resolved], $trajectory->toolCalls());
+    }
+
+    public function test_calls_without_call_ids_fold_by_tool_name_round_by_round(): void
+    {
+        $first = ToolCall::make('search')->setInputs(['q' => 'a']);
+        $firstDone = ToolCall::make('search')->setInputs(['q' => 'a'])->setResult('A');
+        $second = ToolCall::make('search')->setInputs(['q' => 'b']);
+        $secondDone = ToolCall::make('search')->setInputs(['q' => 'b'])->setResult('B');
+
+        $trajectory = Trajectory::fromMessages([
+            new ToolCallMessage(null, [$first]),
+            new ToolResultMessage([$firstDone]),
+            new ToolCallMessage(null, [$second]),
+            new ToolResultMessage([$secondDone]),
+        ]);
+
+        $this->assertSame(['A', 'B'], array_map(
+            static fn (ToolCall $call): mixed => $call->getResult(),
+            $trajectory->toolCalls()
+        ));
+    }
+
+    public function test_user_messages_exclude_tool_results_and_empty_contents(): void
+    {
+        $tool = $this->makeTool('search', ['q' => 'x'], 'call_1')->setResult('found');
+
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage('First'),
+            new ToolCallMessage(null, [$tool]),
+            // Tool results travel in user-role messages: text they carry is not a user turn
+            (new ToolResultMessage([$tool]))->addContent(new TextContent('found')),
+            new UserMessage(''),
+            new UserMessage('Second'),
+        ]);
+
+        $this->assertSame(['First', 'Second'], $trajectory->userMessages());
+    }
+
+    public function test_final_answer_skips_trailing_empty_assistant_messages(): void
+    {
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage('Hi'),
+            new AssistantMessage('Hello!'),
+            new AssistantMessage(''),
+        ]);
+
+        $this->assertSame('Hello!', $trajectory->finalAnswer());
+    }
+
+    public function test_messages_are_reindexed_as_a_list(): void
+    {
+        $user = new UserMessage('Hi');
+        $assistant = new AssistantMessage('Hello');
+
+        $trajectory = Trajectory::fromMessages([5 => $user, 9 => $assistant]);
+
+        $this->assertSame([$user, $assistant], $trajectory->messages());
+    }
+
+    public function test_empty_trajectory(): void
+    {
+        $trajectory = Trajectory::fromMessages([]);
+
+        $this->assertSame(0, $trajectory->count());
+        $this->assertSame([], $trajectory->toolCalls());
+        $this->assertSame([], $trajectory->userMessages());
+        $this->assertSame('', $trajectory->finalAnswer());
+        $this->assertSame('', $trajectory->toTranscript());
+        $this->assertSame(0, $trajectory->usage()->getTotal());
+    }
+
+    public function test_usage_sums_every_token_counter_and_skips_messages_without_usage(): void
+    {
+        $first = new AssistantMessage('Hi!');
+        $first->setUsage(new Usage(100, 20, cachedInputTokens: 40, reasoningTokens: 5));
+        $second = new AssistantMessage('Paris.');
+        $second->setUsage(new Usage(150, 30, cachedInputTokens: 60, reasoningTokens: 7));
+
+        $usage = Trajectory::fromMessages([new UserMessage('Hello'), $first, new UserMessage('Capital?'), $second])->usage();
+
+        $this->assertSame(250, $usage->inputTokens);
+        $this->assertSame(50, $usage->outputTokens);
+        $this->assertSame(100, $usage->cachedInputTokens);
+        $this->assertSame(12, $usage->reasoningTokens);
+    }
+
+    public function test_usage_does_not_mutate_the_messages_usage(): void
+    {
+        $answer = new AssistantMessage('Hi!');
+        $answer->setUsage(new Usage(10, 5));
+        $trajectory = Trajectory::fromMessages([$answer]);
+
+        $trajectory->usage();
+        $trajectory->usage();
+
+        $this->assertSame(10, $answer->getUsage()?->inputTokens);
+        $this->assertSame(10, $trajectory->usage()->inputTokens);
+    }
+
+    public function test_transcript_is_exact(): void
+    {
+        $approved = $this->makeTool('search', ['q' => 'refund policy'], 'call_1');
+        $approved->setApprovalState(ApprovalState::Approved);
+        $approved->setResult('30 days');
+        $plain = $this->makeTool('lookup_order', ['id' => '123'], 'call_2')->setResult('delivered');
+        $rejected = $this->makeTool('refund_order', ['id' => '123'], 'call_3');
+        $rejected->setApprovalState(ApprovalState::Rejected);
+
+        $trajectory = Trajectory::fromMessages([
+            new SystemMessage('Hidden instructions'),
+            new UserMessage('Can I get a refund?'),
+            new ToolCallMessage(null, [$approved, $plain]),
+            new ToolResultMessage([$approved, $plain]),
+            new ToolCallMessage('Refunding now.', [$rejected]),
+            new ToolResultMessage([$rejected]),
+            new AssistantMessage('The refund was declined.'),
+        ]);
+
+        $this->assertSame(
+            "User: Can I get a refund?\n"
+            . "Tool call: search({\"q\":\"refund policy\"}) [approved]\n"
+            . "Tool result (search): 30 days\n"
+            . "Tool call: lookup_order({\"id\":\"123\"})\n"
+            . "Tool result (lookup_order): delivered\n"
+            . "Assistant: Refunding now.\n"
+            . "Tool call: refund_order({\"id\":\"123\"}) [rejected]\n"
+            . 'Assistant: The refund was declined.',
+            $trajectory->toTranscript()
+        );
+    }
+
+    public function test_serialization_round_trip_preserves_the_transcript_and_usage(): void
+    {
+        $tool = $this->makeTool('refund_order', ['order_id' => '123'], 'call_9');
+        $tool->setApprovalReason('Refunds move money');
+        $tool->setApprovalState(ApprovalState::Approved);
+        $tool->setResult('refunded');
+        $answer = new AssistantMessage('Refunded — ünïcödé ✓');
+        $answer->setUsage(new Usage(12, 34));
+
+        $trajectory = Trajectory::fromMessages([
+            new UserMessage([
+                new TextContent('Refund this receipt'),
+                new ImageContent('https://example.com/receipt.jpg', SourceType::URL, 'image/jpeg'),
+            ]),
+            new ToolCallMessage(null, [$tool]),
+            new ToolResultMessage([$tool]),
+            $answer,
+        ]);
+
+        $restored = unserialize(serialize($trajectory));
+
+        $this->assertInstanceOf(Trajectory::class, $restored);
+        $this->assertSame($trajectory->toTranscript(), $restored->toTranscript());
+        $this->assertSame(12, $restored->usage()->inputTokens);
+        $this->assertSame(34, $restored->usage()->outputTokens);
+        $this->assertSame(['Refund this receipt'], $restored->userMessages());
     }
 }

@@ -9,6 +9,8 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 use InvalidArgumentException;
 
+use function json_decode;
+
 class IsValidJsonTest extends TestCase
 {
     public function test_passes_with_valid_json_object(): void
@@ -100,7 +102,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_unquoted_keys(): void
@@ -110,7 +112,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_single_quotes(): void
@@ -120,7 +122,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_missing_quotes(): void
@@ -130,7 +132,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_plain_text(): void
@@ -140,7 +142,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_empty_string(): void
@@ -150,7 +152,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_non_string_input(): void
@@ -192,7 +194,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_fails_with_unclosed_array(): void
@@ -202,7 +204,7 @@ class IsValidJsonTest extends TestCase
 
         $this->assertFalse($result->passed);
         $this->assertEquals(0.0, $result->score);
-        $this->assertStringContainsString('Expected valid JSON response:', $result->message);
+        $this->assertSame('Expected valid JSON response: Syntax error', $result->message);
     }
 
     public function test_passes_with_unicode_characters(): void
@@ -230,6 +232,22 @@ class IsValidJsonTest extends TestCase
 
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
+    }
+
+    public function test_fails_with_invalid_utf8(): void
+    {
+        $result = (new IsValidJson())->evaluate("{\"name\": \"\xC3\x28\"}");
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame('Expected valid JSON response: Malformed UTF-8 characters, possibly incorrectly encoded', $result->message);
+    }
+
+    public function test_a_previous_json_error_does_not_leak_into_the_verdict(): void
+    {
+        json_decode('{broken');
+
+        $this->assertTrue((new IsValidJson())->evaluate('{"ok": true}')->passed);
     }
 
     public function test_get_name(): void

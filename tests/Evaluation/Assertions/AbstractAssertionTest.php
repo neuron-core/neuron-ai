@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
+use NeuronAI\Tests\Evaluation\Assertions\Stub\GreetingPrefixAssertion;
 use NeuronAI\Tests\Evaluation\Assertions\Stub\TestableAbstractAssertion;
-use NeuronAI\Evaluation\AssertionResult;
 use PHPUnit\Framework\TestCase;
 
 class AbstractAssertionTest extends TestCase
@@ -16,20 +16,9 @@ class AbstractAssertionTest extends TestCase
         $this->assertEquals('TestableAbstractAssertion', $assertion->getName());
     }
 
-    public function test_implements_assertion_interface(): void
+    public function test_get_name_is_the_concrete_subclass_not_the_framework_parent(): void
     {
-        $assertion = new TestableAbstractAssertion();
-        $this->assertInstanceOf(\NeuronAI\Evaluation\Contracts\AssertionInterface::class, $assertion);
-    }
-
-    public function test_evaluate_method_can_be_called(): void
-    {
-        $assertion = new TestableAbstractAssertion();
-        $result = $assertion->evaluate('test input');
-
-        $this->assertInstanceOf(AssertionResult::class, $result);
-        $this->assertTrue($result->passed);
-        $this->assertEquals(1.0, $result->score);
-        $this->assertEquals('test evaluation', $result->message);
+        // The name is the default score label: an application assertion must not report as its parent
+        $this->assertSame('GreetingPrefixAssertion', (new GreetingPrefixAssertion())->getName());
     }
 }

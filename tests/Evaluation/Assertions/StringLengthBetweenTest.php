@@ -129,13 +129,23 @@ class StringLengthBetweenTest extends TestCase
         $assertion->evaluate(new stdClass());
     }
 
-    public function test_passes_with_unicode_characters(): void
+    public function test_counts_multibyte_characters_not_bytes(): void
     {
-        $assertion = new StringLengthBetween(5, 15);
+        // 10 characters, 12 bytes
+        $assertion = new StringLengthBetween(10, 10);
         $result = $assertion->evaluate('café naïve');
 
         $this->assertTrue($result->passed);
         $this->assertEquals(1.0, $result->score);
+    }
+
+    public function test_failure_reports_the_character_length(): void
+    {
+        $assertion = new StringLengthBetween(1, 3);
+        $result = $assertion->evaluate('ÉÉÉÉ');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame('Expected string length to be between 1 and 3, got 4', $result->message);
     }
 
     public function test_passes_with_special_characters(): void
@@ -176,7 +186,8 @@ class StringLengthBetweenTest extends TestCase
 
     public function test_counts_emoji_correctly(): void
     {
-        $assertion = new StringLengthBetween(8, 12);
+        // 8 characters, 11 bytes
+        $assertion = new StringLengthBetween(8, 8);
         $result = $assertion->evaluate('hello 🌍!');
 
         $this->assertTrue($result->passed);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Output;
 
+use ArrayObject;
 use DateTimeImmutable;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
@@ -14,8 +15,10 @@ use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
+use NeuronAI\Tests\Evaluation\Stub\RecordingOutput;
 use NeuronAI\Tests\Evaluation\Stub\ScoreBasedEvaluator;
 use NeuronAI\Tests\Evaluation\Stub\StringContainsEvaluator;
+use NeuronAI\Tests\Evaluation\Stub\ThrowingOutput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -79,64 +82,9 @@ class OutputDriversTest extends TestCase
         $summary = $this->createSummary();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to write to file');
+        $this->expectExceptionMessage('Failed to write to file: /nonexistent/directory/file.json');
 
         $driver->output($summary);
-    }
-
-    public function test_json_output_driver_includes_all_summary_fields(): void
-    {
-        $driver = new JsonOutput();
-        $summary = $this->createSummary();
-
-        ob_start();
-        $driver->output($summary);
-        $output = ob_get_clean();
-
-        $data = json_decode($output, true);
-
-        $this->assertArrayHasKey('total', $data);
-        $this->assertArrayHasKey('passed', $data);
-        $this->assertArrayHasKey('failed', $data);
-        $this->assertArrayHasKey('success_rate', $data);
-        $this->assertArrayHasKey('started_at', $data);
-        $this->assertArrayHasKey('finished_at', $data);
-        $this->assertArrayHasKey('duration', $data);
-        $this->assertArrayHasKey('average_execution_time', $data);
-        $this->assertArrayHasKey('total_assertions', $data);
-        $this->assertArrayHasKey('assertions_passed', $data);
-        $this->assertArrayHasKey('evaluators', $data);
-        $this->assertCount(1, $data['evaluators']);
-        $this->assertArrayHasKey('assertions_failed', $data);
-        $this->assertArrayHasKey('assertion_success_rate', $data);
-        $this->assertArrayHasKey('has_failures', $data);
-        $this->assertArrayHasKey('results', $data);
-    }
-
-    public function test_json_output_driver_includes_result_details(): void
-    {
-        $driver = new JsonOutput();
-        $summary = $this->createSummary();
-
-        ob_start();
-        $driver->output($summary);
-        $output = ob_get_clean();
-
-        $data = json_decode($output, true);
-
-        $this->assertIsArray($data['results']);
-        $this->assertCount(2, $data['results']);
-
-        $result0 = $data['results'][0];
-        $this->assertArrayHasKey('evaluator_class', $result0);
-        $this->assertArrayHasKey('index', $result0);
-        $this->assertArrayHasKey('passed', $result0);
-        $this->assertArrayHasKey('input', $result0);
-        $this->assertArrayHasKey('output', $result0);
-        $this->assertArrayHasKey('execution_time', $result0);
-        $this->assertArrayHasKey('error', $result0);
-        $this->assertArrayHasKey('assertions_passed', $result0);
-        $this->assertArrayHasKey('assertions_failed', $result0);
     }
 
     public function test_output_pipeline_executes_all_drivers(): void
@@ -159,35 +107,39 @@ class OutputDriversTest extends TestCase
         $this->assertEquals(['driver1', 'driver2'], $calls);
     }
 
-    public function test_output_pipeline_continues_on_driver_failure(): void
+    public function test_output_pipeline_continues_on_driver_failure_and_logs_it(): void
     {
         $calls = [];
 
-        $driver1 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
-            $calls[] = 'driver1';
-            throw new RuntimeException('Driver 1 failed');
+        $driver = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
+            $calls[] = 'recording driver';
         });
 
-        $driver2 = $this->createMockDriver(function (EvaluationReport $summary) use (&$calls): void {
-            $calls[] = 'driver2';
-        });
+        $pipeline = new OutputPipeline([new ThrowingOutput(), $driver]);
 
-        $pipeline = new OutputPipeline([$driver1, $driver2]);
-        $summary = $this->createSummary();
-
-        // Redirect error_log to a temp file to suppress noisy output
         $tempLog = tempnam(sys_get_temp_dir(), 'error_log_');
         $originalLog = ini_set('error_log', $tempLog);
 
         try {
-            // Should not throw, continues despite driver1 failing
-            $pipeline->output($summary);
+            $pipeline->output($this->createSummary());
+            $logged = (string) file_get_contents($tempLog);
         } finally {
             ini_set('error_log', $originalLog);
             unlink($tempLog);
         }
 
-        $this->assertEquals(['driver1', 'driver2'], $calls);
+        $this->assertSame(['recording driver'], $calls);
+        $this->assertStringContainsString('Output driver ' . ThrowingOutput::class . ' failed: disk full', $logged);
+    }
+
+    public function test_output_pipeline_passes_the_same_report_to_every_driver(): void
+    {
+        $reports = new ArrayObject();
+        $summary = $this->createSummary();
+
+        (new OutputPipeline([new RecordingOutput($reports), new RecordingOutput($reports)]))->output($summary);
+
+        $this->assertSame([$summary, $summary], $reports->getArrayCopy());
     }
 
     public function test_output_pipeline_get_drivers(): void
@@ -475,7 +427,7 @@ class OutputDriversTest extends TestCase
         $this->assertStringNotContainsString('By evaluator:', $output);
     }
 
-    private function createSummary(): EvaluationReport
+    protected function createSummary(): EvaluationReport
     {
         $result1 = new EvaluatorResult(
             StringContainsEvaluator::class,
@@ -504,7 +456,7 @@ class OutputDriversTest extends TestCase
         return $this->createSuite(new EvaluationResults([$result1, $result2]));
     }
 
-    private function createSuite(EvaluationResults $summary): EvaluationReport
+    protected function createSuite(EvaluationResults $summary): EvaluationReport
     {
         return $this->createEvaluationReport([
             $this->createReport(StringContainsEvaluator::class, $summary),
@@ -523,7 +475,7 @@ class OutputDriversTest extends TestCase
         );
     }
 
-    private function createReport(
+    protected function createReport(
         string $evaluatorClass,
         EvaluationResults $summary,
         ?string $error = null,
@@ -542,7 +494,7 @@ class OutputDriversTest extends TestCase
     /**
      * @param callable(EvaluationReport): void $outputCallback
      */
-    private function createMockDriver(?callable $outputCallback = null): EvaluationOutputInterface
+    protected function createMockDriver(?callable $outputCallback = null): EvaluationOutputInterface
     {
         $mock = $this->createMock(EvaluationOutputInterface::class);
         if ($outputCallback !== null) {

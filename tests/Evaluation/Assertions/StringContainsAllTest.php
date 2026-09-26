@@ -91,16 +91,7 @@ class StringContainsAllTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
-    public function test_handles_non_string_keywords(): void
-    {
-        $assertion = new StringContainsAll(['hello', 'world']);
-        $result = $assertion->evaluate('hello world');
-
-        $this->assertTrue($result->passed);
-        $this->assertEquals(1.0, $result->score);
-    }
-
-    public function test_fails_when_non_string_keywords_are_expected(): void
+    public function test_failure_lists_only_the_missing_keywords(): void
     {
         $assertion = new StringContainsAll(['hello', 'missing']);
         $result = $assertion->evaluate('hello world');

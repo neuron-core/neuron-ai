@@ -29,7 +29,7 @@ class StringDistanceTest extends TestCase
         $result = $assertion->evaluate('hello word');
 
         $this->assertTrue($result->passed);
-        $this->assertGreaterThan(0.5, $result->score);
+        $this->assertEqualsWithDelta(0.9, $result->score, 1e-9); // distance 1 of 10
     }
 
     public function test_passes_within_max_distance(): void
@@ -47,9 +47,67 @@ class StringDistanceTest extends TestCase
         $result = $assertion->evaluate('goodbye world');
 
         $this->assertFalse($result->passed);
-        $this->assertLessThan(0.8, $result->score);
-        $this->assertStringContainsString("Expected 'goodbye world' to be similar to 'hello world'", $result->message);
-        $this->assertStringContainsString('threshold: 0.8', $result->message);
+        $this->assertEqualsWithDelta(0.3, $result->score, 1e-9); // distance 7 of 10
+        $this->assertSame(
+            "Expected 'goodbye world' to be similar to 'hello world' (distance: 7, threshold: 0.8, max_accepted: 10)",
+            $result->message
+        );
+    }
+
+    public function test_passes_when_score_equals_threshold(): void
+    {
+        $result = (new StringDistance('hello', 0.8, 5))->evaluate('helo');
+
+        $this->assertTrue($result->passed);
+        $this->assertEqualsWithDelta(0.8, $result->score, 1e-9);
+    }
+
+    public function test_distance_equal_to_max_distance_scores_zero(): void
+    {
+        $result = (new StringDistance('abc', 0.5, 3))->evaluate('xyz');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame(
+            "Expected 'xyz' to be similar to 'abc' (distance: 3, threshold: 0.5, max_accepted: 3)",
+            $result->message
+        );
+    }
+
+    public function test_zero_threshold_accepts_any_distance_within_max(): void
+    {
+        $result = (new StringDistance('abc', 0.0, 3))->evaluate('xyz');
+
+        $this->assertTrue($result->passed);
+        $this->assertSame(0.0, $result->score);
+    }
+
+    public function test_distance_one_beyond_max_distance_fails_regardless_of_threshold(): void
+    {
+        $result = (new StringDistance('abcd', 0.0, 3))->evaluate('wxyz');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame("Expected 'wxyz' to be similar to 'abcd' (distance: 4, max_accepted: 3)", $result->message);
+    }
+
+    public function test_comparison_is_symmetric(): void
+    {
+        $forward = (new StringDistance('kitten', 0.5, 10))->evaluate('sitting');
+        $backward = (new StringDistance('sitting', 0.5, 10))->evaluate('kitten');
+
+        $this->assertEqualsWithDelta(0.7, $forward->score, 1e-9); // distance 3 of 10
+        $this->assertSame($forward->score, $backward->score);
+    }
+
+    public function test_default_threshold_and_max_distance(): void
+    {
+        $withinDefaults = (new StringDistance(str_repeat('a', 25)))->evaluate(str_repeat('b', 25));
+        $beyondHalf = (new StringDistance(str_repeat('a', 26)))->evaluate(str_repeat('b', 26));
+
+        $this->assertTrue($withinDefaults->passed); // 1 - 25/50 = 0.5, exactly the default threshold
+        $this->assertFalse($beyondHalf->passed);
+        $this->assertEqualsWithDelta(0.48, $beyondHalf->score, 1e-9);
     }
 
     public function test_fails_when_distance_exceeds_maximum(): void
@@ -157,7 +215,7 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(0.9, $result->score); // distance = 1, score = 1 - (1/10) = 0.9
     }
 
-    public function test_with_zero_max_distance(): void
+    public function test_identical_strings_score_one_with_the_smallest_max_distance(): void
     {
         $assertion = new StringDistance('hello', 0.5, 1);
         $result = $assertion->evaluate('hello');

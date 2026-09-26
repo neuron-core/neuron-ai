@@ -81,7 +81,7 @@ class StringContainsAnyTest extends TestCase
         $assertion->evaluate(null);
     }
 
-    public function test_passes_with_empty_keywords_array(): void
+    public function test_fails_with_empty_keywords_array(): void
     {
         $assertion = new StringContainsAny([]);
         $result = $assertion->evaluate('any string');

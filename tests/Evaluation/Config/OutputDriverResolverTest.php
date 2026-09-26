@@ -6,9 +6,11 @@ namespace NeuronAI\Tests\Evaluation\Config;
 
 use ArrayObject;
 use NeuronAI\Evaluation\Config\EvaluationOutputResolver;
+use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronAI\Evaluation\Output\JsonOutput;
 use NeuronAI\Tests\Evaluation\Stub\RecordingOutput;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -95,12 +97,70 @@ class OutputDriverResolverTest extends TestCase
     public function test_class_strings_are_built_by_the_resolver(): void
     {
         $reports = new ArrayObject();
-        $resolver = new EvaluationOutputResolver(static fn (string $class): object => new $class($reports));
+        $requested = [];
+        $built = new RecordingOutput($reports);
+        $resolver = new EvaluationOutputResolver(static function (string $class) use (&$requested, $built): object {
+            $requested[] = $class;
+            return $built;
+        });
 
         $drivers = $resolver->resolve([RecordingOutput::class]);
 
-        $this->assertCount(1, $drivers);
-        $this->assertInstanceOf(RecordingOutput::class, $drivers[0]);
+        $this->assertSame([RecordingOutput::class], $requested);
+        $this->assertSame([$built], $drivers);
+    }
+
+    public function test_instances_are_not_passed_to_the_resolver(): void
+    {
+        $instance = new JsonOutput('/tmp/test.json');
+        $resolver = new EvaluationOutputResolver(function (string $class): object {
+            $this->fail("The resolver must not be asked to build {$class}");
+        });
+
+        $this->assertSame([$instance], $resolver->resolve([$instance]));
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function rejectedClassStrings(): iterable
+    {
+        yield 'unknown class' => ['App\\MissingOutput', "Driver class 'App\\MissingOutput' not found"];
+        yield 'class not implementing the interface' => [ArrayObject::class, "Driver 'ArrayObject' must implement EvaluationOutputInterface"];
+        yield 'the interface itself' => [EvaluationOutputInterface::class, "Driver class '" . EvaluationOutputInterface::class . "' not found"];
+        yield 'function name' => ['phpinfo', "Driver class 'phpinfo' not found"];
+    }
+
+    #[DataProvider('rejectedClassStrings')]
+    public function test_rejected_class_strings_never_reach_the_resolver(string $driver, string $message): void
+    {
+        $resolver = new EvaluationOutputResolver(function (string $class): object {
+            $this->fail("The resolver must not be asked to build {$class}");
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage($message);
+
+        $resolver->resolve([$driver]);
+    }
+
+    public function test_an_invalid_entry_stops_resolution_before_later_drivers_are_built(): void
+    {
+        $built = [];
+        $resolver = new EvaluationOutputResolver(static function (string $class) use (&$built): object {
+            $built[] = $class;
+            return new $class();
+        });
+
+        try {
+            $resolver->resolve([ConsoleOutput::class, 'App\\MissingOutput', JsonOutput::class]);
+            $this->fail('An unknown driver class must be rejected');
+        } catch (RuntimeException $exception) {
+            // PHPUnit's own failure is a RuntimeException too: the message tells them apart
+            $this->assertSame("Driver class 'App\\MissingOutput' not found", $exception->getMessage());
+        }
+
+        $this->assertSame([ConsoleOutput::class], $built);
     }
 
     protected function instantiatingResolver(): EvaluationOutputResolver

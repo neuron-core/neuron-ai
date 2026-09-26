@@ -17,7 +17,7 @@ use function array_fill;
 class StringSimilarityTest extends TestCase
 {
     /** @var MockObject&EmbeddingsProviderInterface */
-    private MockObject $embeddingsProvider;
+    protected MockObject $embeddingsProvider;
 
     protected function setUp(): void
     {
@@ -197,6 +197,52 @@ class StringSimilarityTest extends TestCase
 
         $this->assertTrue($result->passed);
         $this->assertGreaterThan(0.7, $result->score);
+    }
+
+    public function test_passes_when_similarity_equals_threshold(): void
+    {
+        $this->embeddingsProvider
+            ->method('embedText')
+            ->willReturnMap([
+                ['reference', [1.0, 0.0]],
+                ['actual', [3.0, 4.0]],
+            ]);
+
+        $result = (new StringSimilarity('reference', $this->embeddingsProvider, 0.6))->evaluate('actual');
+
+        $this->assertTrue($result->passed);
+        $this->assertSame(0.6, $result->score);
+    }
+
+    public function test_zero_vector_embedding_scores_zero_and_fails(): void
+    {
+        $this->embeddingsProvider
+            ->method('embedText')
+            ->willReturnMap([
+                ['reference', [1.0, 0.0]],
+                ['', [0.0, 0.0]],
+            ]);
+
+        $result = (new StringSimilarity('reference', $this->embeddingsProvider, 0.1))->evaluate('');
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame("Expected '' to be similar to 'reference' (threshold: '0.1')", $result->message);
+    }
+
+    public function test_embeddings_of_different_dimensions_are_an_error(): void
+    {
+        $this->embeddingsProvider
+            ->method('embedText')
+            ->willReturnMap([
+                ['reference', [1.0, 0.0, 0.0]],
+                ['actual', [1.0, 0.0]],
+            ]);
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Vectors must have the same length to apply cosine similarity.');
+
+        (new StringSimilarity('reference', $this->embeddingsProvider))->evaluate('actual');
     }
 
     public function test_get_name(): void

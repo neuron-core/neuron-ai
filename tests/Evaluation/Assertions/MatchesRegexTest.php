@@ -178,4 +178,21 @@ class MatchesRegexTest extends TestCase
         $assertion = new MatchesRegex('/test/');
         $this->assertEquals('MatchesRegex', $assertion->getName());
     }
+
+    public function test_a_regex_engine_failure_is_never_a_passing_verdict(): void
+    {
+        // Catastrophic backtracking exhausts pcre.backtrack_limit: preg_match() returns false, not 1
+        $assertion = new MatchesRegex('/(?:\\D+|<\\d+>)*[!?]/');
+
+        try {
+            $result = $assertion->evaluate('foobar foobar foobar foobar foobar foobar foobar foobar');
+        } catch (InvalidArgumentException) {
+            // Reporting the engine failure as a coding error is acceptable too
+            $this->addToAssertionCount(1);
+            return;
+        }
+
+        $this->assertFalse($result->passed);
+        $this->assertSame(0.0, $result->score);
+    }
 }
