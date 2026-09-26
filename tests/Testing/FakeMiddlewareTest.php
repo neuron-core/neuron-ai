@@ -15,6 +15,7 @@ use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -116,7 +117,80 @@ class FakeMiddlewareTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function test_call_assertions_fail(): void
+    public function test_throw_on_after_runs_after_recording_and_handler(): void
+    {
+        $exception = new RuntimeException('after failed');
+        $state = new WorkflowState();
+        $middleware = FakeMiddleware::make()
+            ->setAfterHandler(function (NodeInterface $node, Event $result, WorkflowState $state): void {
+                $state->set('handled', true);
+            })
+            ->setThrowOnAfter($exception);
+
+        try {
+            $middleware->after(new NodeOne(), new FirstEvent('done'), $state, new WorkflowResources());
+            $this->fail('Expected the configured exception.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertTrue($state->get('handled'));
+        $middleware->assertAfterCalledTimes(1);
+        $middleware->assertBeforeNotCalled();
+    }
+
+    /**
+     * Recorded calls: before(NodeOne), after(NodeOne). Every assertion below
+     * contradicts them and must fail with its own message.
+     *
+     * @return iterable<string, array{string, array<mixed>, string}>
+     */
+    public static function unmetExpectations(): iterable
+    {
+        yield 'not called' => ['assertNotCalled', [], 'Expected middleware not to be called, but it was called 2 time(s).'];
+        yield 'before not called' => ['assertBeforeNotCalled', [], 'Expected before() not to be called, but it was called 1 time(s).'];
+        yield 'after not called' => ['assertAfterNotCalled', [], 'Expected after() not to be called, but it was called 1 time(s).'];
+        yield 'before times' => ['assertBeforeCalledTimes', [2], 'Expected before() to be called 2 time(s), but it was called 1 time(s).'];
+        yield 'after times' => ['assertAfterCalledTimes', [0], 'Expected after() to be called 0 time(s), but it was called 1 time(s).'];
+        yield 'call count' => ['assertCallCount', [1], 'Expected 1 total middleware calls, got 2.'];
+        yield 'before for node' => ['assertBeforeCalledForNode', [NodeTwo::class], 'Expected before() to be called for node ' . NodeTwo::class . ', but it was not.'];
+        yield 'after for node' => ['assertAfterCalledForNode', [NodeTwo::class], 'Expected after() to be called for node ' . NodeTwo::class . ', but it was not.'];
+    }
+
+    /**
+     * @param array<mixed> $arguments
+     */
+    #[DataProvider('unmetExpectations')]
+    public function test_call_assertions_fail_when_unmet(string $assertion, array $arguments, string $message): void
+    {
+        $middleware = new FakeMiddleware();
+        $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState(), new WorkflowResources());
+        $middleware->after(new NodeOne(), new FirstEvent('done'), new WorkflowState(), new WorkflowResources());
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage($message);
+
+        $middleware->{$assertion}(...$arguments);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function callExpectations(): iterable
+    {
+        yield 'before' => ['assertBeforeCalled'];
+        yield 'after' => ['assertAfterCalled'];
+    }
+
+    #[DataProvider('callExpectations')]
+    public function test_call_assertions_fail_when_never_called(string $assertion): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        (new FakeMiddleware())->{$assertion}();
+    }
+
+    public function test_node_assertions_distinguish_before_from_after(): void
     {
         $middleware = new FakeMiddleware();
         $middleware->before(new NodeOne(), new StartEvent(), new WorkflowState(), new WorkflowResources());

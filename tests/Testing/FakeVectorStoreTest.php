@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Testing;
 
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
@@ -32,13 +33,61 @@ class FakeVectorStoreTest extends TestCase
     public function test_add_documents(): void
     {
         $store = new FakeVectorStore();
+        $existing = $this->embedded('Existing');
+        $first = $this->embedded('First');
+        $second = $this->embedded('Second');
 
-        $store->addDocuments([
-            $this->embedded('First'),
-            $this->embedded('Second'),
-        ]);
+        $store->addDocument($existing);
+        $store->addDocuments([$first, $second]);
 
-        $this->assertCount(2, $store->getDocuments());
+        $this->assertSame([$existing, $first, $second], $store->getDocuments());
+    }
+
+    public function test_add_documents_stores_nothing_when_one_is_invalid(): void
+    {
+        $store = new FakeVectorStore();
+
+        try {
+            $store->addDocuments([$this->embedded('Valid'), new Document('Not embedded')]);
+            $this->fail('Expected the batch to be rejected.');
+        } catch (VectorStoreException $exception) {
+            $this->assertStringContainsString('must have an embedding', $exception->getMessage());
+        }
+
+        $store->assertNothingStored();
+        $this->assertSame([], $store->getRecorded());
+    }
+
+    public function test_filters_on_undeclared_fields_are_rejected_like_a_real_store(): void
+    {
+        $store = new FakeVectorStore();
+        $store->addDocument($this->embedded('Keep'));
+
+        foreach ([
+            fn (): mixed => $store->search(new SearchRequest([0.1], Filter::eq('tenant', 'acme'))),
+            fn (): mixed => $store->delete(Filter::eq('tenant', 'acme')),
+        ] as $operation) {
+            try {
+                $operation();
+                $this->fail('Expected the undeclared filter field to be rejected.');
+            } catch (DocumentSchemaException $exception) {
+                $this->assertSame('Filter field "tenant" is not declared in the vector store document schema.', $exception->getMessage());
+            }
+        }
+
+        $store->assertDocumentCount(1);
+        $this->assertSame(['addDocument'], array_map(fn (VectorStoreRecord $record): string => $record->method, $store->getRecorded()));
+    }
+
+    public function test_delete_without_matches_keeps_every_document(): void
+    {
+        $store = new FakeVectorStore();
+        $document = $this->embedded('Keep')->setSourceType('file');
+        $store->addDocument($document);
+
+        $store->delete(Filter::eq('sourceType', 'web'));
+
+        $this->assertSame([$document], $store->getDocuments());
     }
 
     public function test_add_document_requires_an_embedding(): void
@@ -186,6 +235,52 @@ class FakeVectorStoreTest extends TestCase
 
         $store->assertSearchedWithFilters($filters);
         $this->addToAssertionCount(1);
+    }
+
+    public function test_assert_search_count_ignores_other_operations(): void
+    {
+        $store = new FakeVectorStore();
+        $store->addDocument($this->embedded('A'));
+        $store->delete(Filter::eq('sourceType', 'file'));
+        $store->search(new SearchRequest([0.1]));
+
+        $store->assertSearchCount(1);
+    }
+
+    public function test_assert_searched_with_filters_fails_for_other_filters(): void
+    {
+        $store = new FakeVectorStore();
+        $store->search(new SearchRequest([0.1]));
+        $store->search(new SearchRequest([0.1], Filter::eq('sourceType', 'web')));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('The vector store was not searched with the expected filters.');
+
+        $store->assertSearchedWithFilters(Filter::eq('sourceType', 'file'));
+    }
+
+    public function test_a_filtered_search_does_not_count_as_a_deletion(): void
+    {
+        $store = new FakeVectorStore();
+        $filters = Filter::eq('sourceType', 'file');
+        $store->search(new SearchRequest([0.1], $filters));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('The vector store was not deleted with the expected filters.');
+
+        $store->assertDeletedWithFilters($filters);
+    }
+
+    public function test_a_filtered_deletion_does_not_count_as_a_search(): void
+    {
+        $store = new FakeVectorStore();
+        $filters = Filter::eq('sourceType', 'file');
+        $store->delete($filters);
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('The vector store was not searched with the expected filters.');
+
+        $store->assertSearchedWithFilters($filters);
     }
 
     public function test_assert_deleted_with_filters(): void

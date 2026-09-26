@@ -7,6 +7,10 @@ namespace NeuronAI\Tests\Observability;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Observability\InferenceStart;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpMethod;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Observability\LogListener;
 use NeuronAI\Observability\LogObserver;
 use NeuronAI\Observability\ObservabilityEvent;
@@ -19,16 +23,23 @@ use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowError;
 use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
+use Psr\Log\LogLevel;
+use stdClass;
 use Stringable;
 
 use function array_column;
+use function array_unique;
+use function array_values;
+use function json_encode;
 
 class LogListenerTest extends TestCase
 {
@@ -57,19 +68,28 @@ class LogListenerTest extends TestCase
             ->subscribe(ObservabilityEvent::class, new LogListener($logger))
             ->run();
 
-        $messages = array_column($logger->records, 'message');
-        $this->assertContains('workflow-start', $messages);
-        $this->assertContains('workflow-node-start', $messages);
-        $this->assertContains('workflow-end', $messages);
+        $this->assertSame([
+            'workflow-start',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-end',
+        ], array_column($logger->records, 'message'));
+        $this->assertSame([LogLevel::INFO], array_values(array_unique(array_column($logger->records, 'level'))));
+        $this->assertSame(['node' => NodeOne::class], $logger->records[1]['context']);
+        $this->assertSame(['node' => NodeOne::class], $logger->records[2]['context']);
+    }
 
-        foreach ($logger->records as $record) {
-            if ($record['message'] === 'workflow-node-start') {
-                $this->assertArrayHasKey('node', $record['context']);
-                return;
-            }
-        }
+    public function test_log_listener_uses_the_configured_level(): void
+    {
+        $logger = $this->recordingLogger();
 
-        $this->fail('No workflow-node-start record found.');
+        (new LogListener($logger, LogLevel::DEBUG))(new CustomTestEvent('value'));
+
+        $this->assertSame(LogLevel::DEBUG, $logger->records[0]['level']);
     }
 
     public function test_deprecated_log_observer_still_logs_through_observe(): void
@@ -81,9 +101,78 @@ class LogListenerTest extends TestCase
             ->observe(new LogObserver($logger))
             ->run();
 
-        $messages = array_column($logger->records, 'message');
-        $this->assertContains('workflow-start', $messages);
-        $this->assertContains('workflow-end', $messages);
+        $listenerLogger = $this->recordingLogger();
+        Workflow::make()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->subscribe(ObservabilityEvent::class, new LogListener($listenerLogger))
+            ->run();
+
+        $this->assertSame(array_column($listenerLogger->records, 'message'), array_column($logger->records, 'message'));
+        $this->assertSame(['node' => NodeOne::class], $logger->records[1]['context']);
+    }
+
+    /**
+     * @return iterable<string, array{mixed, array<mixed>}>
+     */
+    public static function legacyPayloads(): iterable
+    {
+        yield 'array' => [['key' => 'value'], ['key' => 'value']];
+        yield 'string' => ['text', ['data' => 'text']];
+        yield 'zero' => [0, ['data' => 0]];
+        yield 'false' => [false, ['data' => false]];
+        yield 'null' => [null, []];
+    }
+
+    /**
+     * @param array<mixed> $expected
+     */
+    #[DataProvider('legacyPayloads')]
+    public function test_log_observer_logs_legacy_payloads_as_context(mixed $data, array $expected): void
+    {
+        $logger = $this->recordingLogger();
+
+        (new LogObserver($logger))->onEvent('legacy-event', $this, $data);
+
+        $this->assertSame([['level' => LogLevel::INFO, 'message' => 'legacy-event', 'context' => $expected]], $logger->records);
+    }
+
+    public function test_log_observer_never_dumps_arbitrary_objects(): void
+    {
+        $payload = new stdClass();
+        $payload->apiKey = 'sk-secret';
+        $logger = $this->recordingLogger();
+
+        (new LogObserver($logger))->onEvent('legacy-event', $this, $payload);
+
+        $this->assertSame([], $logger->records[0]['context']);
+    }
+
+    public function test_error_logs_only_the_message_not_the_failed_request(): void
+    {
+        $request = new HttpRequest(HttpMethod::POST, 'https://api.example.com/v1/chat', [
+            'Authorization' => 'Bearer sk-secret',
+            'x-api-key' => 'sk-secret',
+        ], '{"prompt":"hello"}');
+        $exception = HttpException::statusError($request, new HttpResponse(401, '{"error":"unauthorized"}'));
+        $logger = $this->recordingLogger();
+
+        (new LogListener($logger))(new WorkflowError($exception));
+
+        $this->assertSame('error', $logger->records[0]['message']);
+        $this->assertSame(['error' => $exception->getMessage()], $logger->records[0]['context']);
+        $this->assertStringNotContainsString('sk-secret', (string) json_encode($logger->records));
+    }
+
+    public function test_context_is_handed_to_the_logger_without_serializing_it(): void
+    {
+        $callback = static fn (): string => 'not serializable';
+        $state = new WorkflowState(['callback' => $callback]);
+        $state->setExecutionMetadata('thread', 'run', 1);
+        $logger = $this->recordingLogger();
+
+        (new LogListener($logger))(new WorkflowEnd($state));
+
+        $this->assertSame($callback, $logger->records[0]['context']['state']['callback']);
     }
 
     public function test_interruption_logs_the_current_request(): void

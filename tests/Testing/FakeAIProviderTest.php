@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -23,6 +24,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_column;
@@ -104,20 +106,56 @@ class FakeAIProviderTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
         $provider->systemPrompt('Be helpful');
-        $provider->chat(new UserMessage('Hello'));
+        $first = new UserMessage('Hello');
+        $second = new AssistantMessage('Hi there');
+        $provider->chat($first, $second);
 
         $records = $provider->getRecorded();
         $this->assertCount(1, $records);
         $this->assertSame('chat', $records[0]->method);
         $this->assertSame('Be helpful', $records[0]->systemPrompt->getContent());
-        $this->assertCount(1, $records[0]->messages);
+        $this->assertSame([$first, $second], $records[0]->messages);
+        $this->assertSame([], $records[0]->tools);
         $this->assertNull($records[0]->structuredClass);
+        $this->assertSame([], $records[0]->structuredSchema);
     }
 
-    public function test_stream_yields_text_chunks(): void
+    public function test_each_record_keeps_the_configuration_of_its_call(): void
+    {
+        $search = new ToolStub('search', description: 'Search the web');
+        $prompt = new SystemMessage('Second prompt');
+        $provider = new FakeAIProvider(new AssistantMessage('1'), new AssistantMessage('2'), new AssistantMessage('3'));
+
+        $provider->systemPrompt('First prompt');
+        $provider->chat(new UserMessage('a'));
+        $provider->systemPrompt($prompt)->setTools([$search]);
+        $provider->chat(new UserMessage('b'));
+        $provider->systemPrompt(null)->setTools([]);
+        $provider->chat(new UserMessage('c'));
+
+        [$first, $second, $third] = $provider->getRecorded();
+        $this->assertSame('First prompt', $first->systemPrompt?->getContent());
+        $this->assertSame([], $first->tools);
+        $this->assertSame($prompt, $second->systemPrompt);
+        $this->assertSame([$search], $second->tools);
+        $this->assertNull($third->systemPrompt);
+        $this->assertSame([], $third->tools);
+    }
+
+    public function test_responses_are_consumed_once(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Only'));
+        $provider->chat(new UserMessage('a'));
+
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('FakeAIProvider response queue is empty.');
+
+        $provider->structured(new UserMessage('b'), 'App\\User', []);
+    }
+
+    public function test_stream_yields_text_chunks_of_five_characters_by_default(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
-        $provider->setStreamChunkSize(5);
 
         $generator = $provider->stream(new UserMessage('Hi'));
 
@@ -136,9 +174,76 @@ class FakeAIProviderTest extends TestCase
     public function test_stream_records_request(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Streamed'));
-        $provider->stream(new UserMessage('Hi'));
+        $message = new UserMessage('Hi');
+        $provider->stream($message);
 
         $this->assertSame('stream', $provider->getRecorded()[0]->method);
+        $this->assertSame([$message], $provider->getRecorded()[0]->messages);
+    }
+
+    public function test_stream_fails_on_call_when_the_queue_is_empty(): void
+    {
+        $provider = new FakeAIProvider();
+
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('FakeAIProvider response queue is empty.');
+
+        // Never iterated: the failure must not wait for the generator to run.
+        $provider->stream(new UserMessage('Hi'));
+    }
+
+    public function test_stream_consumes_the_response_before_iteration(): void
+    {
+        $first = new AssistantMessage('First');
+        $second = new AssistantMessage('Second');
+        $provider = new FakeAIProvider($first, $second);
+
+        $stream = $provider->stream(new UserMessage('a'));
+        $chatResponse = $provider->chat(new UserMessage('b'))->message();
+        iterator_to_array($stream, false);
+
+        $this->assertSame($second, $chatResponse);
+        $this->assertSame($first, $stream->getReturn()->message());
+    }
+
+    public function test_stream_splits_multibyte_text_by_character(): void
+    {
+        $provider = (new FakeAIProvider(new AssistantMessage('héllo wörld 👋')))->setStreamChunkSize(3);
+
+        $chunks = iterator_to_array($provider->stream(new UserMessage('Hi')), false);
+
+        $this->assertSame(
+            ['hél', 'lo ', 'wör', 'ld ', '👋'],
+            array_map(static fn (StreamChunk $chunk): string => $chunk->toArray()['content'], $chunks)
+        );
+        $this->assertContainsOnlyInstancesOf(TextChunk::class, $chunks);
+    }
+
+    public function test_every_stream_chunk_carries_the_queued_message_id(): void
+    {
+        $message = new ToolCallMessage('Checking', [ToolCall::make('search', 'call_1', ['query' => 'php'])]);
+        $message->setId('msg_fixed');
+        $provider = (new FakeAIProvider($message))->setStreamChunkSize(4);
+
+        $chunks = iterator_to_array($provider->stream(new UserMessage('Hi')), false);
+
+        $this->assertNotEmpty($chunks);
+        foreach ($chunks as $chunk) {
+            $this->assertSame('msg_fixed', $chunk->messageId);
+        }
+    }
+
+    public function test_stream_tool_call_without_inputs_yields_an_empty_json_object(): void
+    {
+        $message = new ToolCallMessage(null, [ToolCall::make('now', 'call_1')]);
+        $provider = new FakeAIProvider($message);
+
+        $chunks = iterator_to_array($provider->stream(new UserMessage('Hi')), false);
+
+        $this->assertCount(1, $chunks);
+        $this->assertInstanceOf(ToolArgumentChunk::class, $chunks[0]);
+        $this->assertSame('{}', $chunks[0]->delta);
+        $this->assertSame('call_1', $chunks[0]->toolCallId);
     }
 
     public function test_stream_with_empty_content(): void
@@ -320,6 +425,28 @@ class FakeAIProviderTest extends TestCase
         $provider->assertMethodCallCount('stream', 1);
     }
 
+    public function test_assert_method_call_count_fails(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('1'));
+        $provider->chat(new UserMessage('a'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage("Expected 1 'stream' calls, got 0.");
+
+        $provider->assertMethodCallCount('stream', 1);
+    }
+
+    public function test_assert_system_prompt_fails_without_calls(): void
+    {
+        $provider = new FakeAIProvider();
+        $provider->systemPrompt('Configured but never sent');
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('No recorded request had the expected system prompt.');
+
+        $provider->assertSystemPrompt('Configured but never sent');
+    }
+
     public function test_assert_system_prompt_passes(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
@@ -329,13 +456,26 @@ class FakeAIProviderTest extends TestCase
         $provider->assertSystemPrompt('You are a weather assistant.');
     }
 
-    public function test_assert_system_prompt_fails(): void
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function otherSystemPrompts(): iterable
+    {
+        yield 'different prompt' => ['Something else'];
+        yield 'longer prompt containing the expected one' => ['You are a weather assistant. Answer in French.'];
+        yield 'different case' => ['you are a weather assistant.'];
+    }
+
+    #[DataProvider('otherSystemPrompts')]
+    public function test_assert_system_prompt_requires_the_exact_prompt(string $sentPrompt): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->systemPrompt('Something else');
+        $provider->systemPrompt($sentPrompt);
         $provider->chat(new UserMessage('Hi'));
 
         $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('No recorded request had the expected system prompt.');
+
         $provider->assertSystemPrompt('You are a weather assistant.');
     }
 
@@ -359,6 +499,32 @@ class FakeAIProviderTest extends TestCase
         $provider->assertToolsConfigured(['nonexistent']);
     }
 
+    /**
+     * @return iterable<string, array{string[]}>
+     */
+    public static function mismatchedToolLists(): iterable
+    {
+        yield 'subset' => [['search']];
+        yield 'superset' => [['search', 'weather', 'calendar']];
+        yield 'different order' => [['weather', 'search']];
+    }
+
+    /**
+     * @param string[] $expected
+     */
+    #[DataProvider('mismatchedToolLists')]
+    public function test_assert_tools_configured_requires_the_exact_list(array $expected): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('OK'));
+        $provider->setTools([new ToolStub('search'), new ToolStub('weather')]);
+        $provider->chat(new UserMessage('Hi'));
+
+        $provider->assertToolsConfigured(['search', 'weather']);
+
+        $this->expectException(AssertionFailedError::class);
+        $provider->assertToolsConfigured($expected);
+    }
+
     public function test_static_make_constructor(): void
     {
         $provider = FakeAIProvider::make(new AssistantMessage('OK'));
@@ -375,14 +541,17 @@ class FakeAIProviderTest extends TestCase
         $this->assertSame($provider, $result);
     }
 
-    public function test_single_message_is_normalized_to_array(): void
+    public function test_structured_normalizes_a_single_message_to_a_list(): void
     {
-        $provider = new FakeAIProvider(new AssistantMessage('OK'));
-        $provider->chat(new UserMessage('Hi'));
+        $provider = new FakeAIProvider(new AssistantMessage('{}'), new AssistantMessage('{}'));
+        $single = new UserMessage('Hi');
+        $list = [new UserMessage('a'), new AssistantMessage('b')];
 
-        $record = $provider->getRecorded()[0];
-        $this->assertIsArray($record->messages);
-        $this->assertCount(1, $record->messages);
+        $provider->structured($single, 'App\\User', []);
+        $provider->structured($list, 'App\\User', []);
+
+        $this->assertSame([$single], $provider->getRecorded()[0]->messages);
+        $this->assertSame($list, $provider->getRecorded()[1]->messages);
     }
 
     public function test_usage_on_fake_response(): void

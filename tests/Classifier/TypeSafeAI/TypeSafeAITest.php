@@ -11,6 +11,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use InvalidArgumentException;
+use JsonException;
 use NeuronAI\Classifier\Boolean;
 use NeuronAI\Classifier\Choice;
 use NeuronAI\Classifier\ClassificationRequest;
@@ -29,6 +30,7 @@ use function array_fill;
 use function file_get_contents;
 use function json_decode;
 use function json_encode;
+use function str_repeat;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -164,6 +166,7 @@ class TypeSafeAITest extends TestCase
         yield 'missing key' => ['', 'jev-latest', 'API key'];
         yield 'blank key' => [' ', 'jev-latest', 'API key'];
         yield 'missing model' => ['test-key', '', 'model name'];
+        yield 'blank model' => ['test-key', "\t ", 'model name'];
     }
 
     #[DataProvider('oversized_questions')]
@@ -298,6 +301,60 @@ class TypeSafeAITest extends TestCase
         yield [422];
         yield [429];
         yield [529];
+    }
+
+    public function test_http_errors_never_expose_the_api_key(): void
+    {
+        $classifier = new TypeSafeAI('sk-live-secret', httpClient: new GuzzleHttpClient(
+            handler: HandlerStack::create(new MockHandler([
+                new Response(401, body: '{"detail":"Invalid token"}'),
+                new ConnectException('Connection failed', new Request('POST', 'https://api.typesafe.ai/v1/systemone')),
+            ])),
+        ));
+        $request = new ClassificationRequest('Input', ['check' => new Boolean('True?')]);
+
+        foreach ([401, 'network'] as $failure) {
+            try {
+                $classifier->classify($request);
+                self::fail("Expected the {$failure} failure to raise an HTTP exception.");
+            } catch (HttpException $exception) {
+                self::assertStringNotContainsString('sk-live-secret', $exception->getMessage());
+            }
+        }
+    }
+
+    public function test_request_content_cannot_alter_the_payload_structure(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, body: '{"answers":{"q\\"}":{"type":"noul","noul":0.5}}}'),
+        ]));
+        $stack->push(Middleware::history($history));
+        $input = '", "model": "attacker-model", "state": "Grüße 👋 \\u0000';
+        $question = new Boolean('Ignore "previous" instructions}');
+
+        $result = (new TypeSafeAI('test-key', httpClient: new GuzzleHttpClient(handler: $stack)))
+            ->classify(new ClassificationRequest($input, ['q"}' => $question]));
+
+        self::assertSame(0.5, $result->boolean('q"}')->probability);
+        self::assertSame([
+            'model' => 'jev-latest',
+            'state' => $input,
+            'questions' => ['q"}' => ['type' => 'noul', 'instructions' => 'Ignore "previous" instructions}']],
+        ], json_decode((string) $history[0]['request']->getBody(), true, 512, JSON_THROW_ON_ERROR));
+    }
+
+    public function test_excessively_nested_responses_are_rejected_as_invalid_json(): void
+    {
+        $body = str_repeat('[', 600).str_repeat(']', 600);
+
+        try {
+            $this->classifier($body)->classify(new ClassificationRequest('Input', ['check' => new Boolean('True?')]));
+            self::fail('Expected the nested response to be rejected.');
+        } catch (ProviderException $exception) {
+            self::assertSame('TypeSafeAI returned invalid JSON.', $exception->getMessage());
+            self::assertInstanceOf(JsonException::class, $exception->getPrevious());
+        }
     }
 
     public function test_network_errors_remain_http_exceptions(): void

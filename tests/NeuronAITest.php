@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Tests;
 
 use NeuronAI\Agent\Agent;
-use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\SystemPrompt;
-use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Message;
-use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\RAG\RAG;
+use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
@@ -20,17 +16,6 @@ use const PHP_EOL;
 
 class NeuronAITest extends TestCase
 {
-    public function test_agent_instance(): void
-    {
-        $neuron = new Agent();
-        $this->assertInstanceOf(AgentInterface::class, $neuron);
-        $neuron->setThreadId('conversation');
-        $this->assertInstanceOf(ChatHistory::class, $neuron->getChatHistory());
-
-        $neuron = new RAG();
-        $this->assertInstanceOf(Agent::class, $neuron);
-    }
-
     public function test_system_instructions(): void
     {
         $system = new SystemPrompt(["Agent"]);
@@ -47,14 +32,34 @@ class NeuronAITest extends TestCase
         $this->assertEquals('Hello2', $agent->getInstructions()->getContent());
     }
 
-    public function test_message_instance(): void
+    public function test_static_constructor_builds_the_called_subclass(): void
     {
-        $tools = [
-            new ToolCall('example', description: 'example'),
-        ];
+        $subclass = new class () extends FakeAIProvider {
+        };
 
-        $this->assertInstanceOf(Message::class, new UserMessage(''));
-        $this->assertInstanceOf(Message::class, new AssistantMessage(''));
-        $this->assertInstanceOf(Message::class, new ToolCallMessage(tools: $tools));
+        $made = $subclass::make();
+
+        $this->assertInstanceOf($subclass::class, $made);
+        $this->assertNotSame($subclass, $made);
+    }
+
+    public function test_static_constructor_forwards_positional_arguments(): void
+    {
+        $first = new AssistantMessage('first');
+        $second = new AssistantMessage('second');
+
+        $provider = FakeAIProvider::make($first, $second);
+
+        $this->assertSame($first, $provider->chat(new UserMessage('a'))->message());
+        $this->assertSame($second, $provider->chat(new UserMessage('b'))->message());
+    }
+
+    public function test_static_constructor_forwards_named_arguments(): void
+    {
+        $call = ToolCall::make('search', inputs: ['query' => 'php'], callId: 'call_1');
+
+        $this->assertSame('search', $call->getName());
+        $this->assertSame('call_1', $call->getCallId());
+        $this->assertSame(['query' => 'php'], $call->getInputs());
     }
 }

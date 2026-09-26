@@ -9,6 +9,7 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
 
+use function array_slice;
 use function array_unique;
 use function count;
 
@@ -80,9 +81,44 @@ class FakeEmbeddingsProviderTest extends TestCase
 
         $result = $provider->embedDocuments($docs);
 
-        $this->assertCount(2, $result);
-        $this->assertNotEmpty($result[0]->getEmbedding());
-        $this->assertNotEmpty($result[1]->getEmbedding());
+        $this->assertSame($docs, $result);
+        $this->assertSame((new FakeEmbeddingsProvider())->embedText('First'), $docs[0]->getEmbedding());
+        $this->assertSame((new FakeEmbeddingsProvider())->embedText('Second'), $docs[1]->getEmbedding());
+        $this->assertSame(['First', 'Second'], $provider->getRecorded());
+    }
+
+    /**
+     * Pinned values: applications persist fake embeddings in fixtures, so the
+     * algorithm must not change silently between releases.
+     */
+    public function test_embedding_values_are_stable_across_releases(): void
+    {
+        $this->assertSame(
+            [226 / 255, 192 / 255, 211 / 255, 57 / 255],
+            (new FakeEmbeddingsProvider(4))->embedText('Hello')
+        );
+        $this->assertSame(
+            [122 / 255, 109 / 255, 27 / 255, 19 / 255],
+            array_slice((new FakeEmbeddingsProvider(20))->embedText('Hello'), 16)
+        );
+    }
+
+    public function test_a_larger_dimension_extends_the_smaller_vector(): void
+    {
+        $small = (new FakeEmbeddingsProvider(8))->embedText('Hello');
+        $large = (new FakeEmbeddingsProvider(40))->embedText('Hello');
+
+        $this->assertSame($small, array_slice($large, 0, 8));
+    }
+
+    public function test_texts_are_recorded_verbatim(): void
+    {
+        $provider = new FakeEmbeddingsProvider();
+
+        $provider->embedText("  Grüße 👋\n");
+        $provider->embedText('');
+
+        $this->assertSame(["  Grüße 👋\n", ''], $provider->getRecorded());
     }
 
     public function test_records_embedded_texts(): void

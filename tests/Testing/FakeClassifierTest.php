@@ -217,16 +217,17 @@ class FakeClassifierTest extends TestCase
     }
 
     #[DataProvider('invalid_queues')]
-    public function test_constructor_requires_a_list_of_answer_maps(array $responses): void
+    public function test_constructor_requires_a_list_of_answer_maps(array $responses, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
 
         new FakeClassifier($responses);
     }
 
     public static function invalid_queues(): iterable
     {
-        yield 'single answer map' => [['check' => 0.5]];
-        yield 'scalar entry' => [[0.5]];
+        yield 'single answer map' => [['check' => 0.5], 'FakeClassifier expects a list of answer maps, one per classify() call.'];
+        yield 'scalar entry' => [[0.5], 'Each FakeClassifier response must be an answer map.'];
     }
 }

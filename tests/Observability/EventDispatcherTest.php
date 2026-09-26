@@ -6,9 +6,13 @@ namespace NeuronAI\Tests\Observability;
 
 use Exception;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Observability\EventDispatcher;
+use NeuronAI\Observability\ListenerRegistry;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Tests\Observability\Stub\CustomTestEvent;
 use NeuronAI\Tests\Observability\Stub\EmittingNode;
+use NeuronAI\Tests\Observability\Stub\RecordingDispatcher;
+use NeuronAI\Tests\Observability\Stub\StoppableTestEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\RecordingObserver;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
@@ -22,13 +26,10 @@ use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use UnnamespacedEvent;
 
 use function array_column;
-use function array_map;
 use function count;
-use function in_array;
 
 class EventDispatcherTest extends TestCase
 {
@@ -69,10 +70,16 @@ class EventDispatcherTest extends TestCase
 
         $workflow->run();
 
-        $this->assertSame('workflow-start', $names[0]);
-        $this->assertSame('workflow-end', $names[count($names) - 1]);
-        $this->assertContains('workflow-node-start', $names);
-        $this->assertContains('workflow-node-end', $names);
+        $this->assertSame([
+            'workflow-start',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-node-start',
+            'workflow-node-end',
+            'workflow-end',
+        ], $names);
     }
 
     public function test_legacy_observer_keeps_working_through_adapter(): void
@@ -86,9 +93,9 @@ class EventDispatcherTest extends TestCase
         $workflow->run();
 
         $names = array_column($observer->recorded, 'event');
-        $this->assertContains('workflow-start', $names);
-        $this->assertContains('workflow-node-start', $names);
-        $this->assertContains('workflow-end', $names);
+        $this->assertSame('workflow-start', $names[0]);
+        $this->assertSame('workflow-end', $names[count($names) - 1]);
+        $this->assertCount(8, $names);
 
         // Outside branches the legacy contract reports the '__main__' branch.
         foreach ($observer->recorded as $record) {
@@ -133,7 +140,7 @@ class EventDispatcherTest extends TestCase
 
         $workflowA->run();
 
-        $this->assertNotEmpty($first);
+        $this->assertCount(8, $first);
         $this->assertSame([], $second);
     }
 
@@ -155,16 +162,7 @@ class EventDispatcherTest extends TestCase
 
     public function test_external_psr_dispatcher_receives_forwarded_events(): void
     {
-        $external = new class () implements EventDispatcherInterface {
-            /** @var object[] */
-            public array $events = [];
-
-            public function dispatch(object $event): object
-            {
-                $this->events[] = $event;
-                return $event;
-            }
-        };
+        $external = new RecordingDispatcher();
 
         $local = [];
 
@@ -177,10 +175,9 @@ class EventDispatcherTest extends TestCase
 
         $workflow->run();
 
-        $this->assertNotEmpty($external->events);
-        $this->assertTrue(in_array(WorkflowStart::class, array_map(static fn (object $e): string => $e::class, $external->events), true));
-        // Local subscribers keep working alongside the external dispatcher.
-        $this->assertCount(count($external->events), $local);
+        $this->assertInstanceOf(WorkflowStart::class, $external->events[0]);
+        // Local subscribers see the very same events, in the same order.
+        $this->assertSame($local, $external->events);
     }
 
     public function test_interruption_dispatches_dedicated_event_not_workflow_error(): void
@@ -227,5 +224,99 @@ class EventDispatcherTest extends TestCase
         require_once __DIR__ . '/Stub/UnnamespacedEvent.php';
 
         $this->assertSame('unnamespaced-event', (new UnnamespacedEvent())->name());
+    }
+
+    public function test_dispatch_runs_listeners_in_order_and_returns_the_event(): void
+    {
+        $calls = [];
+        $registry = new ListenerRegistry();
+        $registry->listen(CustomTestEvent::class, function (CustomTestEvent $event) use (&$calls): void {
+            $calls[] = ['first', $event];
+        });
+        $registry->listen(CustomTestEvent::class, function (CustomTestEvent $event) use (&$calls): void {
+            $calls[] = ['second', $event];
+        });
+        $event = new CustomTestEvent('value');
+
+        $this->assertSame($event, (new EventDispatcher($registry))->dispatch($event));
+        $this->assertSame([['first', $event], ['second', $event]], $calls);
+    }
+
+    public function test_forwarding_returns_what_the_external_dispatcher_returns(): void
+    {
+        $replacement = new CustomTestEvent('replaced');
+        $external = new RecordingDispatcher($replacement);
+        $event = new CustomTestEvent('value');
+
+        $this->assertSame($replacement, (new EventDispatcher(new ListenerRegistry(), $external))->dispatch($event));
+        $this->assertSame([$event], $external->events);
+    }
+
+    public function test_stopped_propagation_skips_the_remaining_listeners_and_the_forward(): void
+    {
+        $calls = [];
+        $registry = new ListenerRegistry();
+        $registry->listen(StoppableTestEvent::class, function (StoppableTestEvent $event) use (&$calls): void {
+            $calls[] = 'stopper';
+            $event->stopPropagation();
+        });
+        $registry->listen(StoppableTestEvent::class, function () use (&$calls): void {
+            $calls[] = 'skipped';
+        });
+        $external = new RecordingDispatcher();
+        $event = new StoppableTestEvent();
+
+        $this->assertSame($event, (new EventDispatcher($registry, $external))->dispatch($event));
+        $this->assertSame(['stopper'], $calls);
+        $this->assertSame([], $external->events);
+    }
+
+    public function test_the_last_listener_stopping_propagation_skips_the_forward(): void
+    {
+        $registry = new ListenerRegistry();
+        $registry->listen(StoppableTestEvent::class, static function (StoppableTestEvent $event): void {
+            $event->stopPropagation();
+        });
+        $external = new RecordingDispatcher();
+
+        (new EventDispatcher($registry, $external))->dispatch(new StoppableTestEvent());
+
+        $this->assertSame([], $external->events);
+    }
+
+    public function test_an_already_stopped_event_reaches_no_listener(): void
+    {
+        $registry = new ListenerRegistry();
+        $registry->listen(StoppableTestEvent::class, function (): void {
+            $this->fail('A stopped event must not reach listeners.');
+        });
+        $external = new RecordingDispatcher();
+        $event = new StoppableTestEvent();
+        $event->stopPropagation();
+
+        $this->assertSame($event, (new EventDispatcher($registry, $external))->dispatch($event));
+        $this->assertSame([], $external->events);
+    }
+
+    public function test_a_listener_exception_propagates_and_stops_the_dispatch(): void
+    {
+        $failure = new Exception('listener failed');
+        $registry = new ListenerRegistry();
+        $registry->listen(CustomTestEvent::class, static function () use ($failure): void {
+            throw $failure;
+        });
+        $registry->listen(CustomTestEvent::class, function (): void {
+            $this->fail('Listeners after a failure must not run.');
+        });
+        $external = new RecordingDispatcher();
+
+        try {
+            (new EventDispatcher($registry, $external))->dispatch(new CustomTestEvent('value'));
+            $this->fail('Expected the listener exception.');
+        } catch (Exception $caught) {
+            $this->assertSame($failure, $caught);
+        }
+
+        $this->assertSame([], $external->events);
     }
 }

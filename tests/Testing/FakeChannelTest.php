@@ -9,6 +9,7 @@ use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\AssertionFailedError;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -91,11 +92,58 @@ class FakeChannelTest extends TestCase
         $channel->assertSent(fn (ProtocolEvent $event): bool => $event->type === 'text-delta');
     }
 
-    public function test_assert_completed_fails_when_the_segment_did_not_end(): void
+    public function test_lifecycle_records_are_not_protocol_events(): void
     {
         $channel = new FakeChannel();
+        $channel->interrupted(new WorkflowState());
+        $channel->completed(new WorkflowState(), 'wf_1');
+        $channel->failed(new RuntimeException('boom'), 'wf_1');
+
+        $this->assertSame([], $channel->getSent());
+        $channel->assertNothingSent();
+    }
+
+    /**
+     * Each lifecycle assertion must fail when only the other lifecycle calls happened.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unmetLifecycleExpectations(): iterable
+    {
+        yield 'suspended' => ['assertSuspended', 'Expected the run segment to be suspended, but it was not.'];
+        yield 'completed' => ['assertCompleted', 'Expected the run segment to be completed, but it was not.'];
+        yield 'failed' => ['assertFailed', 'Expected the run segment to be failed, but it was not.'];
+    }
+
+    #[DataProvider('unmetLifecycleExpectations')]
+    public function test_lifecycle_assertions_fail_for_other_outcomes(string $assertion, string $message): void
+    {
+        $channel = new FakeChannel();
+        $channel->send(new ProtocolEvent('finish'));
+        if ($assertion !== 'assertSuspended') {
+            $channel->interrupted(new WorkflowState());
+        }
+        if ($assertion !== 'assertCompleted') {
+            $channel->completed(new WorkflowState(), 'wf_1');
+        }
+        if ($assertion !== 'assertFailed') {
+            $channel->failed(new RuntimeException('boom'), 'wf_1');
+        }
 
         $this->expectException(AssertionFailedError::class);
-        $channel->assertCompleted();
+        $this->expectExceptionMessage($message);
+
+        $channel->{$assertion}();
+    }
+
+    public function test_assert_nothing_sent_fails_after_a_delivery(): void
+    {
+        $channel = new FakeChannel();
+        $channel->send(new ProtocolEvent('finish'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Expected no protocol events, but 1 were delivered.');
+
+        $channel->assertNothingSent();
     }
 }
