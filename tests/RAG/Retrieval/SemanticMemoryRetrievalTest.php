@@ -9,8 +9,10 @@ use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Retrieval\SemanticMemoryRetrieval;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
+use NeuronAI\Testing\FakeVectorStore;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -61,19 +63,54 @@ class SemanticMemoryRetrievalTest extends TestCase
             ->retrieve(new UserMessage('Question')));
     }
 
-    /** @return iterable<string, array{array<int, mixed>}> */
+    public function test_an_injected_or_filter_cannot_reach_other_threads_or_other_sources(): void
+    {
+        $store = new MemoryVectorStore(topK: 10);
+        $embeddings = new FakeEmbeddingsProvider();
+        foreach (['allowed', 'private'] as $threadId) {
+            $store->addDocument($embeddings->embedDocument(
+                (new Document($threadId))->setSourceType(SemanticMemoryRetrieval::SOURCE_TYPE)->setSourceName($threadId),
+            ));
+        }
+        $store->addDocument($embeddings->embedDocument((new Document('knowledge'))->setSourceType('file')->setSourceName('allowed')));
+        $retrieval = new SemanticMemoryRetrieval($store, $embeddings, ['allowed']);
+
+        $documents = $retrieval->retrieve(
+            new UserMessage('Question'),
+            FilterGroup::anyOf(Filter::eq('sourceName', 'private'), Filter::eq('sourceType', 'file'), Filter::eq('sourceName', 'allowed')),
+        );
+
+        $this->assertSame(['allowed'], array_map(static fn (Document $document): string => $document->getContent(), $documents));
+    }
+
+    public function test_the_thread_allowlist_is_searched_as_a_deduplicated_conversation_scope(): void
+    {
+        $store = new FakeVectorStore();
+
+        (new SemanticMemoryRetrieval($store, new FakeEmbeddingsProvider(), ['b', 'a', 'b']))->retrieve(new UserMessage('Question'));
+
+        $store->assertSearchedWithFilters(FilterGroup::and(
+            Filter::eq('sourceType', 'conversation'),
+            Filter::in('sourceName', ['b', 'a']),
+        ));
+    }
+
+    /** @return iterable<string, array{array<int, mixed>, string}> */
     public static function invalidThreads(): iterable
     {
-        yield 'empty list' => [[]];
-        yield 'empty ID' => [['thread-1', '']];
-        yield 'non-string ID' => [['thread-1', 42]];
+        yield 'empty list' => [[], 'Semantic memory retrieval requires at least one thread ID.'];
+        yield 'empty ID' => [['thread-1', ''], 'Semantic memory thread IDs must be non-empty strings.'];
+        yield 'non-string ID' => [['thread-1', 42], 'Semantic memory thread IDs must be non-empty strings.'];
+        yield 'null ID' => [[null], 'Semantic memory thread IDs must be non-empty strings.'];
     }
 
     /** @param array<int, mixed> $threadIds */
     #[DataProvider('invalidThreads')]
-    public function test_invalid_thread_lists_are_rejected(array $threadIds): void
+    public function test_invalid_thread_lists_are_rejected(array $threadIds, string $message): void
     {
         $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage($message);
+
         new SemanticMemoryRetrieval(new MemoryVectorStore(), new FakeEmbeddingsProvider(), $threadIds);
     }
 }

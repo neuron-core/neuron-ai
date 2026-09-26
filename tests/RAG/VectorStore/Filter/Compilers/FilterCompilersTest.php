@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\Exceptions\VectorStoreException;
+use Closure;
+use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\RAG\VectorStore\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Compilers\ElasticsearchFilterCompiler;
 use NeuronAI\RAG\VectorStore\Compilers\MariaDBFilterCompiler;
@@ -17,9 +19,18 @@ use NeuronAI\RAG\VectorStore\Compilers\TypesenseFilterCompiler;
 use NeuronAI\RAG\VectorStore\Compilers\WeaviateFilterCompiler;
 use NeuronAI\RAG\VectorStore\ElasticsearchVectorStore;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
+use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
+use NeuronAI\RAG\VectorStore\MariaDBVectorStore;
+use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
+use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 use NeuronAI\RAG\VectorStore\OpenSearchVectorStore;
+use NeuronAI\RAG\VectorStore\PineconeVectorStore;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
+use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
+use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class FilterCompilersTest extends TestCase
@@ -53,11 +64,47 @@ class FilterCompilersTest extends TestCase
     public function test_raw_fragment_for_another_store_is_refused(): void
     {
         $this->expectException(VectorStoreException::class);
-        $this->expectExceptionMessageMatches('/targets .*ElasticsearchVectorStore/');
+        $this->expectExceptionMessage(
+            'Raw filter targets ' . ElasticsearchVectorStore::class . '; it cannot be compiled for ' . QdrantVectorStore::class . '.'
+        );
 
         (new QdrantFilterCompiler())->compile(FilterGroup::and(
             Filter::raw(ElasticsearchVectorStore::class, ['term' => ['lang' => 'en']]),
         ));
+    }
+
+    /**
+     * @return array<string, array{Closure(FilterExpression): mixed, class-string}>
+     */
+    public static function compilers(): array
+    {
+        return [
+            'chroma' => [static fn (FilterExpression $filters): mixed => (new ChromaFilterCompiler())->compile($filters), ChromaVectorStore::class],
+            'elasticsearch' => [static fn (FilterExpression $filters): mixed => (new ElasticsearchFilterCompiler())->compile($filters), ElasticsearchVectorStore::class],
+            'mariadb' => [static fn (FilterExpression $filters): mixed => (new MariaDBFilterCompiler())->compile($filters), MariaDBVectorStore::class],
+            'meilisearch' => [static fn (FilterExpression $filters): mixed => (new MeilisearchFilterCompiler())->compile($filters), MeilisearchVectorStore::class],
+            'mongodb' => [static fn (FilterExpression $filters): mixed => (new MongoDBFilterCompiler())->compile($filters), MongoDBVectorStore::class],
+            'opensearch' => [static fn (FilterExpression $filters): mixed => (new OpenSearchFilterCompiler())->compile($filters), OpenSearchVectorStore::class],
+            'pinecone' => [static fn (FilterExpression $filters): mixed => (new PineconeFilterCompiler())->compile($filters), PineconeVectorStore::class],
+            'qdrant' => [static fn (FilterExpression $filters): mixed => (new QdrantFilterCompiler())->compile($filters), QdrantVectorStore::class],
+            'typesense' => [static fn (FilterExpression $filters): mixed => (new TypesenseFilterCompiler())->compile($filters), TypesenseVectorStore::class],
+            'weaviate' => [static fn (FilterExpression $filters): mixed => (new WeaviateFilterCompiler())->compile($filters), WeaviateVectorStore::class],
+        ];
+    }
+
+    /**
+     * @param Closure(FilterExpression): mixed $compile
+     * @param class-string $store
+     */
+    #[DataProvider('compilers')]
+    public function test_raw_fragment_tagged_with_the_shared_interface_is_refused_by_every_store(Closure $compile, string $store): void
+    {
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage(
+            'Raw filter targets ' . VectorStoreInterface::class . '; it cannot be compiled for ' . $store . '.'
+        );
+
+        $compile(Filter::raw(VectorStoreInterface::class, "sourceType = 'file'"));
     }
 
     public function test_meilisearch_compiles_an_expression_with_escaping(): void
@@ -96,14 +143,6 @@ class FilterCompilersTest extends TestCase
         );
     }
 
-    public function test_chroma_uses_the_same_operator_family(): void
-    {
-        $this->assertSame(
-            ['lang' => ['$in' => ['en', 'it']]],
-            (new ChromaFilterCompiler())->compile(FilterGroup::and(Filter::in('lang', ['en', 'it'])))
-        );
-    }
-
     public function test_elasticsearch_compiles_a_bool_query(): void
     {
         $query = (new ElasticsearchFilterCompiler())->compile(FilterGroup::and(
@@ -126,15 +165,6 @@ class FilterCompilersTest extends TestCase
         ], $query);
     }
 
-    public function test_opensearch_refuses_elasticsearch_raw_fragments(): void
-    {
-        $this->expectException(VectorStoreException::class);
-
-        (new OpenSearchFilterCompiler())->compile(FilterGroup::and(
-            Filter::raw(ElasticsearchVectorStore::class, ['term' => ['lang' => 'en']]),
-        ));
-    }
-
     public function test_opensearch_accepts_its_own_raw_fragments(): void
     {
         $query = (new OpenSearchFilterCompiler())->compile(FilterGroup::and(
@@ -153,14 +183,6 @@ class FilterCompilersTest extends TestCase
         ));
 
         $this->assertSame('sourceType:=`file` && lang:=[`en`, `it`] && year:>2020', $expression);
-    }
-
-    public function test_typesense_rejects_values_that_cannot_be_represented_losslessly(): void
-    {
-        $this->expectException(VectorStoreException::class);
-        $this->expectExceptionMessage('backticks');
-
-        (new TypesenseFilterCompiler())->compile(Filter::eq('tenant', 'ac`me'));
     }
 
     public function test_mongodb_nests_custom_metadata_fields(): void
@@ -196,15 +218,6 @@ class FilterCompilersTest extends TestCase
             [':f0' => 'file', ':f1' => 'en', ':f2' => 'it', ':f3' => 2020, ':f4' => 1],
             $compiled['bindings']
         );
-    }
-
-    public function test_mariadb_refuses_unsafe_field_names(): void
-    {
-        $this->expectException(VectorStoreException::class);
-
-        (new MariaDBFilterCompiler())->compile(FilterGroup::and(
-            Filter::eq("x') OR ('1'='1", 'boom'),
-        ));
     }
 
     public function test_weaviate_compiles_rest_and_graphql(): void

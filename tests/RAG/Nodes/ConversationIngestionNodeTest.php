@@ -9,13 +9,18 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\InferenceNode;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\RAG\Nodes\ConversationIngestionNode;
 use NeuronAI\RAG\Retrieval\SemanticMemoryRetrieval;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeMiddleware;
@@ -175,6 +180,56 @@ class ConversationIngestionNodeTest extends TestCase
         $state->setResponse(new ProviderResponse(new AssistantMessage($answer)));
         $node = new ConversationIngestionNode($store, new FakeEmbeddingsProvider());
         $node(new AgentOutputEvent(), $state, AgentResourcesFactory::make());
+        $store->assertNothingStored();
+    }
+
+    public function test_a_tool_call_response_is_not_ingested(): void
+    {
+        $store = new FakeVectorStore();
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Instructions', messages: [new UserMessage('Weather?')]);
+        $state->setResponse(new ProviderResponse(new ToolCallMessage('Let me check.', [new ToolCall('get_weather', 'call-1', [])])));
+
+        (new ConversationIngestionNode($store, new FakeEmbeddingsProvider()))(new AgentOutputEvent(), $state, AgentResourcesFactory::make());
+
+        $store->assertNothingStored();
+    }
+
+    public function test_the_question_falls_back_to_history_when_the_request_holds_only_tool_traffic(): void
+    {
+        $store = new FakeVectorStore();
+        $history = new ChatHistory(new InMemoryMessageStore(), 'history-thread');
+        $history->addMessage(new UserMessage('Original question'));
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Instructions', messages: [
+            new ToolCallMessage(null, [new ToolCall('get_weather', 'call-1', [])]),
+            new ToolResultMessage([]),
+        ]);
+        $state->setResponse(new ProviderResponse(new AssistantMessage('Final answer')));
+
+        (new ConversationIngestionNode($store, new FakeEmbeddingsProvider()))(new AgentOutputEvent(), $state, AgentResourcesFactory::make(history: $history));
+
+        $store->assertDocumentCount(1);
+        $this->assertSame("User: Original question\nAssistant: Final answer", $store->getDocuments()[0]->getContent());
+        $this->assertSame('history-thread', $store->getDocuments()[0]->getSourceName());
+    }
+
+    public function test_an_exchange_the_store_schema_rejects_is_never_embedded(): void
+    {
+        $store = new FakeVectorStore(schema: DocumentSchema::of(DocumentField::string('tenant')->required()));
+        $embeddings = new FakeEmbeddingsProvider();
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Instructions', messages: [new UserMessage('Hello')]);
+        $state->setResponse(new ProviderResponse(new AssistantMessage('Hi.')));
+
+        try {
+            (new ConversationIngestionNode($store, $embeddings))(new AgentOutputEvent(), $state, AgentResourcesFactory::make());
+            $this->fail('A memory document the store schema rejects must not be ingested.');
+        } catch (DocumentSchemaException $exception) {
+            $this->assertStringContainsString('tenant', $exception->getMessage());
+        }
+
+        $embeddings->assertNothingEmbedded();
         $store->assertNothingStored();
     }
 }

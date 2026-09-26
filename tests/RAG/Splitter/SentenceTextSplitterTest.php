@@ -4,148 +4,121 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\Splitter;
 
+use InvalidArgumentException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Splitter\SentenceTextSplitter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use InvalidArgumentException;
 
 use function array_map;
+use function array_merge;
 use function array_slice;
+use function array_unique;
+use function array_values;
 use function count;
 use function explode;
+use function file_get_contents;
 use function implode;
+use function mb_check_encoding;
 use function preg_split;
 use function range;
-use function str_contains;
-use function substr_count;
 use function trim;
 
 class SentenceTextSplitterTest extends TestCase
 {
-    public function test_split_document_with_overlap(): void
+    /**
+     * @return array<string, array{array<string, int>, string}>
+     */
+    public static function invalidConfigurations(): array
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 2);
-
-        $text = "This is a longer text that should be split into multiple chunks. " .
-                "This is the second sentence that should appear in two chunks. " .
-                "This is the third sentence that completes the text.";
-
-        $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertGreaterThan(1, count($result));
-
-        // Verify that the overlap is present
-        $firstChunkWords = explode(' ', $result[0]->getContent());
-        $secondChunkWords = explode(' ', $result[1]->getContent());
-
-        $this->assertEquals(
-            array_slice($firstChunkWords, -2),
-            array_slice($secondChunkWords, 0, 2)
-        );
+        return [
+            'zero max words' => [['maxWords' => 0], 'maxWords must be greater than 0'],
+            'negative max words' => [['maxWords' => -1], 'maxWords must be greater than 0'],
+            'negative overlap' => [['maxWords' => 10, 'overlapWords' => -1], 'overlapWords must be greater than or equal to 0'],
+            'overlap equal to max words' => [['maxWords' => 10, 'overlapWords' => 10], 'Overlap must be less than maxWords'],
+            'overlap greater than max words' => [['maxWords' => 10, 'overlapWords' => 50], 'Overlap must be less than maxWords'],
+            'negative min words' => [['maxWords' => 10, 'minWords' => -1], 'minWords must be greater than or equal to 0'],
+            'min words equal to max words' => [['maxWords' => 10, 'minWords' => 10], 'minWords must be less than maxWords'],
+            'min words greater than max words' => [['maxWords' => 10, 'minWords' => 20], 'minWords must be less than maxWords'],
+        ];
     }
 
-    public function test_split_document_preserves_metadata(): void
-    {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 2);
-
-        $text = "Test document.";
-        $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertCount(1, $result);
-        $this->assertEquals('test', $result[0]->getSourceType());
-        $this->assertEquals('test.txt', $result[0]->getSourceName());
-    }
-
-    public function test_invalid_overlap_configuration(): void
+    /**
+     * @param array<string, int> $arguments
+     */
+    #[DataProvider('invalidConfigurations')]
+    public function test_invalid_configuration_is_rejected(array $arguments, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 10, overlapWords: 10);
+        $this->expectExceptionMessage($message);
+
+        new SentenceTextSplitter(...$arguments);
     }
 
-    public function test_split_document_without_overlap(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function blankTexts(): array
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 0);
-
-        $text = "This is the first sentence. This is the second sentence. This is the third sentence.";
-        $document = new Document($text);
-        $document->setSourceType('test');
-        $document->setSourceName('test.txt');
-
-        $result = $splitter->splitDocument($document);
-
-        // Verify there are exactly 2 chunks
-        $this->assertCount(2, $result);
-
-        // Verify no chunk exceeds the word limit
-        foreach ($result as $chunk) {
-            $words = preg_split('/\s+/u', trim($chunk->getContent()));
-            $this->assertLessThanOrEqual(10, count($words), 'Chunk exceeds word limit');
-        }
-
-        // Verify all sentences are present exactly once
-        $sentences = [
-            'This is the first sentence.',
-            'This is the second sentence.',
-            'This is the third sentence.',
+        return [
+            'empty' => [''],
+            'spaces' => ['   '],
+            'newlines and tabs' => ["\n\n\t\n  \r\n"],
         ];
-
-        $allContent = implode(' ', array_map(fn (Document $c): string => $c->getContent(), $result));
-
-        foreach ($sentences as $sentence) {
-            $this->assertStringContainsString($sentence, $allContent, "The sentence '$sentence' is not present");
-            // Verify the sentence appears exactly once
-            $this->assertEquals(1, substr_count($allContent, $sentence), "The sentence '$sentence' appears more than once");
-        }
-
-        // Verify there is no overlap between chunks
-        $firstChunkWords = preg_split('/\s+/u', trim($result[0]->getContent()));
-        $secondChunkWords = preg_split('/\s+/u', trim($result[1]->getContent()));
-
-        // Last words of first chunk should not be the first words of second chunk
-        $lastWordsOfFirst = array_slice($firstChunkWords, -2);
-        $firstWordsOfSecond = array_slice($secondChunkWords, 0, 2);
-        $this->assertNotEquals($lastWordsOfFirst, $firstWordsOfSecond, 'Overlap present when it should not be');
     }
 
-    public function test_chunking_base(): void
+    #[DataProvider('blankTexts')]
+    public function test_blank_text_has_no_chunks(string $text): void
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 0);
-
-        $text = "First sentence. Second sentence. Third sentence.";
-        $document = new Document($text);
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertCount(1, $result);
-        $this->assertStringContainsString('First sentence. Second sentence. Third sentence.', $result[0]->getContent());
+        $this->assertSame([], (new SentenceTextSplitter(maxWords: 10))->splitDocument(new Document($text)));
     }
 
-    public function test_chunking_with_overlap(): void
+    public function test_short_sentences_are_grouped_into_one_chunk(): void
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 2);
+        $result = (new SentenceTextSplitter(maxWords: 10))->splitDocument(new Document('First sentence. Second sentence. Third sentence.'));
 
-        $text = "One two three four five six seven eight nine ten. Eleven twelve thirteen fourteen fifteen.";
-        $document = new Document($text);
+        $this->assertSame(['First sentence. Second sentence. Third sentence.'], $this->contents($result));
+    }
 
-        $result = $splitter->splitDocument($document);
+    public function test_sentences_are_not_cut_when_they_fit_in_a_chunk(): void
+    {
+        $text = 'This is the first sentence. This is the second sentence. This is the third sentence.';
 
-        $this->assertGreaterThan(1, count($result));
+        $result = (new SentenceTextSplitter(maxWords: 10))->splitDocument(new Document($text));
 
-        $firstChunkWords = preg_split('/\s+/u', trim($result[0]->getContent()));
-        $secondChunkWords = preg_split('/\s+/u', trim($result[1]->getContent()));
-
-        $this->assertEquals(
-            array_slice($firstChunkWords, -2),
-            array_slice($secondChunkWords, 0, 2)
+        $this->assertSame(
+            ['This is the first sentence. This is the second sentence.', 'This is the third sentence.'],
+            $this->contents($result)
         );
+    }
+
+    public function test_overlap_prefixes_the_next_chunk_with_the_trailing_words_of_the_previous_one(): void
+    {
+        $text = 'One two three four five six seven eight nine ten. Eleven twelve thirteen fourteen fifteen.';
+
+        $result = (new SentenceTextSplitter(maxWords: 10, overlapWords: 2))->splitDocument(new Document($text));
+
+        $this->assertSame(
+            ['One two three four five six seven eight nine ten.', 'nine ten. Eleven twelve thirteen fourteen fifteen.'],
+            $this->contents($result)
+        );
+    }
+
+    public function test_overlap_carries_across_long_sentences_and_shrinks_to_respect_max_words(): void
+    {
+        $text = 'This is a longer text that should be split into multiple chunks. ' .
+                'This is the second sentence that should appear in two chunks. ' .
+                'This is the third sentence that completes the text.';
+
+        $result = (new SentenceTextSplitter(maxWords: 10, overlapWords: 2))->splitDocument(new Document($text));
+
+        $this->assertSame([
+            'This is a longer text that should be split into',
+            'split into multiple chunks.',
+            'multiple chunks. This is the second sentence that should appear',
+            'should appear in two chunks.',
+            'chunks. This is the third sentence that completes the text.',
+        ], $this->contents($result));
     }
 
     public function test_overlap_preserves_all_words_in_long_sentences(): void
@@ -155,13 +128,12 @@ class SentenceTextSplitterTest extends TestCase
 
         $result = $splitter->splitDocument(new Document(implode(' ', $words)));
 
-        $this->assertCount(4, $result);
         $this->assertSame([
             implode(' ', array_slice($words, 0, 100)),
             implode(' ', array_slice($words, 80, 100)),
             implode(' ', array_slice($words, 160, 100)),
             implode(' ', array_slice($words, 240, 60)),
-        ], array_map(static fn (Document $chunk): string => $chunk->getContent(), $result));
+        ], $this->contents($result));
     }
 
     public function test_overlap_never_exceeds_max_words_when_tail_is_shorter_than_overlap(): void
@@ -173,10 +145,7 @@ class SentenceTextSplitterTest extends TestCase
 
         $this->assertCount(10, $result);
         foreach ($result as $index => $chunk) {
-            $this->assertSame(
-                array_slice($words, $index, 10),
-                explode(' ', $chunk->getContent())
-            );
+            $this->assertSame(array_slice($words, $index, 10), explode(' ', $chunk->getContent()));
         }
     }
 
@@ -184,177 +153,188 @@ class SentenceTextSplitterTest extends TestCase
     {
         $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 2);
 
-        $result = $splitter->splitDocument(
-            new Document('One two three four. Five six seven eight nine.')
-        );
+        $result = $splitter->splitDocument(new Document('One two three four. Five six seven eight nine.'));
+
+        $this->assertSame(['One two three four.', 'Five six seven eight nine.'], $this->contents($result));
+    }
+
+    public function test_long_sentence_is_split_on_word_boundaries(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 5))->splitDocument(new Document('one two three four five six seven eight nine ten'));
+
+        $this->assertSame(['one two three four five', 'six seven eight nine ten'], $this->contents($result));
+    }
+
+    public function test_long_sentence_between_short_ones_gets_its_own_chunks(): void
+    {
+        $text = 'Short. This is a very long sentence that exceeds the chunk limit. End.';
+
+        $result = (new SentenceTextSplitter(maxWords: 6))->splitDocument(new Document($text));
 
         $this->assertSame(
-            ['One two three four.', 'Five six seven eight nine.'],
-            array_map(static fn (Document $chunk): string => $chunk->getContent(), $result)
+            ['Short.', 'This is a very long sentence', 'that exceeds the chunk limit.', 'End.'],
+            $this->contents($result)
         );
     }
 
-    public function test_long_sentence_is_split(): void
+    public function test_paragraph_breaks_end_sentences(): void
     {
-        $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 0);
-
-        $text = "one two three four five six seven eight nine ten";
-        $document = new Document($text);
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertGreaterThan(1, count($result));
-
-        foreach ($result as $chunk) {
-            $words = preg_split('/\s+/u', trim($chunk->getContent()));
-            $this->assertLessThanOrEqual(5, count($words));
-        }
-    }
-
-    public function test_paragraphs_not_split(): void
-    {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 0);
-
         $text = "First paragraph.\n\nSecond paragraph which is very long and contains many words and exceeds the chunk limit. Third paragraph.";
-        $document = new Document($text);
 
-        $result = $splitter->splitDocument($document);
+        $result = (new SentenceTextSplitter(maxWords: 10))->splitDocument(new Document($text));
 
-        $this->assertStringContainsString('First paragraph.', $result[0]->getContent());
-
-        $found = false;
-        foreach ($result as $chunk) {
-            if (str_contains($chunk->getContent(), 'Second paragraph')) {
-                $found = true;
-            }
-        }
-
-        $this->assertTrue($found, 'The second paragraph must be present in at least one chunk.');
-
-        $found = false;
-        foreach ($result as $chunk) {
-            if (str_contains($chunk->getContent(), 'Third paragraph.')) {
-                $found = true;
-            }
-        }
-
-        $this->assertTrue($found, 'The third paragraph must be present in at least one chunk.');
+        $this->assertSame([
+            'First paragraph.',
+            'Second paragraph which is very long and contains many words',
+            'and exceeds the chunk limit.',
+            'Third paragraph.',
+        ], $this->contents($result));
+        $this->assertSame(
+            ['Intro here', 'Body text now.'],
+            $this->contents((new SentenceTextSplitter(maxWords: 3))->splitDocument(new Document("Intro here\n\nBody text now.")))
+        );
     }
 
-    public function test_chunking_with_short_and_long_sentences(): void
+    public function test_whitespace_inside_sentences_is_normalized_to_single_spaces(): void
     {
-        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 0);
+        $result = (new SentenceTextSplitter(maxWords: 10))->splitDocument(new Document("  Line one\twith tab\nand   newline.  "));
 
-        $text = "Short. This is a very long sentence that exceeds the chunk limit. End.";
-        $document = new Document($text);
+        $this->assertSame(['Line one with tab and newline.'], $this->contents($result));
+    }
 
-        $result = $splitter->splitDocument($document);
+    public function test_exclamation_question_and_ellipsis_end_sentences(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 3))->splitDocument(new Document('Stop now! Go there? Run fast… "Then" rest.'));
 
+        $this->assertSame(['Stop now!', 'Go there?', 'Run fast…', '"Then" rest.'], $this->contents($result));
+    }
+
+    public function test_accented_capital_letters_start_a_new_sentence(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 4))->splitDocument(new Document('Première phrase ici. Éléphant arrive vite.'));
+
+        $this->assertSame(['Première phrase ici.', 'Éléphant arrive vite.'], $this->contents($result));
+    }
+
+    public function test_a_period_followed_by_lowercase_does_not_end_the_sentence(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 3))->splitDocument(new Document('See fig. two now.'));
+
+        $this->assertSame(['See fig. two', 'now.'], $this->contents($result));
+    }
+
+    public function test_multibyte_words_are_counted_once_and_never_cut(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 2))->splitDocument(new Document('naïve café résumé 日本語 🚀'));
+
+        $this->assertSame(['naïve café', 'résumé 日本語', '🚀'], $this->contents($result));
         foreach ($result as $chunk) {
-            $words = preg_split('/\s+/u', trim($chunk->getContent()));
-            $this->assertLessThanOrEqual(6, count($words));
+            $this->assertTrue(mb_check_encoding($chunk->getContent(), 'UTF-8'));
         }
-
-        $allContent = implode(' ', array_map(fn (Document $c): string => $c->getContent(), $result));
-
-        $this->assertStringContainsString('Short.', $allContent);
-        $this->assertStringContainsString('End.', $allContent);
     }
 
-    public function test_empty_text(): void
+    /**
+     * @return array<string, array{string, int}>
+     */
+    public static function textsWithoutOverlap(): array
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 0);
+        $longText = file_get_contents(__DIR__.'/../Stub/long-text.txt');
 
-        $text = "   ";
-        $document = new Document($text);
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertCount(0, $result);
+        return [
+            'fixture in large chunks' => [$longText, 200],
+            'fixture in small chunks' => [$longText, 7],
+            'single word chunks' => ['Alpha beta. Gamma delta epsilon! Zeta?', 1],
+        ];
     }
 
-    public function test_single_sentence(): void
+    #[DataProvider('textsWithoutOverlap')]
+    public function test_without_overlap_every_word_appears_once_in_order(string $text, int $maxWords): void
     {
-        $splitter = new SentenceTextSplitter(maxWords: 10, overlapWords: 0);
+        $result = (new SentenceTextSplitter(maxWords: $maxWords))->splitDocument(new Document($text));
 
-        $text = "Only one sentence.";
-        $document = new Document($text);
-
-        $result = $splitter->splitDocument($document);
-
-        $this->assertCount(1, $result);
-        $this->assertEquals('Only one sentence.', trim($result[0]->getContent()));
+        $chunkWords = array_map(static fn (Document $chunk): array => explode(' ', $chunk->getContent()), $result);
+        foreach ($chunkWords as $words) {
+            $this->assertLessThanOrEqual($maxWords, count($words));
+        }
+        $this->assertSame(preg_split('/\s+/u', trim($text)), array_merge(...$chunkWords));
     }
 
     public function test_min_words_merges_small_chunks(): void
     {
-        $text = "One two three four five six. Seven eight. Nine ten eleven twelve thirteen.";
-        $doc = new Document($text);
+        $doc = new Document('One two three four five six. Seven eight. Nine ten eleven twelve thirteen.');
 
-        // Without minWords: 3 chunks
-        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 0);
-        $result = $splitter->splitDocument($doc);
-        $this->assertCount(3, $result);
-
-        // With minWords: "Seven eight." (2 words) merged into first chunk
-        $splitter = new SentenceTextSplitter(maxWords: 6, overlapWords: 0, minWords: 3);
-        $result = $splitter->splitDocument($doc);
-        $this->assertCount(2, $result);
-        $this->assertEquals('One two three four five six. Seven eight.', $result[0]->getContent());
-        $this->assertEquals('Nine ten eleven twelve thirteen.', $result[1]->getContent());
+        $this->assertSame(
+            ['One two three four five six.', 'Seven eight.', 'Nine ten eleven twelve thirteen.'],
+            $this->contents((new SentenceTextSplitter(maxWords: 6))->splitDocument($doc))
+        );
+        $this->assertSame(
+            ['One two three four five six. Seven eight.', 'Nine ten eleven twelve thirteen.'],
+            $this->contents((new SentenceTextSplitter(maxWords: 6, minWords: 3))->splitDocument($doc))
+        );
     }
 
-    public function test_min_words_equal_to_max_throws_exception(): void
+    public function test_min_words_merges_only_chunks_shorter_than_the_minimum_into_the_previous_one(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 10, minWords: 10);
+        $doc = new Document('Hi. One two three four five six. Seven eight nine.');
+
+        $this->assertSame(
+            ['Hi.', 'One two three four five six.', 'Seven eight nine.'],
+            $this->contents((new SentenceTextSplitter(maxWords: 6, minWords: 3))->splitDocument($doc))
+        );
     }
 
-    public function test_min_words_greater_than_max_throws_exception(): void
+    public function test_source_and_metadata_are_copied_to_every_chunk(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 10, minWords: 20);
-    }
-
-    public function test_zero_max_words_throws_exception(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 0);
-    }
-
-    public function test_negative_max_words_throws_exception(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: -1);
-    }
-
-    public function test_negative_overlap_words_throws_exception(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 10, overlapWords: -1);
-    }
-
-    public function test_negative_min_words_throws_exception(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new SentenceTextSplitter(maxWords: 10, minWords: -1);
-    }
-
-    public function test_metadata_is_propagated(): void
-    {
-        $text = "First sentence here. Second sentence here. Third sentence here.";
-        $doc = new Document($text);
+        $doc = new Document('First sentence here. Second sentence here. Third sentence here.');
         $doc->setSourceType('file');
         $doc->setSourceName('test.txt');
         $doc->addMetadata('key', 'value');
 
-        $splitter = new SentenceTextSplitter(maxWords: 5, overlapWords: 0);
-        $result = $splitter->splitDocument($doc);
+        $result = (new SentenceTextSplitter(maxWords: 5))->splitDocument($doc);
 
+        $this->assertCount(3, $result);
         foreach ($result as $chunk) {
-            $this->assertEquals('file', $chunk->getSourceType());
-            $this->assertEquals('test.txt', $chunk->getSourceName());
-            $this->assertEquals(['key' => 'value'], $chunk->getMetadata());
+            $this->assertSame('file', $chunk->getSourceType());
+            $this->assertSame('test.txt', $chunk->getSourceName());
+            $this->assertSame(['key' => 'value'], $chunk->getMetadata());
         }
+    }
+
+    public function test_a_single_chunk_is_still_a_new_document_with_the_source(): void
+    {
+        $doc = (new Document('Test document.'))->setSourceType('test')->setSourceName('test.txt');
+
+        $result = (new SentenceTextSplitter(maxWords: 10, overlapWords: 2))->splitDocument($doc);
+
+        $this->assertSame(['Test document.'], $this->contents($result));
+        $this->assertSame('test', $result[0]->getSourceType());
+        $this->assertSame('test.txt', $result[0]->getSourceName());
+    }
+
+    public function test_every_chunk_has_its_own_identifier(): void
+    {
+        $result = (new SentenceTextSplitter(maxWords: 2))->splitDocument(new Document('One two. Three four. Five six.'));
+
+        $ids = array_map(static fn (Document $chunk): string|int => $chunk->getId(), $result);
+        $this->assertCount(3, $ids);
+        $this->assertSame($ids, array_values(array_unique($ids)));
+    }
+
+    public function test_split_documents_flattens_chunks_in_document_order(): void
+    {
+        $splitter = new SentenceTextSplitter(maxWords: 2);
+
+        $result = $splitter->splitDocuments([new Document('One two. Three four.'), new Document(''), new Document('Five six.')]);
+
+        $this->assertSame(['One two.', 'Three four.', 'Five six.'], $this->contents($result));
+    }
+
+    /**
+     * @param Document[] $documents
+     * @return string[]
+     */
+    protected function contents(array $documents): array
+    {
+        return array_map(static fn (Document $document): string => $document->getContent(), $documents);
     }
 }

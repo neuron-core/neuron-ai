@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\RAG;
+use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
@@ -16,9 +17,12 @@ use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
+use NeuronAI\Tests\RAG\Stub\SuffixPreProcessor;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 use function iterator_to_array;
+use function substr_count;
 
 class RAGTest extends TestCase
 {
@@ -29,11 +33,11 @@ class RAGTest extends TestCase
         );
 
         $vectorStore = new FakeVectorStore([
-            new Document('France is a country in Europe. Its capital is Paris.'),
+            (new Document('France is a country in Europe. Its capital is Paris.'))->setSourceType('file')->setSourceName('europe.md'),
         ]);
 
         $rag = RAG::make();
-        $rag->setAiProvider($provider);
+        $rag->setAiProvider($provider)->setInstructions('You answer geography questions.');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
 
@@ -42,6 +46,70 @@ class RAGTest extends TestCase
         $this->assertSame('Paris is the capital of France.', $message->getContent());
         $provider->assertCallCount(1);
         $vectorStore->assertSearchCount(1);
+        $request = $provider->getRecorded()[0];
+        $this->assertSame(
+            "You answer geography questions.\n\n<EXTRA-CONTEXT>"
+            ."Source Type: file\nSource Name: europe.md\nContent: France is a country in Europe. Its capital is Paris.\n\n"
+            ."</EXTRA-CONTEXT>",
+            $request->systemPrompt?->getContent(),
+        );
+        $this->assertCount(1, $request->messages);
+        $this->assertSame('What is the capital of France?', $request->messages[0]->getContent());
+    }
+
+    public function test_retrieved_context_does_not_accumulate_across_turns(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply'));
+        $vectorStore = new FakeVectorStore([new Document('First context')]);
+        $rag = RAG::make();
+        $rag->setAiProvider($provider)->setInstructions('Base instructions');
+        $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($vectorStore);
+
+        $rag->chat(new UserMessage('First question'));
+        $vectorStore->setSearchResults([new Document('Second context')]);
+        $rag->chat(new UserMessage('Second question'));
+
+        $prompt = (string) $provider->getRecorded()[1]->systemPrompt?->getContent();
+        $this->assertSame(1, substr_count($prompt, '<EXTRA-CONTEXT>'));
+        $this->assertSame(1, substr_count($prompt, 'Base instructions'));
+        $this->assertStringContainsString('Second context', $prompt);
+        $this->assertStringNotContainsString('First context', $prompt);
+    }
+
+    public function test_a_rewritten_query_drives_retrieval_while_the_model_answers_the_original_question(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Answer'));
+        $embeddings = new FakeEmbeddingsProvider();
+        $rag = RAG::make()
+            ->setEmbeddingsProvider($embeddings)
+            ->setVectorStore(new FakeVectorStore([new Document('Context')]))
+            ->setPreProcessors([new SuffixPreProcessor(' with synonyms')]);
+        $rag->setAiProvider($provider);
+
+        $rag->chat(new UserMessage('Original question'));
+
+        $this->assertSame(['Original question with synonyms'], $embeddings->getRecorded());
+        $this->assertSame('Original question', $provider->getRecorded()[0]->messages[0]->getContent());
+        $this->assertSame('Original question', $rag->getChatHistory()->getMessages()[0]->getContent());
+    }
+
+    public function test_a_retrieval_failure_stops_the_turn_before_inference_and_history(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Never sent'));
+        $retrieval = $this->createMock(RetrievalInterface::class);
+        $retrieval->method('retrieve')->willThrowException(new RuntimeException('Vector store unavailable.'));
+        $rag = RAG::make()->setRetrieval($retrieval);
+        $rag->setAiProvider($provider);
+
+        try {
+            $rag->chat(new UserMessage('Question'));
+            $this->fail('A retrieval failure must fail the turn.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Vector store unavailable.', $exception->getMessage());
+        }
+
+        $provider->assertNothingSent();
+        $this->assertSame([], $rag->getChatHistory()->getMessages());
     }
 
     public function test_configuration_changes_refresh_the_entry_chain_on_the_next_turn(): void
@@ -141,7 +209,7 @@ class RAGTest extends TestCase
         $vectorStore = new FakeVectorStore([]);
 
         $rag = RAG::make();
-        $rag->setAiProvider($provider);
+        $rag->setAiProvider($provider)->setInstructions('Base instructions');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
 
@@ -149,6 +217,10 @@ class RAGTest extends TestCase
 
         $this->assertSame('I don\'t have enough information.', $message->getContent());
         $vectorStore->assertSearchCount(1);
+        $prompt = (string) $provider->getRecorded()[0]->systemPrompt?->getContent();
+        $this->assertStringStartsWith('Base instructions', $prompt);
+        $this->assertStringNotContainsString('Content:', $prompt);
+        $this->assertCount(2, $rag->getChatHistory()->getMessages());
     }
 
     public function test_retrieval_scope_hook_constrains_the_default_strategy(): void
@@ -169,7 +241,5 @@ class RAGTest extends TestCase
         $rag->chat(new UserMessage('Question'));
 
         $vectorStore->assertSearchedWithFilters(Filter::eq('tenant', 'acme'));
-        $this->addToAssertionCount(1);
     }
-
 }

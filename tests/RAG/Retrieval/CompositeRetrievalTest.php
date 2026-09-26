@@ -44,6 +44,20 @@ class CompositeRetrievalTest extends TestCase
         $this->assertSame(['Question', 'Question'], $embeddings->getRecorded());
     }
 
+    public function test_no_children_retrieve_nothing(): void
+    {
+        $this->assertSame([], (new CompositeRetrieval([]))->retrieve(new UserMessage('Question'), Filter::eq('sourceName', 'allowed')));
+    }
+
+    public function test_children_receive_no_filters_when_none_are_injected(): void
+    {
+        $store = new FakeVectorStore();
+
+        (new CompositeRetrieval([new SimilarityRetrieval($store, new FakeEmbeddingsProvider())]))->retrieve(new UserMessage('Question'));
+
+        $this->assertNull($store->getRecorded()[0]->request?->filters);
+    }
+
     public function test_rag_combines_memory_and_knowledge_without_automatically_creating_memories(): void
     {
         $embeddings = new FakeEmbeddingsProvider();

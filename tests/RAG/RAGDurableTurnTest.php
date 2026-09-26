@@ -16,8 +16,6 @@ use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
-use function str_contains;
-
 /**
  * RAG's entry chain commits its retrieval steps before inference, so a
  * provider failure leaves a failed generation whose records hold the first
@@ -77,8 +75,8 @@ class RAGDurableTurnTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
         $sent = $provider->getRecorded()[0]->messages;
         $this->assertCount(1, $sent);
-        $this->assertTrue(str_contains((string) $sent[0]->getContent(), 'Which city is the French capital?'));
-        $this->assertFalse(str_contains((string) $sent[0]->getContent(), 'What is the capital of France?'));
+        $this->assertSame('Which city is the French capital?', $sent[0]->getContent());
+        $this->assertStringNotContainsString('What is the capital of France?', (string) $provider->getRecorded()[0]->systemPrompt?->getContent());
 
         $this->assertCount(2, $messageStore->loadActive('thread'));
         $this->assertNull($persistence->get($threadId, '__control'));

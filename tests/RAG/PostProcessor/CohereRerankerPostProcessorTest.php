@@ -4,116 +4,125 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\PostProcessor;
 
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
-use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\CohereRerankerPostProcessor;
+use NeuronAI\Tests\RAG\Stub\RecordsJsonRequests;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
-use function json_encode;
+use function array_map;
 
 class CohereRerankerPostProcessorTest extends TestCase
 {
-    public function test_post_process_reranks_documents(): void
+    use RecordsJsonRequests;
+
+    /** @return Document[] */
+    protected function capitals(): array
     {
-        $sentRequests = [];
-        $history = Middleware::history($sentRequests);
-        $mockHandler = new MockHandler([
-            new Response(
-                status: 200,
-                body: json_encode([
-                    'results' => [
-                        ['index' => 1, 'relevance_score' => 0.9],
-                        ['index' => 0, 'relevance_score' => 0.2],
-                        ['index' => 2, 'relevance_score' => 0.1],
-                    ],
-                    'meta' => [
-                        'api_version' => [
-                            'version' => '2',
-                            'is_experimental' => false,
-                        ],
-                        'billed_units' => [
-                            'search_units' => 1,
-                        ],
-                    ],
-                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf',
-                ])
-            ),
-        ]);
-        $stack = HandlerStack::create($mockHandler);
-        $stack->push($history);
-
-        $postProcessor = (new CohereRerankerPostProcessor(key: '', httpClient: new GuzzleHttpClient(handler: $stack)));
-
-        $question = new UserMessage("What is the capital of Italy?");
-        $documents = [
-            new Document("Paris is the capital of France"),
-            new Document("Rome is the capital of Italy"),
-            new Document("Madrid is the capital of Spain"),
-            new Document("London is the capital of the United Kingdom"),
+        return [
+            new Document('Paris is the capital of France'),
+            new Document('Rome is the capital of Italy'),
+            new Document('Madrid is the capital of Spain'),
+            new Document('London is the capital of the United Kingdom'),
         ];
-
-        $result = $postProcessor->process($question, $documents);
-
-        $this->assertCount(3, $result, "Cohere API returns 3 results by default");
-        $this->assertEquals("Rome is the capital of Italy", $result[0]->getContent(), "Rome should be the first result");
-        $this->assertEquals("Paris is the capital of France", $result[1]->getContent(), "Paris should be the second result");
-        $this->assertEquals("Madrid is the capital of Spain", $result[2]->getContent(), "Madrid should be the third result");
-
-        $this->assertEquals(0.9, $result[0]->getScore(), "Score should match the mock response");
     }
 
-    public function test_post_process_with_top_n_parameter(): void
+    public function test_rerank_request_carries_query_documents_model_and_top_n(): void
     {
-        $sentRequests = [];
-        $history = Middleware::history($sentRequests);
-        $mockHandler = new MockHandler([
-            new Response(
-                status: 200,
-                body: json_encode([
-                    'results' => [
-                        ['index' => 1, 'relevance_score' => 0.9],
-                        ['index' => 0, 'relevance_score' => 0.2],
-                    ],
-                    'meta' => [
-                        'api_version' => [
-                            'version' => '2',
-                            'is_experimental' => false,
-                        ],
-                        'billed_units' => [
-                            'search_units' => 1,
-                        ],
-                    ],
-                    'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf',
-                ])
-            ),
-        ]);
-        $stack = HandlerStack::create($mockHandler);
-        $stack->push($history);
-
-        $postProcessor = (new CohereRerankerPostProcessor(
-            key: '',
-            model: 'rerank-v3.5',
+        $processor = new CohereRerankerPostProcessor(
+            key: 'cohere-key',
+            model: 'rerank-custom',
             topN: 2,
-            httpClient: new GuzzleHttpClient(handler: $stack)
-        ));
+            httpClient: $this->recordingClient($this->jsonResponse(['results' => []])),
+        );
 
-        $question = new UserMessage("What is the capital of Italy?");
-        $documents = [
-            new Document("Paris is the capital of France"),
-            new Document("Rome is the capital of Italy"),
-            new Document("Madrid is the capital of Spain"),
-            new Document("London is the capital of the United Kingdom"),
-        ];
+        $processor->process(new UserMessage('What is the capital of Italy?'), $this->capitals());
 
-        $result = $postProcessor->process($question, $documents);
+        $request = $this->sentRequest();
+        $this->assertSame('POST', $request->getMethod());
+        $this->assertSame('https://api.cohere.com/v2/rerank', (string) $request->getUri());
+        $this->assertSame('Bearer cohere-key', $request->getHeaderLine('Authorization'));
+        $this->assertSame('application/json', $request->getHeaderLine('Content-Type'));
+        $this->assertSame([
+            'model' => 'rerank-custom',
+            'query' => 'What is the capital of Italy?',
+            'top_n' => 2,
+            'documents' => [
+                'Paris is the capital of France',
+                'Rome is the capital of Italy',
+                'Madrid is the capital of Spain',
+                'London is the capital of the United Kingdom',
+            ],
+        ], $this->sentJson());
+    }
 
-        $this->assertCount(2, $result, "Cohere API returns exactly top_n results");
-        $this->assertEquals("Rome is the capital of Italy", $result[0]->getContent(), "Rome should be the first result");
-        $this->assertEquals("Paris is the capital of France", $result[1]->getContent(), "Paris should be the second result");
+    public function test_defaults_to_rerank_v3_5_and_three_results(): void
+    {
+        $processor = new CohereRerankerPostProcessor(
+            key: 'cohere-key',
+            httpClient: $this->recordingClient($this->jsonResponse(['results' => []])),
+        );
+
+        $processor->process(new UserMessage('Question'), [new Document('Context')]);
+
+        $this->assertSame('rerank-v3.5', $this->sentJson()['model']);
+        $this->assertSame(3, $this->sentJson()['top_n']);
+    }
+
+    #[TestWith(['https://proxy.example.com/v2'])]
+    #[TestWith(['https://proxy.example.com/v2/'])]
+    public function test_custom_host_is_joined_with_a_single_slash(string $host): void
+    {
+        $processor = new CohereRerankerPostProcessor(
+            key: 'cohere-key',
+            host: $host,
+            httpClient: $this->recordingClient($this->jsonResponse(['results' => []])),
+        );
+
+        $processor->process(new UserMessage('Question'), [new Document('Context')]);
+
+        $this->assertSame('https://proxy.example.com/v2/rerank', (string) $this->sentRequest()->getUri());
+    }
+
+    public function test_documents_follow_the_api_ranking_with_its_relevance_scores(): void
+    {
+        $documents = $this->capitals();
+        $documents[1]->addMetadata('country', 'Italy');
+        $processor = new CohereRerankerPostProcessor(
+            key: 'cohere-key',
+            httpClient: $this->recordingClient($this->jsonResponse([
+                'results' => [
+                    ['index' => 1, 'relevance_score' => 0.9],
+                    ['index' => 0, 'relevance_score' => 0.2],
+                    ['index' => 3, 'relevance_score' => 0.0],
+                ],
+                'id' => '07734bd2-2473-4f07-94e1-0d9f0e6843cf',
+            ])),
+        );
+
+        $result = $processor->process(new UserMessage('What is the capital of Italy?'), $documents);
+
+        $this->assertSame([$documents[1], $documents[0], $documents[3]], $result);
+        $this->assertSame([0.9, 0.2, 0.0], array_map(static fn (Document $document): ?float => $document->getScore(), $result));
+        $this->assertSame(['country' => 'Italy'], $result[0]->getMetadata());
+    }
+
+    public function test_an_http_error_propagates_without_the_api_key(): void
+    {
+        $processor = new CohereRerankerPostProcessor(
+            key: 'cohere-secret-key',
+            httpClient: $this->recordingClient($this->jsonResponse(['message' => 'invalid api token'], 401)),
+        );
+
+        try {
+            $processor->process(new UserMessage('Question'), [new Document('Context')]);
+            $this->fail('An HTTP error must fail the rerank.');
+        } catch (HttpException $exception) {
+            $this->assertSame(401, $exception->response?->statusCode);
+            $this->assertStringContainsString('invalid api token', $exception->getMessage());
+            $this->assertStringNotContainsString('cohere-secret-key', $exception->getMessage());
+        }
     }
 }

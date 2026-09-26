@@ -47,17 +47,13 @@ class RetrievalFiltersTest extends TestCase
             FilterGroup::and(Filter::eq('lang', 'en')),
         );
 
-        $request = $this->lastSearchRequest($store);
-        $this->assertInstanceOf(FilterGroup::class, $request->filters);
-
-        $conditions = $request->filters->conditions();
-        $this->assertCount(2, $conditions);
-        $tenant = $conditions[0];
-        $language = $conditions[1];
-        $this->assertInstanceOf(Filter::class, $tenant);
-        $this->assertInstanceOf(Filter::class, $language);
-        $this->assertSame('tenant', $tenant->field);
-        $this->assertSame('lang', $language->field);
+        $this->assertSame([
+            'operator' => 'and',
+            'conditions' => [
+                ['operator' => 'eq', 'field' => 'tenant', 'value' => 'acme'],
+                ['operator' => 'eq', 'field' => 'lang', 'value' => 'en'],
+            ],
+        ], $this->lastSearchRequest($store)->filters?->toArray());
     }
 
     public function test_incoming_filters_alone_reach_the_store(): void
@@ -70,23 +66,47 @@ class RetrievalFiltersTest extends TestCase
             FilterGroup::and(Filter::eq('lang', 'en')),
         );
 
-        $request = $this->lastSearchRequest($store);
-        $this->assertInstanceOf(FilterGroup::class, $request->filters);
-        $this->assertCount(1, $request->filters->conditions());
+        $this->assertSame([
+            'operator' => 'and',
+            'conditions' => [['operator' => 'eq', 'field' => 'lang', 'value' => 'en']],
+        ], $this->lastSearchRequest($store)->filters?->toArray());
     }
 
     public function test_event_filters_accumulate_by_and(): void
     {
-        $event = new QueryPreProcessedEvent(new UserMessage('question'));
+        $this->assertNull((new QueryPreProcessedEvent(new UserMessage('question')))->getFilters());
 
-        $this->assertNull($event->getFilters());
+        $event = (new QueryPreProcessedEvent(new UserMessage('question')))
+            ->addFilters(FilterGroup::and(Filter::eq('tenant', 'acme')))
+            ->addFilters(FilterGroup::and(Filter::eq('lang', 'en')));
 
-        $event->addFilters(FilterGroup::and(Filter::eq('tenant', 'acme')));
-        $event->addFilters(FilterGroup::and(Filter::eq('lang', 'en')));
+        $this->assertSame([
+            'operator' => 'and',
+            'conditions' => [
+                ['operator' => 'eq', 'field' => 'tenant', 'value' => 'acme'],
+                ['operator' => 'eq', 'field' => 'lang', 'value' => 'en'],
+            ],
+        ], $event->getFilters()?->toArray());
+    }
+
+    public function test_a_single_injected_filter_is_forwarded_unchanged(): void
+    {
+        $filter = Filter::eq('tenant', 'acme');
+
+        $this->assertSame($filter, (new QueryPreProcessedEvent(new UserMessage('question')))->addFilters($filter)->getFilters());
+    }
+
+    public function test_a_later_or_filter_is_nested_and_cannot_relax_an_earlier_one(): void
+    {
+        $event = (new QueryPreProcessedEvent(new UserMessage('question')))
+            ->addFilters(Filter::eq('tenant', 'acme'))
+            ->addFilters(FilterGroup::anyOf(Filter::eq('tenant', 'globex'), Filter::eq('lang', 'en')));
 
         $filters = $event->getFilters();
         $this->assertInstanceOf(FilterGroup::class, $filters);
-        $this->assertCount(2, $filters->conditions());
+        $this->assertSame('and', $filters->operator()->value);
+        $this->assertSame(['operator' => 'eq', 'field' => 'tenant', 'value' => 'acme'], $filters->conditions()[0]->toArray());
+        $this->assertSame('or', $filters->conditions()[1]->toArray()['operator']);
     }
 
     public function test_scope_merge_preserves_nested_query_logic(): void
