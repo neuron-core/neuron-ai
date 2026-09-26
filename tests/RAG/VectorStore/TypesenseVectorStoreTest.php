@@ -23,6 +23,7 @@ use Typesense\Client;
 
 use function count;
 use function array_map;
+use function array_slice;
 use function explode;
 use function json_decode;
 use function range;
@@ -113,6 +114,38 @@ class TypesenseVectorStoreTest extends TestCase
             'tenant' => 'acme',
         ], $this->sentJson(2));
         $this->assertSame('typesense-key', $this->sentRequest(0)->getHeaderLine('X-TYPESENSE-API-KEY'));
+    }
+
+    public function test_every_schema_field_type_maps_to_its_typesense_type(): void
+    {
+        $schema = DocumentSchema::of(
+            DocumentField::string('tenant'),
+            DocumentField::strings('tags'),
+            DocumentField::integer('year'),
+            DocumentField::integers('versions'),
+            DocumentField::float('rating'),
+            DocumentField::floats('scores'),
+            DocumentField::boolean('draft'),
+            DocumentField::booleans('flags'),
+        );
+        $store = $this->store($schema, $this->jsonResponse(['message' => 'Not Found'], 404), $this->jsonResponse(), $this->jsonResponse());
+
+        $store->addDocument($this->document());
+
+        $types = [];
+        foreach (array_slice($this->sentJson(1)['fields'], 5) as $field) {
+            $types[$field['name']] = $field['type'];
+        }
+        $this->assertSame([
+            'tenant' => 'string',
+            'tags' => 'string[]',
+            'year' => 'int64',
+            'versions' => 'int64[]',
+            'rating' => 'float',
+            'scores' => 'float[]',
+            'draft' => 'bool',
+            'flags' => 'bool[]',
+        ], $types);
     }
 
     public function test_embedding_dimension_mismatch_with_an_existing_collection_is_refused(): void

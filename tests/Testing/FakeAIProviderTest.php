@@ -6,6 +6,8 @@ namespace NeuronAI\Tests\Testing;
 
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
@@ -298,6 +300,25 @@ class FakeAIProviderTest extends TestCase
         $this->assertCount(1, $chunks);
         $this->assertInstanceOf(TextChunk::class, $chunks[0]);
         $this->assertSame('Answer', $chunks[0]->content);
+    }
+
+    public function test_stream_yields_no_chunk_for_media_blocks_but_returns_them(): void
+    {
+        $message = new AssistantMessage([
+            new TextContent('Here it is'),
+            new ImageContent('aW1hZ2U=', SourceType::BASE64, 'image/png'),
+            new TextContent('Enjoy'),
+        ]);
+        $provider = (new FakeAIProvider($message))->setStreamChunkSize(20);
+
+        $generator = $provider->stream(new UserMessage('Draw'));
+        $chunks = iterator_to_array($generator, false);
+
+        $this->assertSame(
+            [[TextChunk::class, 'Here it is'], [TextChunk::class, 'Enjoy']],
+            array_map(static fn (StreamChunk $chunk): array => [$chunk::class, $chunk->toArray()['content']], $chunks)
+        );
+        $this->assertSame($message, $generator->getReturn()->message());
     }
 
     public function test_stream_yields_tool_argument_chunks_for_tool_calls(): void

@@ -181,7 +181,7 @@ class StreamableHttpTransportTest extends TestCase
     public function test_an_sse_response_yields_every_event_payload_in_order(): void
     {
         $transport = $this->transportAnswering(
-            ": keep-alive comment\r\n\r\n"
+            ": keep-alive comment\r\n: data: a comment is never a payload\r\n\r\n"
             . "id: 1\r\nevent: message\r\nretry: 1000\r\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\r\n\r\n"
             . "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/message\"}\r\r"
             . "event: ping\n\n"
@@ -193,6 +193,15 @@ class StreamableHttpTransportTest extends TestCase
         $this->assertSame(['jsonrpc' => '2.0', 'method' => 'notifications/message'], $transport->receive());
         // Data lines of one event join into one payload.
         $this->assertSame(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['text' => 'a:b']], $transport->receive());
+    }
+
+    public function test_a_plain_json_response_nested_deeper_than_64_levels_is_refused(): void
+    {
+        $transport = $this->transportAnswering(str_repeat('[', 70) . str_repeat(']', 70));
+
+        $this->expectException(McpException::class);
+
+        $transport->receive();
     }
 
     public function test_a_new_send_discards_unread_messages_of_the_previous_response(): void

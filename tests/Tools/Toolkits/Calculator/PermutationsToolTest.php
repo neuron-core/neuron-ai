@@ -44,6 +44,8 @@ class PermutationsToolTest extends TestCase
     {
         $this->assertToolError('Permutations require 0 <= k <= n.', ($this->tool)(2, 3));
         $this->assertToolError('Permutations require 0 <= k <= n.', ($this->tool)(-1, 0));
+        // Without its own guard a negative k runs no factor and would answer 1.
+        $this->assertToolError('Permutations require 0 <= k <= n.', ($this->tool)(5, -1));
     }
 
     public function test_rejects_too_many_terms(): void

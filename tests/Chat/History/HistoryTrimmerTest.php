@@ -161,6 +161,32 @@ class HistoryTrimmerTest extends TestCase
         $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
     }
 
+    public function test_a_cut_inside_a_tool_chain_moves_forward_when_the_next_user_turn_is_closer(): void
+    {
+        $calls = [new ToolCall('a', 'call-1'), new ToolCall('b', 'call-2'), new ToolCall('c', 'call-3')];
+        $messages = [
+            new UserMessage('first'),
+            (new ToolCallMessage(null, [$calls[0]]))->setUsage(new Usage(50, 10)),
+            new ToolResultMessage([(clone $calls[0])->setResult('1')]),
+            (new ToolCallMessage(null, [$calls[1]]))->setUsage(new Usage(100, 10)),
+            new ToolResultMessage([(clone $calls[1])->setResult('2')]),
+            (new ToolCallMessage(null, [$calls[2]]))->setUsage(new Usage(150, 10)),
+            new ToolResultMessage([(clone $calls[2])->setResult('3')]),
+            (new AssistantMessage('done'))->setUsage(new Usage(200, 10)),
+            new UserMessage('second'),
+            (new AssistantMessage('ok'))->setUsage(new Usage(300, 20)),
+        ];
+        $trimmer = new HistoryTrimmer();
+
+        // The cut lands on the third tool result: the next user turn is 2 messages away, the first 6.
+        $trimmed = $trimmer->trim($messages, 200);
+
+        $this->assertSame($this->ids(array_slice($messages, 8)), $this->ids($trimmed));
+        // 320 minus the 210 tokens reported by the last dropped message.
+        $this->assertSame(110, $trimmer->getTotalTokens());
+        $this->assertSame(90, $trimmed[1]->getUsage()?->inputTokens);
+    }
+
     public function test_the_latest_user_turn_is_kept_even_when_it_alone_exceeds_the_window(): void
     {
         $messages = [

@@ -232,6 +232,31 @@ class EvaluatorRunnerTest extends TestCase
         $this->assertNull($results[1]->getError());
     }
 
+    public function test_an_exception_without_a_message_is_still_an_item_error(): void
+    {
+        $evaluator = new class () extends BaseEvaluator {
+            public function getDataset(): DatasetInterface
+            {
+                return new ArrayDataset([['name' => 'silent']]);
+            }
+
+            public function run(array $datasetItem): mixed
+            {
+                throw new RuntimeException();
+            }
+
+            public function evaluate(mixed $output, array $datasetItem): void
+            {
+            }
+        };
+
+        $result = (new EvaluatorRunner())->run($evaluator)->getResults()[0];
+
+        $this->assertFalse($result->isPassed());
+        $this->assertTrue($result->hasError());
+        $this->assertSame('', $result->getError());
+    }
+
     public function test_concurrent_run_isolates_failing_items(): void
     {
         $this->requireForking();

@@ -20,6 +20,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
@@ -28,17 +29,21 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-use function glob;
-use function is_dir;
 use function iterator_to_array;
-use function rmdir;
-use function sys_get_temp_dir;
-use function unlink;
-
-use const DIRECTORY_SEPARATOR;
 
 class AgentDurabilityTest extends TestCase
 {
+    use FileSystemSandbox;
+
+    protected ?string $persistenceDirectory = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->persistenceDirectory !== null) {
+            $this->removeSandbox($this->persistenceDirectory);
+        }
+    }
+
     public function test_crash_recovery_during_tool_execution(): void
     {
         $workflowId = 'agent_recovery_test';
@@ -275,7 +280,7 @@ class AgentDurabilityTest extends TestCase
     public function test_interrupt_resume_with_file_persistence(): void
     {
         $workflowId = 'agent_file_interrupt_test';
-        $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
+        $dir = $this->persistenceDirectory = $this->createSandbox('neuron_test_' . $workflowId);
 
         $provider = new FakeAIProvider(
             new AssistantMessage('Hello!'),
@@ -292,8 +297,6 @@ class AgentDurabilityTest extends TestCase
 
         // After successful completion, persistence file should be deleted
         $this->assertFileDoesNotExist($dir . '/' . $workflowId . '.store');
-
-        $this->removeDirectory($dir);
     }
 
     public function test_tool_call_with_file_persistence_and_unserializable_tool_dependency(): void
@@ -303,7 +306,7 @@ class AgentDurabilityTest extends TestCase
         // HTTP client, closure) must not break the run — Tool::__serialize() persists
         // only the call data.
         $workflowId = 'agent_file_unserializable_tool_test';
-        $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
+        $dir = $this->persistenceDirectory = $this->createSandbox('neuron_test_' . $workflowId);
 
         $tool = new ClosureDependencyTool(fn (): string => '42');
 
@@ -323,14 +326,12 @@ class AgentDurabilityTest extends TestCase
 
         $this->assertSame('There are 42 users in the database.', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
-
-        $this->removeDirectory($dir);
     }
 
     public function test_crash_recovery_resolves_tools_from_live_registry(): void
     {
         $workflowId = 'agent_file_tool_recovery_test';
-        $dir = sys_get_temp_dir() . '/neuron_test_' . $workflowId;
+        $dir = $this->persistenceDirectory = $this->createSandbox('neuron_test_' . $workflowId);
         $persistence = new FilePersistence($dir);
         $messageStore = new InMemoryMessageStore();
 
@@ -381,21 +382,5 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(2, $calls);
         // The recalled inference was not re-billed: one call per distinct response.
         $this->assertSame(2, $provider->getCallCount());
-
-        $this->removeDirectory($dir);
-    }
-
-    protected function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $files = glob($dir . DIRECTORY_SEPARATOR . '*') ?: [];
-        foreach ($files as $file) {
-            is_dir($file) ? $this->removeDirectory($file) : unlink($file);
-        }
-
-        rmdir($dir);
     }
 }

@@ -20,6 +20,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -28,16 +29,9 @@ use PHPUnit\Framework\TestCase;
 
 use function array_keys;
 use function array_map;
-use function glob;
-use function is_dir;
 use function iterator_to_array;
-use function rmdir;
 use function str_contains;
 use function strlen;
-use function sys_get_temp_dir;
-use function unlink;
-
-use const DIRECTORY_SEPARATOR;
 
 /**
  * The chat history never travels through the durable workflow state: snapshots
@@ -46,6 +40,16 @@ use const DIRECTORY_SEPARATOR;
 class AgentDurableHistoryTest extends TestCase
 {
     use ExecutorTestHelpers;
+    use FileSystemSandbox;
+
+    protected ?string $persistenceDirectory = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->persistenceDirectory !== null) {
+            $this->removeSandbox($this->persistenceDirectory);
+        }
+    }
 
     public function test_sql_chat_history_works_with_durable_workflow_persistence(): void
     {
@@ -58,7 +62,7 @@ class AgentDurableHistoryTest extends TestCase
             new AssistantMessage('Here are the results.'),
         );
 
-        $dir = sys_get_temp_dir() . '/neuron_sql_history_test';
+        $dir = $this->persistenceDirectory = $this->createSandbox('neuron_sql_history');
 
         $agent = Agent::make(workflowId: 'thread-1');
         $agent->setAiProvider($provider);
@@ -69,8 +73,6 @@ class AgentDurableHistoryTest extends TestCase
         $message = $agent->chat(new UserMessage('Search for PHP frameworks'))->getMessage();
 
         $this->assertSame('Here are the results.', $message->getContent());
-
-        $this->removeDirectory($dir);
     }
 
     public function test_step_snapshots_do_not_carry_the_conversation(): void
@@ -267,7 +269,7 @@ class AgentDurableHistoryTest extends TestCase
             new AssistantMessage('Search results ready.'),
         );
 
-        $dir = sys_get_temp_dir() . '/neuron_sql_resume_test';
+        $dir = $this->persistenceDirectory = $this->createSandbox('neuron_sql_resume');
 
         $agent1 = Agent::make(workflowId: 'thread-1');
         $agent1->setAiProvider($provider);
@@ -293,21 +295,5 @@ class AgentDurableHistoryTest extends TestCase
         $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['call_1' => 'approve']))->getMessage();
 
         $this->assertSame('Search results ready.', $message->getContent());
-
-        $this->removeDirectory($dir);
-    }
-
-    protected function removeDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $files = glob($dir . DIRECTORY_SEPARATOR . '*') ?: [];
-        foreach ($files as $file) {
-            unlink($file);
-        }
-
-        rmdir($dir);
     }
 }

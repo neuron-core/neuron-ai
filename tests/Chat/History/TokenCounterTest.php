@@ -95,6 +95,9 @@ class TokenCounterTest extends TestCase
             'two tiles' => [1024, 512, 426],
             'short side shrunk to 768' => [1024, 1024, 766],
             'short side under 768' => [800, 600, 766],
+            // 1600x1000 shrinks to 1228x768 (3x2 tiles); the portrait twin to 768x1228.
+            'wide, short side shrunk to 768' => [1600, 1000, 1106],
+            'tall, short side shrunk to 768' => [1000, 1600, 1106],
             'wide, fitted in 2048' => [4096, 1024, 766],
             'tall, fitted in 2048' => [100, 3000, 766],
             'huge square' => [8192, 8192, 766],

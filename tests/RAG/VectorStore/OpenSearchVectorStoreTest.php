@@ -106,6 +106,44 @@ class OpenSearchVectorStoreTest extends TestCase
         ], $this->sentJson(2));
     }
 
+    public function test_the_new_index_maps_each_schema_field_type_so_filters_compare_natively(): void
+    {
+        $schema = DocumentSchema::of(
+            DocumentField::string('tenant'),
+            DocumentField::strings('tags'),
+            DocumentField::integer('year'),
+            DocumentField::integers('versions'),
+            DocumentField::float('rating'),
+            DocumentField::floats('scores'),
+            DocumentField::boolean('draft'),
+            DocumentField::booleans('flags'),
+        );
+        $store = $this->store($schema, new Response(404), $this->jsonResponse(), $this->jsonResponse(), $this->jsonResponse());
+
+        $store->addDocument($this->document());
+
+        $properties = $this->sentJson(1)['mappings']['properties'];
+        unset($properties['content'], $properties['sourceType'], $properties['sourceName'], $properties['_neuron_metadata'], $properties['embedding']);
+        $this->assertSame([
+            'tenant' => ['type' => 'keyword'],
+            'tags' => ['type' => 'keyword'],
+            'year' => ['type' => 'long'],
+            'versions' => ['type' => 'long'],
+            'rating' => ['type' => 'double'],
+            'scores' => ['type' => 'double'],
+            'draft' => ['type' => 'boolean'],
+            'flags' => ['type' => 'boolean'],
+        ], $properties);
+    }
+
+    public function test_adding_no_documents_does_not_contact_the_cluster(): void
+    {
+        $store = $this->store(null);
+
+        $this->assertSame($store, $store->addDocuments([]));
+        $this->assertSame([], $this->sentRequests);
+    }
+
     public function test_bulk_indexes_all_documents_in_one_request(): void
     {
         $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dimension' => 3]]]]]];

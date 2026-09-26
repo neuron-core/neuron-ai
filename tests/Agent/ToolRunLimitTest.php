@@ -64,6 +64,23 @@ class ToolRunLimitTest extends TestCase
         return $agent;
     }
 
+    public function test_without_a_configured_limit_a_tool_runs_at_most_ten_times(): void
+    {
+        $calls = [];
+        for ($turn = 1; $turn <= 11; $turn++) {
+            $calls[] = new ToolCallMessage(null, [new ToolCall('lookup', "call-{$turn}", ['query' => "q{$turn}"])]);
+        }
+        $this->provider->addResponses(...$calls);
+        $agent = Agent::make()->setAiProvider($this->provider)->addTool(new CountingTool());
+
+        try {
+            $agent->chat(new UserMessage('Keep looking'));
+            $this->fail('A model that never stops calling a tool must hit the default run limit.');
+        } catch (ToolRunsExceededException) {
+            $this->assertSame(10, CountingTool::$executions);
+        }
+    }
+
     public function test_deferred_limit_survives_a_resume_on_a_fresh_agent(): void
     {
         $this->provider->addResponses(

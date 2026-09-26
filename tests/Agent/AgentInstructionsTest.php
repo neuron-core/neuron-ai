@@ -25,6 +25,7 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\Toolkits\AbstractToolkit;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -338,11 +339,27 @@ class AgentInstructionsTest extends TestCase
         $this->assertSame('You are a helpful assistant.', $agent->getInstructions()->getContent(), 'The configured instructions stay untouched');
     }
 
-    public function test_a_toolkit_without_guidelines_adds_no_guidelines_block(): void
+    /** @return array<string, array{?string}> */
+    public static function missingGuidelines(): array
+    {
+        return ['null' => [null], 'empty string' => ['']];
+    }
+
+    #[DataProvider('missingGuidelines')]
+    public function test_a_toolkit_without_guidelines_adds_no_guidelines_block(?string $guidelines): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done'));
         $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
-        $agent->addTool(new class () extends AbstractToolkit {
+        $agent->addTool(new class ($guidelines) extends AbstractToolkit {
+            public function __construct(protected ?string $configuredGuidelines)
+            {
+            }
+
+            public function guidelines(): ?string
+            {
+                return $this->configuredGuidelines;
+            }
+
             public function provide(): array
             {
                 return [new GetWeatherTool()];

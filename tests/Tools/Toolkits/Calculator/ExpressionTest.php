@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use const M_PI_2;
+use const M_PI;
 
 class ExpressionTest extends TestCase
 {
@@ -62,6 +63,7 @@ class ExpressionTest extends TestCase
             'minimum of negatives' => ['min(-1, -2.5)', -2.5],
             'nested function calls' => ['max(abs(-3), sqrt(16), floor(pi))', 4],
             'atan2 takes y before x' => ['atan2(1, 0)', M_PI_2],
+            'inverse trigonometry' => ['asin(1) + 2 * acos(0) + 4 * atan(1)', M_PI_2 + M_PI + M_PI],
         ];
     }
 

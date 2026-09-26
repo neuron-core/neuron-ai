@@ -69,6 +69,22 @@ class AgentToolsTest extends TestCase
         $this->assertStringContainsString('Always report temperatures in Celsius.', ExecutionTestFactory::agentResources($agent)->instructions->getContent());
     }
 
+    #[DataProvider('invalidTools')]
+    public function test_adding_a_list_with_an_invalid_entry_adds_none_of_it(mixed $invalidTool): void
+    {
+        $agent = (new WeatherAgent())->setAiProvider(new \NeuronAI\Testing\FakeAIProvider());
+        $before = $agent->getTools();
+
+        try {
+            $agent->addTool([new SearchTool(), $invalidTool]);
+            $this->fail('Expected the invalid entry to be rejected.');
+        } catch (AgentException $exception) {
+            $this->assertSame('Tools must be an instance of ToolInterface, ToolkitInterface, or ProviderToolInterface', $exception->getMessage());
+        }
+
+        $this->assertEquals($before, $agent->getTools());
+    }
+
     /** @return iterable<string, array{mixed}> */
     public static function invalidTools(): iterable
     {

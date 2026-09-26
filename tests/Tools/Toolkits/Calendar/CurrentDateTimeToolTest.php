@@ -11,6 +11,8 @@ use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function date_default_timezone_get;
+use function date_default_timezone_set;
 use function time;
 
 class CurrentDateTimeToolTest extends TestCase
@@ -42,6 +44,18 @@ class CurrentDateTimeToolTest extends TestCase
         $this->assertInstanceOf(DateTimeImmutable::class, $parsed);
         $this->assertGreaterThanOrEqual($before, $parsed->getTimestamp());
         $this->assertLessThanOrEqual($after, $parsed->getTimestamp());
+    }
+
+    public function test_the_default_timezone_is_utc_whatever_the_server_default(): void
+    {
+        $serverDefault = date_default_timezone_get();
+        date_default_timezone_set('Asia/Tokyo');
+
+        try {
+            $this->assertSame('UTC', ($this->tool)(null, 'e'));
+        } finally {
+            date_default_timezone_set($serverDefault);
+        }
     }
 
     public function test_is_expressed_in_the_requested_timezone(): void

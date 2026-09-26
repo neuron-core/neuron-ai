@@ -233,6 +233,30 @@ class AgentObservabilityTest extends TestCase
         $this->assertSame('Limit reached', $called->toArray()['tool']['result']);
     }
 
+    public function test_an_externally_submitted_result_is_reported_once_it_arrives(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $store = new InMemoryMessageStore();
+        $agent = fn (): Agent => Agent::make(workflowId: 'observed-frontend-result')
+            ->setPersistence($persistence)
+            ->setMessageStore($store)
+            ->setAiProvider(new FakeAIProvider(
+                new ToolCallMessage(null, [new ToolCall('browser', 'call_1', deferred: true)]),
+                new AssistantMessage('Done'),
+            ))
+            ->addTool(new FrontendTool('browser'));
+
+        $this->observe($agent())->chat(new UserMessage('Open the page'));
+        $this->assertSame([], $this->eventsOf(ToolCalled::class));
+
+        $this->observe($agent())->submitToolResults(['call_1' => ['result' => 'Page loaded']])->run();
+
+        $called = $this->eventsOf(ToolCalled::class);
+        $this->assertCount(1, $called);
+        $this->assertSame('call_1', $called[0]->toArray()['tool']['callId']);
+        $this->assertSame('Page loaded', $called[0]->toArray()['tool']['result']);
+    }
+
     public function test_parallel_tool_calls_are_flagged_as_forked(): void
     {
         if (!extension_loaded('pcntl') || !class_exists(Fork::class)) {

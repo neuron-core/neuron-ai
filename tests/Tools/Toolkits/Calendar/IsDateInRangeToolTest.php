@@ -107,6 +107,16 @@ class IsDateInRangeToolTest extends TestCase
         $this->assertTrue($tokyo['is_in_range']);
     }
 
+    public function test_timestamp_boundaries_are_read_in_the_requested_timezone(): void
+    {
+        // The whole UTC day of June 15th spans 09:00 June 15th to 08:59:59 June 16th in Tokyo.
+        $result = json_decode(($this->tool)('2023-06-16 08:00:00', '1686787200', '1686873599', 'Asia/Tokyo'), true);
+
+        $this->assertSame('2023-06-15 09:00:00', $result['start_date']);
+        $this->assertSame('2023-06-16 08:59:59', $result['end_date']);
+        $this->assertTrue($result['is_in_range']);
+    }
+
     public function test_an_invalid_boundary_is_reported_as_an_error(): void
     {
         $result = ($this->tool)('2023-06-15', '2023-06-01', 'end-of-june');
