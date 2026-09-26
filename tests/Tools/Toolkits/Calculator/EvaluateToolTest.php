@@ -79,23 +79,47 @@ class EvaluateToolTest extends TestCase
         $pieces = ['0', '1', '2.5', '1e3', '1e999', 'pi', 'e', 'x', 'sqrt', 'root', 'log', 'min', '+', '-', '*', '/', '%', '^', '**', '(', ')', ',', ' ', '.', '#', '÷'];
         $evaluated = 0;
 
-        while ($evaluated < 3000) {
-            $expression = '';
-            $length = mt_rand(1, 12);
+        try {
+            while ($evaluated < 3000) {
+                $expression = '';
+                $length = mt_rand(1, 12);
 
-            for ($piece = 0; $piece < $length; $piece++) {
-                $expression .= $pieces[mt_rand(0, count($pieces) - 1)];
+                for ($piece = 0; $piece < $length; $piece++) {
+                    $expression .= $pieces[mt_rand(0, count($pieces) - 1)];
+                }
+
+                try {
+                    ($this->tool)($expression);
+                } catch (Throwable $throwable) {
+                    $this->fail("[{$expression}] escaped with " . $throwable::class . ': ' . $throwable->getMessage());
+                }
+
+                $evaluated++;
             }
-
-            try {
-                ($this->tool)($expression);
-            } catch (Throwable $throwable) {
-                $this->fail("[{$expression}] escaped with " . $throwable::class . ': ' . $throwable->getMessage());
-            }
-
-            $evaluated++;
+        } finally {
+            // The fixed seed must not make the randomness of later tests predictable
+            mt_srand();
         }
 
         $this->assertSame(3000, $evaluated);
+    }
+
+    public function test_the_framework_binds_a_numeric_expression_as_a_string(): void
+    {
+        $this->tool->setInputs(['expression' => 42])->execute();
+
+        $this->assertSame('42', $this->tool->getResult());
+    }
+
+    public function test_the_framework_rejects_a_non_string_expression(): void
+    {
+        $this->tool->setInputs(['expression' => ['1 + 1']])->execute();
+
+        $this->assertToolError('Parameter "expression" must be of type string, array given.', $this->tool->getResult());
+    }
+
+    public function test_php_code_is_a_tool_error(): void
+    {
+        $this->assertToolError("Unexpected character '\"' at position 8", ($this->tool)('system("id")'));
     }
 }

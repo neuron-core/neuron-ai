@@ -35,11 +35,16 @@ class LcmToolTest extends TestCase
             'zero absorbs' => [[0, 5], '0'],
             'sign ignored' => [[-4, 6], '12'],
             'result beyond the int range' => [[4611686018427387904, 3], '13835058055282163712'],
+            'both negative' => [[-4, -6], '12'],
+            'all zeros' => [[0, 0], '0'],
+            'zero in the middle' => [[4, 0, 6], '0'],
+            'primorial of 53 beyond the int range' => [[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53], '32589158477190044730'],
         ];
     }
 
     public function test_rejects_invalid_lists(): void
     {
         $this->assertToolError('Provide at least two integers.', ($this->tool)([]));
+        $this->assertToolError('Provide at least two integers.', ($this->tool)([12]));
     }
 }

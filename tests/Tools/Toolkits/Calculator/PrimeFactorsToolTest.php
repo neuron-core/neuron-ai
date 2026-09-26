@@ -9,6 +9,8 @@ use NeuronAI\Tools\Toolkits\Calculator\PrimeFactorsTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MIN;
+
 class PrimeFactorsToolTest extends TestCase
 {
     use ToolErrorAssertions;
@@ -39,6 +41,8 @@ class PrimeFactorsToolTest extends TestCase
             'power of two' => [4611686018427387904, '2^62'],
             'int max' => [9223372036854775807, '7^2 * 73 * 127 * 337 * 92737 * 649657'],
             'largest prime below 2^63' => [9223372036854775783, '9223372036854775783'],
+            'two primes just below the trial limit' => [999962000357, '999979 * 999983'],
+            'square of the largest prime below the trial limit' => [999966000289, '999983^2'],
         ];
     }
 
@@ -47,6 +51,7 @@ class PrimeFactorsToolTest extends TestCase
         $this->assertToolError('Prime factorization is defined for integers greater than 1.', ($this->tool)(1));
         $this->assertToolError('Prime factorization is defined for integers greater than 1.', ($this->tool)(0));
         $this->assertToolError('Prime factorization is defined for integers greater than 1.', ($this->tool)(-12));
+        $this->assertToolError('Prime factorization is defined for integers greater than 1.', ($this->tool)(PHP_INT_MIN));
     }
 
     public function test_reports_a_composite_out_of_reach(): void

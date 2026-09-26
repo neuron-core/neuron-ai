@@ -4,74 +4,69 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use NeuronAI\Tools\Toolkits\Calendar\CurrentDateTimeTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
-use DateTime;
-use DateTimeZone;
 
 use function array_map;
+use function time;
 
 class CurrentDateTimeToolTest extends TestCase
 {
-    private CurrentDateTimeTool $tool;
+    protected CurrentDateTimeTool $tool;
 
     protected function setUp(): void
     {
         $this->tool = new CurrentDateTimeTool();
     }
 
-    public function test_get_current_date_time_with_defaults(): void
+    public function test_returns_the_current_instant(): void
     {
+        $before = time();
+        $result = ($this->tool)(null, 'U');
+        $after = time();
+
+        $this->assertGreaterThanOrEqual($before, (int) $result);
+        $this->assertLessThanOrEqual($after, (int) $result);
+    }
+
+    public function test_defaults_to_utc_in_the_standard_format(): void
+    {
+        $before = time();
         $result = ($this->tool)();
+        $after = time();
 
-        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $result);
-
-        $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $result, new DateTimeZone('UTC'));
-        $this->assertInstanceOf(DateTime::class, $dateTime);
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $result, new DateTimeZone('UTC'));
+        $this->assertInstanceOf(DateTimeImmutable::class, $parsed);
+        $this->assertGreaterThanOrEqual($before, $parsed->getTimestamp());
+        $this->assertLessThanOrEqual($after, $parsed->getTimestamp());
     }
 
-    public function test_get_current_date_time_with_custom_timezone(): void
+    public function test_is_expressed_in_the_requested_timezone(): void
     {
-        $result = ($this->tool)('America/New_York');
-
-        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $result);
+        $this->assertSame('Asia/Kolkata +05:30', ($this->tool)('Asia/Kolkata', 'e P'));
     }
 
-    public function test_get_current_date_time_with_custom_format(): void
+    public function test_applies_the_requested_format(): void
     {
-        $result = ($this->tool)(null, 'Y-m-d');
-
-        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $result);
-
-        $dateTime = DateTime::createFromFormat('Y-m-d', $result);
-        $this->assertInstanceOf(DateTime::class, $dateTime);
-    }
-
-    public function test_get_current_date_time_with_both_custom_options(): void
-    {
-        $result = ($this->tool)('Europe/London', 'H:i:s');
-
-        $this->assertMatchesRegularExpression('/^\d{2}:\d{2}:\d{2}$/', $result);
+        $this->assertMatchesRegularExpression('/^\d{2}:\d{2}:\d{2}$/', ($this->tool)('Europe/London', 'H:i:s'));
     }
 
     public function test_invalid_timezone(): void
     {
         $result = ($this->tool)('Invalid/Timezone');
 
-        $this->assertStringStartsWith('Error:', $result);
+        $this->assertStringStartsWith('Error: ', $result);
+        $this->assertStringContainsString('Invalid/Timezone', $result);
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('current_datetime', $this->tool->getName());
-        $this->assertEquals('Get the current date and time in the specified timezone and format', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(2, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('timezone', $propertyNames);
-        $this->assertContains('format', $propertyNames);
+        $this->assertSame('current_datetime', $this->tool->getName());
+        $this->assertSame('Get the current date and time in the specified timezone and format', $this->tool->getDescription());
+        $this->assertSame(['timezone', 'format'], array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties()));
+        $this->assertSame([], $this->tool->getRequiredProperties());
     }
 }

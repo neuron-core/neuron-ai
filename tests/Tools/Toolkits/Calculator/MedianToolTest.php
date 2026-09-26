@@ -29,10 +29,23 @@ class MedianToolTest extends TestCase
     {
         $this->assertSame('2.5', ($this->tool)([4, 1, 3, 2]));
         $this->assertSame('1', ($this->tool)([1.5, 0.5]));
+        $this->assertSame('-2', ($this->tool)([-1, -5, -3, 0]));
     }
 
     public function test_rejects_invalid_datasets(): void
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
+    }
+
+    public function test_does_not_depend_on_the_input_order(): void
+    {
+        $this->assertSame('3', ($this->tool)([5, 1, 3, 2, 4]));
+        $this->assertSame('3', ($this->tool)([1, 2, 3, 4, 5]));
+        $this->assertSame('3', ($this->tool)([5, 4, 3, 2, 1]));
+    }
+
+    public function test_duplicates_are_kept(): void
+    {
+        $this->assertSame('5', ($this->tool)([5, 1, 5]));
     }
 }

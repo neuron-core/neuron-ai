@@ -4,27 +4,39 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\ReadFileTool;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function chmod;
 use function file_put_contents;
-use function sys_get_temp_dir;
-use function tempnam;
-use function unlink;
+use function function_exists;
+use function mkdir;
+use function posix_geteuid;
 use function str_repeat;
 
 class ReadFileToolTest extends TestCase
 {
+    use FileSystemSandbox;
     use ToolErrorAssertions;
 
-    private ReadFileTool $tool;
+    protected ReadFileTool $tool;
+
+    protected string $tempDir;
 
     protected function setUp(): void
     {
         $this->tool = new ReadFileTool();
+        $this->tempDir = $this->createSandbox('neuron_read');
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeSandbox($this->tempDir);
     }
 
     public function test_read_non_existent_file(): void
@@ -32,92 +44,63 @@ class ReadFileToolTest extends TestCase
         $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt'));
     }
 
-    public function test_read_empty_file(): void
+    public function test_directory_is_not_read_as_a_file(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, '');
+        mkdir($this->tempDir . '/dir');
 
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
-
-        $this->assertStringContainsString('[File read successfully: 0 characters]', $result);
+        $this->assertToolError("File 'dir' does not exist.", (new ReadFileTool($this->tempDir))('dir'));
     }
 
-    public function test_read_simple_text_file(): void
+    /**
+     * @return iterable<string, array{string, int}>
+     */
+    public static function contentProvider(): iterable
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = 'Hello, World!';
-        file_put_contents($tempFile, $content);
-
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
-
-        $this->assertStringStartsWith($content, $result);
-        $this->assertStringContainsString('[File read successfully: 13 characters]', $result);
+        yield 'empty' => ['', 0];
+        yield 'single line' => ['Hello, World!', 13];
+        yield 'multiline with trailing newline' => ["Line 1\nLine 2\r\nLine 3\n", 22];
+        yield 'multibyte characters are counted as characters' => ['Unicode: 你好世界 مرحبا 🌍', 21];
+        yield 'large' => [str_repeat('A', 100_000), 100_000];
     }
 
-    public function test_read_multiline_file(): void
+    #[DataProvider('contentProvider')]
+    public function test_returns_the_exact_content_followed_by_its_character_count(string $content, int $characters): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = "Line 1\nLine 2\nLine 3\nLine 4";
-        file_put_contents($tempFile, $content);
+        file_put_contents($this->tempDir . '/file.txt', $content);
 
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Line 1', $result);
-        $this->assertStringContainsString('Line 2', $result);
-        $this->assertStringContainsString('Line 3', $result);
-        $this->assertStringContainsString('Line 4', $result);
+        $this->assertSame(
+            $content . "\n\n[File read successfully: {$characters} characters]",
+            ($this->tool)($this->tempDir . '/file.txt')
+        );
     }
 
-    public function test_read_file_with_special_characters(): void
+    public function test_binary_content_is_returned_byte_for_byte(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = "Special chars: äöü ñ é @#$%^&*()";
-        file_put_contents($tempFile, $content);
+        $binary = "\x00\x01\xFF\xFE binary \x00";
+        file_put_contents($this->tempDir . '/file.bin', $binary);
 
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Special chars: äöü ñ é', $result);
+        $this->assertStringStartsWith($binary . "\n\n[File read successfully: ", ($this->tool)($this->tempDir . '/file.bin'));
     }
 
-    public function test_read_large_file(): void
+    public function test_unreadable_file_is_reported(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = str_repeat('A', 10000);
-        file_put_contents($tempFile, $content);
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('Root can read any file.');
+        }
 
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
+        file_put_contents($this->tempDir . '/secret.txt', 'secret');
+        chmod($this->tempDir . '/secret.txt', 0o000);
 
-        $this->assertStringContainsString('[File read successfully: 10000 characters]', $result);
-    }
-
-    public function test_read_file_with_unicode(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = 'Unicode: 你好世界 مرحبا بالعالم 🌍';
-        file_put_contents($tempFile, $content);
-
-        $result = ($this->tool)($tempFile);
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Unicode: 你好世界', $result);
-        $this->assertStringContainsString('مرحبا بالعالم', $result);
-        $this->assertStringContainsString('🌍', $result);
+        $this->assertToolError("File 'secret.txt' is not readable.", (new ReadFileTool($this->tempDir))('secret.txt'));
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('read_file', $this->tool->getName());
-        $this->assertEquals('Read the contents of a text file.', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(1, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('file_path', $propertyNames);
+        $this->assertSame('read_file', $this->tool->getName());
+        $this->assertSame('Read the contents of a text file.', $this->tool->getDescription());
+        $this->assertSame(
+            ['file_path'],
+            array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties())
+        );
     }
 }

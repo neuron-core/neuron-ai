@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
@@ -125,25 +126,105 @@ class ToolPropertyFactoryTest extends TestCase
 
     /** @param array<string, mixed> $definition */
     #[DataProvider('unsupportedSchemas')]
-    public function test_rejects_shapes_the_property_model_cannot_represent(array $definition): void
+    public function test_rejects_shapes_the_property_model_cannot_represent(array $definition, string $message): void
     {
         $this->expectException(ToolException::class);
+        $this->expectExceptionMessage($message);
+
         ToolPropertyFactory::fromSchema(['properties' => ['value' => $definition]]);
     }
 
     public static function unsupportedSchemas(): array
     {
         return [
-            'reference' => [['$ref' => '#/$defs/value']],
-            'union' => [['oneOf' => [['type' => 'string'], ['type' => 'integer']]]],
-            'anyOf' => [['anyOf' => [['type' => 'string'], ['type' => 'null']]]],
-            'intersection' => [['allOf' => [['type' => 'object']]]],
-            'tuple' => [['type' => 'array', 'prefixItems' => [['type' => 'string']]]],
-            'legacy tuple' => [['type' => 'array', 'items' => [['type' => 'string']]]],
-            'multiple types' => [['type' => ['string', 'integer']]],
-            'only null' => [['type' => ['null']]],
-            'unknown type' => [['type' => 'unknown']],
-            'nested reference' => [['type' => 'array', 'items' => ['$ref' => '#/$defs/value']]],
+            'reference' => [['$ref' => '#/$defs/value'], "JSON Schema keyword '\$ref' cannot be represented by the tool property types."],
+            'union' => [['oneOf' => [['type' => 'string'], ['type' => 'integer']]], "JSON Schema keyword 'oneOf' cannot be represented by the tool property types."],
+            'anyOf' => [['anyOf' => [['type' => 'string'], ['type' => 'null']]], "JSON Schema keyword 'anyOf' cannot be represented by the tool property types."],
+            'intersection' => [['allOf' => [['type' => 'object']]], "JSON Schema keyword 'allOf' cannot be represented by the tool property types."],
+            'tuple' => [['type' => 'array', 'prefixItems' => [['type' => 'string']]], "JSON Schema keyword 'prefixItems' cannot be represented by the tool property types."],
+            'legacy tuple' => [['type' => 'array', 'items' => [['type' => 'string']]], 'Tuple schemas cannot be represented by a single array item property.'],
+            'multiple types' => [['type' => ['string', 'integer']], "Property 'value' must declare one non-null type."],
+            'only null' => [['type' => ['null']], "Property 'value' must declare one non-null type."],
+            'null as the type' => [['type' => 'null'], "Unsupported type 'null' for property 'value'."],
+            'unknown type' => [['type' => 'unknown'], "Unsupported type 'unknown' for property 'value'."],
+            'nested reference' => [['type' => 'array', 'items' => ['$ref' => '#/$defs/value']], "JSON Schema keyword '\$ref' cannot be represented by the tool property types."],
+            'deeply nested union' => [
+                ['type' => 'object', 'properties' => ['inner' => ['type' => 'object', 'properties' => ['leaf' => ['anyOf' => []]]]]],
+                "JSON Schema keyword 'anyOf' cannot be represented by the tool property types.",
+            ],
         ];
+    }
+
+    public function test_rejects_a_top_level_union(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage("JSON Schema keyword 'oneOf' cannot be represented by the tool property types.");
+
+        ToolPropertyFactory::fromSchema(['oneOf' => [['type' => 'object']]]);
+    }
+
+    public function test_array_constraints_are_validated(): void
+    {
+        $this->expectException(ArrayPropertyException::class);
+        $this->expectExceptionMessage('minItems (3) cannot be greater than maxItems (1)');
+
+        ToolPropertyFactory::fromSchema(['properties' => ['values' => ['type' => 'array', 'minItems' => 3, 'maxItems' => 1]]]);
+    }
+
+    public function test_supported_schemas_round_trip_through_the_property_model(): void
+    {
+        $properties = [
+            'query' => ['type' => 'string', 'description' => 'Search terms'],
+            'mode' => ['type' => ['string', 'null'], 'enum' => ['fast', 'deep']],
+            'limit' => ['type' => 'integer'],
+            'filters' => [
+                'type' => 'object',
+                'description' => 'Narrow the search',
+                'properties' => [
+                    'tags' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 5],
+                    'range' => [
+                        'type' => ['object', 'null'],
+                        'properties' => ['from' => ['type' => 'number'], 'to' => ['type' => 'number']],
+                        'required' => ['from'],
+                    ],
+                ],
+                'required' => [],
+            ],
+            'points' => [
+                'type' => ['array', 'null'],
+                'items' => ['type' => 'array', 'items' => ['type' => 'boolean']],
+            ],
+        ];
+
+        $root = new ObjectProperty('root', properties: ToolPropertyFactory::fromSchema([
+            'type' => 'object',
+            'properties' => $properties,
+            'required' => ['query', 'points'],
+        ]));
+
+        $this->assertSame(
+            ['type' => 'object', 'properties' => $properties, 'required' => ['query', 'points']],
+            $root->getJsonSchema()
+        );
+    }
+
+    public function test_required_names_are_matched_exactly(): void
+    {
+        $properties = ToolPropertyFactory::fromSchema([
+            'properties' => ['Name' => ['type' => 'string'], 'name' => ['type' => 'string']],
+            'required' => ['name', 'missing'],
+        ]);
+
+        $this->assertSame([false, true], [$properties[0]->isRequired(), $properties[1]->isRequired()]);
+    }
+
+    public function test_numeric_looking_required_names_are_compared_as_strings(): void
+    {
+        $properties = ToolPropertyFactory::fromSchema([
+            'properties' => ['1.0' => ['type' => 'string'], '1e1' => ['type' => 'string']],
+            'required' => ['1', '10'],
+        ]);
+
+        $this->assertSame([false, false], [$properties[0]->isRequired(), $properties[1]->isRequired()]);
     }
 }

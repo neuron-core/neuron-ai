@@ -8,6 +8,8 @@ use NeuronAI\Tools\Toolkits\Calculator\IsPrimeTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MIN;
+
 class IsPrimeToolTest extends TestCase
 {
     protected IsPrimeTool $tool;
@@ -58,6 +60,16 @@ class IsPrimeToolTest extends TestCase
             'strong pseudoprime to bases 2, 3, 5 and 7' => [3215031751],
             'product of two primes above a million' => [1000036000099],
             'int max' => [9223372036854775807],
+            'int min' => [PHP_INT_MIN],
+            'square of a prime above the trial limit' => [1000006000009],
+            'strong pseudoprime to the bases 2 to 23' => [3825123056546413051],
         ];
+    }
+
+    public function test_the_framework_casts_the_model_spelling(): void
+    {
+        $this->tool->setInputs(['number' => '97'])->execute();
+
+        $this->assertSame('true', $this->tool->getResult());
     }
 }

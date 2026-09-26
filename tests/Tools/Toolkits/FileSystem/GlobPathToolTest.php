@@ -4,72 +4,36 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\GlobPathTool;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function count;
 use function file_put_contents;
 use function mkdir;
-use function rmdir;
-use function sys_get_temp_dir;
-use function tempnam;
-use function unlink;
-use function is_dir;
-use function scandir;
-
-use const DIRECTORY_SEPARATOR;
 
 class GlobPathToolTest extends TestCase
 {
+    use FileSystemSandbox;
     use ToolErrorAssertions;
 
-    private GlobPathTool $tool;
+    protected GlobPathTool $tool;
 
-    private string $tempDir;
+    protected string $tempDir;
 
     protected function setUp(): void
     {
         $this->tool = new GlobPathTool();
-
-        $this->tempDir = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        unlink($this->tempDir);
-        mkdir($this->tempDir);
+        $this->tempDir = $this->createSandbox('neuron_glob');
     }
 
     protected function tearDown(): void
     {
-        $this->cleanupTempDir($this->tempDir);
-    }
-
-    private function cleanupTempDir(string $directory): void
-    {
-        $items = @scandir($directory);
-        if ($items === false) {
-            return;
-        }
-
-        foreach ($items as $item) {
-            if ($item === '.') {
-                continue;
-            }
-            if ($item === '..') {
-                continue;
-            }
-            $path = $directory . DIRECTORY_SEPARATOR . $item;
-            if (is_dir($path)) {
-                $this->cleanupTempDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-
-        if ($directory !== $this->tempDir) {
-            rmdir($directory);
-        } else {
-            @rmdir($directory);
-        }
+        $this->removeSandbox($this->tempDir);
     }
 
     public function test_glob_non_existent_directory(): void
@@ -77,153 +41,161 @@ class GlobPathToolTest extends TestCase
         $this->assertToolError("Directory '/non/existent/directory' does not exist.", ($this->tool)('/non/existent/directory', '*.txt'));
     }
 
+    public function test_file_is_not_a_directory_to_search(): void
+    {
+        $this->touch('file.txt');
+
+        $this->assertToolError("Directory 'file.txt' does not exist.", (new GlobPathTool($this->tempDir))('file.txt', '*'));
+    }
+
     public function test_glob_no_matches(): void
     {
-        $result = ($this->tool)($this->tempDir, '*.pdf');
-
-        $this->assertStringContainsString("No matches found for pattern '*.pdf'", $result);
-        $this->assertStringContainsString($this->tempDir, $result);
+        $this->assertSame(
+            "No matches found for pattern '*.pdf' in directory '{$this->tempDir}'.",
+            ($this->tool)($this->tempDir, '*.pdf')
+        );
     }
 
-    public function test_glob_simple_pattern(): void
+    public function test_lists_matches_relative_to_the_directory_in_natural_order(): void
     {
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file1.txt', 'content1');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file2.txt', 'content2');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file3.log', 'log content');
+        $this->touch('file10.txt', 'file2.txt', 'file1.txt', 'notes.log');
+
+        $this->assertSame(
+            "Found 3 match(es) for pattern '*.txt' in directory '{$this->tempDir}':\n\n"
+            . "  - file1.txt\n"
+            . "  - file2.txt\n"
+            . "  - file10.txt\n",
+            ($this->tool)($this->tempDir, '*.txt')
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string, string[], string[]}>
+     */
+    public static function patternProvider(): iterable
+    {
+        yield 'every file' => ['*', ['file1.txt', 'file2.php', 'file3.md'], []];
+        yield 'question mark wildcard' => ['file?.txt', ['file1.txt', 'file2.txt'], ['data.txt']];
+        yield 'any extension' => ['test.*', ['test.txt', 'test.log'], ['other.md']];
+        yield 'character class' => ['file[12].txt', ['file1.txt', 'file2.txt'], ['file3.txt']];
+    }
+
+    /**
+     * @param string[] $matching
+     * @param string[] $other
+     */
+    #[DataProvider('patternProvider')]
+    public function test_matches_only_the_files_selected_by_the_pattern(string $pattern, array $matching, array $other): void
+    {
+        $this->touch(...$matching, ...$other);
+
+        $result = ($this->tool)($this->tempDir, $pattern);
+
+        $this->assertStringStartsWith('Found ' . count($matching) . ' match(es)', $result);
+        foreach ($matching as $file) {
+            $this->assertStringContainsString("  - {$file}\n", $result);
+        }
+        foreach ($other as $file) {
+            $this->assertStringNotContainsString($file, $result);
+        }
+    }
+
+    public function test_recursive_pattern_walks_every_level(): void
+    {
+        mkdir($this->tempDir . '/level1/level2', 0o755, true);
+        $this->touch('root.txt', 'root.php', 'level1/l1.txt', 'level1/level2/l2.txt', 'level1/level2/l2.php');
+
+        $this->assertSame(
+            "Found 3 match(es) for pattern '*.txt' in directory '{$this->tempDir}':\n\n"
+            . "  - level1/l1.txt\n"
+            . "  - level1/level2/l2.txt\n"
+            . "  - root.txt\n",
+            ($this->tool)($this->tempDir, '**/*.txt')
+        );
+    }
+
+    public function test_non_recursive_does_not_include_nested(): void
+    {
+        mkdir($this->tempDir . '/nested');
+        $this->touch('root.txt', 'nested/nested.txt');
 
         $result = ($this->tool)($this->tempDir, '*.txt');
 
-        $this->assertStringContainsString('Found 2 match(es)', $result);
-        $this->assertStringContainsString('file1.txt', $result);
-        $this->assertStringContainsString('file2.txt', $result);
-        $this->assertStringNotContainsString('file3.log', $result);
-    }
-
-    public function test_glob_all_files(): void
-    {
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file1.txt', 'content1');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file2.php', 'content2');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file3.md', 'content3');
-
-        $result = ($this->tool)($this->tempDir, '*');
-
-        $this->assertStringContainsString('Found 3 match(es)', $result);
-        $this->assertStringContainsString('file1.txt', $result);
-        $this->assertStringContainsString('file2.php', $result);
-        $this->assertStringContainsString('file3.md', $result);
-    }
-
-    public function test_glob_recursive_with_subdirectories(): void
-    {
-        $subDir = $this->tempDir . DIRECTORY_SEPARATOR . 'nested';
-        mkdir($subDir);
-
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'root.txt', 'root content');
-        file_put_contents($subDir . DIRECTORY_SEPARATOR . 'nested.txt', 'nested content');
-
-        $result = ($this->tool)($this->tempDir, '**/*.txt');
-
-        $this->assertStringContainsString('Found 2 match(es)', $result);
-        $this->assertStringContainsString('root.txt', $result);
-        $this->assertStringContainsString('nested.txt', $result);
-    }
-
-    public function test_glob_recursive_deeply_nested(): void
-    {
-        $level1 = $this->tempDir . DIRECTORY_SEPARATOR . 'level1';
-        $level2 = $level1 . DIRECTORY_SEPARATOR . 'level2';
-        mkdir($level1);
-        mkdir($level2);
-
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'root.txt', 'root');
-        file_put_contents($level1 . DIRECTORY_SEPARATOR . 'l1.txt', 'level1');
-        file_put_contents($level2 . DIRECTORY_SEPARATOR . 'l2.txt', 'level2');
-
-        $result = ($this->tool)($this->tempDir, '**/*.txt');
-
-        $this->assertStringContainsString('Found 3 match(es)', $result);
-        $this->assertStringContainsString('root.txt', $result);
-        $this->assertStringContainsString('l1.txt', $result);
-        $this->assertStringContainsString('l2.txt', $result);
-    }
-
-    public function test_glob_recursive_mixed_extensions(): void
-    {
-        $subDir = $this->tempDir . DIRECTORY_SEPARATOR . 'nested';
-        mkdir($subDir);
-
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'root.php', 'php content');
-        file_put_contents($subDir . DIRECTORY_SEPARATOR . 'nested.php', 'nested php');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'ignore.txt', 'txt content');
-
-        $result = ($this->tool)($this->tempDir, '**/*.php');
-
-        $this->assertStringContainsString('Found 2 match(es)', $result);
-        $this->assertStringContainsString('root.php', $result);
-        $this->assertStringContainsString('nested.php', $result);
-        $this->assertStringNotContainsString('ignore.txt', $result);
-    }
-
-    public function test_glob_non_recursive_does_not_include_nested(): void
-    {
-        $subDir = $this->tempDir . DIRECTORY_SEPARATOR . 'nested';
-        mkdir($subDir);
-
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'root.txt', 'root');
-        file_put_contents($subDir . DIRECTORY_SEPARATOR . 'nested.txt', 'nested');
-
-        $result = ($this->tool)($this->tempDir, '*.txt');
-
-        $this->assertStringContainsString('Found 1 match(es)', $result);
-        $this->assertStringContainsString('root.txt', $result);
+        $this->assertStringStartsWith('Found 1 match(es)', $result);
         $this->assertStringNotContainsString('nested.txt', $result);
     }
 
-    public function test_glob_with_question_mark_wildcard(): void
+    public function test_directories_match_the_pattern_too(): void
     {
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file1.txt', 'content1');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'file2.txt', 'content2');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'data.txt', 'data');
+        mkdir($this->tempDir . '/docs');
 
-        $result = ($this->tool)($this->tempDir, 'file?.txt');
-
-        $this->assertStringContainsString('Found 2 match(es)', $result);
-        $this->assertStringContainsString('file1.txt', $result);
-        $this->assertStringContainsString('file2.txt', $result);
-        $this->assertStringNotContainsString('data.txt', $result);
-    }
-
-    public function test_glob_multiple_extensions(): void
-    {
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'test.txt', 'text');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'test.log', 'log');
-        file_put_contents($this->tempDir . DIRECTORY_SEPARATOR . 'other.md', 'markdown');
-
-        $result = ($this->tool)($this->tempDir, 'test.*');
-
-        $this->assertStringContainsString('Found 2 match(es)', $result);
-        $this->assertStringContainsString('test.txt', $result);
-        $this->assertStringContainsString('test.log', $result);
-        $this->assertStringNotContainsString('other.md', $result);
+        $this->assertStringContainsString("  - docs\n", ($this->tool)($this->tempDir, '*'));
     }
 
     public function test_glob_empty_directory(): void
     {
-        $result = ($this->tool)($this->tempDir, '*');
+        $this->assertSame(
+            "No matches found for pattern '*' in directory '{$this->tempDir}'.",
+            ($this->tool)($this->tempDir, '*')
+        );
+    }
 
-        $this->assertStringContainsString('No matches found', $result);
+    public function test_relative_directory_resolves_from_the_scope(): void
+    {
+        mkdir($this->tempDir . '/src');
+        $this->touch('src/a.php', 'b.php');
+
+        $result = (new GlobPathTool($this->tempDir))('src', '*.php');
+
+        $this->assertSame("Found 1 match(es) for pattern '*.php' in directory 'src':\n\n  - a.php\n", $result);
+    }
+
+    public function test_directory_outside_the_scope_is_refused(): void
+    {
+        mkdir($this->tempDir . '/scope');
+
+        $this->assertToolError(
+            "Access denied: '..' is outside the working scope '{$this->tempDir}/scope'.",
+            (new GlobPathTool($this->tempDir . '/scope'))('..', '*')
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function escapingPatternProvider(): iterable
+    {
+        yield 'parent segment' => ['../*'];
+        yield 'parent spelled as a character class' => ['[.][.]/*'];
+        yield 'parent below a subdirectory' => ['sub/../../*'];
+        yield 'recursive parent' => ['**/../*.txt'];
+    }
+
+    #[DataProvider('escapingPatternProvider')]
+    public function test_pattern_cannot_list_files_outside_the_scope(string $pattern): void
+    {
+        mkdir($this->tempDir . '/scope/sub', 0o755, true);
+        $this->touch('secret.txt', 'scope/inside.txt');
+
+        $result = (new GlobPathTool($this->tempDir . '/scope'))('.', $pattern);
+
+        $this->assertStringNotContainsString('secret.txt', $result);
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('glob_path', $this->tool->getName());
-        $this->assertEquals('Find files matching a glob pattern in a directory.', $this->tool->getDescription());
+        $this->assertSame('glob_path', $this->tool->getName());
+        $this->assertSame('Find files matching a glob pattern in a directory.', $this->tool->getDescription());
+        $this->assertSame(
+            ['directory', 'pattern'],
+            array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties())
+        );
+    }
 
-        $properties = $this->tool->getProperties();
-        $this->assertCount(2, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('directory', $propertyNames);
-        $this->assertContains('pattern', $propertyNames);
+    protected function touch(string ...$files): void
+    {
+        foreach ($files as $file) {
+            file_put_contents($this->tempDir . '/' . $file, 'content');
+        }
     }
 }

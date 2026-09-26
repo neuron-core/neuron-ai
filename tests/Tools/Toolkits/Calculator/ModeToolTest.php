@@ -42,4 +42,16 @@ class ModeToolTest extends TestCase
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
     }
+
+    public function test_a_constant_dataset_has_a_single_mode(): void
+    {
+        $this->assertSame('7', ($this->tool)([7, 7, 7]));
+    }
+
+    public function test_the_framework_casts_numeric_strings_before_counting(): void
+    {
+        $this->tool->setInputs(['numbers' => ['2', 2, '2.0', 3]])->execute();
+
+        $this->assertSame('2', $this->tool->getResult());
+    }
 }

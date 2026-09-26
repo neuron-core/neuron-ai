@@ -55,4 +55,21 @@ class VarianceToolTest extends TestCase
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
     }
+
+    public function test_a_constant_dataset_has_no_variance(): void
+    {
+        $this->assertSame('0', ($this->tool)([7, 7, 7]));
+    }
+
+    public function test_an_explicit_null_population_means_a_sample(): void
+    {
+        $this->assertSame('2', ($this->tool)([1, 3], null));
+    }
+
+    public function test_the_framework_casts_the_population_flag(): void
+    {
+        $this->tool->setInputs(['numbers' => [2, 4, 4, 4, 5, 5, 7, 9], 'population' => 'true'])->execute();
+
+        $this->assertSame('4', $this->tool->getResult());
+    }
 }

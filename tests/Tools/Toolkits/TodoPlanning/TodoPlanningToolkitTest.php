@@ -56,7 +56,7 @@ class TodoPlanningToolkitTest extends TestCase
         self::assertInstanceOf(ToolCallMessage::class, $call);
         self::assertSame($this->todos, $call->getToolCalls()[0]->getInput('todos'));
         self::assertInstanceOf(ToolResultMessage::class, $result);
-        self::assertStringStartsWith('Updated to do list to:', (string) $result->getToolCalls()[0]->getResult());
+        self::assertSame('Updated to do list to: [{"content":"Design the schema","status":"in_progress"}]', $result->getToolCalls()[0]->getResult());
     }
 
     public function test_write_todos_runs_after_an_approval_pause(): void
@@ -82,7 +82,7 @@ class TodoPlanningToolkitTest extends TestCase
         self::assertSame('Done', $completed->getMessage()->getContent());
         $results = $agent->getChatHistory()->getMessages()[2];
         self::assertInstanceOf(ToolResultMessage::class, $results);
-        self::assertStringStartsWith('Updated to do list to:', (string) $results->getToolCalls()[0]->getResult());
+        self::assertSame('Updated to do list to: [{"content":"Design the schema","status":"in_progress"}]', $results->getToolCalls()[0]->getResult());
     }
 
     public function test_parallel_tool_calls_keep_the_todo_list_in_the_conversation(): void
@@ -102,7 +102,7 @@ class TodoPlanningToolkitTest extends TestCase
         [, $call, $results] = $agent->getChatHistory()->getMessages();
         self::assertSame($this->todos, $call->getToolCalls()[0]->getInput('todos'));
         self::assertInstanceOf(ToolResultMessage::class, $results);
-        self::assertStringStartsWith('Updated to do list to:', (string) $results->getToolCalls()[0]->getResult());
+        self::assertSame('Updated to do list to: [{"content":"Design the schema","status":"in_progress"}]', $results->getToolCalls()[0]->getResult());
         self::assertSame('Results for: php', $results->getToolCalls()[1]->getResult());
     }
 }

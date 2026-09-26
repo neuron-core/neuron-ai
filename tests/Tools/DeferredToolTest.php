@@ -15,7 +15,11 @@ use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
+
+use function array_map;
+use function json_encode;
 
 class DeferredToolTest extends TestCase
 {
@@ -165,5 +169,52 @@ class DeferredToolTest extends TestCase
             $this->assertFalse($tool->invoked);
             $this->assertFalse($tool->hasResult());
         }
+    }
+
+    public function test_inputs_are_cast_through_the_schema_derived_properties(): void
+    {
+        $tool = new FrontendTool('select_rows', inputSchema: [
+            'type' => 'object',
+            'properties' => [
+                'ids' => ['type' => 'array', 'items' => ['type' => 'integer']],
+                'confirm' => ['type' => 'boolean'],
+            ],
+        ]);
+
+        $tool->setInputs(['ids' => ['1', 2.0], 'confirm' => 'false']);
+
+        $this->assertSame(['ids' => [1, 2], 'confirm' => false], $tool->getInputs());
+    }
+
+    public function test_an_input_of_the_wrong_type_is_never_gated(): void
+    {
+        $tool = (new FrontendTool('select_rows', inputSchema: [
+            'type' => 'object',
+            'properties' => ['ids' => ['type' => 'array', 'items' => ['type' => 'integer']]],
+        ]))->requireApproval();
+
+        $this->assertTrue($tool->setInputs(['ids' => [1]])->requiresApproval());
+        $this->assertFalse($tool->setInputs(['ids' => ['one']])->requiresApproval());
+    }
+
+    public function test_an_unrepresentable_schema_is_rejected_at_construction(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage("JSON Schema keyword 'oneOf' cannot be represented by the tool property types.");
+
+        new FrontendTool('pick', inputSchema: ['type' => 'object', 'properties' => ['choice' => ['oneOf' => []]]]);
+    }
+
+    public function test_without_a_schema_the_default_input_schema_has_an_empty_object(): void
+    {
+        $this->assertSame('{"type":"object","properties":{},"required":[]}', json_encode(FrontendTool::make('ping')->getInputSchema()));
+    }
+
+    public function test_the_explicit_schema_wins_over_the_properties_hook(): void
+    {
+        $tool = new FrontendToolStub(['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id']]);
+
+        $this->assertSame(['id'], $tool->getRequiredProperties());
+        $this->assertSame(['id'], array_map(fn (ToolPropertyInterface $property): string => $property->getName(), $tool->getProperties()));
     }
 }

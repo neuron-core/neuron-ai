@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 
 use NeuronAI\Tools\Toolkits\Calendar\GetDaysInMonthTool;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -13,260 +14,104 @@ use function json_decode;
 
 class GetDaysInMonthToolTest extends TestCase
 {
-    private GetDaysInMonthTool $tool;
+    protected GetDaysInMonthTool $tool;
 
     protected function setUp(): void
     {
         $this->tool = new GetDaysInMonthTool();
     }
 
-    public function test_january(): void
+    public function test_describes_the_month(): void
     {
-        $result = ($this->tool)(1, 2023);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(1, $data['month']);
-        $this->assertEquals('January', $data['month_name']);
-        $this->assertEquals(2023, $data['year']);
-        $this->assertEquals(31, $data['days_in_month']);
-        $this->assertFalse($data['is_leap_year']);
-        $this->assertEquals('2023-01-01', $data['first_day']);
-        $this->assertEquals('2023-01-31', $data['last_day']);
+        $this->assertSame([
+            'month' => 1,
+            'month_name' => 'January',
+            'year' => 2023,
+            'days_in_month' => 31,
+            'is_leap_year' => false,
+            'first_day' => '2023-01-01',
+            'last_day' => '2023-01-31',
+        ], json_decode(($this->tool)(1, 2023), true));
     }
 
-    public function test_february_non_leap_year(): void
+    /**
+     * @return array<string, array{int, string, int, int}>
+     */
+    public static function months(): array
     {
-        $result = ($this->tool)(2, 2023);
+        $cases = [];
+        foreach ([2023 => 28, 2024 => 29] as $year => $februaryDays) {
+            foreach ([
+                1 => ['January', 31], 2 => ['February', $februaryDays], 3 => ['March', 31], 4 => ['April', 30],
+                5 => ['May', 31], 6 => ['June', 30], 7 => ['July', 31], 8 => ['August', 31],
+                9 => ['September', 30], 10 => ['October', 31], 11 => ['November', 30], 12 => ['December', 31],
+            ] as $month => [$name, $days]) {
+                $cases["{$name} {$year}"] = [$month, $name, $year, $days];
+            }
+        }
 
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(2, $data['month']);
-        $this->assertEquals('February', $data['month_name']);
-        $this->assertEquals(2023, $data['year']);
-        $this->assertEquals(28, $data['days_in_month']);
-        $this->assertFalse($data['is_leap_year']);
-        $this->assertEquals('2023-02-01', $data['first_day']);
-        $this->assertEquals('2023-02-28', $data['last_day']);
+        return $cases;
     }
 
-    public function test_february_leap_year(): void
+    #[DataProvider('months')]
+    public function test_returns_the_length_and_bounds_of_every_month(int $month, string $name, int $year, int $days): void
     {
-        $result = ($this->tool)(2, 2024);
+        $result = json_decode(($this->tool)($month, $year), true);
 
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(2, $data['month']);
-        $this->assertEquals('February', $data['month_name']);
-        $this->assertEquals(2024, $data['year']);
-        $this->assertEquals(29, $data['days_in_month']);
-        $this->assertTrue($data['is_leap_year']);
-        $this->assertEquals('2024-02-01', $data['first_day']);
-        $this->assertEquals('2024-02-29', $data['last_day']);
+        $paddedMonth = $month < 10 ? "0{$month}" : (string) $month;
+        $this->assertSame($name, $result['month_name']);
+        $this->assertSame($days, $result['days_in_month']);
+        $this->assertSame($year === 2024, $result['is_leap_year']);
+        $this->assertSame("{$year}-{$paddedMonth}-01", $result['first_day']);
+        $this->assertSame("{$year}-{$paddedMonth}-{$days}", $result['last_day']);
     }
 
-    public function test_march(): void
+    /**
+     * @return array<string, array{int, int, bool}>
+     */
+    public static function centuryFebruaries(): array
     {
-        $result = ($this->tool)(3, 2023);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(3, $data['month']);
-        $this->assertEquals('March', $data['month_name']);
-        $this->assertEquals(2023, $data['year']);
-        $this->assertEquals(31, $data['days_in_month']);
-        $this->assertEquals('2023-03-01', $data['first_day']);
-        $this->assertEquals('2023-03-31', $data['last_day']);
-    }
-
-    public function test_april(): void
-    {
-        $result = ($this->tool)(4, 2023);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(4, $data['month']);
-        $this->assertEquals('April', $data['month_name']);
-        $this->assertEquals(2023, $data['year']);
-        $this->assertEquals(30, $data['days_in_month']);
-        $this->assertEquals('2023-04-01', $data['first_day']);
-        $this->assertEquals('2023-04-30', $data['last_day']);
-    }
-
-    public function test_all_months_non_leap_year(): void
-    {
-        $expectedDays = [
-            1 => [31, 'January'],
-            2 => [28, 'February'],
-            3 => [31, 'March'],
-            4 => [30, 'April'],
-            5 => [31, 'May'],
-            6 => [30, 'June'],
-            7 => [31, 'July'],
-            8 => [31, 'August'],
-            9 => [30, 'September'],
-            10 => [31, 'October'],
-            11 => [30, 'November'],
-            12 => [31, 'December'],
+        return [
+            '1900 is not a leap year' => [1900, 28, false],
+            '2000 is a leap year' => [2000, 29, true],
+            '2100 is not a leap year' => [2100, 28, false],
+            '1800 is not a leap year although divisible by 200' => [1800, 28, false],
+            '2400 is a leap year' => [2400, 29, true],
+            '1776 is a leap year' => [1776, 29, true],
         ];
-
-        foreach ($expectedDays as $month => [$expectedDaysCount, $expectedName]) {
-            $result = ($this->tool)($month, 2023);
-            $data = json_decode($result, true);
-
-            $this->assertEquals($expectedDaysCount, $data['days_in_month'], "Failed for month $month");
-            $this->assertEquals($expectedName, $data['month_name'], "Failed for month $month");
-            $this->assertFalse($data['is_leap_year'], "Failed for month $month");
-        }
     }
 
-    public function test_all_months_leap_year(): void
+    #[DataProvider('centuryFebruaries')]
+    public function test_applies_the_gregorian_century_rule(int $year, int $days, bool $leap): void
     {
-        $expectedDays = [
-            1 => [31, 'January'],
-            2 => [29, 'February'], // Leap year
-            3 => [31, 'March'],
-            4 => [30, 'April'],
-            5 => [31, 'May'],
-            6 => [30, 'June'],
-            7 => [31, 'July'],
-            8 => [31, 'August'],
-            9 => [30, 'September'],
-            10 => [31, 'October'],
-            11 => [30, 'November'],
-            12 => [31, 'December'],
+        $result = json_decode(($this->tool)(2, $year), true);
+
+        $this->assertSame([$days, $leap], [$result['days_in_month'], $result['is_leap_year']]);
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function invalidMonths(): array
+    {
+        return [
+            'zero' => [0],
+            'thirteen' => [13],
+            'negative' => [-1],
         ];
-
-        foreach ($expectedDays as $month => [$expectedDaysCount, $expectedName]) {
-            $result = ($this->tool)($month, 2024);
-            $data = json_decode($result, true);
-
-            $this->assertEquals($expectedDaysCount, $data['days_in_month'], "Failed for month $month in leap year");
-            $this->assertEquals($expectedName, $data['month_name'], "Failed for month $month in leap year");
-            $this->assertTrue($data['is_leap_year'], "Failed for month $month in leap year");
-        }
     }
 
-    public function test_december(): void
+    #[DataProvider('invalidMonths')]
+    public function test_a_month_outside_one_to_twelve_is_rejected(int $month): void
     {
-        $result = ($this->tool)(12, 2023);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(12, $data['month']);
-        $this->assertEquals('December', $data['month_name']);
-        $this->assertEquals(2023, $data['year']);
-        $this->assertEquals(31, $data['days_in_month']);
-        $this->assertEquals('2023-12-01', $data['first_day']);
-        $this->assertEquals('2023-12-31', $data['last_day']);
-    }
-
-    public function test_february_century_year(): void
-    {
-        // Test century years (1900 is not leap, 2000 is leap)
-        $result1900 = ($this->tool)(2, 1900);
-        $result2000 = ($this->tool)(2, 2000);
-
-        $data1900 = json_decode($result1900, true);
-        $data2000 = json_decode($result2000, true);
-
-        $this->assertEquals(28, $data1900['days_in_month']);
-        $this->assertFalse($data1900['is_leap_year']);
-
-        $this->assertEquals(29, $data2000['days_in_month']);
-        $this->assertTrue($data2000['is_leap_year']);
-    }
-
-    public function test_first_and_last_day_formatting(): void
-    {
-        // Test single digit months get zero-padded
-        $result = ($this->tool)(5, 2023);
-        $data = json_decode($result, true);
-
-        $this->assertEquals('2023-05-01', $data['first_day']);
-        $this->assertEquals('2023-05-31', $data['last_day']);
-    }
-
-    public function test_json_structure(): void
-    {
-        $result = ($this->tool)(6, 2023);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-
-        // Check all required keys are present
-        $expectedKeys = ['month', 'month_name', 'year', 'days_in_month', 'is_leap_year', 'first_day', 'last_day'];
-        foreach ($expectedKeys as $key) {
-            $this->assertArrayHasKey($key, $data);
-        }
-
-        // Check data types
-        $this->assertIsInt($data['month']);
-        $this->assertIsString($data['month_name']);
-        $this->assertIsInt($data['year']);
-        $this->assertIsInt($data['days_in_month']);
-        $this->assertIsBool($data['is_leap_year']);
-        $this->assertIsString($data['first_day']);
-        $this->assertIsString($data['last_day']);
-    }
-
-    public function test_invalid_month_low(): void
-    {
-        $result = ($this->tool)(0, 2023);
-
-        $this->assertStringStartsWith('Error:', $result);
-    }
-
-    public function test_invalid_month_high(): void
-    {
-        $result = ($this->tool)(13, 2023);
-
-        $this->assertStringStartsWith('Error:', $result);
-    }
-
-    public function test_negative_month(): void
-    {
-        $result = ($this->tool)(-1, 2023);
-
-        $this->assertStringStartsWith('Error:', $result);
-    }
-
-    public function test_historical_year(): void
-    {
-        $result = ($this->tool)(7, 1776);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(7, $data['month']);
-        $this->assertEquals('July', $data['month_name']);
-        $this->assertEquals(1776, $data['year']);
-        $this->assertEquals(31, $data['days_in_month']);
-        $this->assertTrue($data['is_leap_year']); // 1776 is divisible by 4
-    }
-
-    public function test_future_year(): void
-    {
-        $result = ($this->tool)(2, 2100);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals(2, $data['month']);
-        $this->assertEquals('February', $data['month_name']);
-        $this->assertEquals(2100, $data['year']);
-        $this->assertEquals(28, $data['days_in_month']); // 2100 is not a leap year
-        $this->assertFalse($data['is_leap_year']);
+        $this->assertSame('Error: Month must be between 1 and 12', ($this->tool)($month, 2023));
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('get_days_in_month', $this->tool->getName());
-        $this->assertEquals('Get the number of days in a specific month and year', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(2, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('month', $propertyNames);
-        $this->assertContains('year', $propertyNames);
+        $this->assertSame('get_days_in_month', $this->tool->getName());
+        $this->assertSame('Get the number of days in a specific month and year', $this->tool->getDescription());
+        $this->assertSame(['month', 'year'], array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties()));
+        $this->assertSame(['month', 'year'], $this->tool->getRequiredProperties());
     }
 }

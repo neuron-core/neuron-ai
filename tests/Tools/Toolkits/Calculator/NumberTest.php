@@ -8,6 +8,8 @@ use NeuronAI\Tools\Toolkits\Calculator\Number;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MAX;
+
 class NumberTest extends TestCase
 {
     #[DataProvider('values')]
@@ -20,6 +22,9 @@ class NumberTest extends TestCase
     {
         return [
             'integer' => [3, '3'],
+            'int max' => [PHP_INT_MAX, '9223372036854775807'],
+            'largest exactly representable integral float' => [9007199254740991.0, '9007199254740991'],
+            'negative integral float' => [-12.0, '-12'],
             'negative integer' => [-42, '-42'],
             'integral float' => [3.0, '3'],
             'negative zero' => [-0.0, '0'],

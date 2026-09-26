@@ -6,129 +6,96 @@ namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 
 use NeuronAI\Tools\Toolkits\Calendar\GetWeekdayTool;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function date_default_timezone_get;
+use function date_default_timezone_set;
 use function json_decode;
 
 class GetWeekdayToolTest extends TestCase
 {
-    private GetWeekdayTool $tool;
+    protected GetWeekdayTool $tool;
+
+    protected string $defaultTimezone;
 
     protected function setUp(): void
     {
+        // Date strings are parsed in PHP's default timezone, so pin it to keep these cases deterministic
+        $this->defaultTimezone = date_default_timezone_get();
+        date_default_timezone_set('UTC');
         $this->tool = new GetWeekdayTool();
     }
 
-    public function test_get_weekday_name(): void
+    protected function tearDown(): void
     {
-        $result = ($this->tool)('2023-06-15'); // Thursday
-
-        $this->assertEquals('Thursday', $result);
+        date_default_timezone_set($this->defaultTimezone);
     }
 
-    public function test_get_weekday_short(): void
+    /**
+     * @return array<string, array{string, string, string, string}>
+     */
+    public static function weekdays(): array
     {
-        $result = ($this->tool)('2023-06-15', 'short'); // Thursday
-
-        $this->assertEquals('Thu', $result);
-    }
-
-    public function test_get_weekday_number(): void
-    {
-        $result = ($this->tool)('2023-06-15', 'number'); // Thursday
-
-        $this->assertEquals('4', $result); // ISO 8601 (1=Monday, 7=Sunday)
-    }
-
-    public function test_get_weekday_all(): void
-    {
-        $result = ($this->tool)('2023-06-18', 'all'); // Sunday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertEquals('Sunday', $data['name']);
-        $this->assertEquals('Sun', $data['short']);
-        $this->assertEquals(7, $data['number']); // ISO 8601
-        $this->assertEquals(7, $data['iso_number']); // ISO 8601
-        $this->assertEquals(0, $data['us_number']); // US format (0=Sunday)
-    }
-
-    public function test_get_weekday_for_all_days(): void
-    {
-        $dates = [
-            '2023-06-12' => 'Monday',    // Monday
-            '2023-06-13' => 'Tuesday',   // Tuesday
-            '2023-06-14' => 'Wednesday', // Wednesday
-            '2023-06-15' => 'Thursday',  // Thursday
-            '2023-06-16' => 'Friday',    // Friday
-            '2023-06-17' => 'Saturday',  // Saturday
-            '2023-06-18' => 'Sunday',    // Sunday
+        return [
+            'monday' => ['2023-06-12', 'Monday', 'Mon', '1'],
+            'tuesday' => ['2023-06-13', 'Tuesday', 'Tue', '2'],
+            'wednesday' => ['2023-06-14', 'Wednesday', 'Wed', '3'],
+            'thursday' => ['2023-06-15', 'Thursday', 'Thu', '4'],
+            'friday' => ['2023-06-16', 'Friday', 'Fri', '5'],
+            'saturday' => ['2023-06-17', 'Saturday', 'Sat', '6'],
+            'sunday' => ['2023-06-18', 'Sunday', 'Sun', '7'],
         ];
+    }
 
-        foreach ($dates as $date => $expectedDay) {
-            $result = ($this->tool)($date);
-            $this->assertEquals($expectedDay, $result);
-        }
+    #[DataProvider('weekdays')]
+    public function test_each_format_names_the_weekday(string $date, string $name, string $short, string $isoNumber): void
+    {
+        $this->assertSame($name, ($this->tool)($date));
+        $this->assertSame($name, ($this->tool)($date, 'name'));
+        $this->assertSame($short, ($this->tool)($date, 'short'));
+        $this->assertSame($isoNumber, ($this->tool)($date, 'number'));
+    }
+
+    public function test_all_gives_iso_and_us_numbering(): void
+    {
+        $this->assertSame(
+            ['name' => 'Sunday', 'short' => 'Sun', 'number' => 7, 'iso_number' => 7, 'us_number' => 0],
+            json_decode(($this->tool)('2023-06-18', 'all'), true)
+        );
+        $this->assertSame(
+            ['name' => 'Monday', 'short' => 'Mon', 'number' => 1, 'iso_number' => 1, 'us_number' => 1],
+            json_decode(($this->tool)('2023-06-12', 'all'), true)
+        );
+    }
+
+    public function test_an_unknown_format_falls_back_to_the_name(): void
+    {
+        $this->assertSame('Thursday', ($this->tool)('2023-06-15', 'roman'));
     }
 
     public function test_get_weekday_with_timestamp(): void
     {
-        $timestamp = '1686834000'; // 2023-06-15 14:00:00 UTC (Thursday)
+        $timestamp = '1686834000'; // 2023-06-15 13:00:00 UTC (Thursday)
         $result = ($this->tool)($timestamp);
 
-        $this->assertEquals('Thursday', $result);
+        $this->assertSame('Thursday', $result);
     }
 
     public function test_get_weekday_with_timezone(): void
     {
-        // Wednesday 23:00 UTC becomes Thursday 03:00 JST
+        // Wednesday 23:00 UTC becomes Thursday 08:00 JST
         $result = ($this->tool)('2023-06-14 23:00:00', null, 'Asia/Tokyo');
 
-        $this->assertEquals('Thursday', $result);
-    }
-
-    public function test_get_weekday_numbers_for_all_days(): void
-    {
-        $dates = [
-            '2023-06-12' => 1, // Monday
-            '2023-06-13' => 2, // Tuesday
-            '2023-06-14' => 3, // Wednesday
-            '2023-06-15' => 4, // Thursday
-            '2023-06-16' => 5, // Friday
-            '2023-06-17' => 6, // Saturday
-            '2023-06-18' => 7, // Sunday
-        ];
-
-        foreach ($dates as $date => $expectedNumber) {
-            $result = ($this->tool)($date, 'number');
-            $this->assertEquals((string) $expectedNumber, $result);
-        }
-    }
-
-    public function test_get_weekday_short_for_all_days(): void
-    {
-        $dates = [
-            '2023-06-12' => 'Mon',
-            '2023-06-13' => 'Tue',
-            '2023-06-14' => 'Wed',
-            '2023-06-15' => 'Thu',
-            '2023-06-16' => 'Fri',
-            '2023-06-17' => 'Sat',
-            '2023-06-18' => 'Sun',
-        ];
-
-        foreach ($dates as $date => $expectedShort) {
-            $result = ($this->tool)($date, 'short');
-            $this->assertEquals($expectedShort, $result);
-        }
+        $this->assertSame('Thursday', $result);
     }
 
     public function test_get_weekday_with_date_time(): void
     {
         $result = ($this->tool)('2023-06-15 14:30:45');
 
-        $this->assertEquals('Thursday', $result);
+        $this->assertSame('Thursday', $result);
     }
 
     public function test_get_weekday_across_timezones(): void
@@ -138,9 +105,9 @@ class GetWeekdayToolTest extends TestCase
         $pacific = ($this->tool)('2023-06-15 02:00:00', null, 'America/Los_Angeles');
         $sydney = ($this->tool)('2023-06-15 02:00:00', null, 'Australia/Sydney');
 
-        $this->assertEquals('Thursday', $utc);
-        $this->assertEquals('Wednesday', $pacific);
-        $this->assertEquals('Thursday', $sydney);
+        $this->assertSame('Thursday', $utc);
+        $this->assertSame('Wednesday', $pacific);
+        $this->assertSame('Thursday', $sydney);
     }
 
     public function test_get_weekday_timezone_conversion(): void
@@ -151,45 +118,35 @@ class GetWeekdayToolTest extends TestCase
         // Same moment but displayed in Tokyo time (Thursday 07:00 JST)
         $tokyo = ($this->tool)('2023-06-14 22:00:00 UTC', 'name', 'Asia/Tokyo');
 
-        $this->assertEquals('Wednesday', $utc);
-        $this->assertEquals('Thursday', $tokyo);
+        $this->assertSame('Wednesday', $utc);
+        $this->assertSame('Thursday', $tokyo);
     }
 
-    public function test_invalid_date(): void
+    public function test_an_invalid_date_is_reported_as_an_error_naming_it(): void
     {
         $result = ($this->tool)('invalid-date');
 
-        $this->assertStringStartsWith('Error:', $result);
+        $this->assertStringStartsWith('Error: ', $result);
+        $this->assertStringContainsString('invalid-date', $result);
     }
 
-    public function test_invalid_timezone(): void
+    public function test_an_invalid_timezone_is_reported_as_an_error_naming_it(): void
     {
         $result = ($this->tool)('2023-06-15', null, 'Invalid/Timezone');
 
-        $this->assertStringStartsWith('Error:', $result);
-    }
-
-    public function test_default_format(): void
-    {
-        // Default format should be 'name'
-        $result1 = ($this->tool)('2023-06-15');
-        $result2 = ($this->tool)('2023-06-15', 'name');
-
-        $this->assertEquals($result1, $result2);
-        $this->assertEquals('Thursday', $result1);
+        $this->assertStringStartsWith('Error: ', $result);
+        $this->assertStringContainsString('Invalid/Timezone', $result);
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('get_weekday', $this->tool->getName());
-        $this->assertEquals('Get the day of week name and number for a given date', $this->tool->getDescription());
+        $this->assertSame('get_weekday', $this->tool->getName());
+        $this->assertSame('Get the day of week name and number for a given date', $this->tool->getDescription());
 
-        $properties = $this->tool->getProperties();
-        $this->assertCount(3, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('date', $propertyNames);
-        $this->assertContains('format', $propertyNames);
-        $this->assertContains('timezone', $propertyNames);
+        $this->assertSame(
+            ['date', 'format', 'timezone'],
+            array_map(fn (ToolPropertyInterface $property): string => $property->getName(), $this->tool->getProperties())
+        );
+        $this->assertSame(['date'], $this->tool->getRequiredProperties());
     }
 }

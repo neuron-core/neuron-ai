@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 
 use NeuronAI\Tools\Toolkits\Calendar\IsWeekendTool;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -13,202 +14,90 @@ use function json_decode;
 
 class IsWeekendToolTest extends TestCase
 {
-    private IsWeekendTool $tool;
+    protected IsWeekendTool $tool;
 
     protected function setUp(): void
     {
         $this->tool = new IsWeekendTool();
     }
 
-    public function test_saturday_is_weekend(): void
+    /**
+     * @return array<string, array{string, bool, string, int}>
+     */
+    public static function daysOfTheWeek(): array
     {
-        $result = ($this->tool)('2023-06-17'); // Saturday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertTrue($data['is_weekend']);
-        $this->assertEquals('Saturday', $data['day_of_week']);
-        $this->assertEquals(6, $data['day_number']);
-    }
-
-    public function test_sunday_is_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-18'); // Sunday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertTrue($data['is_weekend']);
-        $this->assertEquals('Sunday', $data['day_of_week']);
-        $this->assertEquals(7, $data['day_number']);
-    }
-
-    public function test_monday_is_not_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-12'); // Monday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertFalse($data['is_weekend']);
-        $this->assertEquals('Monday', $data['day_of_week']);
-        $this->assertEquals(1, $data['day_number']);
-    }
-
-    public function test_tuesday_is_not_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-13'); // Tuesday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertFalse($data['is_weekend']);
-        $this->assertEquals('Tuesday', $data['day_of_week']);
-        $this->assertEquals(2, $data['day_number']);
-    }
-
-    public function test_wednesday_is_not_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-14'); // Wednesday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertFalse($data['is_weekend']);
-        $this->assertEquals('Wednesday', $data['day_of_week']);
-        $this->assertEquals(3, $data['day_number']);
-    }
-
-    public function test_thursday_is_not_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-15'); // Thursday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertFalse($data['is_weekend']);
-        $this->assertEquals('Thursday', $data['day_of_week']);
-        $this->assertEquals(4, $data['day_number']);
-    }
-
-    public function test_friday_is_not_weekend(): void
-    {
-        $result = ($this->tool)('2023-06-16'); // Friday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertFalse($data['is_weekend']);
-        $this->assertEquals('Friday', $data['day_of_week']);
-        $this->assertEquals(5, $data['day_number']);
-    }
-
-    public function test_all_weekdays(): void
-    {
-        $weekdays = [
-            '2023-06-12' => ['Monday', 1, false],    // Monday
-            '2023-06-13' => ['Tuesday', 2, false],   // Tuesday
-            '2023-06-14' => ['Wednesday', 3, false], // Wednesday
-            '2023-06-15' => ['Thursday', 4, false],  // Thursday
-            '2023-06-16' => ['Friday', 5, false],    // Friday
-            '2023-06-17' => ['Saturday', 6, true],   // Saturday
-            '2023-06-18' => ['Sunday', 7, true],     // Sunday
+        return [
+            'monday' => ['2023-06-12', false, 'Monday', 1],
+            'tuesday' => ['2023-06-13', false, 'Tuesday', 2],
+            'wednesday' => ['2023-06-14', false, 'Wednesday', 3],
+            'thursday' => ['2023-06-15', false, 'Thursday', 4],
+            'friday' => ['2023-06-16', false, 'Friday', 5],
+            'saturday' => ['2023-06-17', true, 'Saturday', 6],
+            'sunday' => ['2023-06-18', true, 'Sunday', 7],
         ];
-
-        foreach ($weekdays as $date => [$expectedDay, $expectedNumber, $expectedWeekend]) {
-            $result = ($this->tool)($date);
-            $data = json_decode($result, true);
-
-            $this->assertEquals($expectedWeekend, $data['is_weekend'], "Failed for $date");
-            $this->assertEquals($expectedDay, $data['day_of_week'], "Failed for $date");
-            $this->assertEquals($expectedNumber, $data['day_number'], "Failed for $date");
-        }
     }
 
-    public function test_with_timestamp(): void
+    #[DataProvider('daysOfTheWeek')]
+    public function test_only_saturday_and_sunday_are_weekend_days(string $date, bool $weekend, string $name, int $number): void
     {
-        $timestamp = '1687017600'; // 2023-06-17 20:00:00 UTC (Saturday)
-        $result = ($this->tool)($timestamp);
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertTrue($data['is_weekend']);
-        $this->assertEquals('Saturday', $data['day_of_week']);
+        $this->assertSame(
+            ['is_weekend' => $weekend, 'day_of_week' => $name, 'day_number' => $number],
+            json_decode(($this->tool)($date), true)
+        );
     }
 
-    public function test_with_date_time(): void
+    public function test_the_weekend_starts_at_midnight_on_saturday(): void
     {
-        $result = ($this->tool)('2023-06-17 14:30:45'); // Saturday
-
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
-        $this->assertTrue($data['is_weekend']);
-        $this->assertEquals('Saturday', $data['day_of_week']);
+        $this->assertFalse(json_decode(($this->tool)('2023-06-16 23:59:59'), true)['is_weekend']);
+        $this->assertTrue(json_decode(($this->tool)('2023-06-17 00:00:00'), true)['is_weekend']);
     }
 
-    public function test_with_timezone(): void
+    public function test_the_weekend_ends_at_midnight_on_monday(): void
     {
-        // Friday 23:00 UTC becomes Saturday in many timezones
-        $utcResult = ($this->tool)('2023-06-16 23:00:00', 'UTC');
-        $tokyoResult = ($this->tool)('2023-06-16 23:00:00', 'Asia/Tokyo');
-
-        $utcData = json_decode($utcResult, true);
-        $tokyoData = json_decode($tokyoResult, true);
-
-        $this->assertFalse($utcData['is_weekend']); // Friday in UTC
-        $this->assertTrue($tokyoData['is_weekend']); // Saturday in Tokyo (UTC+9)
+        $this->assertTrue(json_decode(($this->tool)('2023-06-18 23:59:59'), true)['is_weekend']);
+        $this->assertFalse(json_decode(($this->tool)('2023-06-19 00:00:00'), true)['is_weekend']);
     }
 
-    public function test_timezone_conversion_midnight(): void
+    public function test_a_timestamp_is_resolved_in_the_requested_timezone(): void
     {
-        // Test midnight conversions
-        $result1 = ($this->tool)('2023-06-17 00:00:00', 'UTC'); // Saturday midnight UTC
-        $result2 = ($this->tool)('2023-06-16 15:00:00', 'America/Los_Angeles'); // Friday 3PM PDT = Saturday 22:00 UTC
+        $timestamp = '1687046400'; // 2023-06-18 00:00:00 UTC, still Saturday evening in Los Angeles
 
-        $data1 = json_decode($result1, true);
-        $data2 = json_decode($result2, true);
-
-        $this->assertTrue($data1['is_weekend']); // Saturday in UTC
-        $this->assertFalse($data2['is_weekend']); // Friday in PDT
+        $this->assertSame('Sunday', json_decode(($this->tool)($timestamp), true)['day_of_week']);
+        $this->assertSame('Saturday', json_decode(($this->tool)($timestamp, 'America/Los_Angeles'), true)['day_of_week']);
     }
 
-    public function test_json_structure(): void
+    public function test_a_date_string_is_read_as_utc_and_converted_to_the_requested_timezone(): void
     {
-        $result = ($this->tool)('2023-06-17');
+        // Friday 23:00 UTC is already Saturday 08:00 in Tokyo
+        $utc = json_decode(($this->tool)('2023-06-16 23:00:00', 'UTC'), true);
+        $tokyo = json_decode(($this->tool)('2023-06-16 23:00:00', 'Asia/Tokyo'), true);
 
-        $data = json_decode($result, true);
-        $this->assertIsArray($data);
+        $this->assertFalse($utc['is_weekend']);
+        $this->assertTrue($tokyo['is_weekend']);
+        $this->assertSame('Saturday', $tokyo['day_of_week']);
+    }
 
-        // Check all required keys are present
-        $expectedKeys = ['is_weekend', 'day_of_week', 'day_number'];
-        foreach ($expectedKeys as $key) {
-            $this->assertArrayHasKey($key, $data);
-        }
-
-        // Check data types
-        $this->assertIsBool($data['is_weekend']);
-        $this->assertIsString($data['day_of_week']);
-        $this->assertIsInt($data['day_number']);
+    public function test_an_explicit_offset_in_the_date_is_honoured(): void
+    {
+        // Saturday 01:00 in Tokyo is Friday 16:00 UTC
+        $this->assertFalse(json_decode(($this->tool)('2023-06-17T01:00:00+09:00'), true)['is_weekend']);
     }
 
     public function test_invalid_date(): void
     {
-        $result = ($this->tool)('invalid-date');
-
-        $this->assertStringStartsWith('Error:', $result);
+        $this->assertStringStartsWith('Error: ', ($this->tool)('invalid-date'));
     }
 
     public function test_invalid_timezone(): void
     {
-        $result = ($this->tool)('2023-06-17', 'Invalid/Timezone');
-
-        $this->assertStringStartsWith('Error:', $result);
+        $this->assertStringStartsWith('Error: ', ($this->tool)('2023-06-17', 'Invalid/Timezone'));
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('is_weekend', $this->tool->getName());
-        $this->assertEquals('Check if a given date falls on a weekend (Saturday or Sunday)', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(2, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('date', $propertyNames);
-        $this->assertContains('timezone', $propertyNames);
+        $this->assertSame('is_weekend', $this->tool->getName());
+        $this->assertSame('Check if a given date falls on a weekend (Saturday or Sunday)', $this->tool->getDescription());
+        $this->assertSame(['date', 'timezone'], array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties()));
+        $this->assertSame(['date'], $this->tool->getRequiredProperties());
     }
 }

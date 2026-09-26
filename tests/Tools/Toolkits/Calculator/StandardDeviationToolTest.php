@@ -46,4 +46,14 @@ class StandardDeviationToolTest extends TestCase
     {
         $this->assertToolError('The dataset cannot be empty.', ($this->tool)([]));
     }
+
+    public function test_a_single_value_population_has_no_spread(): void
+    {
+        $this->assertSame('0', ($this->tool)([5], true));
+    }
+
+    public function test_two_value_sample(): void
+    {
+        $this->assertSame('1.4142135623731', ($this->tool)([1, 3]));
+    }
 }

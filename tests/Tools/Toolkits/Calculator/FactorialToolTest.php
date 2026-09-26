@@ -54,4 +54,20 @@ class FactorialToolTest extends TestCase
         $this->assertToolError('The factorial is available for integers between 0 and 1000.', ($this->tool)(-1));
         $this->assertToolError('The factorial is available for integers between 0 and 1000.', ($this->tool)(1001));
     }
+
+    public function test_the_framework_casts_the_model_spelling(): void
+    {
+        $this->tool->setInputs(['n' => '5'])->execute();
+
+        $this->assertSame('120', $this->tool->getResult());
+    }
+
+    public function test_exposes_a_single_required_integer(): void
+    {
+        $this->assertSame([
+            'type' => 'object',
+            'properties' => ['n' => ['type' => 'integer', 'description' => 'A non-negative integer']],
+            'required' => ['n'],
+        ], $this->tool->getInputSchema());
+    }
 }

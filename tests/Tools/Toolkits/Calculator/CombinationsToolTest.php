@@ -13,6 +13,8 @@ use function strlen;
 use function str_ends_with;
 use function str_starts_with;
 
+use const PHP_INT_MAX;
+
 class CombinationsToolTest extends TestCase
 {
     use ToolErrorAssertions;
@@ -39,6 +41,10 @@ class CombinationsToolTest extends TestCase
             [52, 5, '2598960'],
             [100, 50, '100891344545564193334812497256'],
             [3000, 2, '4498500'],
+            'symmetric k' => [3000, 2998, '4498500'],
+            'int max choose one' => [PHP_INT_MAX, 1, '9223372036854775807'],
+            'int max choose two' => [PHP_INT_MAX, 2, '42535295865117307919086767873688862721'],
+            'int max choose all' => [PHP_INT_MAX, PHP_INT_MAX, '1'],
         ];
     }
 
@@ -61,5 +67,7 @@ class CombinationsToolTest extends TestCase
     public function test_rejects_too_many_terms(): void
     {
         $this->assertToolError('The smaller of k and n - k must not exceed 1000.', ($this->tool)(3000, 1500));
+        $this->assertToolError('The smaller of k and n - k must not exceed 1000.', ($this->tool)(2002, 1001));
+        $this->assertSame(601, strlen(($this->tool)(2000, 1000)));
     }
 }

@@ -9,6 +9,8 @@ use NeuronAI\Tools\Toolkits\Calculator\ModPowTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MAX;
+
 class ModPowToolTest extends TestCase
 {
     use ToolErrorAssertions;
@@ -35,6 +37,11 @@ class ModPowToolTest extends TestCase
             'zero exponent' => [3, 0, 7, '1'],
             'modulus one' => [5, 3, 1, '0'],
             'negative base gives the non-negative residue' => [-2, 3, 5, '2'],
+            'negative base divisible by the modulus' => [-4, 1, 2, '0'],
+            'zero to the zero' => [0, 0, 5, '1'],
+            'base larger than the modulus' => [1234, 1, 1000, '234'],
+            'int max modulus' => [10, 3, PHP_INT_MAX, '1000'],
+            'minus one to an odd huge power' => [-1, PHP_INT_MAX, 7, '6'],
         ];
     }
 
@@ -42,5 +49,6 @@ class ModPowToolTest extends TestCase
     {
         $this->assertToolError('The exponent must be non-negative.', ($this->tool)(2, -1, 5));
         $this->assertToolError('The modulus must be a positive integer.', ($this->tool)(2, 3, 0));
+        $this->assertToolError('The modulus must be a positive integer.', ($this->tool)(2, 3, -5));
     }
 }

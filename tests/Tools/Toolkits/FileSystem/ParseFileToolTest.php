@@ -4,28 +4,38 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\ParseFileTool;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
 use function file_put_contents;
-use function sys_get_temp_dir;
-use function tempnam;
-use function unlink;
-use function rename;
+use function mb_strlen;
+use function mkdir;
+use function preg_match;
 
 class ParseFileToolTest extends TestCase
 {
+    use FileSystemSandbox;
     use ToolErrorAssertions;
 
-    private ParseFileTool $tool;
+    protected ParseFileTool $tool;
+
+    protected string $tempDir;
 
     protected function setUp(): void
     {
         $this->tool = new ParseFileTool();
+        $this->tempDir = $this->createSandbox('neuron_parse');
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeSandbox($this->tempDir);
     }
 
     public function test_parse_non_existent_file(): void
@@ -33,173 +43,125 @@ class ParseFileToolTest extends TestCase
         $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt'));
     }
 
-    public function test_parse_pdf_file(): void
+    public function test_directory_with_a_document_extension_is_not_parsed(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        rename($tempFile, $tempFile . '.pdf');
-        $pdfFile = $tempFile . '.pdf';
+        mkdir($this->tempDir . '/site.html');
 
-        $result = ($this->tool)($pdfFile);
-        unlink($pdfFile);
-
-        // Empty or minimal PDF - result is a string
-        $this->assertNotEmpty($result);
+        $this->assertToolError("File 'site.html' does not exist.", (new ParseFileTool($this->tempDir))('site.html'));
     }
 
-    public function test_parse_pdf_extension(): void
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function pdfExtensionProvider(): iterable
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        rename($tempFile, $tempFile . '.PDF');
-        $pdfFile = $tempFile . '.PDF';
-
-        $result = ($this->tool)($pdfFile);
-        unlink($pdfFile);
-
-        $this->assertNotEmpty($result);
+        yield 'lowercase' => ['pdf'];
+        yield 'uppercase' => ['PDF'];
     }
 
-    public function test_parse_html_file(): void
+    #[DataProvider('pdfExtensionProvider')]
+    public function test_unparseable_pdf_is_reported_as_a_failure(string $extension): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $htmlContent = '<html><body><h1>Parse Test</h1><p>This is content</p></body></html>';
-        file_put_contents($tempFile, $htmlContent);
-        rename($tempFile, $tempFile . '.html');
-        $htmlFile = $tempFile . '.html';
+        $file = $this->tempDir . '/broken.' . $extension;
+        file_put_contents($file, 'not a pdf');
 
-        $result = ($this->tool)($htmlFile);
-        unlink($htmlFile);
+        $result = ($this->tool)($file);
 
-        // HtmlReader converts headings to uppercase
-        $this->assertStringContainsString('PARSE TEST', $result);
-        $this->assertStringContainsString('This is content', $result);
-        $this->assertStringContainsString('[HTML parsed successfully:', $result);
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertStringStartsWith("Unable to parse PDF file '{$file}'.", $result->getText());
     }
 
-    public function test_parse_htm_extension(): void
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function htmlExtensionProvider(): iterable
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $htmlContent = '<html><body><h1>HTM Test</h1></body></html>';
-        file_put_contents($tempFile, $htmlContent);
-        rename($tempFile, $tempFile . '.htm');
-        $htmFile = $tempFile . '.htm';
-
-        $result = ($this->tool)($htmFile);
-        unlink($htmFile);
-
-        $this->assertStringContainsString('HTM TEST', $result);
-        $this->assertStringContainsString('[HTML parsed successfully:', $result);
+        yield 'html' => ['html'];
+        yield 'htm' => ['htm'];
+        yield 'uppercase' => ['HTML'];
     }
 
-    public function test_parse_html_with_complex_structure(): void
+    #[DataProvider('htmlExtensionProvider')]
+    public function test_html_is_parsed_to_text_followed_by_its_character_count(string $extension): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $htmlContent = <<<'HTML'
+        $file = $this->tempDir . '/page.' . $extension;
+        file_put_contents($file, '<html><body><h1>Parse Test</h1><p>This is content</p></body></html>');
+
+        $result = ($this->tool)($file);
+
+        $this->assertIsString($result);
+        $this->assertSame(1, preg_match('/^(.*)\n\n\[HTML parsed successfully: (\d+) characters\]$/s', $result, $parts));
+        $this->assertStringContainsString('PARSE TEST', $parts[1]);
+        $this->assertStringContainsString('This is content', $parts[1]);
+        $this->assertStringNotContainsString('<h1>', $parts[1]);
+        $this->assertSame((string) mb_strlen($parts[1]), $parts[2]);
+    }
+
+    public function test_html_with_complex_structure(): void
+    {
+        $file = $this->tempDir . '/page.html';
+        file_put_contents($file, <<<'HTML'
             <!DOCTYPE html>
             <html>
             <head><title>Test Page</title></head>
             <body>
-                <nav>
-                    <ul>
-                        <li>Home</li>
-                        <li>About</li>
-                        <li>Contact</li>
-                    </ul>
-                </nav>
+                <nav><ul><li>Home</li><li>About</li></ul></nav>
                 <main>
                     <h1>Main Heading</h1>
                     <p>Paragraph text.</p>
                 </main>
             </body>
             </html>
-            HTML;
-        file_put_contents($tempFile, $htmlContent);
-        rename($tempFile, $tempFile . '.html');
-        $htmlFile = $tempFile . '.html';
+            HTML);
 
-        $result = ($this->tool)($htmlFile);
-        unlink($htmlFile);
+        $result = ($this->tool)($file);
 
-        // HtmlReader converts headings to uppercase
         $this->assertStringContainsString('MAIN HEADING', $result);
         $this->assertStringContainsString('Paragraph text.', $result);
         $this->assertStringContainsString('Home', $result);
     }
 
-    public function test_parse_case_insensitive_extension(): void
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unsupportedFileProvider(): iterable
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $htmlContent = '<html><body><h1>Case Test</h1></body></html>';
-        file_put_contents($tempFile, $htmlContent);
-        rename($tempFile, $tempFile . '.HTML');
-        $htmlFile = $tempFile . '.HTML';
-
-        $result = ($this->tool)($htmlFile);
-        unlink($htmlFile);
-
-        $this->assertStringContainsString('CASE TEST', $result);
-        $this->assertStringContainsString('[HTML parsed successfully:', $result);
+        yield 'unknown extension' => ['file.xyz', 'xyz'];
+        yield 'plain text' => ['file.txt', 'txt'];
+        yield 'php source' => ['file.php', 'php'];
+        yield 'no extension' => ['Makefile', ''];
+        yield 'extension hidden before a dot' => ['report.html.txt', 'txt'];
     }
 
-    public function test_parse_unsupported_extension(): void
+    #[DataProvider('unsupportedFileProvider')]
+    public function test_unsupported_formats_are_refused(string $name, string $extension): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = 'Unsupported file content';
-        file_put_contents($tempFile, $content);
-        rename($tempFile, $tempFile . '.xyz');
-        $xyzFile = $tempFile . '.xyz';
+        file_put_contents($this->tempDir . '/' . $name, '<?php echo "hello"; ?>');
 
-        $result = ($this->tool)($xyzFile);
-        unlink($xyzFile);
-
-        $this->assertUnsupportedFormat($result);
-        $this->assertStringContainsString("'xyz'", $result->getText());
+        $this->assertToolError(
+            "Unsupported file format '{$extension}'. Supported formats: PDF, HTML. If the file is already in plain text you can access its content directly with other tools like grep_file_content or read_file.",
+            ($this->tool)($this->tempDir . '/' . $name)
+        );
     }
 
-    public function test_parse_txt_extension_returns_error(): void
+    public function test_file_outside_the_scope_is_not_parsed(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = 'Text file content';
-        file_put_contents($tempFile, $content);
-        rename($tempFile, $tempFile . '.txt');
-        $txtFile = $tempFile . '.txt';
+        mkdir($this->tempDir . '/scope');
+        file_put_contents($this->tempDir . '/secret.html', '<p>secret</p>');
 
-        $result = ($this->tool)($txtFile);
-        unlink($txtFile);
-
-        // TXT is not a supported format for parse_file (only PDF, HTML)
-        $this->assertUnsupportedFormat($result);
-    }
-
-    public function test_parse_php_extension_returns_error(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $content = '<?php echo "hello"; ?>';
-        file_put_contents($tempFile, $content);
-        rename($tempFile, $tempFile . '.php');
-        $phpFile = $tempFile . '.php';
-
-        $result = ($this->tool)($phpFile);
-        unlink($phpFile);
-
-        $this->assertUnsupportedFormat($result);
+        $this->assertToolError(
+            "Access denied: '../secret.html' is outside the working scope '{$this->tempDir}/scope'.",
+            (new ParseFileTool($this->tempDir . '/scope'))('../secret.html')
+        );
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('parse_file', $this->tool->getName());
-        $this->assertEquals('Parse and return the complete content of a document file. Use this after preview_file confirms the document is relevant, or when you need to find cross-references to other documents. Supported formats: PDF, HTML.', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(1, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('file_path', $propertyNames);
-    }
-
-    private function assertUnsupportedFormat(mixed $result): void
-    {
-        $this->assertInstanceOf(ToolOutput::class, $result);
-        $this->assertTrue($result->isError());
-        $this->assertStringStartsWith('Unsupported file format', $result->getText());
+        $this->assertSame('parse_file', $this->tool->getName());
+        $this->assertSame(
+            ['file_path'],
+            array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties())
+        );
     }
 }

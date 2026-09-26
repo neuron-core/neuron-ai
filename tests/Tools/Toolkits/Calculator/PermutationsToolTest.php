@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools\Toolkits\Calculator;
 
 use NeuronAI\Tests\Support\ToolErrorAssertions;
+use NeuronAI\Tools\Toolkits\Calculator\FactorialTool;
 use NeuronAI\Tools\Toolkits\Calculator\PermutationsTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -35,6 +36,7 @@ class PermutationsToolTest extends TestCase
             [10, 10, '3628800'],
             [52, 5, '311875200'],
             [3000, 2, '8997000'],
+            'one item out of a huge set' => [9223372036854775806, 1, '9223372036854775806'],
         ];
     }
 
@@ -47,5 +49,10 @@ class PermutationsToolTest extends TestCase
     public function test_rejects_too_many_terms(): void
     {
         $this->assertToolError('k must not exceed 1000.', ($this->tool)(2000, 1001));
+    }
+
+    public function test_arranging_every_item_matches_the_factorial(): void
+    {
+        $this->assertSame((new FactorialTool())(1000), ($this->tool)(1000, 1000));
     }
 }

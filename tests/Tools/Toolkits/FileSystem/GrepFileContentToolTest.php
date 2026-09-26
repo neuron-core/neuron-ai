@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
+use NeuronAI\Tests\Support\FileSystemSandbox;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\GrepFileContentTool;
 use NeuronAI\Tools\ToolOutput;
@@ -12,20 +13,30 @@ use PHPUnit\Framework\TestCase;
 
 use function array_map;
 use function file_put_contents;
-use function sys_get_temp_dir;
-use function tempnam;
-use function unlink;
+use function mkdir;
 use function str_repeat;
 
 class GrepFileContentToolTest extends TestCase
 {
+    use FileSystemSandbox;
     use ToolErrorAssertions;
 
-    private GrepFileContentTool $tool;
+    protected GrepFileContentTool $tool;
+
+    protected string $tempDir;
+
+    protected string $tempFile;
 
     protected function setUp(): void
     {
         $this->tool = new GrepFileContentTool();
+        $this->tempDir = $this->createSandbox('neuron_grep');
+        $this->tempFile = $this->tempDir . '/file.txt';
+    }
+
+    protected function tearDown(): void
+    {
+        $this->removeSandbox($this->tempDir);
     }
 
     public function test_grep_non_existent_file(): void
@@ -33,128 +44,150 @@ class GrepFileContentToolTest extends TestCase
         $this->assertToolError("File '/non/existent/file.txt' does not exist.", ($this->tool)('/non/existent/file.txt', 'pattern'));
     }
 
+    public function test_directory_is_not_searched(): void
+    {
+        mkdir($this->tempDir . '/dir');
+
+        $this->assertToolError("File 'dir' does not exist.", (new GrepFileContentTool($this->tempDir))('dir', '/x/'));
+    }
+
     public function test_grep_no_matches(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Hello\nWorld\nTest");
+        file_put_contents($this->tempFile, "Hello\nWorld\nTest");
 
-        $result = ($this->tool)($tempFile, '/notfound/');
-        unlink($tempFile);
-
-        $this->assertStringContainsString("No matches found for pattern '/notfound/'", $result);
+        $this->assertSame(
+            "No matches found for pattern '/notfound/' in file '{$this->tempFile}'.",
+            ($this->tool)($this->tempFile, '/notfound/')
+        );
     }
 
-    public function test_grep_simple_pattern(): void
+    public function test_reports_every_match_with_its_line_number(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Hello World\nHello World\nTest");
+        file_put_contents($this->tempFile, "Count: 42\nnothing\nCount: 100 and 7\nCount: 999");
 
-        $result = ($this->tool)($tempFile, '/Hello/');
-        unlink($tempFile);
+        $this->assertSame(
+            "Found 4 match(es) for pattern '/\\d+/' in file '{$this->tempFile}':\n\n"
+            . "  Match 1 (line 1): 42\n"
+            . "  Match 2 (line 3): 100\n"
+            . "  Match 3 (line 3): 7\n"
+            . "  Match 4 (line 4): 999\n",
+            ($this->tool)($this->tempFile, '/\d+/')
+        );
+    }
 
-        $this->assertStringContainsString("Found 2 match(es) for pattern '/Hello/'", $result);
+    public function test_match_at_the_start_of_a_line_is_attributed_to_that_line(): void
+    {
+        file_put_contents($this->tempFile, "abc\ndef\n");
+
+        $this->assertStringContainsString('Match 1 (line 2): def', ($this->tool)($this->tempFile, '/def/'));
+    }
+
+    public function test_match_spanning_lines_is_reported_on_its_first_line(): void
+    {
+        file_put_contents($this->tempFile, "one\nstart\nend\n");
+
+        $this->assertStringContainsString("Match 1 (line 2): start\nend", ($this->tool)($this->tempFile, '/start\nend/'));
+    }
+
+    public function test_grep_case_sensitive_by_default(): void
+    {
+        file_put_contents($this->tempFile, "Hello\nhello\nHELLO");
+
+        $result = ($this->tool)($this->tempFile, '/Hello/');
+
+        $this->assertStringStartsWith('Found 1 match(es)', $result);
         $this->assertStringContainsString('Match 1 (line 1): Hello', $result);
-        $this->assertStringContainsString('Match 2 (line 2): Hello', $result);
     }
 
-    public function test_grep_with_regex_pattern(): void
+    public function test_grep_honours_pattern_modifiers(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "test@example.com\nadmin@test.org\ninfo@example.com");
+        file_put_contents($this->tempFile, "Hello\nhello\nHELLO");
 
-        $result = ($this->tool)($tempFile, '/[\w.]+@[\w.]+/');
-        unlink($tempFile);
+        $result = ($this->tool)($this->tempFile, '/hello/i');
 
-        $this->assertStringContainsString('Found 3 match(es)', $result);
-        $this->assertStringContainsString('test@example.com', $result);
-        $this->assertStringContainsString('admin@test.org', $result);
+        $this->assertStringContainsString('Match 3 (line 3): HELLO', $result);
     }
 
-    public function test_grep_case_sensitive(): void
+    public function test_match_of_exactly_one_hundred_characters_is_not_truncated(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Hello\nhello\nHELLO");
+        file_put_contents($this->tempFile, str_repeat('A', 100));
 
-        $result = ($this->tool)($tempFile, '/Hello/');
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Found 1 match(es)', $result);
-        $this->assertStringContainsString('Match 1 (line 1): Hello', $result);
+        $this->assertStringContainsString(
+            'Match 1 (line 1): ' . str_repeat('A', 100) . "\n",
+            ($this->tool)($this->tempFile, '/A+/')
+        );
     }
 
-    public function test_grep_case_insensitive(): void
+    public function test_longer_match_is_truncated_to_one_hundred_characters(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Hello\nhello\nHELLO");
+        file_put_contents($this->tempFile, str_repeat('A', 101));
 
-        $result = ($this->tool)($tempFile, '/hello/i');
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Found 3 match(es)', $result);
+        $this->assertStringContainsString(
+            'Match 1 (line 1): ' . str_repeat('A', 97) . "...\n",
+            ($this->tool)($this->tempFile, '/A+/')
+        );
     }
 
-    public function test_grep_numbers(): void
+    public function test_truncation_does_not_split_multibyte_characters(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Count: 42\nCount: 100\nCount: 999");
+        file_put_contents($this->tempFile, str_repeat('é', 150));
 
-        $result = ($this->tool)($tempFile, '/\d+/');
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Found 3 match(es)', $result);
-    }
-
-    public function test_grep_long_match_truncates(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        $longMatch = str_repeat('A', 200);
-        file_put_contents($tempFile, $longMatch);
-
-        $result = ($this->tool)($tempFile, '/A+/');
-        unlink($tempFile);
-
-        $this->assertStringContainsString('Found 1 match(es)', $result);
-        // Match should be truncated to ~100 characters
-        $this->assertMatchesRegularExpression('/AAA\.\.\./', $result);
+        $this->assertStringContainsString(
+            'Match 1 (line 1): ' . str_repeat('é', 97) . "...\n",
+            ($this->tool)($this->tempFile, '/(é)+/u')
+        );
     }
 
     public function test_grep_invalid_regex(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Test content");
+        file_put_contents($this->tempFile, 'Test content');
 
-        $result = ($this->tool)($tempFile, '/[invalid(');
-        unlink($tempFile);
+        $this->assertToolError(
+            "Invalid regex pattern '/[invalid('. Internal error",
+            ($this->tool)($this->tempFile, '/[invalid(')
+        );
+    }
+
+    public function test_pattern_without_delimiters_is_reported_as_invalid(): void
+    {
+        file_put_contents($this->tempFile, 'Test content');
+
+        $result = ($this->tool)($this->tempFile, 'Test');
 
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertTrue($result->isError());
-        $this->assertStringContainsString("Invalid regex pattern '/[invalid('", $result->getText());
+        $this->assertStringStartsWith("Invalid regex pattern 'Test'.", $result->getText());
     }
 
-    public function test_grep_with_special_characters(): void
+    public function test_catastrophic_backtracking_is_reported_instead_of_hanging(): void
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'neuron_test_');
-        file_put_contents($tempFile, "Price: $100\nPrice: €50\nPrice: ¥500");
+        file_put_contents($this->tempFile, str_repeat('a', 5000) . 'b');
 
-        $result = ($this->tool)($tempFile, '/Price: .+/');
-        unlink($tempFile);
+        $result = ($this->tool)($this->tempFile, '/(a+)+$/');
 
-        $this->assertStringContainsString('Found 3 match(es)', $result);
-        $this->assertStringContainsString('Price: $', $result);
-        $this->assertStringContainsString('Price: €', $result);
-        $this->assertStringContainsString('Price: ¥', $result);
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertStringStartsWith("Invalid regex pattern '/(a+)+\$/'.", $result->getText());
+    }
+
+    public function test_file_outside_the_scope_is_not_searched(): void
+    {
+        mkdir($this->tempDir . '/scope');
+        file_put_contents($this->tempFile, 'password=hunter2');
+
+        $this->assertToolError(
+            "Access denied: '../file.txt' is outside the working scope '{$this->tempDir}/scope'.",
+            (new GrepFileContentTool($this->tempDir . '/scope'))('../file.txt', '/password=.*/')
+        );
     }
 
     public function test_tool_properties(): void
     {
-        $this->assertEquals('grep_file_content', $this->tool->getName());
-        $this->assertEquals('Search for a regex pattern in a file.', $this->tool->getDescription());
-
-        $properties = $this->tool->getProperties();
-        $this->assertCount(2, $properties);
-
-        $propertyNames = array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $properties);
-        $this->assertContains('file_path', $propertyNames);
-        $this->assertContains('pattern', $propertyNames);
+        $this->assertSame('grep_file_content', $this->tool->getName());
+        $this->assertSame('Search for a regex pattern in a file.', $this->tool->getDescription());
+        $this->assertSame(
+            ['file_path', 'pattern'],
+            array_map(fn (ToolPropertyInterface $prop): string => $prop->getName(), $this->tool->getProperties())
+        );
     }
 }

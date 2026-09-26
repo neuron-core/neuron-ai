@@ -7,12 +7,14 @@ namespace NeuronAI\Tests\Tools;
 use NeuronAI\Tests\Tools\Stub\AddTool;
 use NeuronAI\Tests\Tools\Stub\FailingTool;
 use NeuronAI\Tests\Tools\Stub\MultiplyTool;
+use NeuronAI\Tests\Tools\Stub\ProcessIdTool;
 use NeuronAI\Tests\Tools\Stub\TestToolA;
 use NeuronAI\Tests\Tools\Stub\TestToolB;
 use NeuronAI\Tests\Tools\Stub\WorkingTool;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
@@ -22,10 +24,11 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use ReflectionClass;
 
 use function extension_loaded;
 use function class_exists;
+use function array_values;
+use function getmypid;
 use function iterator_to_array;
 
 class ParallelToolsTest extends TestCase
@@ -43,27 +46,37 @@ class ParallelToolsTest extends TestCase
         }
     }
 
-    public function test_parallel_tool_calls_registers_parallel_tool_node(): void
+    public function test_parallel_tool_calls_run_each_call_in_its_own_process(): void
     {
-        $agent = Agent::make();
-        $agent->parallelToolCalls(true);
+        $agent = Agent::make()->parallelToolCalls(true)->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
+            new ToolCallMessage(null, [
+                ToolCall::make('process_id', 'call_1'),
+                ToolCall::make('process_id', 'call_2'),
+            ]),
+            new AssistantMessage('Done'),
+        ));
 
-        $tool = new WorkingTool();
-        $agent->addTool($tool);
+        $agent->chat(new UserMessage('Where do tools run?'));
 
-        $provider = new FakeAIProvider(
-            new AssistantMessage('Hello!')
-        );
-        $agent->setAiProvider($provider);
+        $processIds = array_values($this->results($agent));
+        $this->assertCount(2, $processIds);
+        $this->assertNotContains((string) getmypid(), $processIds);
+        $this->assertNotSame($processIds[0], $processIds[1]);
+    }
 
-        // This should compose the workflow with ParallelToolNode
-        $agent->chat(new UserMessage('Hello'));
+    public function test_sequential_tool_calls_run_in_the_calling_process(): void
+    {
+        $agent = Agent::make()->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
+            new ToolCallMessage(null, [
+                ToolCall::make('process_id', 'call_1'),
+                ToolCall::make('process_id', 'call_2'),
+            ]),
+            new AssistantMessage('Done'),
+        ));
 
-        // Verify the agent has parallel tool calls enabled
-        $reflection = new ReflectionClass($agent);
-        $property = $reflection->getProperty('parallelToolCalls');
+        $agent->chat(new UserMessage('Where do tools run?'));
 
-        $this->assertTrue($property->getValue($agent));
+        $this->assertSame(['call_1' => (string) getmypid(), 'call_2' => (string) getmypid()], $this->results($agent));
     }
 
     public function test_two_tools_executed_in_parallel(): void
@@ -92,9 +105,8 @@ class ParallelToolsTest extends TestCase
 
         $handler = $agent->chat(new UserMessage('Run tools in parallel'));
 
-        $message = $handler->getMessage();
-
-        $this->assertSame('I have results from both tools.', $message->getContent());
+        $this->assertSame('I have results from both tools.', $handler->getMessage()->getContent());
+        $this->assertSame(['call_1' => 'Tool A received: test A', 'call_2' => 'Tool B received: test B'], $this->results($agent));
         $provider->assertCallCount(2);
     }
 
@@ -111,9 +123,9 @@ class ParallelToolsTest extends TestCase
         $provider = new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make($multiplyTool->getName(), 'call_1', ['a' => 3, 'b' => 4]),
-                ToolCall::make($addTool->getName(), 'call_2', ['x' => 5, 'y' => 7]),
+                ToolCall::make($addTool->getName(), 'call_2', ['x' => 5, 'y' => '8']),
             ]),
-            new AssistantMessage('Results: multiply=12, add=12')
+            new AssistantMessage('Results: multiply=12, add=13')
         );
 
         $agent = Agent::make();
@@ -124,7 +136,8 @@ class ParallelToolsTest extends TestCase
 
         $handler = $agent->chat(new UserMessage('Calculate'));
 
-        $this->assertSame('Results: multiply=12, add=12', $handler->getMessage()->getContent());
+        $this->assertSame('Results: multiply=12, add=13', $handler->getMessage()->getContent());
+        $this->assertSame(['call_1' => '12', 'call_2' => '13'], $this->results($agent));
     }
 
     public function test_parallel_tool_node_handles_tool_execution_errors(): void
@@ -214,7 +227,26 @@ class ParallelToolsTest extends TestCase
         $agent->addTool($toolB);
 
         $this->expectException(ToolRunsExceededException::class);
+        $this->expectExceptionMessage('Tool tool_a has been executed too many times - 1 - with arguments: {"input":"test A"}');
 
         $agent->chat(new UserMessage('Exceed tool runs'));
+    }
+
+    /**
+     * @return array<string, string> The settled results of the conversation's tool calls, by call id.
+     */
+    protected function results(Agent $agent): array
+    {
+        $results = [];
+
+        foreach ($agent->getChatHistory()->getMessages() as $message) {
+            if ($message instanceof ToolResultMessage) {
+                foreach ($message->getToolCalls() as $call) {
+                    $results[(string) $call->getCallId()] = (string) $call->getResult();
+                }
+            }
+        }
+
+        return $results;
     }
 }

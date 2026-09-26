@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
+use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
@@ -18,11 +19,13 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolProperty;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Error;
 
 use function array_map;
 use function array_unique;
+use function json_encode;
 
 class ToolTest extends TestCase
 {
@@ -72,6 +75,32 @@ class ToolTest extends TestCase
         $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'true', 'account_id' => ' 1']);
 
         $this->assertSame(['permanent' => true, 'account_id' => 1], $tool->getInputs());
+    }
+
+    public function test_get_input_reads_one_cast_value_and_null_when_it_is_absent(): void
+    {
+        $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'false']);
+
+        $this->assertFalse($tool->getInput('permanent'));
+        $this->assertNull($tool->getInput('account_id'));
+    }
+
+    public function test_a_rejected_binding_keeps_the_model_inputs_verbatim(): void
+    {
+        $inputs = ['permanent' => 'true', 'account_id' => 'one'];
+
+        $tool = (new StrictApprovalTool())->setInputs($inputs);
+
+        $this->assertSame($inputs, $tool->getInputs());
+    }
+
+    public function test_the_first_rejected_parameter_in_declaration_order_is_reported(): void
+    {
+        $tool = (new StrictApprovalTool())->setInputs(['account_id' => 'one', 'permanent' => 'maybe']);
+
+        $tool->execute();
+
+        $this->assertToolError('Parameter "permanent" must be of type boolean, string given.', $tool->getResult());
     }
 
     public function test_approval_policy_reads_the_cast_inputs(): void
@@ -162,36 +191,32 @@ class ToolTest extends TestCase
         $this->assertEquals(['name', 'age'], $properties);
     }
 
-    public function test_missing_required_parameter_exception(): void
+    /**
+     * @param array<string, mixed> $inputs
+     */
+    #[DataProvider('inputsMissingARequiredParameter')]
+    public function test_missing_required_parameter_is_an_exception_and_never_invokes(array $inputs): void
     {
-        $tool = new class () extends Tool {
-            protected string $name = 'test';
-            protected ?string $description = 'Test tool';
-            public function __construct()
-            {
-                $this->addProperty(new ToolProperty('name', PropertyType::STRING, 'User name', true));
-            }
-            public function __invoke(string $name): string
-            {
-                return $name;
-            }
-        };
+        $tool = new StrictApprovalTool();
+        $tool->setInputs($inputs);
 
-        $tool->setInputs([
-            "test" => "test",
-        ]);
+        try {
+            $tool->execute();
+            $this->fail('A missing required parameter must throw.');
+        } catch (MissingCallbackParameter $exception) {
+            $this->assertSame('Missing required parameter: account_id', $exception->getMessage());
+        }
 
-        $this->expectException(MissingCallbackParameter::class);
-        $this->expectExceptionMessage('Missing required parameter: name');
+        $this->assertSame(0, $tool->invocations);
+        $this->assertFalse($tool->hasResult());
+    }
 
-        $tool->execute();
-
-        $tool->setInputs([]);
-
-        $this->expectException(MissingCallbackParameter::class);
-        $this->expectExceptionMessage('Missing required parameter: name');
-
-        $tool->execute();
+    public static function inputsMissingARequiredParameter(): array
+    {
+        return [
+            'absent' => [['permanent' => true]],
+            'only an undeclared key with a similar name' => [['permanent' => true, 'accountId' => 1]],
+        ];
     }
 
     public function test_required_properties_with_mapped_object(): void
@@ -285,6 +310,7 @@ class ToolTest extends TestCase
         };
 
         $this->expectException(Error::class);
+        $this->expectExceptionMessageMatches('/^Object of class .+ could not be converted to string$/');
 
         $tool->execute();
     }
@@ -706,5 +732,174 @@ class ToolTest extends TestCase
 
         $tool->setParameters(['foo' => 'baz']);
         $this->assertEquals(['foo' => 'baz'], $tool->getParameters());
+    }
+
+    public function test_undeclared_inputs_never_reach_invoke(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'echo';
+
+            protected function properties(): array
+            {
+                return [new ToolProperty('text', PropertyType::STRING, 'Text', true)];
+            }
+
+            public function __invoke(mixed ...$arguments): array
+            {
+                return $arguments;
+            }
+        };
+
+        $tool->setInputs(['text' => 'hi', 'path' => '/etc/passwd', 'text2' => 'x'])->execute();
+
+        $this->assertSame('{"text":"hi"}', $tool->getResult());
+    }
+
+    public function test_a_tool_without_invoke_cannot_execute(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'incomplete';
+        };
+
+        $this->expectException(ToolCallableNotSet::class);
+        $this->expectExceptionMessage('Tool "incomplete" must implement __invoke() to define its execution logic.');
+
+        $tool->execute();
+    }
+
+    public function test_input_schema_lists_properties_and_required_names_in_declaration_order(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'search';
+
+            protected function properties(): array
+            {
+                return [
+                    new ToolProperty('query', PropertyType::STRING, 'The query', true),
+                    new ToolProperty('limit', PropertyType::INTEGER, nullable: true),
+                    new ArrayProperty('tags', items: new ToolProperty('tag', PropertyType::STRING), required: true),
+                ];
+            }
+        };
+
+        $this->assertSame([
+            'type' => 'object',
+            'properties' => [
+                'query' => ['type' => 'string', 'description' => 'The query'],
+                'limit' => ['type' => ['integer', 'null']],
+                'tags' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['query', 'tags'],
+        ], $tool->getInputSchema());
+    }
+
+    public function test_input_schema_without_properties_encodes_properties_as_a_json_object(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'now';
+        };
+
+        $this->assertSame('{"type":"object","properties":{},"required":[]}', json_encode($tool->getInputSchema()));
+    }
+
+    public function test_properties_hook_is_consulted_once(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'counter';
+
+            public int $hookCalls = 0;
+
+            protected function properties(): array
+            {
+                $this->hookCalls++;
+
+                return [new ToolProperty('n', PropertyType::INTEGER)];
+            }
+        };
+
+        $tool->getProperties();
+        $tool->getInputSchema();
+        $tool->setInputs(['n' => 1]);
+
+        $this->assertSame(1, $tool->hookCalls);
+        $this->assertCount(1, $tool->getProperties());
+    }
+
+    public function test_json_serialization_carries_the_call_but_never_the_dependencies(): void
+    {
+        $tool = new class ('sk-secret-api-key') extends Tool {
+            protected string $name = 'transcribe';
+            protected ?string $description = 'Transcribe a video';
+
+            public function __construct(protected string $apiKey)
+            {
+            }
+
+            protected function properties(): array
+            {
+                return [new ToolProperty('url', PropertyType::STRING, required: true)];
+            }
+
+            public function __invoke(string $url): string
+            {
+                return 'transcript';
+            }
+        };
+
+        $tool->setCallId('call_1')->setInputs(['url' => 'https://example.com/v'])->execute();
+
+        $this->assertSame(
+            '{"callId":"call_1","name":"transcribe","description":"Transcribe a video","parameters":[],"inputs":{"url":"https:\\/\\/example.com\\/v"},"result":"transcript"}',
+            json_encode($tool)
+        );
+        $this->assertStringNotContainsString('sk-secret-api-key', json_encode($tool));
+    }
+
+    public function test_json_serialization_encodes_empty_inputs_as_an_object(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'now';
+        };
+
+        $this->assertSame('{}', json_encode($tool->jsonSerialize()['inputs']));
+    }
+
+    public function test_a_void_tool_settles_with_an_empty_result(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'fire_and_forget';
+
+            public function __invoke(): void
+            {
+            }
+        };
+
+        $this->assertFalse($tool->hasResult());
+
+        $tool->execute();
+
+        $this->assertTrue($tool->hasResult());
+        $this->assertSame('', $tool->getResult());
+    }
+
+    public function test_run_key_is_the_tool_name_by_default(): void
+    {
+        $tool = (new StrictApprovalTool())->setName('custom_name');
+        $plain = $this->doublingTool()->setInputs(['n' => 1]);
+
+        $this->assertSame('double', $plain->getRunKey());
+        $this->assertSame('double', $plain->setInputs(['n' => 2])->getRunKey());
+        $this->assertStringStartsWith('custom_name:', $tool->setInputs(['permanent' => true, 'account_id' => 1])->getRunKey());
+    }
+
+    public function test_track_by_inputs_run_key_is_stable_for_equal_inputs(): void
+    {
+        $tool = new StrictApprovalTool();
+
+        $first = $tool->setInputs(['permanent' => false, 'account_id' => 7])->getRunKey();
+        $second = (new StrictApprovalTool())->setInputs(['permanent' => false, 'account_id' => 7])->getRunKey();
+
+        $this->assertSame($first, $second);
+        $this->assertMatchesRegularExpression('/^delete_account:[0-9a-f]{40}$/', $first);
     }
 }

@@ -43,6 +43,8 @@ class ToolOutputTest extends TestCase
 
         $block = $output->getBlocks()[0];
         $this->assertInstanceOf(FileContent::class, $block);
+        $this->assertSame('base64data', $block->content);
+        $this->assertSame('application/pdf', $block->mediaType);
         $this->assertSame('report.pdf', $block->filename);
     }
 
@@ -50,14 +52,23 @@ class ToolOutputTest extends TestCase
     {
         $output = ToolOutput::audio('https://example.com/audio.mp3', SourceType::URL, 'audio/mpeg');
 
-        $this->assertInstanceOf(AudioContent::class, $output->getBlocks()[0]);
+        $block = $output->getBlocks()[0];
+        $this->assertInstanceOf(AudioContent::class, $block);
+        $this->assertSame('https://example.com/audio.mp3', $block->content);
+        $this->assertSame(SourceType::URL, $block->sourceType);
+        $this->assertSame('audio/mpeg', $block->mediaType);
+        $this->assertFalse($output->isError());
     }
 
     public function test_video_factory(): void
     {
         $output = ToolOutput::video('https://example.com/video.mp4', SourceType::URL, 'video/mp4');
 
-        $this->assertInstanceOf(VideoContent::class, $output->getBlocks()[0]);
+        $block = $output->getBlocks()[0];
+        $this->assertInstanceOf(VideoContent::class, $block);
+        $this->assertSame('https://example.com/video.mp4', $block->content);
+        $this->assertSame(SourceType::URL, $block->sourceType);
+        $this->assertSame('video/mp4', $block->mediaType);
     }
 
     public function test_get_text_concatenates_text_blocks_only(): void
@@ -92,11 +103,7 @@ class ToolOutputTest extends TestCase
             new ImageContent('img', SourceType::BASE64, 'image/png'),
         ]);
 
-        $serialized = $output->jsonSerialize();
-
-        $this->assertCount(2, $serialized);
-        $this->assertSame('caption', $serialized[0]['content']);
-        $this->assertSame('img', $serialized[1]['content']);
+        $this->assertSame([$output->getBlocks()[0]->toArray(), $output->getBlocks()[1]->toArray()], $output->jsonSerialize());
     }
 
     public function test_error_factory(): void
@@ -117,11 +124,10 @@ class ToolOutputTest extends TestCase
 
     public function test_error_json_serialize_wraps_blocks(): void
     {
-        $serialized = ToolOutput::error('boom')->jsonSerialize();
-
-        $this->assertTrue($serialized['is_error']);
-        $this->assertCount(1, $serialized['blocks']);
-        $this->assertSame('boom', $serialized['blocks'][0]['content']);
+        $this->assertSame(
+            ['is_error' => true, 'blocks' => [(new TextContent('boom'))->toArray()]],
+            ToolOutput::error('boom')->jsonSerialize()
+        );
     }
 
     public function test_tool_set_result_stores_tool_output(): void
@@ -185,5 +191,55 @@ class ToolOutputTest extends TestCase
         $tool = ToolCall::make('test', description: 'test')->setResult('plain');
 
         $this->assertSame('plain', $tool->jsonSerialize()['result']);
+    }
+
+    public function test_error_output_with_several_blocks_projects_all_its_text(): void
+    {
+        $output = new ToolOutput([
+            new TextContent('Upload failed:'),
+            new ImageContent('img', SourceType::BASE64, 'image/png'),
+            new TextContent('file too large'),
+        ], true);
+
+        $this->assertTrue($output->isError());
+        $this->assertSame('Upload failed: file too large', (string) $output);
+        $this->assertCount(3, $output->jsonSerialize()['blocks']);
+    }
+
+    public function test_empty_output_has_no_text_and_no_blocks(): void
+    {
+        $output = new ToolOutput([]);
+
+        $this->assertSame('', $output->getText());
+        $this->assertSame([], $output->jsonSerialize());
+    }
+
+    public function test_error_text_is_kept_verbatim(): void
+    {
+        $feedback = "Line 1\nLine 2 <b>ünïcödé</b> \u{1F600}";
+
+        $this->assertSame($feedback, ToolOutput::error($feedback)->getText());
+    }
+
+    public function test_tool_keeps_the_returned_output_instance(): void
+    {
+        $output = ToolOutput::error('Rate limited');
+        $tool = new class ($output) extends Tool {
+            protected string $name = 'test';
+
+            public function __construct(protected ToolOutput $output)
+            {
+            }
+
+            public function __invoke(): ToolOutput
+            {
+                return $this->output;
+            }
+        };
+
+        $tool->execute();
+
+        $this->assertSame($output, $tool->getResult());
+        $this->assertSame(['is_error' => true, 'blocks' => [(new TextContent('Rate limited'))->toArray()]], $tool->jsonSerialize()['result']);
     }
 }

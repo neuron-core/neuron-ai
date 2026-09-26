@@ -8,7 +8,10 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+
+use function array_map;
 
 class ApprovalStateTest extends TestCase
 {
@@ -16,6 +19,82 @@ class ApprovalStateTest extends TestCase
     {
         $this->assertFalse($this->plainTool('x')->requiresApproval());
         $this->assertNull(ToolCall::make('x')->getApprovalState());
+    }
+
+    public function test_persisted_state_values_are_stable(): void
+    {
+        $this->assertSame(
+            ['pending', 'approved', 'rejected'],
+            array_map(fn (ApprovalState $state): string => $state->value, ApprovalState::cases())
+        );
+        $this->assertNull(ApprovalState::tryFrom('Approved'));
+    }
+
+    #[DataProvider('predicates')]
+    public function test_exactly_one_predicate_holds_per_state(ApprovalState $state, bool $pending, bool $approved, bool $rejected): void
+    {
+        $this->assertSame([$pending, $approved, $rejected], [$state->isPending(), $state->isApproved(), $state->isRejected()]);
+    }
+
+    public static function predicates(): array
+    {
+        return [
+            'pending' => [ApprovalState::Pending, true, false, false],
+            'approved' => [ApprovalState::Approved, false, true, false],
+            'rejected' => [ApprovalState::Rejected, false, false, true],
+        ];
+    }
+
+    public function test_leaving_the_rejected_state_drops_the_stale_reject_reason(): void
+    {
+        $call = ToolCall::make('x')->setApprovalState(ApprovalState::Rejected, 'too risky');
+
+        $call->setApprovalState(ApprovalState::Pending, 'ignored');
+
+        $this->assertSame(ApprovalState::Pending, $call->getApprovalState());
+        $this->assertNull($call->getRejectReason());
+        $this->assertNull($call->jsonSerialize()['rejectReason']);
+    }
+
+    public function test_rejection_without_feedback_has_no_reason(): void
+    {
+        $call = ToolCall::make('x')->setApprovalState(ApprovalState::Rejected, 'first');
+
+        $call->setApprovalState(ApprovalState::Rejected);
+
+        $this->assertNull($call->getRejectReason());
+    }
+
+    public function test_approval_reason_is_independent_of_the_state(): void
+    {
+        $call = ToolCall::make('x')->setApprovalReason('Irreversible');
+
+        $call->setApprovalState(ApprovalState::Rejected, 'no');
+        $call->setApprovalState(ApprovalState::Approved);
+
+        $this->assertSame('Irreversible', $call->getApprovalReason());
+    }
+
+    public function test_policy_callback_receives_the_tool_with_its_bound_inputs(): void
+    {
+        $received = null;
+        $tool = $this->plainTool('transfer_money')->withApprovalPolicy(function (ToolInterface $tool) use (&$received): string {
+            $received = $tool;
+
+            return 'Needs a sign-off';
+        });
+
+        $tool->setInputs(['amount' => 500]);
+
+        $this->assertSame('Needs a sign-off', $tool->requiresApproval());
+        $this->assertSame($tool, $received);
+    }
+
+    public function test_require_approval_false_waives_a_declared_policy(): void
+    {
+        $tool = $this->declaringTool()->requireApproval(false);
+
+        $this->assertFalse($tool->requiresApproval());
     }
 
     public function test_set_approval_state_approved_clears_reason(): void

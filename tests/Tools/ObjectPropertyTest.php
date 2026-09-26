@@ -7,29 +7,21 @@ namespace NeuronAI\Tests\Tools;
 use NeuronAI\Tests\Tools\Stub\Address;
 use NeuronAI\Tests\Tools\Stub\Company;
 use NeuronAI\Tests\Tools\Stub\Contact;
+use NeuronAI\Tests\StructuredOutput\Stub\Person as StructuredPerson;
 use NeuronAI\Tests\Tools\Stub\Person;
+use NeuronAI\Tests\Tools\Stub\Ticket;
+use NeuronAI\Tests\Tools\Stub\TicketPriority;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
+use function json_encode;
+
 class ObjectPropertyTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Mock the JsonSchema class behavior
-        $this->mockJsonSchemaGeneration();
-    }
-
-    protected function mockJsonSchemaGeneration(): void
-    {
-        // This would need to be properly mocked in a real test environment
-        // For this example, I'm showing the expected schema structures
-    }
-
     public function test_simple_object_property_creation(): void
     {
         $property = new ObjectProperty(
@@ -257,33 +249,43 @@ class ObjectPropertyTest extends TestCase
             ]
         );
 
-        $this->assertEquals('deep_structure', $deepNestedProperty->getName());
-        $this->assertCount(2, $deepNestedProperty->getProperties());
-
-        // Navigate through the deep structure
-        $properties = $deepNestedProperty->getProperties();
-        $levelsArray = $properties[1];
-
-        $this->assertInstanceOf(ArrayProperty::class, $levelsArray);
-        $this->assertEquals('levels', $levelsArray->getName());
-
-        $levelObject = $levelsArray->getItems();
-        $this->assertInstanceOf(ObjectProperty::class, $levelObject);
-
-        $levelProperties = $levelObject->getProperties();
-        $itemsArray = $levelProperties[1];
-        $this->assertInstanceOf(ArrayProperty::class, $itemsArray);
-
-        $itemObject = $itemsArray->getItems();
-        $this->assertInstanceOf(ObjectProperty::class, $itemObject);
-
-        $itemProperties = $itemObject->getProperties();
-        $propertiesArray = $itemProperties[1];
-        $this->assertInstanceOf(ArrayProperty::class, $propertiesArray);
-
-        $propertyItem = $propertiesArray->getItems();
-        $this->assertInstanceOf(ToolProperty::class, $propertyItem);
-        $this->assertEquals(PropertyType::STRING, $propertyItem->getType());
+        $this->assertSame([
+            'type' => 'object',
+            'description' => 'Very deep nested structure',
+            'properties' => [
+                'id' => ['type' => 'string', 'description' => 'ID'],
+                'levels' => [
+                    'type' => 'array',
+                    'description' => 'Multiple levels',
+                    'items' => [
+                        'type' => 'object',
+                        'description' => 'A level object',
+                        'properties' => [
+                            'name' => ['type' => 'string', 'description' => 'Level name'],
+                            'items' => [
+                                'type' => 'array',
+                                'description' => 'Items in level',
+                                'items' => [
+                                    'type' => 'object',
+                                    'description' => 'An item',
+                                    'properties' => [
+                                        'value' => ['type' => 'string', 'description' => 'Item value'],
+                                        'properties' => [
+                                            'type' => 'array',
+                                            'description' => 'Item properties',
+                                            'items' => ['type' => 'string', 'description' => 'A property'],
+                                        ],
+                                    ],
+                                    'required' => ['value'],
+                                ],
+                            ],
+                        ],
+                        'required' => ['name'],
+                    ],
+                ],
+            ],
+            'required' => ['id'],
+        ], $deepNestedProperty->getJsonSchema());
     }
 
     public function test_required_properties_in_nested_structures(): void
@@ -345,19 +347,16 @@ class ObjectPropertyTest extends TestCase
         $property = $this->createSimpleNestedStructure();
         $serialized = $property->jsonSerialize();
 
-        $this->assertArrayHasKey('name', $serialized);
-        $this->assertArrayHasKey('description', $serialized);
-        $this->assertArrayHasKey('type', $serialized);
-        $this->assertArrayHasKey('properties', $serialized);
-        $this->assertArrayHasKey('required', $serialized);
-
-        $this->assertEquals(PropertyType::OBJECT, $serialized['type']);
+        $this->assertSame('simple_nested', $serialized['name']);
+        $this->assertSame('Simple nested structure', $serialized['description']);
+        $this->assertSame(PropertyType::OBJECT, $serialized['type']);
         $this->assertTrue($serialized['required']);
+        $this->assertSame(['id'], $serialized['properties']['required']);
     }
 
     // Helper methods for creating test structures
 
-    private function createAddressProperty(): ObjectProperty
+    protected function createAddressProperty(): ObjectProperty
     {
         return new ObjectProperty(
             'address',
@@ -378,7 +377,7 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
-    private function createContactProperty(): ObjectProperty
+    protected function createContactProperty(): ObjectProperty
     {
         return new ObjectProperty(
             'contact',
@@ -393,7 +392,7 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
-    private function createCompanyProperty(ObjectProperty $addressProperty): ObjectProperty
+    protected function createCompanyProperty(ObjectProperty $addressProperty): ObjectProperty
     {
         return new ObjectProperty(
             'company',
@@ -408,7 +407,7 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
-    private function createSimpleNestedStructure(): ObjectProperty
+    protected function createSimpleNestedStructure(): ObjectProperty
     {
         return new ObjectProperty(
             'simple_nested',
@@ -430,7 +429,7 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
-    private function assertComplexPersonStructure(ObjectProperty $personProperty): void
+    protected function assertComplexPersonStructure(ObjectProperty $personProperty): void
     {
         $this->assertEquals('person', $personProperty->getName());
         $this->assertCount(6, $personProperty->getProperties());
@@ -458,5 +457,147 @@ class ObjectPropertyTest extends TestCase
         $this->assertInstanceOf(ObjectProperty::class, $properties[5]);
         $this->assertEquals('company', $properties[5]->getName());
         $this->assertFalse($properties[5]->isRequired());
+    }
+
+    public function test_object_without_properties_emits_only_its_type(): void
+    {
+        $this->assertSame(['type' => 'object'], (new ObjectProperty('payload'))->getJsonSchema());
+    }
+
+    public function test_required_properties_are_a_list(): void
+    {
+        $property = new ObjectProperty('filter', properties: [
+            new ToolProperty('field', PropertyType::STRING),
+            new ToolProperty('value', PropertyType::STRING, required: true),
+        ]);
+
+        $this->assertSame(['value'], $property->getRequiredProperties());
+        $this->assertSame('["value"]', json_encode($property->getJsonSchema()['required']));
+    }
+
+    public function test_class_properties_are_converted_with_their_types_enums_and_nullability(): void
+    {
+        $property = new ObjectProperty('ticket', 'The ticket to open', true, Ticket::class);
+
+        $address = [
+            'type' => ['object', 'null'],
+            'properties' => [
+                'street' => ['type' => 'string'],
+                'city' => ['type' => 'string'],
+                'zipCode' => ['type' => 'string'],
+                'coordinates' => ['type' => 'array', 'items' => ['type' => 'string']],
+            ],
+            'required' => ['street', 'city', 'zipCode', 'coordinates'],
+        ];
+
+        $this->assertSame([
+            'type' => 'object',
+            'description' => 'The ticket to open',
+            'properties' => [
+                'title' => ['type' => 'string', 'description' => 'What needs to be done'],
+                'priority' => ['type' => 'string', 'enum' => ['low', 'high']],
+                'estimate' => ['type' => ['integer', 'null']],
+                'urgent' => ['type' => 'boolean'],
+                'score' => ['type' => 'number'],
+                'location' => $address,
+                'watchers' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'type' => ['type' => 'string'],
+                            'value' => ['type' => 'string'],
+                            'isPrimary' => ['type' => 'boolean'],
+                        ],
+                        'required' => ['type', 'value', 'isPrimary'],
+                    ],
+                ],
+            ],
+            'required' => ['title', 'priority', 'urgent', 'score', 'watchers'],
+        ], $property->getJsonSchema());
+    }
+
+    public function test_class_properties_keep_nested_descriptions_of_array_items(): void
+    {
+        $property = new ObjectProperty('person', null, true, StructuredPerson::class);
+
+        $tags = $property->getJsonSchema()['properties']['tags'];
+
+        $this->assertSame([
+            'type' => 'array',
+            'items' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'description' => 'The name of the tag'],
+                    'properties' => [
+                        'type' => 'array',
+                        'description' => 'Properties can contains additional values',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => ['value' => ['type' => 'string', 'description' => 'The property value']],
+                            'required' => ['value'],
+                        ],
+                    ],
+                ],
+                'required' => ['name'],
+            ],
+        ], $tags);
+    }
+
+    public function test_explicit_properties_win_over_the_class(): void
+    {
+        $property = new ObjectProperty('ticket', class: Ticket::class, properties: [new ToolProperty('id', PropertyType::INTEGER, required: true)]);
+
+        $this->assertSame(['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id']], $property->getJsonSchema());
+        $this->assertSame(Ticket::class, $property->getClass());
+    }
+
+    public function test_cast_deserializes_into_the_mapped_class(): void
+    {
+        $ticket = (new ObjectProperty('ticket', class: Ticket::class))->cast([
+            'title' => 'Fix the login',
+            'priority' => 'high',
+            'urgent' => true,
+            'score' => 1.5,
+            'location' => ['street' => 'Via Roma 1', 'city' => 'Rome', 'zipCode' => '00100', 'coordinates' => []],
+            'watchers' => [['type' => 'email', 'value' => 'ops@example.com', 'isPrimary' => true]],
+        ]);
+
+        $this->assertInstanceOf(Ticket::class, $ticket);
+        $this->assertSame('Fix the login', $ticket->title);
+        $this->assertSame(TicketPriority::High, $ticket->priority);
+        $this->assertNull($ticket->estimate);
+        $this->assertInstanceOf(Address::class, $ticket->location);
+        $this->assertSame('Rome', $ticket->location->city);
+        $this->assertInstanceOf(Contact::class, $ticket->watchers[0]);
+        $this->assertSame('ops@example.com', $ticket->watchers[0]->value);
+    }
+
+    public function test_cast_without_a_class_keeps_the_input(): void
+    {
+        $input = ['street' => 'Via Roma 1', 'extra' => ['nested' => true]];
+
+        $this->assertSame($input, (new ObjectProperty('address', properties: [new ToolProperty('street', PropertyType::STRING)]))->cast($input));
+    }
+
+    public function test_tool_binds_a_mapped_object_as_an_instance(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'open_ticket';
+
+            protected function properties(): array
+            {
+                return [new ObjectProperty('ticket', required: true, class: Ticket::class)];
+            }
+
+            public function __invoke(Ticket $ticket): string
+            {
+                return "{$ticket->title} ({$ticket->priority->value})";
+            }
+        };
+
+        $tool->setInputs(['ticket' => ['title' => 'Fix', 'priority' => 'low', 'urgent' => false, 'score' => 0, 'watchers' => []]])->execute();
+
+        $this->assertSame('Fix (low)', $tool->getResult());
     }
 }
