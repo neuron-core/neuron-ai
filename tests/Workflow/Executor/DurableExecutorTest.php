@@ -52,7 +52,7 @@ class DurableExecutorTest extends TestCase
         }
 
         // Node A executed (completed), node B executed and crashed, node C never ran
-        $this->assertSame(2, CountableNode::getExecutionCount());
+        $crashedRunExecutions = CountableNode::getExecutionCount();
 
         // Revive with the same workflow ID — node B won't crash this time
         CountableNode::resetExecutionCount();
@@ -63,10 +63,14 @@ class DurableExecutorTest extends TestCase
                 new DurableNodeC(),
             ]);
 
+        $failedRunId = $this->configure($workflow2, $persistence)->inspect()?->runId;
         $result = $this->resume($workflow2, $persistence, null);
 
         // Node A should be memoized (skipped), nodes B and C execute fresh
+        $this->assertSame(2, $crashedRunExecutions);
         $this->assertSame(2, CountableNode::getExecutionCount());
+        $this->assertSame($failedRunId, $result->getRunId());
+        $this->assertSame(2, $result->getExecutionAttempt());
         $this->assertTrue($result->get('step_a_executed'));
         $this->assertTrue($result->get('step_b_executed'));
         $this->assertTrue($result->get('step_c_executed'));
@@ -207,7 +211,7 @@ class DurableExecutorTest extends TestCase
         }
     }
 
-    public function test_default_in_memory_persistence(): void
+    public function test_default_persistence_frees_the_workflow_id_on_completion(): void
     {
         $workflow = Workflow::make('test-workflow')
             ->addNodes([
@@ -216,51 +220,15 @@ class DurableExecutorTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $result = $this->execute($workflow);
+        $first = $this->execute($workflow);
+        $this->assertNull($workflow->inspect());
+        $second = $workflow->run();
 
-        $this->assertTrue($result->get('node_one_executed'));
-        $this->assertTrue($result->get('node_two_executed'));
-        $this->assertTrue($result->get('node_three_executed'));
-    }
-
-    public function test_memoization_with_fresh_executor(): void
-    {
-        $workflowId = 'durable_fresh_engine_test';
-        $persistence = new InMemoryPersistence();
-
-        $workflow = Workflow::make(workflowId: $workflowId)
-            ->addNodes([
-                new DurableNodeA(),
-                new DurableNodeB(true), // crash
-                new DurableNodeC(),
-            ]);
-
-        // Run 1: Node A completes, node B crashes
-        try {
-            $this->execute($workflow, $persistence);
-            $this->fail('Expected RuntimeException');
-        } catch (RuntimeException $e) {
-            $this->assertStringContainsString('Simulated crash', $e->getMessage());
-        }
-
-        $this->assertSame(2, CountableNode::getExecutionCount());
-
-        // Revive with a fresh executor + same persistence (simulates process restart)
-        CountableNode::resetExecutionCount();
-        $workflow2 = Workflow::make(workflowId: $workflowId)
-            ->addNodes([
-                new DurableNodeA(),
-                new DurableNodeB(),
-                new DurableNodeC(),
-            ]);
-
-        $result = $this->resume($workflow2, $persistence, null);
-
-        // Node A memoized via fresh executor, nodes B and C execute
-        $this->assertSame(2, CountableNode::getExecutionCount());
-        $this->assertTrue($result->get('step_a_executed'));
-        $this->assertTrue($result->get('step_b_executed'));
-        $this->assertTrue($result->get('step_c_executed'));
+        $this->assertTrue($first->get('node_one_executed'));
+        $this->assertTrue($first->get('node_two_executed'));
+        $this->assertTrue($first->get('node_three_executed'));
+        $this->assertSame(WorkflowStatus::Completed, $second->getStatus());
+        $this->assertNotSame($first->getRunId(), $second->getRunId());
     }
 
     public function test_memoize_runs_once_across_mid_node_crash_and_recovery(): void

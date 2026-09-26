@@ -7,17 +7,22 @@ namespace NeuronAI\Tests\Workflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
+use NeuronAI\Testing\FakeMiddleware;
+use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowEngine;
+use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 use function array_filter;
 use function count;
+use function preg_quote;
 use function time;
 
 /**
@@ -110,7 +115,40 @@ class WorkflowLeaseTest extends TestCase
         $state = $this->leasedWorkflow(300)->setPersistence($persistence)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
 
         $this->assertTrue($state->isInterrupted());
-        $this->assertGreaterThan($running->executionAttempt, $this->control($persistence)->executionAttempt);
+        $recovered = $this->control($persistence);
+        $this->assertSame(WorkflowStatus::Suspended, $recovered->status);
+        $this->assertGreaterThan($running->executionAttempt, $recovered->executionAttempt);
+        $this->assertSame($recovered->executionAttempt, $state->getExecutionAttempt());
+
+        // The rewritten checkpoint leaves the interruption to __control.
+        $checkpoint = $serializer->unserialize((string) $persistence->get('thread_1', $recovered->runId . '/__checkpoint'));
+        $this->assertInstanceOf(WorkflowState::class, $checkpoint);
+        $this->assertNull($checkpoint->getInterruptRequest());
+        $this->assertTrue($checkpoint->get('interruptable_node_executed'));
+    }
+
+    public function test_a_resumed_run_is_claimed_under_a_fresh_lease_that_refuses_an_abandon(): void
+    {
+        $persistence = $this->suspendLeased();
+        $runId = $this->control($persistence)->runId;
+        $abandonAttempts = [];
+        $probe = FakeMiddleware::make()->setBeforeHandler(static function () use ($persistence, &$abandonAttempts): void {
+            try {
+                (new WorkflowEngine($persistence))->abandon('thread_1');
+                $abandonAttempts[] = 'abandoned';
+            } catch (WorkflowException $error) {
+                $abandonAttempts[] = $error->getMessage();
+            }
+        });
+
+        $state = $this->resume($this->leasedWorkflow(300)->addMiddleware(InterruptableNode::class, $probe), $persistence, []);
+
+        $this->assertCount(1, $abandonAttempts);
+        $this->assertMatchesRegularExpression(
+            '/^Run ' . preg_quote("'{$runId}'", '/') . " for workflow ID 'thread_1' appears to be executing \\(lease expires at \\d+\\) and cannot be abandoned\\.$/",
+            $abandonAttempts[0],
+        );
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
     }
 
     public function test_stale_execution_attempt_refuses_continuation(): void

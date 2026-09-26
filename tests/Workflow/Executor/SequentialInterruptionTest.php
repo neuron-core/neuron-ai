@@ -9,7 +9,10 @@ use Generator;
 use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\MergeNode;
+use NeuronAI\Tests\Workflow\Executor\Stub\RecordingObserver;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
+use NeuronAI\Tests\Workflow\Executor\Stub\SummaryProcessEvent;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
@@ -29,6 +32,9 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function Amp\delay;
+use function array_column;
+use function array_count_values;
+use function array_filter;
 use function array_map;
 use function iterator_to_array;
 use function serialize;
@@ -116,7 +122,8 @@ class SequentialInterruptionTest extends TestCase
         try {
             $this->workflow($persistence, $trace)->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('b', []));
             $this->fail('A deferred request must wait its turn.');
-        } catch (WorkflowException) {
+        } catch (WorkflowException $e) {
+            $this->assertSame("The current interruption is not waiting for signal 'b'.", $e->getMessage());
             $this->assertSame($before, serialize($persistence));
         }
     }
@@ -180,5 +187,165 @@ class SequentialInterruptionTest extends TestCase
         $this->assertSame('a', $this->request($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([])))->getEventName());
         $this->assertSame(['b.started', 'b.waiting', 'b.finished', 'a.started', 'a.waiting'], $trace->events);
         $this->assertFalse($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]))->isInterrupted());
+    }
+
+    public function test_waits_are_exposed_in_arrival_order_not_declaration_order(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $make = fn (): Workflow => $this->arrivalWorkflow($persistence);
+
+        $exposed = [$this->request($make()->run())->getEventName()];
+        foreach (['fast', 'mid'] as $answered) {
+            $exposed[] = $this->request($make()->run(ExecutionRequest::resume(['from' => $answered])))->getEventName();
+        }
+        $completed = $make()->run(ExecutionRequest::resume(['from' => 'slow']));
+
+        $this->assertSame(['fast', 'mid', 'slow'], $exposed);
+        $this->assertSame(
+            ['slow' => ['from' => 'slow'], 'fast' => ['from' => 'fast'], 'mid' => ['from' => 'mid']],
+            $completed->get('results'),
+        );
+    }
+
+    /**
+     * The text branch waits for a reply; the image branch finishes its first
+     * node meanwhile and still has a second one to run.
+     */
+    protected function replyFirstWorkflow(InMemoryPersistence $persistence, stdClass $trace): Workflow
+    {
+        $waiting = new class ($trace) extends Node {
+            public function __construct(protected stdClass $trace)
+            {
+            }
+
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                if (!$this->isResuming()) {
+                    delay(0.001);
+                }
+                $answer = $this->awaitEvent('text');
+                // Yield to other branches while the answer is being handled.
+                delay(0.002);
+                $this->trace->events[] = 'text.answered';
+
+                return new StopEvent($answer);
+            }
+        };
+        $slow = new class ($trace) extends Node {
+            public function __construct(protected stdClass $trace)
+            {
+            }
+
+            public function __invoke(ImageProcessEvent $event, WorkflowState $state): SummaryProcessEvent
+            {
+                delay(0.005);
+                $this->trace->events[] = 'image.first';
+
+                return new SummaryProcessEvent();
+            }
+        };
+        $next = new class ($trace) extends Node {
+            public function __construct(protected stdClass $trace)
+            {
+            }
+
+            public function __invoke(SummaryProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                $this->trace->events[] = 'image.second';
+
+                return new StopEvent('image');
+            }
+        };
+
+        return Workflow::make('reply-first')->setPersistence($persistence)
+            ->setBranchRunner(new AsyncBranchRunner())
+            ->addNodes([new DocumentParallelProcessing(), $waiting, $slow, $next, new MergeNode()]);
+    }
+
+    public function test_an_accepted_reply_reaches_its_node_before_other_branches_start_new_nodes(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $trace = (object) ['events' => []];
+
+        $this->assertSame('text', $this->request($this->replyFirstWorkflow($persistence, $trace)->run())->getEventName());
+        $this->assertSame(['image.first'], $trace->events);
+
+        $completed = $this->replyFirstWorkflow($persistence, $trace)->run(ExecutionRequest::resume(['ok' => true]));
+
+        $this->assertSame(['image.first', 'text.answered', 'image.second'], $trace->events);
+        $this->assertSame(['text' => ['ok' => true], 'image' => 'image'], $completed->get('analysis'));
+    }
+
+    public function test_a_branch_completed_by_the_reply_is_not_reentered_when_deferred_branches_run_again(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $trace = (object) ['events' => []];
+        $this->replyFirstWorkflow($persistence, $trace)->run();
+        $observer = new RecordingObserver();
+
+        $this->replyFirstWorkflow($persistence, $trace)->observe($observer)->run(ExecutionRequest::resume(['ok' => true]));
+
+        $branchStarts = array_column(array_filter(
+            $observer->recorded,
+            fn (array $record): bool => $record['event'] === 'branch-start',
+        ), 'branchId');
+        $this->assertSame(1, array_count_values($branchStarts)['text']);
+        $this->assertContains('image', $branchStarts);
+    }
+
+    /**
+     * Three concurrent branches, declared slow-first, that wait after
+     * different delays. Each branch has its own node: concurrent branches
+     * must not share one.
+     */
+    protected function arrivalWorkflow(InMemoryPersistence $persistence): Workflow
+    {
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
+            {
+                return new DocumentParallelEvent([
+                    'slow' => new TextProcessEvent(),
+                    'fast' => new ImageProcessEvent(),
+                    'mid' => new SummaryProcessEvent(),
+                ]);
+            }
+        };
+        $slow = new class () extends Node {
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                if (!$this->isResuming()) {
+                    delay(0.009);
+                }
+                return new StopEvent($this->awaitEvent('slow'));
+            }
+        };
+        $fast = new class () extends Node {
+            public function __invoke(ImageProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                if (!$this->isResuming()) {
+                    delay(0.001);
+                }
+                return new StopEvent($this->awaitEvent('fast'));
+            }
+        };
+        $mid = new class () extends Node {
+            public function __invoke(SummaryProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                if (!$this->isResuming()) {
+                    delay(0.005);
+                }
+                return new StopEvent($this->awaitEvent('mid'));
+            }
+        };
+        $join = new class () extends Node {
+            public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
+            {
+                $state->set('results', $event->getAllResults());
+                return new StopEvent();
+            }
+        };
+
+        return Workflow::make('arrival-order')->setPersistence($persistence)
+            ->setBranchRunner(new AsyncBranchRunner())->addNodes([$fork, $slow, $fast, $mid, $join]);
     }
 }

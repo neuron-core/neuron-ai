@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
-use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\ContinuationEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
@@ -14,7 +13,6 @@ use NeuronAI\Tests\Workflow\Executor\Stub\MergeWithContinuationNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\RetryingTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\StatefulTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessEvent;
-use NeuronAI\Tests\Workflow\Executor\Stub\TextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchMergeNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ThreeBranchParallelEvent;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -24,15 +22,14 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
 
 class DurableBranchTest extends TestCase
 {
-    use ExecutorTestHelpers;
-
-    /** @dataProvider branchExecutorProvider */
+    #[DataProvider('branchExecutorProvider')]
     public function test_branch_replay_restores_committed_state(bool $async): void
     {
         $persistence = new InMemoryPersistence();
@@ -72,87 +69,48 @@ class DurableBranchTest extends TestCase
         return ['sequential' => [false], 'async' => [true]];
     }
 
-    public function test_parallel_branch_with_step_engine_completes_all_branches(): void
+    #[DataProvider('branchExecutorProvider')]
+    public function test_separate_parallel_forks_do_not_share_branch_steps(bool $async): void
     {
-        $persistence = new InMemoryPersistence();
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new DocumentParallelProcessing(),
-                new TextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $result = $this->execute($workflow, $persistence);
-
-        $analysis = $result->get('analysis');
-        $this->assertSame('HELLO', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
-    }
-
-    public function test_main_flow_with_step_engine(): void
-    {
-        $persistence = new InMemoryPersistence();
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new DocumentParallelProcessing(),
-                new TextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $result = $this->execute($workflow, $persistence);
-
-        $analysis = $result->get('analysis');
-        $this->assertSame('HELLO', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
-    }
-
-    public function test_separate_parallel_forks_do_not_share_branch_steps(): void
-    {
-        foreach ([null, new AsyncBranchRunner()] as $runner) {
-            $counter = new stdClass();
-            $counter->runs = 0;
-            $firstFork = new class () extends Node {
-                public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
-                {
-                    return new DocumentParallelEvent(['same' => new TextProcessEvent()]);
-                }
-            };
-            $secondFork = new class () extends Node {
-                public function __invoke(ContinuationEvent $event, WorkflowState $state): ThreeBranchParallelEvent
-                {
-                    return new ThreeBranchParallelEvent(['same' => new TextProcessEvent()]);
-                }
-            };
-            $branch = new class ($counter) extends Node {
-                public function __construct(protected stdClass $counter)
-                {
-                }
-
-                public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
-                {
-                    return new StopEvent('result-' . ++$this->counter->runs);
-                }
-            };
-
-            $workflow = Workflow::make()->addNodes([
-                $firstFork,
-                $branch,
-                new MergeWithContinuationNode(),
-                $secondFork,
-                new ThreeBranchMergeNode(),
-            ]);
-            if ($runner instanceof AsyncBranchRunner) {
-                $workflow->setBranchRunner($runner);
+        $counter = new stdClass();
+        $counter->runs = 0;
+        $firstFork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): DocumentParallelEvent
+            {
+                return new DocumentParallelEvent(['same' => new TextProcessEvent()]);
+            }
+        };
+        $secondFork = new class () extends Node {
+            public function __invoke(ContinuationEvent $event, WorkflowState $state): ThreeBranchParallelEvent
+            {
+                return new ThreeBranchParallelEvent(['same' => new TextProcessEvent()]);
+            }
+        };
+        $branch = new class ($counter) extends Node {
+            public function __construct(protected stdClass $counter)
+            {
             }
 
-            $state = $workflow->run();
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent('result-' . ++$this->counter->runs);
+            }
+        };
 
-            $this->assertSame(2, $counter->runs);
-            $this->assertSame('result-2', $state->get('merge_results')['same']);
+        $workflow = Workflow::make()->addNodes([
+            $firstFork,
+            $branch,
+            new MergeWithContinuationNode(),
+            $secondFork,
+            new ThreeBranchMergeNode(),
+        ]);
+        if ($async) {
+            $workflow->setBranchRunner(new AsyncBranchRunner());
         }
+
+        $state = $workflow->run();
+
+        $this->assertSame(2, $counter->runs);
+        $this->assertSame('result-2', $state->get('merge_results')['same']);
     }
 }

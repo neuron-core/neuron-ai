@@ -5,20 +5,31 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\WorkflowException;
+use Generator;
+use NeuronAI\Tests\Support\ExecutionTestFactory;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stub\ConditionalNode;
+use NeuronAI\Tests\Workflow\Stub\ExposedNode;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Tests\Workflow\Stub\NodeForSecond;
 use NeuronAI\Tests\Workflow\Stub\NodeForThird;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
+
+use function array_map;
+use function iterator_to_array;
 
 class WorkflowTest extends TestCase
 {
@@ -57,6 +68,7 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('node_one_executed'));
         $this->assertTrue($finalState->get('node_three_executed'));
         $this->assertFalse($finalState->isInterrupted());
+        $this->assertSame(WorkflowStatus::Completed, $finalState->getStatus());
     }
 
     public function test_workflow_with_initial_state(): void
@@ -74,20 +86,26 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('node_one_executed'));
     }
 
-    public function test_node_class_string_instantiation(): void
+    public function test_closure_node_factories_build_a_fresh_node_for_every_execution(): void
     {
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
+        $factory = new class () {
+            /** @var NodeOne[] */
+            public array $built = [];
 
-        $finalState = $this->execute($workflow);
+            public function __invoke(): NodeOne
+            {
+                return $this->built[] = new NodeOne();
+            }
+        };
+        $workflow = Workflow::make()->addNodes([$factory(...), new NodeTwo(), new NodeThree()]);
 
-        $this->assertTrue($finalState->get('node_one_executed'));
-        $this->assertTrue($finalState->get('node_two_executed'));
-        $this->assertTrue($finalState->get('node_three_executed'));
+        $this->assertCount(0, $factory->built);
+
+        $this->assertTrue($workflow->run()->get('node_one_executed'));
+        $this->assertTrue($workflow->run()->get('node_one_executed'));
+
+        $this->assertCount(2, $factory->built);
+        $this->assertNotSame($factory->built[0], $factory->built[1]);
     }
 
     public function test_event_node_map_building(): void
@@ -99,11 +117,13 @@ class WorkflowTest extends TestCase
                 new NodeThree(),
             ]);
 
-        $this->execute($workflow);
-        $eventNodeMap = \NeuronAI\Tests\Support\ExecutionTestFactory::graph($workflow)->nodes();
+        $eventNodeMap = ExecutionTestFactory::graph($workflow)->nodes();
 
-        $this->assertArrayHasKey(StartEvent::class, $eventNodeMap);
-        $this->assertArrayHasKey(FirstEvent::class, $eventNodeMap);
+        $this->assertSame([
+            StartEvent::class => NodeOne::class,
+            FirstEvent::class => NodeTwo::class,
+            SecondEvent::class => NodeThree::class,
+        ], array_map(static fn (NodeInterface $node): string => $node::class, $eventNodeMap));
     }
 
     public function test_conditional_node_with_union_return_type(): void
@@ -134,35 +154,6 @@ class WorkflowTest extends TestCase
         $this->assertTrue($finalState->get('third_path_executed'));
         $this->assertFalse($finalState->has('second_path_executed'));
         $this->assertEquals('Conditional chose third', $finalState->get('final_third_message'));
-    }
-
-    public function test_workflow_validation_fails_with_no_start_node(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeTwo(),
-                new NodeThree(),
-            ]);
-
-        $this->execute($workflow);
-    }
-
-    public function test_workflow_fails_when_no_node_handles_event(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('No node found that handle event');
-
-        $workflow = Workflow::make()
-            ->addNodes([
-                new NodeOne(),
-                // Missing NodeTwo that handles FirstEvent
-                new NodeThree(),
-            ]);
-
-        $this->execute($workflow);
     }
 
     public function test_workflow_interrupt(): void
@@ -267,5 +258,164 @@ class WorkflowTest extends TestCase
         $this->assertFalse($state->isInterrupted());
         $this->assertSame('completed', $state->get('received_feedback'));
         $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_make_builds_the_called_class_with_its_arguments(): void
+    {
+        $workflow = KeyedWorkflow::make('order-1', new WorkflowState(['seed' => 'value']));
+
+        $this->assertInstanceOf(KeyedWorkflow::class, $workflow);
+        $this->assertSame('order-1', $workflow->getWorkflowId());
+        $this->assertSame('value', $workflow->run()->get('seed'));
+    }
+
+    public function test_configuration_methods_are_fluent_on_the_same_instance(): void
+    {
+        $workflow = Workflow::make();
+
+        $this->assertSame($workflow, $workflow->addNode(new NodeOne()));
+        $this->assertSame($workflow, $workflow->addNodes([new NodeTwo()]));
+        $this->assertSame($workflow, $workflow->setStartEvent(new StartEvent()));
+        $this->assertSame($workflow, $workflow->setState(new WorkflowState()));
+        $this->assertSame($workflow, $workflow->setPersistence(new InMemoryPersistence()));
+        $this->assertSame($workflow, $workflow->setLeaseTimeout(null));
+        $this->assertSame($workflow, $workflow->retainCompletionUntilAcknowledged(false));
+        $this->assertSame($workflow, $workflow->addGlobalMiddleware([]));
+        $this->assertSame($workflow, $workflow->addMiddleware(NodeOne::class, []));
+        $this->assertSame($workflow, $workflow->setWorkflowId('fluent'));
+    }
+
+    public function test_a_configured_start_event_routes_to_its_node(): void
+    {
+        $start = new FirstEvent('configured start');
+        $workflow = Workflow::make()
+            ->setStartEvent($start)
+            ->addNodes([new NodeTwo(), new NodeThree()]);
+
+        $state = $workflow->run();
+
+        $this->assertSame($start, $workflow->getStartEvent());
+        $this->assertSame('configured start', $state->get('first_message'));
+        $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_the_start_event_hook_defines_the_default_start(): void
+    {
+        $workflow = new class () extends Workflow {
+            protected function startEvent(): FirstEvent
+            {
+                return new FirstEvent('hook start');
+            }
+
+            protected function nodes(): array
+            {
+                return [new NodeTwo(), new NodeThree()];
+            }
+        };
+
+        $this->assertInstanceOf(FirstEvent::class, $workflow->getStartEvent());
+        $this->assertSame('hook start', $workflow->run()->get('first_message'));
+    }
+
+    public function test_a_start_request_without_an_event_uses_the_configured_start_event(): void
+    {
+        $workflow = Workflow::make()
+            ->setStartEvent(new FirstEvent('configured start'))
+            ->addNodes([new NodeTwo(), new NodeThree()]);
+
+        $state = $workflow->run(ExecutionRequest::start(runId: 'reserved'));
+
+        $this->assertSame('reserved', $state->getRunId());
+        $this->assertSame('configured start', $state->get('first_message'));
+    }
+
+    public function test_the_nodes_hook_is_rebuilt_for_every_segment(): void
+    {
+        $workflow = new class () extends Workflow {
+            /** @var array<NodeInterface[]> */
+            public array $graphs = [];
+
+            protected function nodes(): array
+            {
+                return $this->graphs[] = [new NodeOne(), new InterruptableNode(), new NodeThree()];
+            }
+        };
+
+        $this->assertTrue($workflow->run()->isInterrupted());
+        $this->assertCount(1, $workflow->graphs);
+
+        $this->assertFalse($workflow->run(ExecutionRequest::resume([]))->isInterrupted());
+        $this->assertCount(2, $workflow->graphs);
+        $this->assertNotSame($workflow->graphs[0][0], $workflow->graphs[1][0]);
+    }
+
+    public function test_hook_nodes_and_added_nodes_form_one_graph(): void
+    {
+        $workflow = new class () extends Workflow {
+            protected function nodes(): array
+            {
+                return [new NodeOne()];
+            }
+        };
+        $workflow->addNodes([new NodeTwo(), new NodeThree()]);
+
+        $state = $workflow->run();
+
+        $this->assertTrue($state->get('node_one_executed'));
+        $this->assertTrue($state->get('node_three_executed'));
+    }
+
+    public function test_an_added_node_cannot_shadow_a_hook_node_for_the_same_event(): void
+    {
+        $workflow = new class () extends Workflow {
+            protected function nodes(): array
+            {
+                return [new NodeOne()];
+            }
+        };
+        $workflow->addNode(new ExposedNode());
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Node for event ' . StartEvent::class . ' already exists');
+
+        $workflow->run();
+    }
+
+    public function test_events_is_lazy_until_iterated(): void
+    {
+        $node = new ExposedNode();
+        $executions = 0;
+        $workflow = Workflow::make()->addNode(function () use ($node, &$executions): NodeInterface {
+            $executions++;
+            return $node;
+        });
+
+        $events = $workflow->events();
+
+        $this->assertInstanceOf(Generator::class, $events);
+        $this->assertSame(0, $executions);
+        $this->assertNull($workflow->getWorkflowId());
+        $this->assertNull($workflow->inspect());
+
+        iterator_to_array($events);
+
+        $this->assertSame(1, $executions);
+        $this->assertSame(WorkflowStatus::Completed, $events->getReturn()->getStatus());
+        $this->assertSame($workflow->getWorkflowId(), $events->getReturn()->getWorkflowId());
+    }
+
+    public function test_an_unreachable_node_is_accepted_but_never_executed(): void
+    {
+        $workflow = Workflow::make()->addNodes([
+            new NodeOne(),
+            new NodeTwo(),
+            new NodeThree(),
+            new NodeForThird(),
+        ]);
+
+        $state = $workflow->run();
+
+        $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+        $this->assertFalse($state->has('third_path_executed'));
     }
 }

@@ -6,9 +6,12 @@ namespace NeuronAI\Tests\Workflow\Persistence;
 
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Tests\Workflow\Persistence\Stub\RedisPersistenceFactory;
+use NeuronAI\Tests\Workflow\Persistence\Stub\ScriptFailingRedis;
 use NeuronAI\Workflow\Persistence\RedisPersistence;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Redis;
+use RedisException;
 
 use function array_sum;
 use function bin2hex;
@@ -168,7 +171,7 @@ class RedisPersistenceTest extends TestCase
         return ['get' => ['get'], 'initialize' => ['initialize'], 'write' => ['write'], 'delete' => ['delete']];
     }
 
-    /** @dataProvider operationProvider */
+    #[DataProvider('operationProvider')]
     public function test_redis_errors_are_not_reported_as_missing_records_or_conflicts(string $operation): void
     {
         $this->client->set($this->prefix . 'workflow', 'wrong-type');
@@ -189,7 +192,75 @@ class RedisPersistenceTest extends TestCase
         return ['transaction' => ['transaction'], 'pipeline' => ['pipeline']];
     }
 
-    /** @dataProvider modeProvider */
+    #[DataProvider('operationProvider')]
+    public function test_a_failed_script_is_not_reported_as_a_missing_record_or_conflict(string $operation): void
+    {
+        $client = new ScriptFailingRedis();
+        $store = new RedisPersistence($client, 'tenant:');
+
+        try {
+            match ($operation) {
+                'get' => $store->get('workflow', 'control'),
+                'initialize' => $store->initializeIfAbsent('workflow', 'control', 'owner'),
+                'write' => $store->writeIfUnchanged('workflow', 'control', 'owner', ['step' => 'result']),
+                default => $store->deleteIfUnchanged('workflow', 'control', 'owner'),
+            };
+            self::fail('A failed script must raise.');
+        } catch (PersistenceException $e) {
+            self::assertSame('Workflow Redis persistence failed: ERR script failed', $e->getMessage());
+        }
+        self::assertSame(1, $client->evaluated[0]['keys']);
+        self::assertSame('tenant:workflow', $client->evaluated[0]['args'][0]);
+    }
+
+    public function test_a_client_exception_is_wrapped_with_its_cause(): void
+    {
+        $client = new ScriptFailingRedis();
+        $client->exception = new RedisException('Connection lost', 7);
+
+        try {
+            (new RedisPersistence($client))->writeIfUnchanged('workflow', 'control', 'owner', ['step' => 'result']);
+            self::fail('A client exception must raise.');
+        } catch (PersistenceException $e) {
+            self::assertSame('Workflow Redis persistence failed: Connection lost', $e->getMessage());
+            self::assertSame(7, $e->getCode());
+            self::assertSame($client->exception, $e->getPrevious());
+        }
+    }
+
+    public function test_a_partition_is_one_plain_hash_without_expiry(): void
+    {
+        $this->store->initializeIfAbsent('order:1', '__control', 'owner', ['run/step' => 'result']);
+        $this->store->writeIfUnchanged('order:1', '__control', 'owner', ['__control' => 'next']);
+
+        self::assertSame([$this->prefix . 'order:1'], $this->client->keys($this->prefix . '*'));
+        self::assertSame(Redis::REDIS_HASH, $this->client->type($this->prefix . 'order:1'));
+        self::assertEqualsCanonicalizing(
+            ['__control' => 'next', 'run/step' => 'result'],
+            $this->client->hGetAll($this->prefix . 'order:1'),
+        );
+        self::assertSame(-1, $this->client->ttl($this->prefix . 'order:1'));
+    }
+
+    public function test_a_write_beyond_the_script_argument_limit_is_all_or_nothing(): void
+    {
+        $this->store->initializeIfAbsent('workflow', 'control', 'owner');
+        $records = [];
+        for ($index = 0; $index < 10_000; $index++) {
+            $records['step-' . $index] = 'result';
+        }
+
+        // Whether Lua's unpack limit rejects the write depends on the Redis build.
+        try {
+            self::assertTrue($this->store->writeIfUnchanged('workflow', 'control', 'owner', $records));
+            self::assertSame(10_001, $this->client->hLen($this->prefix . 'workflow'));
+        } catch (PersistenceException $e) {
+            self::assertStringStartsWith('Workflow Redis persistence failed: ', $e->getMessage());
+            self::assertSame(['control' => 'owner'], $this->client->hGetAll($this->prefix . 'workflow'));
+        }
+    }
+
+    #[DataProvider('modeProvider')]
     public function test_queued_clients_are_rejected_before_enqueuing_a_mutation(string $mode): void
     {
         $this->client->multi($mode === 'transaction' ? Redis::MULTI : Redis::PIPELINE);
@@ -213,7 +284,7 @@ class RedisPersistenceTest extends TestCase
         return ['initialize' => ['initialize'], 'write' => ['write'], 'delete' => ['delete']];
     }
 
-    /** @dataProvider raceProvider */
+    #[DataProvider('raceProvider')]
     public function test_competing_workers_commit_only_one_transition(string $action): void
     {
         if ($action !== 'initialize') {

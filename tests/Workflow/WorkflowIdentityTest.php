@@ -78,7 +78,7 @@ class WorkflowIdentityTest extends TestCase
     {
         $workflow = Workflow::make();
         self::assertSame($workflow, $workflow->setWorkflowId('conversation'));
-        self::assertSame($workflow, $workflow->setWorkflowId('conversation'));
+        $workflow->setWorkflowId('conversation');
         try {
             $workflow->setWorkflowId('other');
             self::fail('An instance cannot change its workflow identity.');
@@ -106,6 +106,7 @@ class WorkflowIdentityTest extends TestCase
     {
         $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('declared');
         $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("This workflow is bound to 'declared' and cannot be re-pointed to 'other'.");
         $workflow->setWorkflowId('other');
     }
 

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Interrupt;
 
+use DateTimeImmutable;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Agent\Interrupt\ActionDecision;
+use NeuronAI\Workflow\Interrupt\ResumeInput;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
@@ -114,5 +116,41 @@ class ApprovalRequestTest extends TestCase
         $this->assertSame(['path' => '/tmp/x'], $action->jsonSerialize()['inputs']);
         // No arguments encode as an empty JSON object, never an empty list.
         $this->assertSame('{}', json_encode((new Action('call_2', 'ping'))->jsonSerialize()['inputs']));
+    }
+
+    public function test_bound_approval_envelope_carries_identity_deadline_and_actions(): void
+    {
+        $request = (new ApprovalRequest(
+            'Delete the file?',
+            [new Action('call_1', 'delete_file', 'Removes a file', reason: 'destructive', inputs: ['path' => '/tmp/x'])],
+            new DateTimeImmutable('2026-12-31T23:59:59+00:00'),
+        ))->withId(4);
+
+        $this->assertSame([
+            'interruptId' => 4,
+            'type' => 'wait_for_event',
+            'eventName' => 'approval',
+            'expiresAt' => '2026-12-31T23:59:59+00:00',
+            'message' => 'Delete the file?',
+            'actions' => [[
+                'id' => 'call_1',
+                'name' => 'delete_file',
+                'description' => 'Removes a file',
+                'decision' => 'pending',
+                'feedback' => null,
+                'reason' => 'destructive',
+                'inputs' => ['path' => '/tmp/x'],
+            ]],
+        ], $request->jsonSerialize());
+    }
+
+    public function test_an_expiry_cannot_decide_an_approval_without_deadline(): void
+    {
+        $request = (new ApprovalRequest('Delete the file?'))->withId(2);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Resume input 'expired' is incompatible with interrupt 2 of type 'wait_for_event'.");
+
+        $request->validate(ResumeInput::expired($request));
     }
 }

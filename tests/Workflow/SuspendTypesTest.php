@@ -26,6 +26,7 @@ use function is_dir;
 use function rmdir;
 use function serialize;
 use function sys_get_temp_dir;
+use function uniqid;
 use function unlink;
 use function unserialize;
 
@@ -112,14 +113,6 @@ class SuspendTypesTest extends TestCase
         $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('user.signup'));
     }
 
-    public function test_signal_requests_are_independent_values(): void
-    {
-        $first = \NeuronAI\Workflow\Executor\ExecutionRequest::signal('first');
-        $second = \NeuronAI\Workflow\Executor\ExecutionRequest::signal('second');
-        $this->assertSame('first', $first->signal);
-        $this->assertSame('second', $second->signal);
-    }
-
     public function test_unexecuted_signal_does_not_change_an_explicit_resume(): void
     {
         $workflow = Workflow::make('signal-input-conflict')
@@ -189,7 +182,7 @@ class SuspendTypesTest extends TestCase
     {
         // FilePersistence forces real PHP serialization of the active request
         // across the pause/resume boundary.
-        $dir = sys_get_temp_dir() . '/neuron_test_wfe_serial';
+        $dir = sys_get_temp_dir() . '/neuron_test_wfe_serial_' . uniqid();
         $persistence = new FilePersistence($dir);
         $token = 'wfe-serial';
 
@@ -392,7 +385,7 @@ class SuspendTypesTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    private function removeDirectory(string $dir): void
+    protected function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {
             return;

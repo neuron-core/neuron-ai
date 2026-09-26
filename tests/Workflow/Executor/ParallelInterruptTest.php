@@ -26,6 +26,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -86,47 +87,54 @@ class ParallelInterruptTest extends TestCase
         $this->assertFalse($workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::signal('approval'))->isInterrupted());
     }
 
-    public function test_partial_resume_does_not_rerun_unaddressed_interrupts(): void
+    #[DataProvider('branchRunners')]
+    public function test_partial_resume_does_not_rerun_unaddressed_interrupts(bool $async): void
     {
-        foreach ([null, new AsyncBranchRunner()] as $index => $runner) {
-            $counter = new stdClass();
-            $counter->runs = 0;
+        $counter = new stdClass();
+        $counter->runs = 0;
 
-            $fork = new class () extends Node {
-                public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
-                {
-                    return new Stub\DocumentParallelEvent([
-                        'text' => new Stub\TextProcessEvent(),
-                        'image' => new Stub\TextProcessEvent(),
-                    ]);
-                }
-            };
+        $fork = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): Stub\DocumentParallelEvent
+            {
+                return new Stub\DocumentParallelEvent([
+                    'text' => new Stub\TextProcessEvent(),
+                    'image' => new Stub\TextProcessEvent(),
+                ]);
+            }
+        };
 
-            $node = new class ($counter) extends Node {
-                public function __construct(protected stdClass $counter)
-                {
-                }
-
-                public function __invoke(Stub\TextProcessEvent $event, WorkflowState $state): StopEvent
-                {
-                    $this->counter->runs++;
-                    $this->interrupt(new ApprovalRequest('approval'));
-
-                    return new StopEvent($this->branchId);
-                }
-            };
-
-            $workflow = Workflow::make(workflowId: "selective-resume-{$index}")
-                ->addNodes([$fork, $node, new MergeNode()]);
-            if ($runner instanceof AsyncBranchRunner) {
-                $workflow->setBranchRunner($runner);
+        $node = new class ($counter) extends Node {
+            public function __construct(protected stdClass $counter)
+            {
             }
 
-            $workflow->run();
-            $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
+            public function __invoke(Stub\TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                $this->counter->runs++;
+                $this->interrupt(new ApprovalRequest('approval'));
 
-            $this->assertSame(3, $counter->runs);
+                return new StopEvent($this->branchId);
+            }
+        };
+
+        $workflow = Workflow::make(workflowId: 'selective-resume')
+            ->addNodes([$fork, $node, new MergeNode()]);
+        if ($async) {
+            $workflow->setBranchRunner(new AsyncBranchRunner());
         }
+
+        $workflow->run();
+        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
+
+        // Only the answered branch re-enters its node; the other asks once.
+        $this->assertSame(3, $counter->runs);
+        $this->assertSame(2, $state->getInterruptRequest()->getId());
+    }
+
+    /** @return array<string, array{bool}> */
+    public static function branchRunners(): array
+    {
+        return ['sequential' => [false], 'async' => [true]];
     }
 
     public function test_interrupt_inside_branch_surfaces_request(): void

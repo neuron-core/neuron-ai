@@ -10,7 +10,7 @@ use DateTimeImmutable;
 
 class SleepUntilNode extends Node
 {
-    public function __construct(private readonly ?DateTimeImmutable $wakeAt = null)
+    public function __construct(protected readonly ?DateTimeImmutable $wakeAt = null)
     {
     }
 

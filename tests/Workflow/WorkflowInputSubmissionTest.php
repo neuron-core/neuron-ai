@@ -9,6 +9,7 @@ use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\WaitForEventNode;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -104,7 +105,7 @@ class WorkflowInputSubmissionTest extends TestCase
 
         if ($streaming) {
             $events = $pending->events();
-            $this->assertSame($before, serialize($persistence));
+            $this->assertSame($before, $this->snapshot($persistence));
             iterator_to_array($events);
             $completed = $events->getReturn();
         } else {
@@ -180,9 +181,30 @@ class WorkflowInputSubmissionTest extends TestCase
         try {
             $workflow->submitInputs([]);
             self::fail('A submission needs a bound workflow with a persisted run.');
-        } catch (InputTranslationException) {
+        } catch (InputTranslationException $e) {
+            self::assertSame('There is no persisted run to continue.', $e->getMessage());
             self::assertNull($workflow->getWorkflowId());
         }
+    }
+
+    public function test_a_run_without_a_current_interruption_cannot_be_answered(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make('signup')->setPersistence($persistence)->retainCompletionUntilAcknowledged()
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
+        $workflow->run();
+        $before = serialize($persistence);
+        $translator = $this->createMock(InputTranslatorInterface::class);
+        $translator->expects($this->never())->method('translate');
+
+        try {
+            $workflow->submitInputs(['email' => 'user@example.com'], $translator);
+            $this->fail('A completed run has nothing to answer.');
+        } catch (InputTranslationException $e) {
+            $this->assertSame('There is no current interruption to answer.', $e->getMessage());
+        }
+
+        $this->assertSame($before, serialize($persistence));
     }
 
     #[DataProvider('invalidInputs')]
@@ -198,12 +220,18 @@ class WorkflowInputSubmissionTest extends TestCase
             $workflow->run($request);
             $this->fail('Invalid payloads must fail before acceptance.');
         } catch (\NeuronAI\Exceptions\WorkflowException) {
-            $this->assertSame($before, serialize($persistence));
+            $this->assertSame($before, $this->snapshot($persistence));
         }
     }
 
     protected function submit(WorkflowInterface $workflow, InputTranslatorInterface $translator): PendingExecution
     {
         return $workflow->submitInputs(['email' => 'user@example.com'], $translator);
+    }
+
+    /** @phpstan-impure Persistence may change between two reads. */
+    protected function snapshot(InMemoryPersistence $persistence): string
+    {
+        return serialize($persistence);
     }
 }

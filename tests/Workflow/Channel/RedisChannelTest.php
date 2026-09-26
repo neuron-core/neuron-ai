@@ -13,6 +13,7 @@ use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Redis;
@@ -79,12 +80,13 @@ class RedisChannelTest extends TestCase
     public function test_false_publish_results_stop_data_delivery_but_allow_the_terminal(): void
     {
         $this->redis->result = false;
+        $this->redis->lastError = 'NOAUTH Authentication required.';
         $channel = $this->channel();
         try {
             $channel->send(new ProtocolEvent('text-delta'));
             $this->fail('Expected publish failure.');
         } catch (RuntimeException $e) {
-            $this->assertStringContainsString('publish failed', $e->getMessage());
+            $this->assertSame('Redis streaming publish failed: NOAUTH Authentication required.', $e->getMessage());
         }
         $channel->send(new ProtocolEvent('text-delta'));
         $this->assertCount(1, $this->redis->published);
@@ -93,15 +95,37 @@ class RedisChannelTest extends TestCase
         $this->assertSame('stream.completed', json_decode($this->redis->published[1]['message'], true)['type']);
     }
 
-    public function test_queued_clients_are_rejected_before_a_publish_is_enqueued(): void
+    /** @return array<string, array{int}> */
+    public static function queuedModeProvider(): array
     {
-        $this->redis->mode = Redis::PIPELINE;
+        return ['transaction' => [Redis::MULTI], 'pipeline' => [Redis::PIPELINE]];
+    }
+
+    #[DataProvider('queuedModeProvider')]
+    public function test_queued_clients_are_rejected_before_a_publish_is_enqueued(int $mode): void
+    {
+        $this->redis->mode = $mode;
         try {
             $this->channel()->send(new ProtocolEvent('text-delta'));
             $this->fail('Expected a queued-client error.');
-        } catch (RuntimeException) {
-            $this->assertSame([], $this->redis->published);
+        } catch (RuntimeException $e) {
+            $this->assertSame('Redis streaming cannot run inside a transaction or pipeline.', $e->getMessage());
         }
+        $this->assertSame([], $this->redis->published);
+    }
+
+    public function test_every_event_is_published_as_its_own_message_on_the_configured_channel(): void
+    {
+        $channel = $this->channel();
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'a']));
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
+        $channel->interrupted($this->state());
+
+        $this->assertSame(['chat:42', 'chat:42', 'chat:42'], array_column($this->redis->published, 'channel'));
+        $envelopes = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $this->redis->published);
+        $this->assertSame(['text-delta', 'text-delta', 'stream.interrupted'], array_column($envelopes, 'type'));
+        $this->assertSame([0, 1, 2], array_column($envelopes, 'sequence'));
+        $this->assertSame(['workflowId' => 'wf-1'], $envelopes[2]['data']);
     }
 
     public function test_streams_an_agent_run_as_the_adapter_events_followed_by_the_completion(): void

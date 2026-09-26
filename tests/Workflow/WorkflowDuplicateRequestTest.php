@@ -8,11 +8,17 @@ use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\Stub\CrashAfterClaim;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use ArrayObject;
 
 /**
  * A retried request never executes twice: a reserved run ID refuses a second
@@ -72,5 +78,46 @@ class WorkflowDuplicateRequestTest extends TestCase
         self::assertSame(WorkflowStatus::Completed, $completed->getStatus());
         self::assertSame($started->getRunId(), $completed->getRunId());
         self::assertSame(3, $completed->getExecutionAttempt());
+    }
+
+    public function test_a_reserved_start_neither_recovers_nor_replaces_a_failed_run(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $invocations = new ArrayObject();
+        $make = static fn (): Workflow => Workflow::make('order')->setPersistence($persistence)->addNode(
+            new class ($invocations) extends Node {
+                /** @param ArrayObject<int, true> $invocations */
+                public function __construct(protected ArrayObject $invocations)
+                {
+                }
+
+                public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+                {
+                    $this->invocations->append(true);
+                    if ($this->invocations->count() === 1) {
+                        throw new RuntimeException('transient');
+                    }
+                    return new StopEvent();
+                }
+            }
+        );
+        try {
+            $make()->run(ExecutionRequest::start(runId: 'delivery-1'));
+            self::fail('The first delivery must fail.');
+        } catch (RuntimeException $error) {
+            self::assertSame('transient', $error->getMessage());
+        }
+
+        try {
+            $make()->run(ExecutionRequest::start(runId: 'delivery-2', recoverFailed: true));
+            self::fail('A reserved start must not take over the failed run of another delivery.');
+        } catch (RunInFlightException $error) {
+            self::assertSame('delivery-1', $error->runId);
+            self::assertSame(WorkflowStatus::Failed, $error->status);
+        }
+
+        self::assertCount(1, $invocations);
+        self::assertSame('delivery-1', $make()->inspect()->runId);
+        self::assertSame(WorkflowStatus::Failed, $make()->inspect()->status);
     }
 }

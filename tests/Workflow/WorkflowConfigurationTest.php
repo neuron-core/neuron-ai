@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
+use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\RecordingEventDispatcher;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\AsyncBranchRunner;
+use NeuronAI\Workflow\Exporter\ExporterInterface;
+use NeuronAI\Workflow\Exporter\WorkflowGraph;
+use NeuronAI\Workflow\Exporter\WorkflowGraphVertex;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
@@ -21,6 +28,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function array_filter;
+use function array_map;
+use function array_unique;
+use function is_a;
+use function array_values;
 use function iterator_to_array;
 use function serialize;
 use function unserialize;
@@ -143,5 +155,66 @@ class WorkflowConfigurationTest extends TestCase
         self::assertSame([$state->getRunId()], $nextEnds);
         self::assertSame([$state->getRunId()], $subscribedEnds);
         self::assertCount(1, $originalEnds);
+    }
+
+    public function test_a_listener_subscribed_after_the_dispatcher_was_resolved_receives_the_next_run(): void
+    {
+        $workflow = Workflow::make('order')->addNode(new ChunkStreamingNode(2));
+        $workflow->getEventDispatcher();
+        $ends = [];
+        $workflow->subscribe(WorkflowEnd::class, static function (WorkflowEnd $event) use (&$ends): void {
+            $ends[] = $event->execution->runId;
+        });
+
+        $state = $workflow->run();
+
+        self::assertSame([$state->getRunId()], $ends);
+    }
+
+    public function test_an_external_dispatcher_set_after_the_dispatcher_was_resolved_receives_the_next_run(): void
+    {
+        $workflow = Workflow::make('order')->addNode(new ChunkStreamingNode(2));
+        $workflow->getEventDispatcher();
+        $external = new RecordingEventDispatcher();
+        $workflow->setEventDispatcher($external);
+
+        $state = $workflow->run();
+
+        $ends = array_values(array_filter($external->dispatched, static fn (object $event): bool => $event instanceof WorkflowEnd));
+        self::assertCount(1, $ends);
+        self::assertSame($state->getRunId(), $ends[0]->execution->runId);
+    }
+
+    public function test_export_hands_the_graph_to_the_configured_exporter_without_claiming_a_run(): void
+    {
+        $exporter = new class () implements ExporterInterface {
+            public ?WorkflowGraph $graph = null;
+
+            public function export(WorkflowGraph $graph): string
+            {
+                $this->graph = $graph;
+                return 'exported';
+            }
+        };
+        $workflow = Workflow::make('order')
+            ->setExporter($exporter)
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
+
+        self::assertSame('exported', $workflow->export());
+
+        $classes = array_map(static fn (WorkflowGraphVertex $vertex): ?string => $vertex->class, $exporter->graph?->getVertices() ?? []);
+        $nodes = array_filter($classes, static fn (?string $class): bool => $class !== null && is_a($class, NodeInterface::class, true));
+        self::assertSame([NodeOne::class, NodeTwo::class, NodeThree::class], array_values(array_unique($nodes)));
+        self::assertNull($workflow->inspect());
+    }
+
+    public function test_export_refuses_an_invalid_graph(): void
+    {
+        $workflow = Workflow::make('order')->addNodes([new NodeTwo(), new NodeThree()]);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
+
+        $workflow->export();
     }
 }

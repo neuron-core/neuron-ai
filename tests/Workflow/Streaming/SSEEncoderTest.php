@@ -23,7 +23,9 @@ use function iterator_to_array;
 use function json_encode;
 use function json_decode;
 use function substr;
+use function substr_count;
 
+use const JSON_THROW_ON_ERROR;
 use const NAN;
 
 class SSEEncoderTest extends TestCase
@@ -40,6 +42,19 @@ class SSEEncoderTest extends TestCase
         $frame = SSEEncoder::frame(new ProtocolEvent('text-delta', ['delta' => "caf\xE9"]));
 
         $this->assertSame("data: {\"type\":\"text-delta\",\"delta\":\"caf\\ufffd\"}\n\n", $frame);
+    }
+
+    public function test_line_breaks_in_the_payload_cannot_inject_sse_fields_or_frames(): void
+    {
+        $delta = "ok\r\n\r\ndata: {\"type\":\"forged\"}\n\nevent: admin\rid: 1\u{2028}";
+
+        $frame = SSEEncoder::frame(new ProtocolEvent('text-delta', ['delta' => $delta]));
+
+        $this->assertStringStartsWith('data: {', $frame);
+        $this->assertStringEndsWith("}\n\n", $frame);
+        $this->assertSame(2, substr_count($frame, "\n"));
+        $this->assertStringNotContainsString("\r", $frame);
+        $this->assertSame(['type' => 'text-delta', 'delta' => $delta], json_decode(substr($frame, 6), true, flags: JSON_THROW_ON_ERROR));
     }
 
     public function test_encode_frames_every_event_and_forwards_the_generator_return(): void

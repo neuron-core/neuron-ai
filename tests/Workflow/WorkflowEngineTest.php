@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use Closure;
 use NeuronAI\Exceptions\PersistenceException;
+use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -17,12 +18,14 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
+use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function serialize;
+use function str_repeat;
 
 class WorkflowEngineTest extends TestCase
 {
@@ -207,5 +210,176 @@ class WorkflowEngineTest extends TestCase
 
         $this->expectException(PersistenceException::class);
         (new WorkflowEngine($persistence))->inspect('corrupt');
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function acceptedWorkflowIds(): iterable
+    {
+        yield 'single character' => ['a'];
+        yield '255 characters' => [str_repeat('a', 255)];
+        yield '255 multibyte characters' => [str_repeat('è', 255)];
+        yield 'single underscore prefix' => ['_private'];
+        yield 'inner double underscore' => ['order__42'];
+        yield 'path-like address' => ['tenant/order 42'];
+    }
+
+    #[DataProvider('acceptedWorkflowIds')]
+    public function test_a_valid_workflow_id_is_accepted(string $workflowId): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        $this->assertNull((new WorkflowEngine($persistence))->inspect($workflowId));
+        $this->assertSame(StartEvent::class, $this->startedRunFor($workflowId, $persistence)?->startEvent::class);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function refusedWorkflowIds(): iterable
+    {
+        yield 'empty' => [''];
+        yield '256 characters' => [str_repeat('a', 256)];
+        yield '256 multibyte characters' => [str_repeat('è', 256)];
+        yield 'reserved prefix' => ['__ignition'];
+        yield 'bare reserved prefix' => ['__'];
+        yield 'null byte' => ["order\x00"];
+        yield 'line feed' => ["order\n42"];
+        yield 'carriage return' => ["order\r42"];
+        yield 'unit separator' => ["order\x1F"];
+        yield 'delete' => ["order\x7F"];
+        yield 'invalid UTF-8' => ["order\xFF"];
+    }
+
+    #[DataProvider('refusedWorkflowIds')]
+    public function test_an_invalid_workflow_id_is_refused_before_persistence(string $workflowId): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::never())->method('get');
+        $persistence->expects(self::never())->method('initializeIfAbsent');
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
+
+        (new WorkflowEngine($persistence))->admit($workflowId, ExecutionRequest::start(new StartEvent()), new WorkflowState(), null, false);
+    }
+
+    public function test_acknowledging_a_run_that_is_not_completed_is_refused_without_mutation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $suspended = KeyedWorkflow::make('suspended')->setPersistence($persistence)->run();
+        $before = serialize($persistence);
+
+        try {
+            (new WorkflowEngine($persistence))->acknowledge('suspended', (string) $suspended->getRunId());
+            $this->fail('Only a completed run can be acknowledged.');
+        } catch (WorkflowException $e) {
+            $this->assertSame("Run '{$suspended->getRunId()}' for workflow ID 'suspended' is not completed.", $e->getMessage());
+        }
+
+        $this->assertSame($before, serialize($persistence));
+    }
+
+    public function test_acknowledging_another_generation_is_stale(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $completed = $this->retainedCompletion('retained', $persistence);
+        $before = serialize($persistence);
+
+        try {
+            (new WorkflowEngine($persistence))->acknowledge('retained', 'run_other');
+            $this->fail('A different generation must not be acknowledged.');
+        } catch (StaleWorkflowRunException $e) {
+            $this->assertSame('run_other', $e->expectedRunId);
+            $this->assertSame($completed->getRunId(), $e->actualRunId);
+        }
+
+        $this->assertSame($before, serialize($persistence));
+    }
+
+    public function test_acknowledging_a_missing_run_is_stale(): void
+    {
+        try {
+            (new WorkflowEngine(new InMemoryPersistence()))->acknowledge('missing', 'run_gone');
+            $this->fail('A missing generation must be reported as stale.');
+        } catch (StaleWorkflowRunException $e) {
+            $this->assertSame('missing', $e->workflowId);
+            $this->assertSame('run_gone', $e->expectedRunId);
+            $this->assertNull($e->actualRunId);
+        }
+    }
+
+    public function test_acknowledgement_loses_to_a_concurrent_change(): void
+    {
+        $persistence = new class () extends InMemoryPersistence {
+            public function deleteIfUnchanged(string $partition, string $conditionKey, string $expectedValue): bool
+            {
+                // Another worker rewrites control between the read and the delete.
+                $this->storage[$partition][$conditionKey] = $expectedValue . ' ';
+
+                return parent::deleteIfUnchanged($partition, $conditionKey, $expectedValue);
+            }
+        };
+        $completed = $this->retainedCompletion('retained', $persistence);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Completion acknowledgement conflicted for workflow ID 'retained'.");
+
+        (new WorkflowEngine($persistence))->acknowledge('retained', (string) $completed->getRunId());
+    }
+
+    public function test_abandoning_a_different_execution_attempt_is_refused_without_mutation(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $suspended = KeyedWorkflow::make('suspended')->setPersistence($persistence)->run();
+        $before = serialize($persistence);
+
+        try {
+            (new WorkflowEngine($persistence))->abandon('suspended', $suspended->getRunId(), (int) $suspended->getExecutionAttempt() + 1);
+            $this->fail('A different attempt must not be abandoned.');
+        } catch (WorkflowException $e) {
+            $this->assertSame('Cannot abandon a different execution attempt.', $e->getMessage());
+        }
+
+        $this->assertSame($before, serialize($persistence));
+    }
+
+    public function test_a_continuation_without_the_ignition_record_is_invalid(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $persistence->initializeIfAbsent('corrupt', '__control', serialize(new WorkflowControl('run_a', WorkflowStatus::Suspended)));
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Run 'run_a' for workflow ID 'corrupt' has no ignition record.");
+
+        (new WorkflowEngine($persistence))->admit('corrupt', ExecutionRequest::resume([]), new WorkflowState(), null, false);
+    }
+
+    public function test_a_retained_completion_refuses_a_signal(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $this->retainedCompletion('retained', $persistence);
+        $before = serialize($persistence);
+
+        try {
+            (new WorkflowEngine($persistence))->admit('retained', ExecutionRequest::signal('approval'), new WorkflowState(), null, true);
+            $this->fail('A completed run waits for no signal.');
+        } catch (WorkflowException $e) {
+            $this->assertSame("No active interruption for workflow ID 'retained' is waiting for signal 'approval'.", $e->getMessage());
+        }
+
+        $this->assertSame($before, serialize($persistence));
+    }
+
+    protected function startedRunFor(string $workflowId, InMemoryPersistence $persistence): ?WorkflowRunSnapshot
+    {
+        KeyedWorkflow::make($workflowId)->setPersistence($persistence)->run();
+
+        return (new WorkflowEngine($persistence))->inspect($workflowId);
+    }
+
+    protected function retainedCompletion(string $workflowId, InMemoryPersistence $persistence): WorkflowState
+    {
+        $workflow = KeyedWorkflow::make($workflowId)->setPersistence($persistence)->retainCompletionUntilAcknowledged();
+        $workflow->run();
+
+        return $workflow->run(ExecutionRequest::resume([]));
     }
 }

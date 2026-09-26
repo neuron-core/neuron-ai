@@ -5,15 +5,22 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Testing\FakeMiddleware;
+use NeuronAI\Testing\MiddlewareRecord;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Stub\FirstEvent;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
+use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Workflow\Events\Event;
+use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\TestCase;
+
+use function array_map;
 
 class GlobalMiddlewareMethodTest extends TestCase
 {
@@ -25,7 +32,7 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($middleware) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $middleware,
+                protected readonly FakeMiddleware $middleware,
             ) {
                 parent::__construct();
             }
@@ -48,13 +55,15 @@ class GlobalMiddlewareMethodTest extends TestCase
         $middleware->assertCallCount(6);
     }
 
-    public function test_global_middleware_override_runs_when_middleware_returns_empty(): void
+    public function test_global_middleware_hook_runs_for_every_segment_with_the_same_instance(): void
     {
         $middleware = FakeMiddleware::make();
 
         $workflow = new class ($middleware) extends Workflow {
+            public int $hookCalls = 0;
+
             public function __construct(
-                private readonly FakeMiddleware $middleware,
+                protected readonly FakeMiddleware $middleware,
             ) {
                 parent::__construct();
             }
@@ -66,14 +75,17 @@ class GlobalMiddlewareMethodTest extends TestCase
 
             protected function globalMiddleware(): array
             {
+                $this->hookCalls++;
                 return [$this->middleware];
             }
         };
 
         $this->execute($workflow);
+        $this->execute($workflow);
 
-        $middleware->assertBeforeCalledTimes(3);
-        $middleware->assertAfterCalledTimes(3);
+        // Hook-created middleware are used directly, not cloned.
+        $this->assertSame(2, $workflow->hookCalls);
+        $middleware->assertBeforeCalledTimes(6);
     }
 
     public function test_global_middleware_override_combines_with_node_middleware_override(): void
@@ -83,8 +95,8 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($global, $nodeSpecific) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $global,
-                private readonly FakeMiddleware $nodeSpecific,
+                protected readonly FakeMiddleware $global,
+                protected readonly FakeMiddleware $nodeSpecific,
             ) {
                 parent::__construct();
             }
@@ -138,8 +150,8 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($global, $node) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $global,
-                private readonly FakeMiddleware $node,
+                protected readonly FakeMiddleware $global,
+                protected readonly FakeMiddleware $node,
             ) {
                 parent::__construct();
             }
@@ -177,7 +189,7 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($middleware) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $middleware,
+                protected readonly FakeMiddleware $middleware,
             ) {
                 parent::__construct();
             }
@@ -195,15 +207,10 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $this->execute($workflow);
 
-        $beforeRecords = $middleware->getBeforeRecords();
+        $eventClasses = static fn (array $records): array => array_map(static fn (MiddlewareRecord $record): string => $record->event::class, $records);
 
-        $this->assertCount(3, $beforeRecords);
-        $this->assertInstanceOf(Event::class, $beforeRecords[0]->event);
-        $this->assertInstanceOf(Event::class, $beforeRecords[1]->event);
-        $this->assertInstanceOf(Event::class, $beforeRecords[2]->event);
-
-        $afterRecords = $middleware->getAfterRecords();
-        $this->assertCount(3, $afterRecords);
+        $this->assertSame([StartEvent::class, FirstEvent::class, SecondEvent::class], $eventClasses($middleware->getBeforeRecords()));
+        $this->assertSame([FirstEvent::class, SecondEvent::class, StopEvent::class], $eventClasses($middleware->getAfterRecords()));
     }
 
     public function test_global_middleware_override_can_read_and_write_state(): void
@@ -216,7 +223,7 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($middleware) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $middleware,
+                protected readonly FakeMiddleware $middleware,
             ) {
                 parent::__construct();
             }
@@ -235,7 +242,7 @@ class GlobalMiddlewareMethodTest extends TestCase
         $finalState = $this->execute($workflow);
 
         $this->assertTrue($finalState->get('injected_by_global'));
-        $this->assertEquals(3, $finalState->get('execution_count'));
+        $this->assertSame(3, $finalState->get('execution_count'));
     }
 
     public function test_empty_global_middleware_override_does_not_cause_errors(): void
@@ -281,8 +288,8 @@ class GlobalMiddlewareMethodTest extends TestCase
 
         $workflow = new class ($first, $second) extends Workflow {
             public function __construct(
-                private readonly FakeMiddleware $first,
-                private readonly FakeMiddleware $second,
+                protected readonly FakeMiddleware $first,
+                protected readonly FakeMiddleware $second,
             ) {
                 parent::__construct();
             }

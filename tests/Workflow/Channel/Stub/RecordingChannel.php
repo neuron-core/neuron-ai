@@ -25,6 +25,9 @@ final class RecordingChannel extends AbstractChannel
 
     public int $attempts = 0;
 
+    /** @var list<RuntimeException> */
+    public array $failures = [];
+
     public function __construct(
         protected int $batchSize = 1,
         protected ?int $budget = null,
@@ -57,7 +60,7 @@ final class RecordingChannel extends AbstractChannel
         ++$this->attempts;
         if ($this->failNextDelivery || $this->alwaysFail) {
             $this->failNextDelivery = false;
-            throw new RuntimeException('transport down');
+            throw $this->failures[] = new RuntimeException('transport down');
         }
 
         $this->deliveries[] = json_decode($batch, true);

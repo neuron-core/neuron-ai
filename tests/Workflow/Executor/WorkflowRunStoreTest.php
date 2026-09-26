@@ -17,6 +17,7 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 class WorkflowRunStoreTest extends TestCase
 {
@@ -49,6 +50,7 @@ class WorkflowRunStoreTest extends TestCase
 
         $this->assertTrue($first->initialize($control, $ignition));
         $this->assertFalse($second->initialize($control, $ignition));
+        $this->assertFalse($second->hasControl());
     }
 
     public function test_replaces_control_and_writes_records_atomically(): void
@@ -398,5 +400,149 @@ class WorkflowRunStoreTest extends TestCase
         $persistence->reads = 0;
         $this->assertNull($stale->loadStep('step-1'));
         $this->assertSame(1, $persistence->reads);
+    }
+
+    public function test_a_control_record_of_another_type_is_refused(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent('workflow-1', '__control', $serializer->serialize(new WorkflowState()));
+        $store = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Invalid __control record for workflow ID 'workflow-1'.");
+
+        $store->loadControl();
+    }
+
+    public function test_an_unloaded_store_refuses_to_address_records(): void
+    {
+        $store = new WorkflowRunStore(new InMemoryPersistence(), new PhpSerializer(), 'workflow-1');
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Workflow ID 'workflow-1' has no loaded control record.");
+
+        $store->commitStep(new StepResult('step-1'));
+    }
+
+    public function test_an_unloaded_store_cannot_delete_the_partition(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        (new WorkflowRunStore($persistence, $serializer, 'workflow-1'))->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+
+        try {
+            (new WorkflowRunStore($persistence, $serializer, 'workflow-1'))->deleteIfOwned();
+            $this->fail('A store that never read control must not delete the partition.');
+        } catch (WorkflowException $e) {
+            $this->assertSame("Workflow ID 'workflow-1' has no loaded control snapshot.", $e->getMessage());
+        }
+
+        $this->assertNotNull($persistence->get('workflow-1', '__control'));
+    }
+
+    public function test_a_deleted_partition_leaves_the_store_without_control(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $store = new WorkflowRunStore($persistence, new PhpSerializer(), 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $store->commitStep(new StepResult('step-1'));
+
+        $this->assertTrue($store->deleteIfOwned());
+
+        $this->assertFalse($store->hasControl());
+        $this->assertNull($persistence->get('workflow-1', '__ignition'));
+        $this->assertNull($persistence->get('workflow-1', 'run-1/step-1'));
+    }
+
+    public function test_an_ignition_record_of_another_type_is_treated_as_missing(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent('workflow-1', '__control', $serializer->serialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+        ), ['__ignition' => $serializer->serialize(new StartEvent())]);
+
+        $this->assertNull((new WorkflowRunStore($persistence, $serializer, 'workflow-1'))->loadIgnition());
+    }
+
+    public function test_records_of_another_generation_are_unreachable(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent('workflow-1', '__control', $serializer->serialize(
+            new WorkflowControl('run-2', WorkflowStatus::Running),
+        ), [
+            'run-1/step-1' => $serializer->serialize(new StepResult('step-1')),
+            'run-1/step-1::provider' => $serializer->serialize('stale memo'),
+            'run-1/__checkpoint' => $serializer->serialize(new WorkflowState(['stale' => true])),
+        ]);
+        $store = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+        $store->loadControl();
+
+        $this->assertNull($store->loadStep('step-1'));
+        $this->assertNull($store->memoizer('step-1')->get('provider'));
+        $this->assertNull($store->loadCheckpoint());
+        $this->assertSame('fresh memo', $store->memo('step-1', 'provider', fn (): string => 'fresh memo'));
+        $this->assertSame($serializer->serialize('fresh memo'), $persistence->get('workflow-1', 'run-2/step-1::provider'));
+        $this->assertSame($serializer->serialize('stale memo'), $persistence->get('workflow-1', 'run-1/step-1::provider'));
+    }
+
+    public function test_memos_are_scoped_to_their_step_and_name(): void
+    {
+        $store = new WorkflowRunStore(new InMemoryPersistence(), new PhpSerializer(), 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $first = $store->memoizer('step-1');
+        $second = $store->memoizer('step-2');
+
+        $first->memo('provider', fn (): string => 'step-1 provider');
+        $second->memo('provider', fn (): string => 'step-2 provider');
+
+        $this->assertSame('step-1 provider', $first->get('provider'));
+        $this->assertSame('step-2 provider', $second->get('provider'));
+        $this->assertNull($first->get('other'));
+    }
+
+    public function test_a_failing_memoized_operation_records_nothing(): void
+    {
+        $store = new WorkflowRunStore(new InMemoryPersistence(), new PhpSerializer(), 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+
+        try {
+            $store->memo('step-1', 'provider', fn (): string => throw new RuntimeException('provider down'));
+            $this->fail('The operation failure must propagate.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('provider down', $e->getMessage());
+        }
+
+        $this->assertSame('retried', $store->memo('step-1', 'provider', fn (): string => 'retried'));
+    }
+
+    public function test_load_outcome_rejects_a_present_record_with_the_wrong_type(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent('workflow-1', '__control', $serializer->serialize(
+            new WorkflowControl('run-1', WorkflowStatus::Completed),
+        ), ['run-1/__outcome' => $serializer->serialize(new StepResult('step-1'))]);
+        $store = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+        $store->loadControl();
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage("Invalid outcome record 'run-1/__outcome' for workflow ID 'workflow-1'.");
+
+        $store->loadOutcome();
     }
 }

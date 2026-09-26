@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Executor;
 
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
+use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stub\FinalTextProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
@@ -18,6 +19,12 @@ use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
 
+use function array_column;
+use function array_filter;
+use function array_map;
+use function array_values;
+use function count;
+
 class BranchEdgeCasesTest extends TestCase
 {
     use ExecutorTestHelpers;
@@ -27,7 +34,7 @@ class BranchEdgeCasesTest extends TestCase
         return new AsyncBranchRunner();
     }
 
-    public function test_multi_step_branch_executes_all_nodes(): void
+    public function test_multi_step_branch_executes_all_nodes_and_streams_their_output(): void
     {
         $workflow = Workflow::make('test-workflow')
             ->addNodes([
@@ -39,30 +46,13 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow);
+        [$result, $events] = $this->executeAndCollect($workflow);
 
-        $analysis = $result->get('analysis');
-        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
-    }
-
-    public function test_streaming_node_inside_branch_completes_successfully(): void
-    {
-        $workflow = Workflow::make('test-workflow')
-            ->addNodes([
-                new DocumentParallelProcessing(),
-                new MultiStepTextProcessNode(),
-                new StreamingTextProcessNode(),
-                new FinalTextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $result = $this->execute($workflow);
-
-        $analysis = $result->get('analysis');
-        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
+        $this->assertSame(['text-1', 'text-2'], array_map(fn (ChunkEvent $chunk): string => $chunk->payload, $events));
+        $this->assertSame(['text' => 'MULTI_STEP_COMPLETE', 'image' => 'processed_image.jpg'], $result->get('analysis'));
+        // Branch nodes write to the branch's own state, never to the merged one.
+        $this->assertFalse($result->has('multi_step1_executed'));
+        $this->assertFalse($result->has('streaming_step_executed'));
     }
 
     public function test_streamed_nodes_in_both_branches_complete(): void
@@ -77,31 +67,13 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        $result = $this->execute($workflow);
+        [$result, $events] = $this->executeAndCollect($workflow);
 
-        $analysis = $result->get('analysis');
-        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
-        $this->assertSame('streamed_image', $analysis['image']);
-    }
-
-    public function test_async_multi_step_branch_completes_all_nodes(): void
-    {
-
-        $workflow = Workflow::make('test-workflow')
-            ->addNodes([
-                new DocumentParallelProcessing(),
-                new MultiStepTextProcessNode(),
-                new StreamingTextProcessNode(),
-                new FinalTextProcessNode(),
-                new ImageProcessNode(),
-                new MergeNode(),
-            ]);
-
-        $result = $this->execute($workflow);
-
-        $analysis = $result->get('analysis');
-        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
+        $this->assertEqualsCanonicalizing(
+            ['text-1', 'text-2', 'image-1', 'image-2'],
+            array_map(fn (ChunkEvent $chunk): string => $chunk->payload, $events),
+        );
+        $this->assertSame(['text' => 'MULTI_STEP_COMPLETE', 'image' => 'streamed_image'], $result->get('analysis'));
     }
 
     public function test_middleware_fires_inside_branches(): void
@@ -133,7 +105,7 @@ class BranchEdgeCasesTest extends TestCase
         $this->assertEqualsCanonicalizing($nodes, $middleware->afterCalls);
     }
 
-    public function test_async_observer_receives_all_events(): void
+    public function test_async_observer_receives_branch_events_with_their_branch(): void
     {
         $observer = new RecordingObserver();
 
@@ -148,11 +120,27 @@ class BranchEdgeCasesTest extends TestCase
                 new MergeNode(),
             ]);
 
-        [$result, $events] = $this->executeAndCollect($workflow);
+        $this->execute($workflow);
 
-        $analysis = $result->get('analysis');
-        $this->assertSame('MULTI_STEP_COMPLETE', $analysis['text']);
-        $this->assertSame('processed_image.jpg', $analysis['image']);
-        $this->assertNotEmpty($observer->recorded);
+        $branchEvents = array_values(array_filter(
+            $observer->recorded,
+            fn (array $record): bool => $record['event'] === 'branch-start' || $record['event'] === 'branch-end',
+        ));
+        $this->assertEqualsCanonicalizing([
+            ['event' => 'branch-start', 'branchId' => 'text'],
+            ['event' => 'branch-start', 'branchId' => 'image'],
+            ['event' => 'branch-end', 'branchId' => 'text'],
+            ['event' => 'branch-end', 'branchId' => 'image'],
+        ], $branchEvents);
+        $nodeStarts = array_values(array_filter(
+            $observer->recorded,
+            fn (array $record): bool => $record['event'] === 'workflow-node-start',
+        ));
+        $this->assertEqualsCanonicalizing(
+            ['__main__', 'text', 'text', 'text', 'image', '__main__'],
+            array_column($nodeStarts, 'branchId'),
+        );
+        $this->assertSame('workflow-start', $observer->recorded[0]['event']);
+        $this->assertSame('workflow-end', $observer->recorded[count($observer->recorded) - 1]['event']);
     }
 }

@@ -11,9 +11,11 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_sum;
+use function base64_encode;
 use function bin2hex;
 use function fclose;
 use function fgets;
@@ -25,6 +27,7 @@ use function proc_open;
 use function proc_terminate;
 use function random_bytes;
 use function str_repeat;
+use function str_replace;
 use function stream_get_contents;
 use function stream_set_timeout;
 use function sys_get_temp_dir;
@@ -62,28 +65,16 @@ class SqlPersistenceTest extends TestCase
     protected function backend(string $driver, bool $eloquent): PersistenceInterface
     {
         $this->pdo = SqlPersistenceFactory::connect($driver, $this->sqliteFile);
-        $keyType = $driver === 'mysql'
-            ? 'VARCHAR(510) CHARACTER SET ascii COLLATE ascii_bin'
-            : 'VARCHAR(510)';
-        $valueType = $driver === 'mysql' ? 'LONGTEXT CHARACTER SET ascii' : 'TEXT';
-        $quote = $driver === 'mysql' ? '`' : '"';
-        $engine = $driver === 'mysql' ? ' ENGINE=InnoDB' : '';
-        $primaryKey = $eloquent ? match ($driver) {
-            'mysql' => 'id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,',
-            'pgsql' => 'id BIGSERIAL PRIMARY KEY,',
-            default => 'id INTEGER PRIMARY KEY AUTOINCREMENT,',
-        } : '';
-        $constraint = $eloquent ? 'UNIQUE' : 'PRIMARY KEY';
-        $this->pdo->exec("CREATE TABLE {$this->table} (
-            {$primaryKey}
-            {$quote}partition{$quote} {$keyType} NOT NULL,
-            {$quote}key{$quote} {$keyType} NOT NULL,
-            {$quote}value{$quote} {$valueType} NOT NULL CHECK ({$quote}value{$quote} <> 'Zm9yYmlkZGVu'),
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            {$constraint} ({$quote}partition{$quote}, {$quote}key{$quote})
-        ){$engine}");
+        SqlPersistenceFactory::createTable($this->pdo, $this->table, $eloquent);
 
         return SqlPersistenceFactory::make($this->pdo, $this->table, $eloquent);
+    }
+
+    protected function columns(): string
+    {
+        $quote = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? '`' : '"';
+
+        return "{$quote}partition{$quote}, {$quote}key{$quote}, {$quote}value{$quote}";
     }
 
     /** @return array<string, array{string, bool}> */
@@ -104,7 +95,7 @@ class SqlPersistenceTest extends TestCase
         return ['sqlite' => ['sqlite'], 'mysql' => ['mysql'], 'pgsql' => ['pgsql']];
     }
 
-    /** @dataProvider backendProvider */
+    #[DataProvider('backendProvider')]
     public function test_binary_values_and_distinct_identifiers_round_trip(string $driver, bool $eloquent): void
     {
         $store = $this->backend($driver, $eloquent);
@@ -126,20 +117,92 @@ class SqlPersistenceTest extends TestCase
         }
     }
 
-    /** @dataProvider backendProvider */
-    public function test_oversized_record_keys_fail_without_partial_initialization(string $driver, bool $eloquent): void
+    #[DataProvider('backendProvider')]
+    public function test_oversized_identifiers_fail_loudly_without_partial_writes(string $driver, bool $eloquent): void
     {
         $store = $this->backend($driver, $eloquent);
-        try {
-            $store->initializeIfAbsent('workflow', '__control', 'owner', [str_repeat('x', 256) => 'value']);
-            self::fail('Expected the oversized key to fail.');
-        } catch (PersistenceException $e) {
-            self::assertStringContainsString('255 bytes', $e->getMessage());
+        $store->initializeIfAbsent('existing', '__control', 'owner');
+        $oversized = str_repeat('x', 256);
+        $operations = [
+            'related key' => fn (): bool => $store->initializeIfAbsent('workflow', '__control', 'owner', [$oversized => 'value']),
+            'condition key' => fn (): bool => $store->initializeIfAbsent('workflow', $oversized, 'owner'),
+            'partition' => fn (): bool => $store->initializeIfAbsent($oversized, '__control', 'owner'),
+            'written key' => fn (): bool => $store->writeIfUnchanged('existing', '__control', 'owner', ['step' => 'value', $oversized => 'value']),
+            'deleted partition' => fn (): bool => $store->deleteIfUnchanged($oversized, '__control', 'owner'),
+            'read partition' => fn (): ?string => $store->get($oversized, '__control'),
+            'read key' => fn (): ?string => $store->get('existing', $oversized),
+        ];
+
+        foreach ($operations as $label => $operation) {
+            try {
+                $operation();
+                self::fail("Expected the oversized {$label} to fail.");
+            } catch (PersistenceException $e) {
+                self::assertSame('Workflow SQL partition names and record keys must not exceed 255 bytes.', $e->getMessage(), $label);
+            }
         }
         self::assertNull($store->get('workflow', '__control'));
+        self::assertNull($store->get('existing', 'step'));
+        self::assertSame('owner', $store->get('existing', '__control'));
+        self::assertTrue($store->initializeIfAbsent(str_repeat('p', 255), str_repeat('k', 255), 'owner'));
+        self::assertSame('owner', $store->get(str_repeat('p', 255), str_repeat('k', 255)));
     }
 
-    /** @dataProvider backendProvider */
+    #[DataProvider('backendProvider')]
+    public function test_records_are_stored_as_hex_identifiers_and_base64_values(string $driver, bool $eloquent): void
+    {
+        $store = $this->backend($driver, $eloquent);
+        $store->initializeIfAbsent("order:1\0", '__control', "owner\0\xFF");
+
+        $row = $this->pdo->query("SELECT {$this->columns()} FROM {$this->table}")->fetch(PDO::FETCH_NUM);
+
+        self::assertSame([bin2hex("order:1\0"), bin2hex('__control'), base64_encode("owner\0\xFF")], $row);
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_a_corrupted_stored_value_is_reported_instead_of_returned(string $driver, bool $eloquent): void
+    {
+        $store = $this->backend($driver, $eloquent);
+        $this->pdo->exec(
+            "INSERT INTO {$this->table} ({$this->columns()}) VALUES ('"
+            . bin2hex('workflow') . "', '" . bin2hex('__control') . "', '***not base64***')",
+        );
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage("Invalid encoded Workflow record '__control' in partition 'workflow'.");
+
+        $store->get('workflow', '__control');
+    }
+
+    /** @return array<string, array{string}> */
+    public static function hostileTableProvider(): array
+    {
+        return [
+            'embedded quote' => ['workflow"store'],
+            'statement injection' => ['workflow_store"; DROP TABLE victim; --'],
+            'comment injection' => ['workflow_store" -- '],
+        ];
+    }
+
+    #[DataProvider('hostileTableProvider')]
+    public function test_the_table_name_is_quoted_as_one_identifier(string $table): void
+    {
+        $this->pdo = SqlPersistenceFactory::connect('sqlite', $this->sqliteFile);
+        $this->pdo->exec('CREATE TABLE victim (id INTEGER)');
+        $quoted = '"' . str_replace('"', '""', $table) . '"';
+        SqlPersistenceFactory::createTable($this->pdo, $quoted, false);
+
+        $store = new DatabasePersistence($this->pdo, $table);
+
+        self::assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner', ['step' => 'result']));
+        self::assertTrue($store->writeIfUnchanged('workflow', '__control', 'owner', ['step' => 'updated']));
+        self::assertSame('updated', $store->get('workflow', 'step'));
+        self::assertTrue($store->deleteIfUnchanged('workflow', '__control', 'owner'));
+        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM {$quoted}")->fetchColumn());
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM victim')->fetchColumn());
+    }
+
+    #[DataProvider('backendProvider')]
     public function test_database_error_rolls_back_the_control_and_related_records(string $driver, bool $eloquent): void
     {
         $store = $this->backend($driver, $eloquent);
@@ -152,7 +215,7 @@ class SqlPersistenceTest extends TestCase
         }
     }
 
-    /** @dataProvider backendProvider */
+    #[DataProvider('backendProvider')]
     public function test_initialization_does_not_ignore_constraint_errors(string $driver, bool $eloquent): void
     {
         $store = $this->backend($driver, $eloquent);
@@ -180,7 +243,7 @@ class SqlPersistenceTest extends TestCase
         self::assertNull($store->get('workflow', 'step'));
     }
 
-    /** @dataProvider driverProvider */
+    #[DataProvider('driverProvider')]
     public function test_database_commits_remain_inside_the_callers_transaction(string $driver): void
     {
         $store = $this->backend($driver, false);
@@ -196,7 +259,7 @@ class SqlPersistenceTest extends TestCase
         self::assertNull($store->get('workflow', 'step'));
     }
 
-    /** @dataProvider driverProvider */
+    #[DataProvider('driverProvider')]
     public function test_a_failed_operation_undoes_only_its_own_writes_in_the_callers_transaction(string $driver): void
     {
         $store = $this->backend($driver, false);
@@ -287,7 +350,7 @@ class SqlPersistenceTest extends TestCase
         return $cases;
     }
 
-    /** @dataProvider raceProvider */
+    #[DataProvider('raceProvider')]
     public function test_competing_workers_commit_only_one_transition(string $driver, bool $eloquent, string $action): void
     {
         $store = $this->backend($driver, $eloquent);

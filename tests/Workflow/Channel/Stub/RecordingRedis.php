@@ -18,9 +18,16 @@ final class RecordingRedis extends Redis
 
     public int $mode = Redis::ATOMIC;
 
+    public ?string $lastError = null;
+
     public function getMode(): int
     {
         return $this->mode;
+    }
+
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
     }
 
     public function publish(string $channel, string $message): int|false

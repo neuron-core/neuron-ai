@@ -21,6 +21,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
@@ -131,28 +132,35 @@ class WorkflowStreamingTest extends TestCase
     }
 
     /**
-     * When a step is memoized (replay), no streamed events should be yielded
-     * because the callable doesn't execute.
+     * A committed step is replayed from persistence on continuation: its node
+     * does not run again, so its streamed output is not emitted twice.
      */
-    public function test_memoized_steps_do_not_re_emit_streamed_events(): void
+    public function test_replayed_steps_do_not_re_emit_streamed_events(): void
     {
         $workflow = Workflow::make('test-workflow')->addNodes([
             new NodeOne(),
             new NodeTwo(),
-            new NodeThree(),
+            new class () extends Node {
+                public function __invoke(SecondEvent $event, WorkflowState $state): StopEvent
+                {
+                    $this->awaitEvent('continue');
+                    return new StopEvent();
+                }
+            },
         ]);
+        $isStreamed = fn (object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event';
 
-        // First run: collect events
-        $gen = $workflow->events();
-        $eventsFirstRun = [];
-        foreach ($gen as $event) {
-            $eventsFirstRun[] = $event;
-        }
-        $gen->getReturn();
+        $first = $workflow->events();
+        $firstRun = iterator_to_array($first, false);
+        $this->assertTrue($first->getReturn()->isInterrupted());
+        $this->assertCount(1, array_filter($firstRun, $isStreamed));
 
-        // The streamed event was emitted on the first run
-        $streamedFirstRun = array_filter($eventsFirstRun, fn (object $e): bool => $e instanceof SecondEvent && $e->message === 'Stream second event');
-        $this->assertCount(1, $streamedFirstRun);
+        $resumed = $workflow->events(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([]));
+        $resumedRun = iterator_to_array($resumed, false);
+
+        $this->assertSame(WorkflowStatus::Completed, $resumed->getReturn()->getStatus());
+        $this->assertTrue($resumed->getReturn()->get('node_two_executed'));
+        $this->assertCount(0, array_filter($resumedRun, $isStreamed));
     }
 
     public function test_events_streams_an_explicit_continuation(): void

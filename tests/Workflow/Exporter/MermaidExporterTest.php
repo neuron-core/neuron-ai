@@ -19,6 +19,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\Exporter\WorkflowGraph;
+use NeuronAI\Workflow\Exporter\WorkflowGraphEdge;
 use NeuronAI\Workflow\Exporter\WorkflowGraphVertex;
 use NeuronAI\Workflow\Exporter\WorkflowGraphVertexType;
 use NeuronAI\Workflow\Node;
@@ -187,6 +188,57 @@ class MermaidExporterTest extends TestCase
             $edge = preg_match('/^\s+\w+ -->(?:\|"[^"]*"\|)? \w+$/', $line) === 1;
             $this->assertTrue($vertex || $edge, "Invalid Mermaid statement: {$line}");
         }
+    }
+
+    public function test_every_vertex_type_and_edge_label_has_its_own_statement_shape(): void
+    {
+        $graph = new WorkflowGraph('start');
+        $graph->addVertex(new WorkflowGraphVertex('start', 'StartEvent', WorkflowGraphVertexType::Event));
+        $graph->addVertex(new WorkflowGraphVertex('node', 'Fork', WorkflowGraphVertexType::Node));
+        $graph->addVertex(new WorkflowGraphVertex('split', 'Batch split', WorkflowGraphVertexType::ParallelSplit));
+        $graph->addVertex(new WorkflowGraphVertex('join', 'Batch join', WorkflowGraphVertexType::ParallelJoin));
+        $graph->addEdge(new WorkflowGraphEdge('start', 'node'));
+        $graph->addEdge(new WorkflowGraphEdge('node', 'split'));
+        $graph->addEdge(new WorkflowGraphEdge('split', 'join', 'text'));
+        $graph->addEdge(new WorkflowGraphEdge('split', 'join', 'text'));
+
+        $this->assertSame(<<<'MERMAID'
+            graph TD
+                start["StartEvent"]
+                node[["Fork"]]
+                split{"Batch split"}
+                join{"Batch join"}
+                start --> node
+                node --> split
+                split -->|"text"| join
+
+            MERMAID, (new MermaidExporter())->export($graph));
+    }
+
+    public function test_quotes_and_ampersands_cannot_break_out_of_labels(): void
+    {
+        $graph = new WorkflowGraph('start');
+        $graph->addVertex(new WorkflowGraphVertex('start', 'A "quoted" & label', WorkflowGraphVertexType::Event));
+        $graph->addVertex(new WorkflowGraphVertex('node', '"]] --> evil[["', WorkflowGraphVertexType::Node));
+        $graph->addEdge(new WorkflowGraphEdge('start', 'node', '"| click evil |"&amp;'));
+
+        $output = (new MermaidExporter())->export($graph);
+
+        $this->assertStringContainsString('start["A &quot;quoted&quot; &amp; label"]', $output);
+        $this->assertStringContainsString('node[["&quot;]] --> evil[[&quot;"]]', $output);
+        $this->assertStringContainsString('start -->|"&quot;| click evil |&quot;&amp;amp;"| node', $output);
+        $this->assertSame(4, substr_count($output, "\n"));
+    }
+
+    public function test_exporting_equal_workflows_is_byte_identical(): void
+    {
+        $workflow = fn (): Workflow => Workflow::make()
+            ->addNodes([new DocumentParallelProcessing(), new TextProcessNode(), new ImageProcessNode(), new MergeNode()])
+            ->setExporter(new MermaidExporter());
+        $first = $workflow();
+
+        $this->assertSame($first->export(), $first->export());
+        $this->assertSame($first->export(), $workflow()->export());
     }
 
     protected function assertEdge(

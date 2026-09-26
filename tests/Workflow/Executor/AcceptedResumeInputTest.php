@@ -9,6 +9,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingWaitNode;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -44,10 +45,8 @@ class AcceptedResumeInputTest extends TestCase
         return $request;
     }
 
-    /**
-     * @dataProvider acceptedPayloadProvider
-     * @param array<string, mixed> $payload
-     */
+    /** @param array<string, mixed> $payload */
+    #[DataProvider('acceptedPayloadProvider')]
     public function test_duplicate_delivery_recovers_with_the_accepted_answer(array $payload): void
     {
         $this->failAfterAcceptingInput($payload);
@@ -85,7 +84,7 @@ class AcceptedResumeInputTest extends TestCase
             $this->workflow()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['answer' => 'replacement']));
             self::fail('Expected conflicting resume input to be rejected.');
         } catch (WorkflowException $e) {
-            self::assertStringContainsString('already has an accepted input', $e->getMessage());
+            self::assertSame('Interrupt 1 already has an accepted input; its answer cannot change.', $e->getMessage());
         }
 
         self::assertSame($control, $this->persistence->get('accepted-input', '__control'));

@@ -21,6 +21,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use InvalidArgumentException;
@@ -34,7 +35,6 @@ use function array_merge;
 use function count;
 use function hash_hmac;
 use function json_decode;
-use function json_encode;
 use function md5;
 use function parse_str;
 use function range;
@@ -42,6 +42,7 @@ use function str_repeat;
 use function str_split;
 use function strlen;
 use function array_unique;
+use function array_values;
 use function base64_decode;
 use function base64_encode;
 use function implode;
@@ -209,16 +210,116 @@ class PusherChannelTest extends TestCase
         $this->assertSame(1, $payload->calls);
     }
 
-    public function test_invalid_transport_configuration_is_rejected(): void
+    /** @return array<string, array{array<string, int|string>, string}> */
+    public static function invalidConfigurationProvider(): array
     {
-        foreach ([['batchSize' => 0], ['batchSize' => 51], ['maxRequestBytes' => 11], ['channel' => 'invalid/name'], ['channel' => str_repeat('a', 165)]] as $options) {
-            try {
-                new PusherChannel(...[...['client' => new Pusher('key', 'secret', 'app'), 'channel' => 'private-test'], ...$options]);
-                $this->fail('Expected invalid Pusher configuration: ' . json_encode($options));
-            } catch (InvalidArgumentException $e) {
-                $this->assertNotSame('', $e->getMessage());
-            }
+        $channel = 'Invalid Pusher channel name.';
+        $batch = 'Pusher batch size must be between 1 and 50.';
+        $bytes = 'Pusher request byte limit must leave room for events.';
+
+        return [
+            'zero batch size' => [['batchSize' => 0], $batch],
+            'batch size above the API limit' => [['batchSize' => 51], $batch],
+            'request limit equal to the empty batch' => [['maxRequestBytes' => 12], $bytes],
+            'negative request limit' => [['maxRequestBytes' => -1], $bytes],
+            'empty channel' => [['channel' => ''], $channel],
+            'channel above 164 characters' => [['channel' => str_repeat('a', 165)], $channel],
+            'slash' => [['channel' => 'invalid/name'], $channel],
+            'space' => [['channel' => 'chat 42'], $channel],
+            'crlf' => [['channel' => "chat
+X-Injected: 1"], $channel],
+            'trailing newline' => [['channel' => "chat
+"], $channel],
+            'quote' => [['channel' => 'chat"42'], $channel],
+            'non ascii' => [['channel' => 'chät'], $channel],
+            'null byte' => [['channel' => "chat "], $channel],
+        ];
+    }
+
+    /** @param array<string, int|string> $options */
+    #[DataProvider('invalidConfigurationProvider')]
+    public function test_invalid_transport_configuration_is_rejected(array $options, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        new PusherChannel(...[...['client' => new Pusher('key', 'secret', 'app'), 'channel' => 'private-test'], ...$options]);
+    }
+
+    /** @return array<string, array{array<string, int|string>}> */
+    public static function boundaryConfigurationProvider(): array
+    {
+        return [
+            'single event batches' => [['batchSize' => 1]],
+            'fifty event batches' => [['batchSize' => 50]],
+            'channel of 164 characters' => [['channel' => str_repeat('a', 164)]],
+            'every allowed channel character' => [['channel' => 'presence-Room_1-=@,.;']],
+        ];
+    }
+
+    /** @param array<string, int|string> $options */
+    #[DataProvider('boundaryConfigurationProvider')]
+    public function test_boundary_transport_configurations_deliver(array $options): void
+    {
+        $this->channel();
+        $channel = new PusherChannel(...[...['client' => $this->pusher, 'channel' => 'chat.42'], ...$options]);
+
+        $channel->send(new ProtocolEvent('text-delta'));
+        $channel->completed($this->state(), 'wf-1');
+
+        $items = array_merge(...$this->batches());
+        $this->assertSame(['text-delta', 'stream.completed'], $this->names());
+        $this->assertSame([$options['channel'] ?? 'chat.42'], array_values(array_unique(array_column($items, 'channel'))));
+    }
+
+    public function test_the_smallest_request_limit_is_accepted_but_cannot_carry_an_event(): void
+    {
+        $this->channel();
+        $channel = new PusherChannel($this->pusher, 'chat.42', maxRequestBytes: 13);
+
+        $this->expectException(LengthException::class);
+
+        try {
+            $channel->send(new ProtocolEvent('text-delta'));
+        } finally {
+            $this->assertSame([], $this->sent);
         }
+    }
+
+    /** @return array<string, array{string}> */
+    public static function invalidEventNameProvider(): array
+    {
+        return [
+            'empty' => [''],
+            'reserved prefix' => ['pusher:subscribe'],
+            'reserved internal prefix' => ['pusher:'],
+            'longer than 200 bytes' => [str_repeat('e', 201)],
+            'multibyte longer than 200 bytes' => [str_repeat('è', 101)],
+        ];
+    }
+
+    #[DataProvider('invalidEventNameProvider')]
+    public function test_an_invalid_pusher_event_name_is_rejected_before_sending(string $type): void
+    {
+        $channel = $this->channel(batchSize: 1);
+
+        try {
+            $channel->send(new ProtocolEvent($type, ['delta' => 'a']));
+            $this->fail('Expected an invalid event name.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertSame('Pusher event names must be 1–200 bytes and cannot start with pusher:.', $e->getMessage());
+        }
+        $this->assertSame([], $this->sent);
+    }
+
+    public function test_an_event_name_of_200_bytes_is_accepted(): void
+    {
+        $channel = $this->channel(batchSize: 1);
+        $type = 'data-' . str_repeat('e', 195);
+
+        $channel->send(new ProtocolEvent($type));
+
+        $this->assertSame([$type], $this->names());
     }
 
     public function test_streams_an_agent_run_with_protocol_payloads_preserved(): void
@@ -307,7 +408,7 @@ class PusherChannelTest extends TestCase
 
     public function test_encrypted_fragments_respect_event_and_request_limits_and_reassemble(): void
     {
-        foreach ([1_500, 10_000, 100_000] as $budget) {
+        foreach ([1_500, 5_000, 10_000, 100_000] as $budget) {
             $channel = $this->channel(maxRequestBytes: $budget, encrypted: true);
             $data = ['output' => str_repeat('日本語 / "è" 🌍 ', 600), 'values' => [false, 0, null]];
             $channel->send(new ProtocolEvent('tool-output', $data));
