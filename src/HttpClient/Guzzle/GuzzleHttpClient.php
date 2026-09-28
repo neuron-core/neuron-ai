@@ -62,14 +62,7 @@ class GuzzleHttpClient implements HttpClientInterface
         $client = $this->createClient();
 
         try {
-            $options = [
-                ...$this->options,
-                RequestOptions::HEADERS => $this->mergeRequestHeaders($this->customHeaders, $request->headers),
-                RequestOptions::TIMEOUT => $request->timeout ?? $this->timeout,
-                RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
-            ];
-
-            $response = $this->runRequest($request, $options, $client);
+            $response = $this->runRequest($request, $this->requestOptions($request), $client);
 
             return new HttpResponse(
                 statusCode: $response->getStatusCode(),
@@ -86,12 +79,7 @@ class GuzzleHttpClient implements HttpClientInterface
         $client = $this->createClient();
 
         try {
-            $options = [
-                RequestOptions::HEADERS => $this->mergeRequestHeaders($this->customHeaders, $request->headers),
-                RequestOptions::TIMEOUT => $request->timeout ?? $this->timeout,
-                RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
-                RequestOptions::STREAM => true, // Enable streaming
-            ];
+            $options = [...$this->requestOptions($request), RequestOptions::STREAM => true];
 
             $response = $this->runRequest($request, $options, $client);
             $contentLength = $response->hasHeader('Content-Length') ? (int) $response->getHeaderLine('Content-Length') : null;
@@ -197,6 +185,22 @@ class GuzzleHttpClient implements HttpClientInterface
         }
 
         return $multipartData;
+    }
+
+    /**
+     * One list for request() and stream(), so the client's options reach both;
+     * the request's headers and timeout take precedence over them.
+     *
+     * @return array<string, mixed>
+     */
+    protected function requestOptions(HttpRequest $request): array
+    {
+        return [
+            ...$this->options,
+            RequestOptions::HEADERS => $this->mergeRequestHeaders($this->customHeaders, $request->headers),
+            RequestOptions::TIMEOUT => $request->timeout ?? $this->timeout,
+            RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
+        ];
     }
 
     /**

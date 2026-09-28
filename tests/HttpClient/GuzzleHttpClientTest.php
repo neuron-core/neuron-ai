@@ -181,13 +181,27 @@ class GuzzleHttpClientTest extends TestCase
         $this->assertSame(1.5, $this->sentRequests[1]['options']['timeout']);
     }
 
-    public function test_client_options_reach_the_handler(): void
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function transferMethods(): iterable
     {
-        $client = new GuzzleHttpClient(handler: $this->recordingStack(new Response(200)), options: ['verify' => '/etc/ssl/custom-ca.pem']);
+        yield 'request' => ['request'];
+        yield 'stream' => ['stream'];
+    }
 
-        $client->request(HttpRequest::get('https://example.com/api'));
+    #[DataProvider('transferMethods')]
+    public function test_client_options_reach_the_handler(string $method): void
+    {
+        $client = new GuzzleHttpClient(
+            handler: $this->recordingStack(new Response(200)),
+            options: ['verify' => '/etc/ssl/custom-ca.pem', 'proxy' => 'http://proxy.internal:3128'],
+        );
+
+        $client->{$method}(HttpRequest::get('https://example.com/api'));
 
         $this->assertSame('/etc/ssl/custom-ca.pem', $this->sentRequests[0]['options']['verify']);
+        $this->assertSame('http://proxy.internal:3128', $this->sentRequests[0]['options']['proxy'] ?? null);
     }
 
     public function test_stream_reads_the_body_line_by_line(): void

@@ -90,9 +90,10 @@ class FileVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
-        $this->appendToFile(
-            implode('', array_map($this->encodeRow(...), $documents))
-        );
+        // Encoded outside the appendToFile() arguments: on PHP 8.1 a first-class callable that throws
+        // while nested in a pending method call's arguments double-frees the documents (segfault)
+        $rows = implode('', array_map($this->encodeRow(...), $documents));
+        $this->appendToFile($rows);
         return $this;
     }
 

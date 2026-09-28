@@ -8,6 +8,7 @@ use GuzzleHttp\Psr7\Utils;
 use JsonException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\Guzzle\GuzzleStream;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\SSEParser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -16,7 +17,7 @@ class SSEParserTest extends TestCase
 {
     protected function stream(string $body): GuzzleStream
     {
-        return new GuzzleStream(Utils::streamFor($body));
+        return new GuzzleStream(Utils::streamFor($body), HttpRequest::get('https://example.com/sse'));
     }
 
     /**

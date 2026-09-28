@@ -164,11 +164,15 @@ class HttpClientSecurityTest extends TestCase
      * @param Closure(): HttpClientInterface $makeClient
      */
     #[DataProvider('clients')]
-    public function test_a_redirect_loop_ends_in_an_exception(Closure $makeClient): void
+    public function test_a_redirect_loop_ends_in_a_network_error(Closure $makeClient): void
     {
-        $this->expectException(HttpException::class);
-
-        $makeClient()->request(HttpRequest::get(static::$baseUri . '/redirect-loop'));
+        try {
+            $makeClient()->request(HttpRequest::get(static::$baseUri . '/redirect-loop'));
+            $this->fail('A redirect loop must end in an exception');
+        } catch (HttpException $exception) {
+            // The last redirect is not an error status to report
+            $this->assertNull($exception->response);
+        }
     }
 
     /**

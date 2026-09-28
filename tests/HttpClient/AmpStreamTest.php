@@ -5,7 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\HttpClient;
 
 use Amp\ByteStream\ReadableIterableStream;
+use Amp\ByteStream\StreamException;
+use Closure;
+use Generator;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Amp\AmpStream;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\HttpClient\StreamInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class AmpStreamTest extends TestCase
@@ -71,8 +78,44 @@ class AmpStreamTest extends TestCase
         $this->assertSame('', $stream->readLine());
     }
 
+    /**
+     * @return iterable<string, array{Closure(StreamInterface): string}>
+     */
+    public static function readers(): iterable
+    {
+        yield 'read' => [static fn (StreamInterface $stream): string => $stream->read(8192)];
+        yield 'readLine' => [static fn (StreamInterface $stream): string => $stream->readLine()];
+    }
+
+    /**
+     * @param Closure(StreamInterface): string $read
+     */
+    #[DataProvider('readers')]
+    public function test_a_connection_dropped_mid_body_throws_a_network_error(Closure $read): void
+    {
+        $chunks = (static function (): Generator {
+            yield "data: chunk0\n";
+            throw new StreamException('HTTP response did not complete: Socket disconnected prior to response completion');
+        })();
+        $stream = new AmpStream(new ReadableIterableStream($chunks), HttpRequest::get('https://example.com/sse'));
+
+        try {
+            while (!$stream->eof()) {
+                $read($stream);
+            }
+            $this->fail('A dropped connection must not pass for the end of the body');
+        } catch (HttpException $exception) {
+            $this->assertSame(
+                'Network error during GET https://example.com/sse: HTTP response did not complete: Socket disconnected prior to response completion',
+                $exception->getMessage(),
+            );
+            $this->assertNull($exception->response);
+            $this->assertInstanceOf(StreamException::class, $exception->getPrevious());
+        }
+    }
+
     protected function stream(string ...$chunks): AmpStream
     {
-        return new AmpStream(new ReadableIterableStream($chunks));
+        return new AmpStream(new ReadableIterableStream($chunks), HttpRequest::get('https://example.com/sse'));
     }
 }
