@@ -640,6 +640,36 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
+    public function test_quoted_values_in_a_mapped_object_keep_their_meaning(): void
+    {
+        $ticket = (new ObjectProperty('ticket', class: Ticket::class))->cast(['urgent' => 'false', 'score' => '1.5', 'estimate' => '3']);
+
+        $this->assertInstanceOf(Ticket::class, $ticket);
+        $this->assertFalse($ticket->urgent);
+        $this->assertSame(1.5, $ticket->score);
+        $this->assertSame(3, $ticket->estimate);
+    }
+
+    public static function mappedObjectValuesOfTheWrongType(): array
+    {
+        return [
+            'a word for a number' => [['score' => 'high'], 'Property "score" must be of type number, string given'],
+            'a word for a boolean' => [['urgent' => 'maybe'], 'Property "urgent" must be of type boolean, string given'],
+            'a string for a nested object' => [['location' => 'Rome'], 'Property "location" must be of type object, string given'],
+            'a string item for an array of objects' => [['watchers' => ['ops@example.com']], 'Property "watchers" element 0 must be of type object, string given'],
+        ];
+    }
+
+    #[DataProvider('mappedObjectValuesOfTheWrongType')]
+    public function test_a_mapped_object_value_of_the_wrong_type_is_tool_feedback(array $ticket, string $reason): void
+    {
+        $tool = $this->ticketTool()->setInputs(['ticket' => $ticket]);
+
+        $tool->execute();
+
+        $this->assertToolError("Parameter \"ticket\" is invalid: {$reason}.", $tool->getResult());
+    }
+
     public function test_null_for_a_nullable_mapped_object_binds_null(): void
     {
         $tool = $this->ticketTool(nullable: true)->setInputs(['ticket' => null]);

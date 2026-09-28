@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput\Deserializer;
 
 use BackedEnum;
+use NeuronAI\ScalarCaster;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use DateTime;
 use DateTimeImmutable;
 use Exception;
 use ReflectionClass;
+use ReflectionEnum;
 use ReflectionException;
 use ReflectionNamedType;
 use ReflectionProperty;
@@ -19,11 +21,11 @@ use ReflectionUnionType;
 
 use function array_key_exists;
 use function array_keys;
-use function array_map;
 use function basename;
 use function class_exists;
 use function count;
 use function enum_exists;
+use function get_debug_type;
 use function gettype;
 use function implode;
 use function is_array;
@@ -31,6 +33,7 @@ use function is_numeric;
 use function is_string;
 use function is_subclass_of;
 use function json_decode;
+use function json_encode;
 use function json_last_error;
 use function json_last_error_msg;
 use function lcfirst;
@@ -61,6 +64,10 @@ class Deserializer
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new DeserializerException('Invalid JSON: '.json_last_error_msg());
+        }
+
+        if (!is_array($data)) {
+            throw $this->typeMismatch('The JSON', 'object', $data);
         }
 
         return $this->deserializeObject($data, $className);
@@ -177,28 +184,43 @@ class Deserializer
         }
 
         return match ($typeName) {
-            'string' => (string) $value,
-            'int' => (int) $value,
-            'float' => (float) $value,
-            'bool' => (bool) $value,
+            'string' => $this->castScalar($value, 'string', $property),
+            'int' => $this->castScalar($value, 'integer', $property),
+            'float' => $this->castScalar($value, 'number', $property),
+            'bool' => $this->castScalar($value, 'boolean', $property),
             'array' => $this->handleArray($value, $property),
             'DateTime' => $this->createDateTime($value),
             'DateTimeImmutable' => $this->createDateTimeImmutable($value),
-            default => $this->handleSingleObject($value, $typeName)
+            default => $this->handleSingleObject($value, $typeName, $property)
         };
     }
 
     /**
+     * @param 'integer'|'number'|'string'|'boolean' $type
+     * @throws DeserializerException
+     */
+    protected function castScalar(mixed $value, string $type, ReflectionProperty $property): int|float|string|bool
+    {
+        return ScalarCaster::cast($value, $type)
+            ?? throw $this->typeMismatch("Property \"{$property->getName()}\"", $type, $value);
+    }
+
+    /**
      * @throws DeserializerException|ReflectionException
      */
-    protected function handleSingleObject(mixed $value, string $typeName): mixed
+    protected function handleSingleObject(mixed $value, string $typeName, ReflectionProperty $property): mixed
     {
-        if (is_array($value) && class_exists($typeName)) {
-            return $this->deserializeObject($value, $typeName);
-        }
-
+        // class_exists() is true for an enum too
         if (enum_exists($typeName)) {
             return $this->handleEnum($typeName, $value);
+        }
+
+        if (class_exists($typeName)) {
+            if (!is_array($value)) {
+                throw $this->typeMismatch("Property \"{$property->getName()}\"", 'object', $value);
+            }
+
+            return $this->deserializeObject($value, $typeName);
         }
 
         return $value;
@@ -207,24 +229,48 @@ class Deserializer
     /**
      * @throws DeserializerException|ReflectionException
      */
-    protected function handleArray(mixed $value, ReflectionProperty $property): mixed
+    protected function handleArray(mixed $value, ReflectionProperty $property): array
     {
-        $attribute = SchemaProperty::resolve($property);
+        if (!is_array($value)) {
+            throw $this->typeMismatch("Property \"{$property->getName()}\"", 'array', $value);
+        }
 
-        if ($attribute instanceof SchemaProperty) {
-            if ($attribute->anyOf !== null && $attribute->anyOf !== []) {
-                if (count($attribute->anyOf) === 1) {
-                    $elementType = $attribute->anyOf[0];
-                    if (class_exists($elementType)) {
-                        return array_map(fn (array $item): object => $this->deserializeObject($item, $elementType), $value);
-                    }
-                } else {
-                    return array_map(fn (array $item): object => $this->deserializeObjectWithDiscriminator($item, $attribute->anyOf), $value);
-                }
-            }
+        $types = SchemaProperty::resolve($property)->anyOf ?? [];
+
+        if ($types === [] || (count($types) === 1 && !class_exists($types[0]))) {
+            return $value;
+        }
+
+        foreach ($value as $index => $item) {
+            $value[$index] = $this->deserializeItem($item, $types, "Property \"{$property->getName()}\" element {$index}");
         }
 
         return $value;
+    }
+
+    /**
+     * @param string[] $types
+     * @throws DeserializerException|ReflectionException
+     */
+    protected function deserializeItem(mixed $item, array $types, string $subject): object
+    {
+        // class_exists() is true for an enum too
+        if (count($types) === 1 && enum_exists($types[0])) {
+            return $this->handleEnum($types[0], $item);
+        }
+
+        if (!is_array($item)) {
+            throw $this->typeMismatch($subject, 'object', $item);
+        }
+
+        return count($types) === 1
+            ? $this->deserializeObject($item, $types[0])
+            : $this->deserializeObjectWithDiscriminator($item, $types);
+    }
+
+    protected function typeMismatch(string $subject, string $type, mixed $value): DeserializerException
+    {
+        return new DeserializerException("{$subject} must be of type {$type}, " . get_debug_type($value) . ' given');
     }
 
     /**
@@ -307,16 +353,24 @@ class Deserializer
         throw new DeserializerException("Cannot create DateTimeImmutable from value type: ".gettype($value));
     }
 
+    /**
+     * @throws DeserializerException
+     */
     protected function handleEnum(BackedEnum|string $typeName, mixed $value): BackedEnum
     {
         if (!is_subclass_of($typeName, BackedEnum::class)) {
             throw new DeserializerException("Cannot create BackedEnum from: {$typeName}");
         }
 
-        $enum = $typeName::tryFrom($value);
+        // Read the value as the backing type first, so "1" finds the case backed by 1
+        $backingType = (string) (new ReflectionEnum($typeName))->getBackingType() === 'int' ? 'integer' : 'string';
+        $backingValue = ScalarCaster::cast($value, $backingType);
+
+        $enum = $backingValue === null ? null : $typeName::tryFrom($backingValue);
 
         if (!$enum instanceof BackedEnum) {
-            throw new DeserializerException("Invalid enum value '{$value}' for {$typeName}");
+            $spelling = is_string($value) ? $value : json_encode($value);
+            throw new DeserializerException("Invalid enum value '{$spelling}' for {$typeName}");
         }
 
         return $enum;

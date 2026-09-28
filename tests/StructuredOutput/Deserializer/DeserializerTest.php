@@ -8,6 +8,7 @@ use DateTime;
 use DateTimeImmutable;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
+use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\Article;
@@ -186,6 +187,44 @@ class DeserializerTest extends TestCase
         $this->assertSame(IntEnum::ONE, $obj->number);
     }
 
+    public function test_a_numeric_string_finds_the_int_backed_case(): void
+    {
+        $class = new class () {
+            public IntEnum $number;
+        };
+
+        $this->assertSame(IntEnum::ONE, Deserializer::make()->fromJson('{"number": "1"}', $class::class)->number);
+    }
+
+    public function test_an_array_of_enum_values_is_deserialized(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [StringEnum::class])]
+            public array $numbers;
+        };
+
+        // The schema asks for the backing values, so this answer follows it exactly
+        $items = JsonSchema::make()->generate($class::class)['properties']['numbers']['items'];
+        $this->assertSame(['type' => 'string', 'enum' => ['one', 'two', 'three']], $items);
+
+        $obj = Deserializer::make()->fromJson('{"numbers": ["one", "three"]}', $class::class);
+
+        $this->assertSame([StringEnum::ONE, StringEnum::THREE], $obj->numbers);
+    }
+
+    public function test_an_invalid_enum_value_in_an_array_is_rejected(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [StringEnum::class])]
+            public array $numbers;
+        };
+
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage("Invalid enum value 'four' for " . StringEnum::class);
+
+        Deserializer::make()->fromJson('{"numbers": ["one", "four"]}', $class::class);
+    }
+
     public function test_deserialize_invalid_int_enum_value(): void
     {
         $class = new class () {
@@ -355,6 +394,100 @@ class DeserializerTest extends TestCase
         $this->assertTrue($obj->enabled);
         $this->assertFalse($obj->archived);
         $this->assertFalse($obj->verified);
+    }
+
+    public function test_quoted_booleans_keep_their_meaning(): void
+    {
+        $class = new class () {
+            public bool $approved;
+            public bool $archived;
+        };
+
+        $obj = Deserializer::make()->fromJson('{"approved": "false", "archived": "true"}', $class::class);
+
+        $this->assertFalse($obj->approved);
+        $this->assertTrue($obj->archived);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function valuesThatWouldChange(): array
+    {
+        return [
+            'a word for an integer' => ['{"age": "unknown"}', 'Property "age" must be of type integer, string given'],
+            'a fraction for an integer' => ['{"age": 2.7}', 'Property "age" must be of type integer, float given'],
+            'a list for an integer' => ['{"age": [30]}', 'Property "age" must be of type integer, array given'],
+            'a word for a number' => ['{"ratio": "n/a"}', 'Property "ratio" must be of type number, string given'],
+            'a list for a string' => ['{"name": ["John"]}', 'Property "name" must be of type string, array given'],
+            'an object for a string' => ['{"name": {"first": "John"}}', 'Property "name" must be of type string, array given'],
+            'a boolean for a string' => ['{"name": true}', 'Property "name" must be of type string, bool given'],
+            'a word for a boolean' => ['{"approved": "maybe"}', 'Property "approved" must be of type boolean, string given'],
+        ];
+    }
+
+    #[DataProvider('valuesThatWouldChange')]
+    public function test_a_value_that_would_change_is_rejected(string $json, string $message): void
+    {
+        $class = new class () {
+            public int $age;
+            public float $ratio;
+            public string $name;
+            public bool $approved;
+        };
+
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage($message);
+
+        Deserializer::make()->fromJson($json, $class::class);
+    }
+
+    public function test_a_union_tries_its_next_type_when_a_value_would_change(): void
+    {
+        $class = new class () {
+            public float|int $amount;
+        };
+
+        $this->assertSame(2.5, Deserializer::make()->fromJson('{"amount": "2.5"}', $class::class)->amount);
+
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage('Cannot cast value to any type in union for property amount');
+
+        Deserializer::make()->fromJson('{"amount": "a lot"}', $class::class);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function valuesOfTheWrongShape(): array
+    {
+        return [
+            'a string instead of an object' => ['"John"', 'The JSON must be of type object, string given'],
+            'null instead of an object' => ['null', 'The JSON must be of type object, null given'],
+            'a string for a nested object' => ['{"address": "Rome"}', 'Property "address" must be of type object, string given'],
+            'a string for an array' => ['{"tags": "agent"}', 'Property "tags" must be of type array, string given'],
+            'a string item for an array of objects' => ['{"tags": [{"name": "agent"}, "ops"]}', 'Property "tags" element 1 must be of type object, string given'],
+            'a string item for an array of several object types' => ['{"modes": ["ftp"]}', 'Property "modes" element 0 must be of type object, string given'],
+            'an object for an enum' => ['{"level": {"value": 1}}', "Invalid enum value '{\"value\":1}' for " . IntEnum::class],
+        ];
+    }
+
+    #[DataProvider('valuesOfTheWrongShape')]
+    public function test_a_value_of_the_wrong_shape_is_rejected(string $json, string $message): void
+    {
+        $class = new class () {
+            public Address $address;
+            #[SchemaProperty(anyOf: [Tag::class])]
+            public array $tags;
+            #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
+            public array $modes;
+            public IntEnum $level;
+        };
+
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage($message);
+
+        Deserializer::make()->fromJson($json, $class::class);
     }
 
     public function test_unicode_strings_are_preserved(): void
