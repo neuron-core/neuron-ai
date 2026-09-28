@@ -19,6 +19,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\ColorWithDefaults;
 use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\EmailMode;
 use NeuronAI\Tests\StructuredOutput\Stub\FtpMode;
+use NeuronAI\Tests\StructuredOutput\Stub\Headline;
 use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
@@ -35,6 +36,8 @@ use function addslashes;
 use function get_object_vars;
 use function json_encode;
 use function str_repeat;
+use function str_replace;
+use function strtolower;
 
 use const DATE_ATOM;
 
@@ -97,6 +100,42 @@ class DeserializerTest extends TestCase
         $this->assertSame('Hello World', $obj->title);
         $this->assertSame(1, $obj->version);
         $this->assertSame('hello-world', $obj->slug);
+    }
+
+    public function test_a_readonly_promoted_property_is_written_once_by_the_constructor(): void
+    {
+        $this->assertSame('Hello', Deserializer::make()->fromJson('{"title": "Hello"}', Headline::class)->title);
+        $this->assertSame('untitled', Deserializer::make()->fromJson('{}', Headline::class)->title);
+    }
+
+    public function test_a_readonly_property_keeps_the_value_its_constructor_assigns(): void
+    {
+        $class = new class () {
+            public readonly string $slug;
+
+            public function __construct(public string $title = '')
+            {
+                $this->slug = strtolower(str_replace(' ', '-', $this->title));
+            }
+        };
+
+        $obj = Deserializer::make()->fromJson('{"title": "Hello World", "slug": "forged"}', $class::class);
+
+        $this->assertSame('hello-world', $obj->slug);
+    }
+
+    public function test_a_property_promoted_by_a_parent_constructor_is_written_like_any_other(): void
+    {
+        $class = new class () extends Headline {
+            public function __construct(public int $version = 1)
+            {
+            }
+        };
+
+        $obj = Deserializer::make()->fromJson('{"title": "Hello", "version": 2}', $class::class);
+
+        $this->assertSame('Hello', $obj->title);
+        $this->assertSame(2, $obj->version);
     }
 
     public function test_constructor_with_required_parameters_is_not_invoked(): void

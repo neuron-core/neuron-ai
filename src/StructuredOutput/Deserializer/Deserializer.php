@@ -89,7 +89,12 @@ class Deserializer
 
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
 
+        // Run a public zero-required-arg constructor so its initialization logic still executes
+        $constructor = $reflection->getConstructor();
+        $constructor = $constructor?->isPublic() && $constructor->getNumberOfRequiredParameters() === 0 ? $constructor : null;
+
         $promotedArgs = [];
+        $readonlyValues = [];
 
         foreach ($properties as $property) {
             // Model output fills only what the schema describes, never non-public or static state
@@ -117,17 +122,25 @@ class Deserializer
                 $value = $this->castValue($value, $type, $property);
             }
 
-            $property->setValue($instance, $value);
-
-            if ($property->isPromoted()) {
+            // One write per property: the constructor assigns what it promotes, and a readonly
+            // property waits for it, since the constructor may assign that one too
+            if ($property->isPromoted() && $property->class === $constructor?->class) {
                 $promotedArgs[ $propertyName ] = $value;
+            } elseif ($constructor !== null && $property->isReadOnly()) {
+                $readonlyValues[] = [$property, $value];
+            } else {
+                $property->setValue($instance, $value);
             }
         }
 
-        // Run a public zero-required-arg constructor so its initialization logic still executes
-        $constructor = $reflection->getConstructor();
-        if ($constructor && $constructor->isPublic() && $constructor->getNumberOfRequiredParameters() === 0) {
+        if ($constructor !== null) {
             $constructor->invokeArgs($instance, $promotedArgs);
+
+            foreach ($readonlyValues as [$property, $value]) {
+                if (!$property->isInitialized($instance)) {
+                    $property->setValue($instance, $value);
+                }
+            }
         }
 
         $this->applyDefaults($instance, $properties);
