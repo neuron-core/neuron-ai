@@ -183,6 +183,10 @@ class RulesTest extends TestCase
             'ArrayOf null allowed as empty' => [new ArrayOf('string', allowEmpty: true), null],
             'ArrayOf valid objects of listed class' => [new ArrayOf(TagProperties::class), [self::validTagProperties()]],
             'ArrayOf objects of any listed class' => [new ArrayOf([Address::class, TagProperties::class]), [self::validTagProperties(), self::validAddress()]],
+            'ArrayOf items of any listed scalar type' => [new ArrayOf(['string', 'integer']), ['a', 1]],
+            'ArrayOf items of the second listed type only' => [new ArrayOf(['string', 'integer']), [1, 2]],
+            'ArrayOf nulls as a listed type' => [new ArrayOf(['integer', 'null']), [1, null]],
+            'ArrayOf a class listed before a scalar type' => [new ArrayOf([TagProperties::class, 'string']), [self::validTagProperties(), 'a']],
         ];
     }
 
@@ -271,6 +275,7 @@ class RulesTest extends TestCase
             'ArrayOf empty not allowed' => [new ArrayOf('string'), [], ['field must be an array of string']],
             'ArrayOf null not allowed' => [new ArrayOf('string'), null, ['field must be an array of string']],
             'ArrayOf wrong scalar item' => [new ArrayOf('string'), ['a', 1], ['field must be an array of string']],
+            'ArrayOf item matching none of the listed types' => [new ArrayOf(['string', 'integer']), ['a', 1.5], ['field must be an array of string, integer']],
             'ArrayOf integer rejects numeric string' => [new ArrayOf('integer'), ['1'], ['field must be an array of integer']],
             'ArrayOf digit rejects mixed' => [new ArrayOf('digit'), ['123', '12a'], ['field must be an array of digit']],
             'ArrayOf unknown type name' => [new ArrayOf('uuid'), ['x'], ['field must be an array of uuid']],

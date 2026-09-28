@@ -2142,11 +2142,13 @@ Suggested fix: change the signature to `SchemaProperty::resolve(ReflectionClass 
 
 ### <a id="structuredoutput-13"></a>STRUCTUREDOUTPUT-13 · ArrayOf with several scalar types only checks the first type
 
-**medium** · bug · [`src/StructuredOutput/Validation/Rules/ArrayOf.php:89`](../src/StructuredOutput/Validation/Rules/ArrayOf.php#L89) · repro [`ArrayOfMultipleScalarTypesTest`](repro/StructuredOutput/ArrayOfMultipleScalarTypesTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/Validation/Rules/ArrayOf.php:89`](../src/StructuredOutput/Validation/Rules/ArrayOf.php#L89) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 In `ArrayOf::validate()`, the inner loop over `$this->types` sets `$error = true` and breaks as soon as the first type fails, so later types are never tried. `#[ArrayOf(['string','integer'])]` therefore rejects `['a', 1]`, and `['integer','null']` rejects nulls. Object items work only because the object check uses `in_array` over all types. Valid model output is rejected, the agent spends retries on corrections that cannot succeed, and structured output fails once `maxRetries` is exhausted.
 
 Suggested fix: in `src/StructuredOutput/Validation/Rules/ArrayOf.php`, continue to the next item as soon as any type matches and set the error only after the inner loop finds no match. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested. The error is set after the loop over the types, so an item passes when it matches any listed type, and validation stops at the first item that matches none. The order of the types no longer matters either: a class listed before a scalar type rejected every scalar item before. The `{types}` placeholder in the same method's non-array branch is left to [STRUCTUREDOUTPUT-25](#structuredoutput-25).
 
 ### <a id="structuredoutput-14"></a>STRUCTUREDOUTPUT-14 · Count and Json rules throw instead of reporting violations, aborting the agent run
 
