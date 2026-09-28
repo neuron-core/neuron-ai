@@ -2250,11 +2250,13 @@ Suggested fix: change the message in `src/StructuredOutput/Validation/Rules/Coun
 
 ### <a id="structuredoutput-25"></a>STRUCTUREDOUTPUT-25 · Enum and ArrayOf violation messages contain unresolved {values} and {types} placeholders
 
-**low** · bug · [`src/StructuredOutput/Validation/Rules/Enum.php:51`](../src/StructuredOutput/Validation/Rules/Enum.php#L51) · repro [`UnresolvedPlaceholdersTest`](repro/StructuredOutput/UnresolvedPlaceholdersTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/Validation/Rules/Enum.php:51`](../src/StructuredOutput/Validation/Rules/Enum.php#L51) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 `Enum::validate` passes the allowed values under the key `choices` for null values while the template uses `{values}`, and `ArrayOf`'s non-array branch calls `buildMessage` without the `types` variable. The resulting messages, such as `number must be one of the following allowed values: {values}.` and `tags must be an array of {types}`, reach the model on retry and appear in `AgentException` and `Validated` events. Rejection still works, but the model does not learn the allowed values or types, which makes self-correction less effective and can use up retries.
 
 Suggested fix: in `Enum.php` pass the key `values` instead of `choices`, and in `ArrayOf.php` pass `['types' => implode(', ', $this->types)]` to `buildMessage`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested. A scan of every rule template against the variables passed found only these two mismatches. Both branches were already tested, but by the provider that checks only the rejection, so their rows moved to the provider that checks the message.
 
 ### <a id="structuredoutput-26"></a>STRUCTUREDOUTPUT-26 · GreaterThanEqual(0) lets null or missing values pass validation
 

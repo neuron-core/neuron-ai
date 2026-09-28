@@ -68,7 +68,7 @@ class ArrayOf extends AbstractValidationRule
         }
 
         if (!is_array($value)) {
-            $violations[] = $this->buildMessage($name, $this->message);
+            $violations[] = $this->buildMessage($name, $this->message, ['types' => implode(', ', $this->types)]);
             return;
         }
 

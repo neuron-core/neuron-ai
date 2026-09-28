@@ -48,7 +48,7 @@ class Enum extends AbstractValidationRule
     {
         if ($value === null) {
             if (!$this->nullable) {
-                $violations[] = $this->buildMessage($name, $this->message, ['choices' => implode(", ", $this->values)]);
+                $violations[] = $this->buildMessage($name, $this->message, ['values' => implode(", ", $this->values)]);
             }
             return;
         }
