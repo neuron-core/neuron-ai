@@ -745,8 +745,8 @@ public function __invoke(
 | Toolkit | Purpose |
 |---------|---------|
 | `CalculatorToolkit` | Math: expression evaluation, exact integer arithmetic, statistics |
-| `MySQLToolkit` | MySQL database queries |
-| `PGSQLToolkit` | PostgreSQL database queries |
+| `MySQLToolkit` | MySQL schema, read-only queries and writes |
+| `PGSQLToolkit` | PostgreSQL schema, read-only queries and writes |
 | `FileSystemToolkit` | File operations (read, write, edit, delete, glob, bash); `make(scope: '/path')` confines the file tools to a directory and anchors bash there |
 | `TavilyToolkit` | Web search and crawling |
 | `JinaToolkit` | URL reading and web search |
@@ -755,6 +755,8 @@ public function __invoke(
 | `SupadataYouTubeToolkit` | YouTube video metadata and transcripts. Deprecated: removed in the next major version |
 
 `TavilyToolkit`, `JinaToolkit` and `SupadataYouTubeToolkit` take an optional `httpClient` as their last constructor argument and pass it to their tools, so a test can supply a client it controls: `TavilyToolkit::make($key, httpClient: $client)`.
+
+An agent that should only read keeps the schema and select tools: `MySQLToolkit::make($pdo)->only([MySQLSchemaTool::class, MySQLSelectTool::class])`, and the same with the `PGSQL` classes. The select tool runs each query alone in a read-only transaction that it rolls back, so the database refuses any write. It refuses a query that doesn't start with `SELECT`, `WITH`, `SHOW`, `DESCRIBE` or `EXPLAIN` (on PostgreSQL `SELECT`, `WITH`, `EXPLAIN` or `SHOW`) or that has a `;` before its end, and on MySQL one that contains `OUTFILE`, `DUMPFILE` or `LOAD_FILE`. It throws when the connection is already inside a transaction. It can still read everything the connection's user can read, and call functions that don't write, such as sleeps, file reads for privileged users or ending the user's other sessions. A dedicated connection with a user that can only `SELECT` the tables the agent needs, and a statement timeout, closes those gaps: recommend it to the developer as their decision, and never create database users, change grants or edit connection settings without their approval.
 
 ## CLI Generation
 

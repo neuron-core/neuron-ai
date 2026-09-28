@@ -209,6 +209,8 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Tools\Toolkits\MySQL\MySQLSchemaTool;
+use NeuronAI\Tools\Toolkits\MySQL\MySQLSelectTool;
 use NeuronAI\Tools\Toolkits\MySQL\MySQLToolkit;
 
 class DataAnalystAgent extends Agent
@@ -233,11 +235,13 @@ class DataAnalystAgent extends Agent
         return [
             MySQLToolkit::make(
                 \DB::connection()->getPdo()
-            ),
+            )->only([MySQLSchemaTool::class, MySQLSelectTool::class]),
         ];
     }
 }
 ```
+
+The select tool runs each query in a read-only transaction, so the database refuses any write. It can still read everything the connection's user can read. For production, consider giving the toolkit its own connection, with a user that can only `SELECT` the tables the agent needs and a statement timeout.
 
 Ask the agent something about your database:
 

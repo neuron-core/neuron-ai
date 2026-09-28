@@ -135,6 +135,9 @@ class MySQLSchemaToolTest extends TestCase
 
         $this->assertSame(['users', 'posts'], $this->lookup('TABLE_CONSTRAINTS')['params']);
         $this->assertStringContainsString('AND TABLE_NAME IN (?,?)', $this->lookup('TABLE_CONSTRAINTS')['sql']);
+
+        $this->assertSame(['users', 'posts'], $this->lookup('STATISTICS')['params']);
+        $this->assertStringContainsString('AND TABLE_NAME IN (?,?)', $this->lookup('STATISTICS')['sql']);
     }
 
     public function test_hostile_table_names_never_reach_the_sql_text(): void

@@ -16,6 +16,7 @@
     },
     "require-dev": {
         "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
         "ext-mongodb": "*",
         "ext-bcmath": "*",
         "ext-redis": "*",

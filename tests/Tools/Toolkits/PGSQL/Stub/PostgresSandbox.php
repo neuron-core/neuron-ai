@@ -42,6 +42,11 @@ class PostgresSandbox
 
     public function drop(): void
     {
+        // DDL is transactional in Postgres: a transaction left open by a failed test would undo the drop
+        if ($this->pdo->inTransaction()) {
+            $this->pdo->rollBack();
+        }
+
         $this->pdo->exec("DROP SCHEMA IF EXISTS {$this->schema} CASCADE");
     }
 }

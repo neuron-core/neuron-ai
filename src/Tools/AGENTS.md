@@ -92,3 +92,17 @@ class TransferMoneyTool extends Tool
 The agent developer overrides the declaration per instance at attach time, in both directions: `requireApproval()` forces the gate, `suppressApproval()` waives a declared one, `withApprovalPolicy(fn (ToolInterface $tool): bool|string)` replaces the policy. The last override wins. `ToolInterface::requiresApproval()` is the resolution point the node consults: override first, then declaration.
 
 Per-call approval state (`ApprovalState`: pending / approved / rejected) is stamped on the `ToolCall` entries of the `ToolCallMessage` and persisted in **chat history**, the system of record for approvals; workflow state holds none of it. Two reasons travel with it in opposite directions: `approvalReason` (outbound, why the tool asked) and `rejectReason` (inbound, the approver's feedback, recorded on rejection only). The resume flow is described in `src/Agent/AGENTS.md`.
+
+## SQL select tools
+
+`MySQLSelectTool` and `PGSQLSelectTool` leave read-only enforcement to the database. Each query runs alone in a transaction opened with `START TRANSACTION READ ONLY` and always rolled back, so the database refuses a write whatever the SQL looks like (data-modifying CTEs, `SELECT INTO`, functions that write), and the rollback undoes session changes such as `set_config()`. A refusal from that transaction (SQLSTATE `25006`) reaches the model as `ToolOutput::error()`; other database errors propagate. The tools throw when the connection is already inside a transaction, because their rollback would discard the application's work.
+
+The text rules cover only what a read-only transaction lets through. Each must refuse, never interpret SQL, so it stays stricter than the database in every case:
+
+- the first word of the raw query must be in `$allowedStatements`, which keeps out COPY, KILL, SET, LOCK and every other statement type; a leading comment is refused, never skipped;
+- a `;` may only be the last character, so no second statement (such as a `COMMIT` that ends the transaction) runs;
+- on MySQL, `OUTFILE`, `DUMPFILE` and `LOAD_FILE` are refused as plain substrings, because a read-only transaction allows file access.
+
+Don't add comment stripping, keyword blacklists or function lists: each earlier one was bypassed wherever the check and the database parsed the query differently.
+
+What the transaction doesn't stop depends on the connection's user: reading any table it can read, file reads and other privileged functions, sleeps, ending other sessions of the same user, session-level locks. The schema tools' `$tables` allow-list limits what the model sees, not what it can read. A dedicated connection with a least-privilege user and a statement timeout closes those gaps. That is the developer's decision: recommend it, and never create database users, change grants or edit connection settings on their behalf.

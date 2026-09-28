@@ -10,54 +10,35 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use PDO;
+use PDOException;
 use ReflectionException;
 
-use function array_filter;
-use function array_map;
-use function explode;
+use function implode;
+use function in_array;
 use function preg_match;
-use function preg_replace;
 use function str_starts_with;
-use function stripos;
-use function trim;
+use function strtoupper;
 
 /**
+ * The database enforces read-only access: each query runs alone in a read-only
+ * transaction that is always rolled back. The text rules only refuse what that
+ * transaction lets through, and each refuses more than PostgreSQL would ever run.
+ *
  * @method static static make(PDO $pdo)
  */
 class PGSQLSelectTool extends Tool
 {
-    /**
-     * Write operations that must be blocked.
-     */
-    protected array $forbiddenPatterns = [
-        '/^\s*(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE)\s+/i',
-        '/\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE)\s+/i',
-        '/;\s*(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE)\s+/i',
-        '/\bINTO\s+OUTFILE\s+/i',
-        '/\bLOAD\s+DATA\s+/i',
-        '/\bSET\s+/i',
-        '/\bCALL\s+/i',
-        '/\bEXEC(UTE)?\s+/i',
-    ];
+    protected const READ_ONLY_VIOLATION = '25006';
+
+    protected array $allowedStatements = ['SELECT', 'WITH', 'EXPLAIN', 'SHOW'];
 
     protected string $name = 'pgsql_select_query';
 
     protected ?string $description = 'Use this tool only to run SELECT query against the PostgreSQL database.
 This the tool to use only to gather information from the PostgreSQL database.';
-
-    /**
-     * Allowed read-only statements.
-     */
-    protected array $allowedPatterns = [
-        '/^\s*SELECT\s+/i',
-        '/^\s*WITH\s+/i', // Common Table Expressions
-        '/^\s*EXPLAIN\s+/i',
-        '/^\s*SHOW\s+/i',
-        '/^\s*DESCRIBE\s+/i',
-        '/^\s*DESC\s+/i',
-    ];
 
     public function __construct(protected PDO $pdo)
     {
@@ -94,19 +75,66 @@ This the tool to use only to gather information from the PostgreSQL database.';
 
     /**
      * @param array<array{name: string, value: string}>|null $parameters
+     * @throws ToolException
      */
-    public function __invoke(string $query, ?array $parameters = []): array
+    public function __invoke(string $query, ?array $parameters = []): array|ToolOutput
     {
-        if (!$this->validateReadOnlyQuery($query)) {
-            return [
-                "error" => "The query was rejected for security reasons.
-It looks like you are trying to run a write query using the read-only query tool.",
-            ];
+        $refusal = $this->refusal($query);
+        if ($refusal !== null) {
+            return ToolOutput::error($refusal);
         }
 
+        $this->beginReadOnlyTransaction();
+
+        try {
+            return $this->fetchRows($query, $parameters ?? []);
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[0] ?? null) !== self::READ_ONLY_VIOLATION) {
+                throw $exception;
+            }
+
+            return ToolOutput::error('This tool is read-only. The database refused the query: ' . $exception->errorInfo[2]);
+        } finally {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        }
+    }
+
+    protected function refusal(string $query): ?string
+    {
+        if (!in_array($this->getFirstKeyword($query), $this->allowedStatements, true)) {
+            return 'Start the query with one of these keywords, with nothing before it: ' . implode(', ', $this->allowedStatements) . '.';
+        }
+
+        if (preg_match('/;(?!\s*\z)/', $query) === 1) {
+            return "Send one statement per call. Pass values that contain ';' as parameters.";
+        }
+
+        return null;
+    }
+
+    /**
+     * @throws ToolException
+     */
+    protected function beginReadOnlyTransaction(): void
+    {
+        if ($this->pdo->inTransaction()) {
+            throw new ToolException("{$this->name} cannot guarantee read-only access inside an open transaction: give it its own database connection.");
+        }
+
+        if ($this->pdo->exec('START TRANSACTION READ ONLY') === false) {
+            throw new ToolException("{$this->name} could not start a read-only transaction.");
+        }
+    }
+
+    /**
+     * @param array<array{name: string, value: string}> $parameters
+     */
+    protected function fetchRows(string $query, array $parameters): array
+    {
         $statement = $this->pdo->prepare($query);
 
-        $parameters ??= [];
         foreach ($parameters as $parameter) {
             $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
             $statement->bindValue($paramName, $parameter['value']);
@@ -117,89 +145,11 @@ It looks like you are trying to run a write query using the read-only query tool
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    protected function validateReadOnlyQuery(string $query): bool
+    protected function getFirstKeyword(string $query): string
     {
-        if ($query === '') {
-            return false;
+        if (preg_match('/^\s*(\w+)/', $query, $matches)) {
+            return strtoupper($matches[1]);
         }
-
-        // Strip SQL comments so keywords hidden inside them cannot skew the checks
-        $cleanQuery = $this->removeComments($query);
-
-        if (!$this->validateSingleStatement($cleanQuery)) {
-            return false;
-        }
-
-        foreach ($this->forbiddenPatterns as $pattern) {
-            if (preg_match($pattern, $cleanQuery)) {
-                return false;
-            }
-        }
-
-        return $this->performAdditionalSecurityChecks($cleanQuery);
-    }
-
-    protected function removeComments(string $query): string
-    {
-        // Single-line (-- style) comments
-        $query = preg_replace('/--.*$/m', '', $query);
-
-        // Multi-line (/* */ style) comments
-        $query = preg_replace('/\/\*.*?\*\//s', '', (string) $query);
-
-        return $query;
-    }
-
-    protected function performAdditionalSecurityChecks(string $query): bool
-    {
-        // A non-trailing semicolon means multiple statements: validate each one
-        if (preg_match('/;\s*(?!$)/', $query)) {
-            $statements = $this->splitStatements($query);
-            foreach ($statements as $statement) {
-                if (trim((string) $statement) !== '' && !$this->validateSingleStatement(trim((string) $statement))) {
-                    return false;
-                }
-            }
-        }
-
-        $dangerousFunctions = [
-            'pg_exec',
-            'pg_query',
-            'system',
-            'exec',
-            'shell_exec',
-            'passthru',
-            'eval',
-        ];
-
-        foreach ($dangerousFunctions as $func) {
-            if (stripos($query, $func) !== false) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Simple split on semicolons; does not handle semicolons inside string literals.
-     */
-    protected function splitStatements(string $query): array
-    {
-        return array_filter(
-            array_map(trim(...), explode(';', $query)),
-            fn (string $stmt): bool => $stmt !== ''
-        );
-    }
-
-    protected function validateSingleStatement(string $statement): bool
-    {
-        foreach ($this->allowedPatterns as $pattern) {
-            if (preg_match($pattern, $statement)) {
-                return true;
-            }
-        }
-
-        return false;
+        return '';
     }
 }

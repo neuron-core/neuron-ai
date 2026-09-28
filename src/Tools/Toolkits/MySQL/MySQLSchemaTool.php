@@ -261,6 +261,16 @@ class MySQLSchemaTool extends Tool
 
     protected function getIndexes(): array
     {
+        $whereClause = "WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME != 'PRIMARY'";
+        $params = [];
+
+        // Add table filtering if specific tables are requested
+        if ($this->tables !== null && $this->tables !== []) {
+            $placeholders = str_repeat('?,', count($this->tables) - 1) . '?';
+            $whereClause .= " AND TABLE_NAME IN ($placeholders)";
+            $params = $this->tables;
+        }
+
         $stmt = $this->pdo->prepare("
             SELECT
                 TABLE_NAME,
@@ -271,12 +281,11 @@ class MySQLSchemaTool extends Tool
                 INDEX_TYPE,
                 CARDINALITY
             FROM INFORMATION_SCHEMA.STATISTICS
-            WHERE TABLE_SCHEMA = DATABASE()
-                AND INDEX_NAME != 'PRIMARY'
+            $whereClause
             ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
         ");
 
-        $stmt->execute();
+        $stmt->execute($params);
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $indexes = [];

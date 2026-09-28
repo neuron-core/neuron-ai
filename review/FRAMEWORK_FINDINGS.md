@@ -4,7 +4,7 @@ This document collects the framework problems found while reviewing and strength
 
 The same review grew the test suite from 3,051 to 7,175 tests and line coverage of `src/` from 71.7% to 97.2%, and mutation-tested every module, Tests asserting the correct behaviour for the defects below could not join the suite while the framework stays unchanged, so each one is kept as a repro test instead.
 
-Every entry links to the source line and, where one exists, to a repro test in [`review/repro/`](repro/). The repro tests sit outside the PHPUnit suite and assert the correct behaviour, so they fail on the current code; run one with `vendor/bin/phpunit review/repro/<Module>/<Test>.php`. Once a fix lands, the matching repro can move into `tests/` as its regression test. Severity is the verifier's assessment, which is sometimes lower than the reporter's.
+Every entry links to the source line and, where one exists, to a repro test in [`review/repro/`](repro/). The repro tests sit outside the PHPUnit suite and assert the correct behaviour, so they fail on the current code; run one with `vendor/bin/phpunit review/repro/<Module>/<Test>.php`. Once a fix lands, the matching repro can move into `tests/` as its regression test. Severity is the verifier's assessment, which is sometimes lower than the reporter's. A resolved entry links to its regression test instead and ends with a **Resolution** paragraph describing what was actually done.
 
 There are **319 confirmed findings**: 1 critical, 19 high, 143 medium and 156 low. Another 16 suspicions were investigated and rejected; they are listed at the end so nobody re-investigates them.
 
@@ -16,7 +16,7 @@ The real risk sits in four places. First, the SQL toolkits' "read-only" select t
 
 ### Where to start
 
-1. **Make the SQL select tools genuinely read-only:** [TOOLS-01](#tools-01), [TOOLS-04](#tools-04), [TOOLS-05](#tools-05), [TOOLS-06](#tools-06), [TOOLS-07](#tools-07), [TOOLS-08](#tools-08), plus [TOOLS-26](#tools-26). The regex fixes close the verified bypasses. Only the read-only transaction from [TOOLS-08](#tools-08) avoids depending on SQL parsing, so do both. This comes first because prompt injection can destroy data through a tool advertised as safe.
+1. **Make the SQL select tools genuinely read-only:** [TOOLS-01](#tools-01), [TOOLS-04](#tools-04), [TOOLS-05](#tools-05), [TOOLS-06](#tools-06), [TOOLS-07](#tools-07), [TOOLS-08](#tools-08), plus [TOOLS-26](#tools-26). The regex fixes close the verified bypasses. Only the read-only transaction from [TOOLS-08](#tools-08) avoids depending on SQL parsing, so do both. This comes first because prompt injection can destroy data through a tool advertised as safe. **Resolved** with the read-only transaction alone plus three refusal-only text rules, not the regex fixes; see [TOOLS-01](#tools-01).
 2. **Close the injection and exposure paths:** [RAG-01](#rag-01) (Cypher injection), [CHAT-01](#chat-01) (its fix also removes [CHAT-08](#chat-08); add the [CHAT-26](#chat-26) guard alongside), [DOCS-02](#docs-02) (documented memory leaks conversations across threads), [AGENT-01](#agent-01) with [DOCS-01](#docs-01), [STRUCTUREDOUTPUT-02](#structuredoutput-02) (model output writes non-public and static properties) and [TOOLS-10](#tools-10) (approval policies bypassed on nested fields).
 3. **Harden the HTTP layer once:** [HTTPCLIENT-05](#httpclient-05), [HTTPCLIENT-06](#httpclient-06), [HTTPCLIENT-07](#httpclient-07), [HTTPCLIENT-08](#httpclient-08), [MCP-12](#mcp-12), [MCP-13](#mcp-13) and [MCP-14](#mcp-14), together with [HTTPCLIENT-04](#httpclient-04), which hides 4xx/5xx errors on the default streaming path. Most of the work lands in `CurlHttpClient` and `SseHttpTransport`.
 4. **Stop silent data loss:** [RAG-02](#rag-02), [RAG-03](#rag-03), one `FileVectorStore` pass covering [RAG-22](#rag-22), [RAG-23](#rag-23), [RAG-24](#rag-24), [RAG-48](#rag-48) and [RAG-53](#rag-53), the Typesense pair [RAG-31](#rag-31) and [RAG-52](#rag-52), [CHAT-06](#chat-06) and [CHAT-09](#chat-09). [AGENT-02](#agent-02) needs a decision on an atomic history `replace()` API.
@@ -1036,12 +1036,14 @@ Tools has 59 findings, including the only critical one. The MySQL and PostgreSQL
 
 ### <a id="tools-01"></a><a id="tools-09"></a>TOOLS-01 · Naive comment stripping lets write statements pass the read-only SQL check
 
-**critical** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:130`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L130) · repro [`SelectToolCommentMarkerInLiteralTest`](repro/Tools/SelectToolCommentMarkerInLiteralTest.php) · fix validated  
-Also covers **TOOLS-09** (high, [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:142`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L142), repro [`SelectToolCommentAsWhitespaceTest`](repro/Tools/SelectToolCommentAsWhitespaceTest.php))
+**critical** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:130`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L130) · regression tests [`MySQLSelectToolTest`](../tests/Tools/Toolkits/MySQL/MySQLSelectToolTest.php), [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php) · **resolved**  
+Also covers **TOOLS-09** (high, [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:142`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L142), regression test [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php))
 
 `MySQLSelectTool::sanitizeQuery()` and `PGSQLSelectTool::removeComments()` strip `--` and `/* */` comments with regexes that ignore string literals and replace each comment with an empty string, while the database executes the original query. A literal such as `'--'` or `'/*'` hides everything after it from the keyword checks, and `DELETE/**/FROM` becomes `DELETEFROM`, which no guard matches. On Postgres, `WITH a AS (SELECT '--'), d AS (DELETE FROM users RETURNING 1) SELECT * FROM d` and `WITH d AS (DELETE/**/FROM users RETURNING 1) SELECT * FROM d` each deleted every row; on MySQL, `SELECT '--' AS a; DELETE FROM users` and `SELECT 1; DELETE/**/FROM users` pass and run through pdo_mysql's default multi-statement support. Any agent given the select tool as read-only access can be steered, including by prompt injection, into silent data loss limited only by the connection user's privileges.
 
 Suggested fix: in both methods, replace the two `preg_replace` calls with a single `preg_replace_callback` that matches quoted literals first (per-dialect rules, including Postgres `E''` and dollar quoting) and keeps them intact, and replaces each comment with a space, using `PREG_UNMATCHED_AS_NULL`. This was validated in a sandbox against the repro and the module's tests; as defence in depth, running the query in a `READ ONLY` transaction and disabling MySQL multi-statements is worth discussing.
+
+**Resolution:** the SQL text no longer decides read-only access. Both select tools run each query alone in a transaction opened with `START TRANSACTION READ ONLY` and always rolled back, so the database refuses a write whatever the text hides, and a refusal (SQLSTATE `25006`) reaches the model as `ToolOutput::error()`. Three text rules remain, and each refuses rather than interprets: the first word of the raw query must be an allowed keyword (a leading comment is refused), a `;` may only be the last character, and on MySQL `OUTFILE`, `DUMPFILE` and `LOAD_FILE` are refused as plain substrings. The tools throw inside an open transaction on the same connection. The MySQL cases above now stop at the `;` rule, and PostgreSQL refuses the others inside the transaction; both were verified on MySQL 8.0, MariaDB 11.7 and PostgreSQL 17. The same work found a bypass this review missed: PostgreSQL nests block comments, so `/* /* */ SELECT */ COPY (SELECT 1) TO PROGRAM '…'` passed the old check and ran a shell command on the database server through a superuser connection (verified on PostgreSQL 17). The keyword rule on the raw text refuses it. See [upgrade guide 47](../upgrade/47-sql-select-tools-read-only-transaction.md).
 
 ### <a id="tools-02"></a>TOOLS-02 · Non-object input for a class-mapped ObjectProperty escapes setInputs() and aborts the run
 
@@ -1061,43 +1063,53 @@ Suggested fix: in `src/Tools/Toolkits/FileSystem/BashTool.php`, replace the two 
 
 ### <a id="tools-04"></a>TOOLS-04 · MySQL read-only tool accepts stacked statements not on its forbidden list
 
-**high** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:109`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L109) · repro [`MySQLSelectMultiStatementTest`](repro/Tools/MySQLSelectMultiStatementTest.php) · fix validated
+**high** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:109`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L109) · regression test [`MySQLSelectToolTest`](../tests/Tools/Toolkits/MySQL/MySQLSelectToolTest.php) · **resolved**
 
 `MySQLSelectTool::validateReadOnly()` checks only the first keyword and scans for a short forbidden list; it never rejects multiple statements. Because pdo_mysql emulates prepares with multi-statements enabled by default, queries such as `SELECT 1; GRANT ALL ...`, `SELECT 1; SET GLOBAL general_log = 1`, `SELECT 1; LOCK TABLES ...` or `SELECT 1; RENAME TABLE ...` (also `KILL`, `FLUSH`, `SHUTDOWN`, `DO`, `HANDLER`) reach `PDO::prepare()` and the server. Combined with the comment-stripping bypass, even listed statements such as `DROP TABLE` get through. An agent steered by prompt injection can escalate privileges, change server configuration, lock or kill sessions, or destroy data when the connection user has write privileges. `PGSQLSelectTool` validates each statement; the MySQL tool does not.
 
 Suggested fix: in `validateReadOnly()`, reject the query when the raw input (before `sanitizeQuery()`) contains a `;` followed by more content, via a small protected `containsStatementSeparator()` check, still allowing one trailing `;`. This was validated in a sandbox against the repro and the module's tests; literals containing `;` followed by text are then rejected, which is acceptable because values go through placeholders.
 
+**Resolution:** as suggested, in both select tools: a `;` may only be the last character, so no second statement reaches the server, including a `COMMIT` that would end the new read-only transaction. See [TOOLS-01](#tools-01).
+
 ### <a id="tools-05"></a>TOOLS-05 · MySQL executable comments are stripped before the forbidden-keyword scan but executed
 
-**high** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:134`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L134) · repro [`MySQLSelectExecutableCommentTest`](repro/Tools/MySQLSelectExecutableCommentTest.php) · fix validated
+**high** · security · [`src/Tools/Toolkits/MySQL/MySQLSelectTool.php:134`](../src/Tools/Toolkits/MySQL/MySQLSelectTool.php#L134) · regression test [`MySQLSelectToolTest`](../tests/Tools/Toolkits/MySQL/MySQLSelectToolTest.php) · **resolved**
 
 MySQL executes the contents of `/*! ... */` and `/*!50000 ... */` comments (and MariaDB `/*M! ... */`), but `sanitizeQuery()` removes them before `validateReadOnly()` scans for forbidden keywords. `SELECT * FROM users /*!50000 INTO OUTFILE '/var/www/html/users.txt' */` is therefore accepted, as are `SELECT 1; /*!DROP TABLE users*/` and variants that rely on comment markers inside literals or MySQL's `1--1` arithmetic. Acceptance by the validator is proven with PDO mocks; execution on a real MySQL was not confirmed. Depending on the DB user's privileges, a steered model could write files on the server (including into a web root) or run destructive stacked statements through a tool presented as read-only.
 
 Suggested fix: in `MySQLSelectTool::validateReadOnly()`, run the forbidden-keyword loop on the raw `$query` instead of the comment-stripped `$cleanQuery`, keeping `$cleanQuery` only for `getFirstKeyword()`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** `OUTFILE`, `DUMPFILE` and `LOAD_FILE` are refused as plain case-insensitive substrings of the raw query, since a read-only transaction allows file access; the stacked variants stop at the `;` rule. The other forbidden keywords are gone, because the read-only transaction refuses writes. See [TOOLS-01](#tools-01).
+
 ### <a id="tools-06"></a>TOOLS-06 · PGSQL read-only tool allows SELECT ... INTO, which creates and populates tables
 
-**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:34`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L34) · repro [`PGSQLSelectIntoTest`](repro/Tools/PGSQLSelectIntoTest.php) · fix validated
+**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:34`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L34) · regression test [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php) · **resolved**
 
 In PostgreSQL, `SELECT * INTO new_table FROM users` is equivalent to `CREATE TABLE AS`. `PGSQLSelectTool` only forbids `INTO OUTFILE`, so the query passes every check, creates a new table and copies the data into it; the tool returns `[[]]`. The `INTO TABLE`, `INTO UNLOGGED` and post-CTE variants are accepted as well. When the database role has `CREATE` on the schema, which is common for application roles, a model steered by prompt injection can run DDL through a tool assumed to be read-only, copying readable data into tables other readers can see and consuming disk. It cannot modify or delete existing rows this way.
 
 Suggested fix: in `$forbiddenPatterns` of `src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php`, replace `'/\bINTO\s+OUTFILE\s+/i'` with `'/\bINTO\s+/i'`, matching the policy of `MySQLSelectTool`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** PostgreSQL refuses every `SELECT ... INTO` variant inside the read-only transaction, and no table is created. See [TOOLS-01](#tools-01).
+
 ### <a id="tools-07"></a>TOOLS-07 · PGSQL write-keyword patterns require trailing whitespace, so UPDATE"users"SET passes
 
-**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:36`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L36) · repro [`PGSQLSelectKeywordWithoutWhitespaceTest`](repro/Tools/PGSQLSelectKeywordWithoutWhitespaceTest.php) · fix validated
+**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:36`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L36) · regression test [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php) · **resolved**
 
 Every forbidden pattern in `PGSQLSelectTool` ends in `\s+`, including the `SET` pattern, but PostgreSQL needs no whitespace between a keyword and a quoted identifier. `WITH x AS (UPDATE"users"SET"name"='pwned' RETURNING 1) SELECT * FROM x` matches nothing and ran against a real Postgres, updating the row. The same happens with unquoted identifiers when comments separate the keywords (`UPDATE/**/users/**/SET/**/name=...`), because `removeComments()` deletes comments without leaving a space. A model or injected content can therefore update or delete rows through a data-modifying CTE in the select tool, bypassing any approval flow placed on write tools.
 
 Suggested fix: in `src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php`, rewrite `$forbiddenPatterns` to match keywords on a word boundary followed by whitespace or `"` (`(?=[\s"])`), so functions like `replace(...)` stay allowed, and make `removeComments()` replace each comment with a space. This was validated in a sandbox against the repro and the module's tests; a read-only transaction is the more robust follow-up.
 
+**Resolution:** the write patterns and comment stripping are gone; PostgreSQL refuses both updates inside the read-only transaction, and the row is unchanged. See [TOOLS-01](#tools-01).
+
 ### <a id="tools-08"></a>TOOLS-08 · Text-based read-only checks let side-effecting SQL functions run through select tools
 
-**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:120`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L120) · repro [`PGSQLSelectToolSideEffectsTest`](repro/Tools/PGSQLSelectToolSideEffectsTest.php) · fix validated
+**high** · security · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:120`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L120) · regression tests [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php), [`MySQLSelectToolTest`](../tests/Tools/Toolkits/MySQL/MySQLSelectToolTest.php) · **resolved**
 
 Both select tools decide read-only status from the SQL text alone, so a plain `SELECT` calling a function with side effects passes. Verified on Postgres: `SELECT purge_users()` deleted all rows, `SELECT setval('users_id_seq', 1000)` permanently moved a sequence, `SELECT set_config('search_path','pg_catalog',false)` changed the shared PDO session for the application's later queries, and `SELECT pg_read_file('/etc/hostname')` returned the file with a superuser role. The MySQL tool accepts similar calls such as `SLEEP()`. There is also no statement timeout or row limit. Any agent using these tools as read-only access can be driven to destroy data, corrupt sequences or alter connection state.
 
 Suggested fix: in `PGSQLSelectTool::__invoke()`, run the statement inside a transaction started with `SET TRANSACTION READ ONLY` and always roll it back in `finally`, keeping the regex check as a first filter; `MySQLSelectTool` can do the same with `START TRANSACTION READ ONLY`. This was validated in a sandbox against the repro and the module's tests, after moving two SQLite-backed `PGSQLSelectToolTest` cases to the Postgres sandbox. A read-only transaction does not block `pg_read_file`, `lo_export` or `pg_sleep`, so the documentation should also require a least-privilege role and a statement timeout.
+
+**Resolution:** the read-only transaction, always rolled back, in both tools; the regex filter was removed rather than kept as a first filter. `purge_users()`, `setval()` and `set_config()` are refused or undone on PostgreSQL 17, and a writing function is refused on MySQL 8.0 and MariaDB 11.7. What the transaction doesn't stop (privileged functions, sleeps, ending other sessions of the same user) is documented in `src/Tools/AGENTS.md`, the README, the `neuron-tool` skill and upgrade guide 47. The docs recommend a dedicated least-privilege connection with a statement timeout as the developer's decision; the tools add no timeout or row cap. See [TOOLS-01](#tools-01).
 
 ### <a id="tools-10"></a>TOOLS-10 · Class-less ObjectProperty never casts nested fields, allowing approval policies to be sidestepped
 
@@ -1229,11 +1241,13 @@ Suggested fix: in the three tools, return `ToolOutput::error('Invalid URL.')` in
 
 ### <a id="tools-26"></a>TOOLS-26 · MySQLSchemaTool index listing ignores the table allow-list and exposes hidden tables
 
-**medium** · security · [`src/Tools/Toolkits/MySQL/MySQLSchemaTool.php:262`](../src/Tools/Toolkits/MySQL/MySQLSchemaTool.php#L262) · repro [`MySQLSchemaToolIndexFilterTest`](repro/Tools/MySQLSchemaToolIndexFilterTest.php) · fix validated
+**medium** · security · [`src/Tools/Toolkits/MySQL/MySQLSchemaTool.php:262`](../src/Tools/Toolkits/MySQL/MySQLSchemaTool.php#L262) · regression test [`MySQLSchemaToolTest`](../tests/Tools/Toolkits/MySQL/MySQLSchemaToolTest.php) · **resolved**
 
 `getTables()`, `getRelationships()` and `getConstraints()` in `MySQLSchemaTool` filter by `$this->tables`, but `getIndexes()` queries `INFORMATION_SCHEMA.STATISTICS` for the whole database without that filter. With an allow-list of `['orders']`, the rendered "Available Indexes" section still lists other tables with non-primary indexes, their index names and indexed columns, for example `secret_payroll (salary)`. This metadata reaches the LLM context and possibly logs, traces and chat history, undermining the allow-list and helping a prompt-injection attack aim the select or write tools at hidden tables. No row data is exposed. `PGSQLSchemaTool` filters indexes correctly.
 
 Suggested fix: in `MySQLSchemaTool::getIndexes()`, add the same `TABLE_NAME IN (...)` placeholder filter and bound parameters the sibling methods use when an allow-list is set. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** fixed as suggested. It is a correctness fix rather than a security one: the allow-list limits what the model sees, not what it can read, since the select tool can list every table through `INFORMATION_SCHEMA`. The docs now say so.
 
 ### <a id="tools-27"></a>TOOLS-27 · SQL write tools miss non-uppercase INSERTs and report stale last insert IDs
 
@@ -1453,11 +1467,13 @@ Suggested fix: in `src/Tools/Toolkits/PGSQL/PGSQLSchemaTool.php`, have `formatPo
 
 ### <a id="tools-54"></a>TOOLS-54 · PGSQLSelectTool rejects harmless SELECTs whose identifiers or literals contain 'eval', 'exec' or 'system'
 
-**low** · bug · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:176`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L176) · repro [`PGSQLSelectFalsePositiveTest`](repro/Tools/PGSQLSelectFalsePositiveTest.php) · fix validated
+**low** · bug · [`src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php:176`](../src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php#L176) · regression test [`PGSQLSelectToolTest`](../tests/Tools/Toolkits/PGSQL/PGSQLSelectToolTest.php) · **resolved**
 
 `performAdditionalSecurityChecks()` runs a case-insensitive `stripos` for `pg_exec`, `pg_query`, `system`, `exec`, `shell_exec`, `passthru` and `eval` over the whole query. So any table, column, alias or string literal containing one of these words, such as `evaluations`, `system_logs`, `executed_at` or `WHERE status = 'executed'`, makes the read-only tool refuse a harmless SELECT with a misleading "write query" error. Agents on such schemas can never read that data and may loop retrying, which wastes tool runs and tokens. The listed names are PHP functions, not PostgreSQL ones, so the check blocks nothing real while real risks such as `pg_read_file`, `lo_import` or `dblink` are absent from it. This is a usability bug, not a security hole.
 
 Suggested fix: in `src/Tools/Toolkits/PGSQL/PGSQLSelectTool.php`, replace the `$dangerousFunctions` array and `stripos` loop with a whole-word function-call match, `preg_match('/\b(pg_exec|pg_query|system|exec|shell_exec|passthru|eval)\s*\(/i', $query)`, and drop the unused `stripos` import. This was validated in a sandbox against the repro and the module's tests. Whether to drop the list entirely or replace it with the real risky PostgreSQL functions, and to recommend a read-only role or transaction as the actual safeguard, is a separate design question.
+
+**Resolution:** the list was dropped entirely, together with the repro's expectation that `shell_exec()` calls stay rejected. The read-only transaction decides what a function may do, and a list of real PostgreSQL functions was rejected because it can never be complete and `U&"…"` identifiers spell a name without its letters. See [TOOLS-01](#tools-01).
 
 ### <a id="tools-55"></a>TOOLS-55 · write_todos schema omits required 'content', and an array status raises a PHP warning
 
