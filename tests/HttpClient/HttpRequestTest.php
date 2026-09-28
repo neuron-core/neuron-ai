@@ -95,8 +95,8 @@ class HttpRequestTest extends TestCase
         yield 'json fields' => [['model' => 'whisper-1', 'temperature' => 0.2, 'stream' => false], false];
         yield 'nested array without contents' => [['metadata' => ['filename' => 'a.txt']], false];
         yield 'contents set to null' => [['file' => ['contents' => null]], false];
-        yield 'string contents part' => [['file' => ['contents' => 'raw bytes', 'filename' => 'a.txt']], true];
-        yield 'empty string contents part' => [['file' => ['contents' => '']], true];
+        yield 'string contents part without a resource' => [['file' => ['contents' => 'raw bytes', 'filename' => 'a.txt']], false];
+        yield 'empty string contents part' => [['file' => ['contents' => '']], false];
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use NeuronAI\HttpClient\Amp\AmpHttpClient;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -18,6 +19,7 @@ use function file_put_contents;
 use function fopen;
 use function fwrite;
 use function is_resource;
+use function json_decode;
 use function rewind;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -34,16 +36,17 @@ class MultipartBodyTest extends TestCase
     /**
      * @return iterable<string, array{class-string<HttpClientInterface>}>
      */
-    public static function clientsNamingFilesAfterTheResource(): iterable
+    public static function clients(): iterable
     {
         yield 'curl' => [CurlHttpClient::class];
         yield 'guzzle' => [GuzzleHttpClient::class];
+        yield 'amp' => [AmpHttpClient::class];
     }
 
     /**
      * @param class-string<HttpClientInterface> $class
      */
-    #[DataProvider('clientsNamingFilesAfterTheResource')]
+    #[DataProvider('clients')]
     public function test_a_file_resource_is_uploaded_under_the_file_name(string $class): void
     {
         $path = tempnam(sys_get_temp_dir(), 'neuron-upload');
@@ -67,18 +70,9 @@ class MultipartBodyTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{class-string<HttpClientInterface>}>
-     */
-    public static function clientsKeepingPartHeaders(): iterable
-    {
-        yield 'curl' => [CurlHttpClient::class];
-        yield 'guzzle' => [GuzzleHttpClient::class];
-    }
-
-    /**
      * @param class-string<HttpClientInterface> $class
      */
-    #[DataProvider('clientsKeepingPartHeaders')]
+    #[DataProvider('clients')]
     public function test_a_resource_part_keeps_its_filename_and_content_type(string $class): void
     {
         $file = fopen('php://temp', 'w+');
@@ -96,6 +90,82 @@ class MultipartBodyTest extends TestCase
         }
 
         $this->assertSame(['name' => 'speech.mp3', 'type' => 'audio/mpeg', 'content' => 'ID3 bytes'], $result['files']['file']);
+    }
+
+    /**
+     * @param class-string<HttpClientInterface> $class
+     */
+    #[DataProvider('clients')]
+    public function test_a_string_part_beside_a_file_is_uploaded_as_a_named_file_with_its_type(string $class): void
+    {
+        $file = fopen('php://temp', 'w+');
+        fwrite($file, 'RIFF wave bytes');
+        rewind($file);
+
+        try {
+            $result = (new $class())->request(new HttpRequest(
+                HttpMethod::POST,
+                static::$baseUri . '/multipart',
+                body: [
+                    'audio' => ['contents' => $file, 'filename' => 'speech.wav'],
+                    'file' => ['contents' => 'col1,col2', 'filename' => 'data.csv', 'headers' => ['Content-Type' => 'text/csv']],
+                    'purpose' => 'batch',
+                ],
+            ))->json();
+        } finally {
+            $this->closeIfOpen($file);
+        }
+
+        $this->assertSame(['purpose' => 'batch'], $result['fields']);
+        $this->assertSame(['name' => 'data.csv', 'type' => 'text/csv', 'content' => 'col1,col2'], $result['files']['file']);
+    }
+
+    /**
+     * @param class-string<HttpClientInterface> $class
+     */
+    #[DataProvider('clients')]
+    public function test_application_data_holding_a_contents_key_is_sent_as_json(string $class): void
+    {
+        $body = ['model' => 'classifier', 'state' => ['contents' => 'application data, not an upload']];
+
+        $echo = (new $class())->request(HttpRequest::post(static::$baseUri . '/echo', $body))->json();
+
+        $this->assertSame('application/json', $echo['contentType']);
+        $this->assertSame($body, json_decode($echo['body'], true));
+    }
+
+    /**
+     * Guzzle sends a part with neither a filename nor a file behind it as a plain field.
+     *
+     * @return iterable<string, array{class-string<HttpClientInterface>}>
+     */
+    public static function clientsNamingPartsAfterTheirField(): iterable
+    {
+        yield 'curl' => [CurlHttpClient::class];
+        yield 'amp' => [AmpHttpClient::class];
+    }
+
+    /**
+     * @param class-string<HttpClientInterface> $class
+     */
+    #[DataProvider('clientsNamingPartsAfterTheirField')]
+    public function test_a_part_without_filename_or_type_is_a_binary_file_named_after_its_field(string $class): void
+    {
+        $file = fopen('php://temp', 'w+');
+        fwrite($file, 'RIFF wave bytes');
+        rewind($file);
+
+        try {
+            $result = (new $class())->request(new HttpRequest(
+                HttpMethod::POST,
+                static::$baseUri . '/multipart',
+                body: ['audio' => ['contents' => $file, 'filename' => 'speech.wav'], 'document' => ['contents' => 'plain bytes']],
+            ))->json();
+        } finally {
+            $this->closeIfOpen($file);
+        }
+
+        $this->assertSame(['name' => 'document', 'type' => 'application/octet-stream', 'content' => 'plain bytes'], $result['files']['document']);
     }
 
     /**

@@ -161,26 +161,6 @@ class GuzzleHttpClient implements HttpClientInterface
     }
 
     /**
-     * Check if the body array contains multipart data (resources or nested arrays).
-     *
-     * @param array<string, mixed> $body
-     */
-    protected function isMultipartData(array $body): bool
-    {
-        foreach ($body as $value) {
-            if (is_resource($value)) {
-                return true;
-            }
-
-            if (is_array($value) && isset($value['contents']) && is_resource($value['contents'])) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Build multipart data array in Guzzle format.
      *
      * @param array<string, mixed> $data
@@ -229,7 +209,7 @@ class GuzzleHttpClient implements HttpClientInterface
         if ($request->body !== null) {
             if (is_array($request->body)) {
                 // Check if the body contains resources (multipart data)
-                if ($this->isMultipartData($request->body)) {
+                if ($request->isMultipart()) {
                     $options[RequestOptions::MULTIPART] = $this->buildMultipartData($request->body);
                 } else {
                     $options[RequestOptions::JSON] = $request->body;

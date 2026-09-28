@@ -433,37 +433,6 @@ class CurlHttpClientTest extends TestCase
         $this->assertSame('raw-agent/2.0', $client->request(HttpRequest::get(static::$baseUri . '/echo'))->json()['userAgent']);
     }
 
-    public function test_multipart_string_part_is_uploaded_as_a_named_file_with_its_type(): void
-    {
-        $response = (new CurlHttpClient())->request(new HttpRequest(
-            method: HttpMethod::POST,
-            uri: static::$baseUri . '/multipart',
-            body: [
-                'file' => ['contents' => 'col1,col2', 'filename' => 'data.csv', 'headers' => ['Content-Type' => 'text/csv']],
-                'purpose' => 'batch',
-            ],
-        ));
-
-        $this->assertSame(
-            ['authorization' => '', 'fields' => ['purpose' => 'batch'], 'files' => ['file' => ['name' => 'data.csv', 'type' => 'text/csv', 'content' => 'col1,col2']]],
-            $response->json(),
-        );
-    }
-
-    public function test_multipart_part_without_filename_or_type_is_a_binary_file_named_after_its_field(): void
-    {
-        $response = (new CurlHttpClient())->request(new HttpRequest(
-            method: HttpMethod::POST,
-            uri: static::$baseUri . '/multipart',
-            body: ['document' => ['contents' => 'plain bytes']],
-        ));
-
-        $this->assertSame(
-            ['document' => ['name' => 'document', 'type' => 'application/octet-stream', 'content' => 'plain bytes']],
-            $response->json()['files'],
-        );
-    }
-
     public function test_request_failing_midway_throws_a_network_error(): void
     {
         try {

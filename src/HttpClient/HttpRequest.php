@@ -84,8 +84,10 @@ class HttpRequest
 
     /**
      * Whether the body must be sent as multipart form data: an array body
-     * containing resources or `['contents' => ...]` file parts. Anything
-     * else is JSON-encoded (array) or sent raw (string).
+     * holding a resource, bare or as the `contents` of a file part. A resource
+     * cannot be JSON-encoded, so application data holding a `contents` key is
+     * never mistaken for an upload. Anything else is JSON-encoded (array) or
+     * sent raw (string).
      */
     public function isMultipart(): bool
     {
@@ -98,7 +100,7 @@ class HttpRequest
                 return true;
             }
 
-            if (is_array($value) && isset($value['contents'])) {
+            if (is_array($value) && is_resource($value['contents'] ?? null)) {
                 return true;
             }
         }

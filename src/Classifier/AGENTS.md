@@ -38,7 +38,7 @@ Implement `ClassifierInterface` and translate vendor data into the shared result
 
 Use `HasHttpClient` with `CurlHttpClient` by default. Attach authentication and endpoint information to requests so replacing the client preserves provider behavior. Keep retries in the HTTP client.
 
-TypeSafeAI maps `Boolean` to `noul`. Its option limits stay in the adapter. Encode its request body explicitly as JSON: structured input can contain a `contents` field that HTTP clients might otherwise interpret as multipart data.
+TypeSafeAI maps `Boolean` to `noul`. Its option limits stay in the adapter.
 
 Use `InvalidArgumentException` for invalid caller input, `ProviderException` for malformed provider responses, and preserve `HttpException` for HTTP or network failures. Include question identifiers in response errors where applicable.
 

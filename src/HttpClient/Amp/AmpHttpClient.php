@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\HttpClient\Amp;
 
 use Amp\ByteStream\ReadableResourceStream;
+use Amp\Http\Client\BufferedContent;
 use Amp\Http\Client\Form;
 use Amp\Http\Client\HttpClient;
 use Amp\Http\Client\HttpClientBuilder;
+use Amp\Http\Client\HttpContent;
 use Amp\Http\Client\Interceptor\SetRequestHeaderIfUnset;
 use Amp\Http\Client\Request;
 use Amp\Http\Client\Response;
@@ -21,10 +23,12 @@ use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
+use function basename;
 use function getmypid;
 use function is_array;
 use function is_resource;
 use function json_encode;
+use function stream_get_meta_data;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -98,21 +102,16 @@ class AmpHttpClient implements HttpClientInterface
             // If it's already a properly formatted array with 'name' key
             if (is_array($value) && isset($value['name'])) {
                 $name = $value['name'];
-                $value = $value['contents'] ?? $value;
             }
 
             if (is_resource($value)) {
-                $stream = new ReadableResourceStream($value);
-                $content = StreamedContent::fromStream($stream);
-                $form->addStream($name, $content);
-            } elseif (is_array($value) && isset($value['contents'])) {
-                if (is_resource($value['contents'])) {
-                    $stream = new ReadableResourceStream($value['contents']);
-                    $content = StreamedContent::fromStream($stream);
-                    $form->addStream($name, $content, $value['filename'] ?? null);
-                } else {
-                    $form->addField($name, (string) $value['contents']);
-                }
+                $value = ['contents' => $value];
+            }
+
+            // A part is uploaded as a file, string contents included, as CurlHttpClient does
+            if (is_array($value) && isset($value['contents'])) {
+                $filename = $value['filename'] ?? $this->partFilename($value['contents'], $name);
+                $form->addStream($name, $this->partContent($value), $filename);
             } else {
                 $form->addField($name, (string) $value);
             }
@@ -193,7 +192,7 @@ class AmpHttpClient implements HttpClientInterface
     protected function execute(HttpRequest $request): Response
     {
         // Check if this is a multipart request
-        if (is_array($request->body) && $this->isMultipartData($request->body)) {
+        if ($request->isMultipart()) {
             return $this->executeMultipart($request);
         }
 
@@ -238,22 +237,29 @@ class AmpHttpClient implements HttpClientInterface
     }
 
     /**
-     * Check if the body array contains multipart data (resources or nested arrays).
-     *
-     * @param array<string, mixed> $body
+     * @param array<string, mixed> $part
      */
-    protected function isMultipartData(array $body): bool
+    protected function partContent(array $part): HttpContent
     {
-        foreach ($body as $value) {
-            if (is_resource($value)) {
-                return true;
-            }
+        $contentType = $part['headers']['Content-Type'] ?? 'application/octet-stream';
 
-            if (is_array($value) && isset($value['contents']) && is_resource($value['contents'])) {
-                return true;
-            }
+        return is_resource($part['contents'])
+            ? StreamedContent::fromStream(new ReadableResourceStream($part['contents']), contentType: $contentType)
+            : BufferedContent::fromString((string) $part['contents'], $contentType);
+    }
+
+    /**
+     * As in CurlHttpClient, APIs infer the file format from the extension, so
+     * a part without a filename is named after the file it reads.
+     */
+    protected function partFilename(mixed $contents, string $fieldName): string
+    {
+        if (!is_resource($contents)) {
+            return $fieldName;
         }
 
-        return false;
+        $meta = stream_get_meta_data($contents);
+
+        return isset($meta['uri']) ? basename($meta['uri']) : $fieldName;
     }
 }

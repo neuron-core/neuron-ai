@@ -77,7 +77,6 @@ class TypeSafeAI implements ClassifierInterface
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ],
-            // Structured state may contain "contents"; force JSON instead of multipart inference.
             body: json_encode([
                 'model' => $this->model,
                 'state' => $request->input,
