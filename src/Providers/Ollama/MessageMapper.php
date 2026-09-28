@@ -8,6 +8,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -15,11 +16,11 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\MessageMapperInterface;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use stdClass;
 
 use function array_map;
-use function is_array;
 
 class MessageMapper implements MessageMapperInterface
 {
@@ -53,6 +54,11 @@ class MessageMapper implements MessageMapperInterface
         $images = [];
 
         foreach ($contentBlocks as $block) {
+            // Earlier reasoning stays out of the history: Ollama messages have no input field for it
+            if ($block instanceof ReasoningContent) {
+                continue;
+            }
+
             if ($block instanceof TextContent) {
                 $textContent .= $block->content;
             } elseif ($block instanceof ImageContent) {
@@ -77,22 +83,17 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapToolCall(ToolCallMessage $message): void
     {
-        $payload = [
+        $this->mapping[] = [
             'role' => $message->getRole(),
-            'content' => $message->getContent(),
+            'content' => $message->getContent() ?? '',
+            'tool_calls' => array_map(fn (ToolCall $call): array => [
+                'function' => [
+                    'name' => $call->getName(),
+                    // Arguments are a JSON object, even when there are none
+                    'arguments' => $call->getInputs() === [] ? new stdClass() : $call->getInputs(),
+                ],
+            ], $message->getToolCalls()),
         ];
-
-        $toolCalls = $message->getMetadata('tool_calls');
-        if (is_array($toolCalls)) {
-            $payload['tool_calls'] = array_map(function (array $toolCall): array {
-                if (empty($toolCall['function']['arguments'])) {
-                    $toolCall['function']['arguments'] = new stdClass();
-                }
-                return $toolCall;
-            }, $toolCalls);
-        }
-
-        $this->mapping[] = $payload;
     }
 
     public function mapToolsResult(ToolResultMessage $message): void

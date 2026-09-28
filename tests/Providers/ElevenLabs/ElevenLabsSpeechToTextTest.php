@@ -15,6 +15,7 @@ use NeuronAI\Providers\ElevenLabs\ElevenLabsSpeechToText;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use PHPUnit\Framework\TestCase;
 
+use function base64_encode;
 use function file_put_contents;
 use function iterator_to_array;
 use function sys_get_temp_dir;
@@ -61,15 +62,32 @@ class ElevenLabsSpeechToTextTest extends TestCase
         $this->assertSame('Ciao a tutti', $message->getContent());
     }
 
-    public function test_audio_file_and_model_are_uploaded_verbatim_with_the_api_key_header(): void
+    public function test_audio_file_and_model_id_are_uploaded_as_multipart_to_the_documented_endpoint(): void
     {
         $this->provider(new Response(200, body: '{"text":"ok"}'))->chat($this->recording());
 
         $request = $this->sentRequests[0]['request'];
+        $this->assertSame(['POST https://api.elevenlabs.io/v1/speech-to-text'], $this->sentTargets());
+        $this->assertStringStartsWith('multipart/form-data; boundary=', $request->getHeaderLine('Content-Type'));
         $this->assertSame(self::SECRET, $request->getHeaderLine('xi-api-key'));
         $this->assertStringNotContainsString(self::SECRET, (string) $request->getUri());
         $this->assertStringContainsString("\r\n\r\n".self::AUDIO."\r\n", (string) $request->getBody());
+        $this->assertStringContainsString('name="model_id"', (string) $request->getBody());
         $this->assertStringContainsString("\r\n\r\nscribe_v1\r\n", (string) $request->getBody());
+    }
+
+    public function test_audio_that_is_not_a_file_path_is_refused_before_any_request(): void
+    {
+        $provider = $this->provider(new Response(200, body: '{"text":"ok"}'));
+
+        try {
+            $provider->chat(new UserMessage(new AudioContent(base64_encode(self::AUDIO), SourceType::BASE64, 'audio/wav')));
+            $this->fail('Base64 audio must be refused.');
+        } catch (ProviderException $exception) {
+            $this->assertStringContainsString('SourceType::URL', $exception->getMessage());
+        }
+
+        $this->assertSame([], $this->sentRequests);
     }
 
     public function test_http_error_does_not_expose_the_api_key(): void
@@ -88,7 +106,7 @@ class ElevenLabsSpeechToTextTest extends TestCase
     public function test_streaming_is_not_supported(): void
     {
         $this->expectException(ProviderException::class);
-        $this->expectExceptionMessage('Streaming is not supported');
+        $this->expectExceptionMessage('Streaming is not supported by ElevenLabs Speech to Text.');
 
         iterator_to_array($this->provider(new Response(200))->stream($this->recording()));
     }
@@ -96,7 +114,7 @@ class ElevenLabsSpeechToTextTest extends TestCase
     public function test_structured_output_is_not_supported(): void
     {
         $this->expectException(ProviderException::class);
-        $this->expectExceptionMessage('Structured output is not supported');
+        $this->expectExceptionMessage('Structured output is not supported by ElevenLabs Speech to Text.');
 
         $this->provider(new Response(200))->structured($this->recording(), 'Transcript', []);
     }

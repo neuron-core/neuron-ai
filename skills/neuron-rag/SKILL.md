@@ -231,7 +231,7 @@ $rag->addDocuments(
 $rag->addDocuments($documents, chunkSize: 100);   // when the embeddings provider needs a different batch
 ```
 
-Repeated ingestion creates duplicate chunks. `reindexBySource()` groups the new documents by `sourceType`/`sourceName`, deletes the old documents for each source, then adds the new chunks (destructive for those sources):
+Repeated ingestion creates duplicate chunks. `reindexBySource()` replaces each source instead: it validates the whole batch, then, for each `sourceType`/`sourceName`, embeds the new chunks before deleting the old ones and storing the new. A failed validation or embedding call leaves the source as it was; if the vector store fails after the delete, run the same call again:
 
 ```php
 $rag->reindexBySource($documents);

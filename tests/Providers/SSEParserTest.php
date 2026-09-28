@@ -29,7 +29,16 @@ class SSEParserTest extends TestCase
             'carriage return line feed' => ["data: {\"type\":\"ping\",\"n\":1}\r\n"],
             'trailing spaces' => ["data: {\"type\":\"ping\",\"n\":1}   \n"],
             'last line without terminator' => ['data: {"type":"ping","n":1}'],
+            'no space after the colon' => ["data:{\"type\":\"ping\",\"n\":1}\n"],
         ];
+    }
+
+    public function test_a_payload_mentioning_done_is_an_event_not_the_end_of_the_stream(): void
+    {
+        $this->assertSame(
+            ['delta' => ['content' => 'DONE']],
+            SSEParser::parseNextSSEEvent($this->stream("data: {\"delta\":{\"content\":\"DONE\"}}\n")),
+        );
     }
 
     #[DataProvider('data_lines')]
@@ -52,7 +61,14 @@ class SSEParserTest extends TestCase
             'retry hint' => ["retry: 3000\n"],
             'done sentinel' => ["data: [DONE]\n"],
             'done sentinel with crlf' => ["data: [DONE]\r\n"],
+            'done sentinel without space' => ["data:[DONE]\n"],
             'end of stream' => [''],
+            'bare number keep-alive' => ["1\n"],
+            'bare json string' => ["\"ping\"\n"],
+            'bare boolean' => ["true\n"],
+            'data line with a number' => ["data: 1\n"],
+            'data line with a json string' => ["data: \"ping\"\n"],
+            'data line with null' => ["data: null\n"],
         ];
     }
 

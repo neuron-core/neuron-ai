@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\VectorStore;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
@@ -102,5 +103,21 @@ class OpenSearchTest extends TestCase
         foreach ($results as $result) {
             $this->assertNotEquals('web', $result->getSourceType());
         }
+    }
+
+    public function test_a_document_rejected_by_the_cluster_raises_an_exception(): void
+    {
+        $store = new OpenSearchVectorStore($this->client, 'test');
+        $store->addDocument((new Document('Hello World!'))->setEmbedding($this->embedding));
+        $wrongSize = (new Document('Wrong size'))->setEmbedding([0.1, 0.2, 0.3]);
+
+        try {
+            $store->addDocuments([(new Document('Valid'))->setEmbedding($this->embedding), $wrongSize]);
+            $this->fail('The rejected document must raise an exception.');
+        } catch (VectorStoreException $exception) {
+            $this->assertStringStartsWith("OpenSearch rejected 1 of 2 documents: [{$wrongSize->getId()}]", $exception->getMessage());
+        }
+
+        $this->assertSame(2, $this->client->count(['index' => 'test'])['count']);
     }
 }

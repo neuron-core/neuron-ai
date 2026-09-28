@@ -18,6 +18,7 @@ use OpenSearch\Client;
 use function array_key_exists;
 use function array_map;
 use function count;
+use function implode;
 use function max;
 
 class OpenSearchVectorStore implements VectorStoreInterface
@@ -167,9 +168,35 @@ class OpenSearchVectorStore implements VectorStoreInterface
                 ...MetadataMapper::toStorage($document, $this->schema),
             ];
         }
-        $this->client->bulk($params);
+        $response = $this->client->bulk($params);
         $this->client->indices()->refresh(['index' => $this->index]);
+        $this->assertIndexed($documents, $response);
         return $this;
+    }
+
+    /**
+     * The bulk API answers 200 even when it rejects documents: the rejections are listed in the response.
+     *
+     * @param Document[] $documents the documents of the request, in the order they were sent
+     * @param array<string, mixed> $response
+     * @throws VectorStoreException
+     */
+    protected function assertIndexed(array $documents, array $response): void
+    {
+        if (($response['errors'] ?? false) !== true) {
+            return;
+        }
+
+        $rejections = [];
+        foreach ($response['items'] as $position => $item) {
+            if (isset($item['index']['error'])) {
+                $rejections[] = "[{$documents[$position]->getId()}] {$item['index']['error']['reason']}";
+            }
+        }
+
+        throw new VectorStoreException(
+            'OpenSearch rejected '.count($rejections).' of '.count($documents).' documents: '.implode('; ', $rejections)
+        );
     }
 
     /**

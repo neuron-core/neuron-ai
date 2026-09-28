@@ -174,6 +174,23 @@ class OpenAIStreamTest extends TestCase
         $this->assertSame('Hello', $message->getContent());
     }
 
+    public function test_text_and_tool_arguments_containing_done_are_kept(): void
+    {
+        $provider = $this->provider([
+            self::chunk(['content' => 'Task is ']),
+            self::chunk(['content' => 'DONE']),
+            self::chunk(['tool_calls' => [['index' => 0, 'id' => 'call_1', 'type' => 'function', 'function' => ['name' => 'weather', 'arguments' => '{"status":"']]]]),
+            self::argumentDelta(0, 'DONE"}'),
+            self::chunk([], 'tool_calls'),
+        ]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Close it')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Task is DONE', $message->getContent());
+        $this->assertSame(['status' => 'DONE'], $message->getToolCalls()[0]->getInputs());
+    }
+
     public function test_malformed_event_payload_aborts_the_stream(): void
     {
         $body = self::sseBody([self::chunk(['content' => 'Hel'])])."data: {\"choices\":[{\"delta\"\n\n";

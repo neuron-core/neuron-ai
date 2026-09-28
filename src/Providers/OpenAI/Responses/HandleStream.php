@@ -19,17 +19,9 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
-use Throwable;
+use NeuronAI\Providers\SSEParser;
 
 use function rtrim;
-use function json_decode;
-use function mb_strlen;
-use function str_contains;
-use function str_starts_with;
-use function substr;
-use function trim;
-
-use const JSON_THROW_ON_ERROR;
 
 /**
  * Originally inspired by Andrew Monty - https://github.com/AndrewMonty
@@ -170,49 +162,8 @@ trait HandleStream
      */
     protected function parseNextDataLine(StreamInterface $stream): ?array
     {
-        $line = $this->readLine($stream);
+        $event = SSEParser::parseNextSSEEvent($stream);
 
-        if (! str_starts_with((string) $line, 'data:')) {
-            return null;
-        }
-
-        $line = trim(substr((string) $line, mb_strlen('data: ')));
-
-        if (str_contains($line, 'DONE')) {
-            return null;
-        }
-
-        try {
-            $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
-        } catch (Throwable $exception) {
-            throw new ProviderException('OpenAI streaming JSON decode error: ' . $exception->getMessage(), $exception->getCode(), $exception);
-        }
-
-        if (!isset($event['type'])) {
-            return null;
-        }
-
-        return $event;
-    }
-
-    protected function readLine(StreamInterface $stream): string
-    {
-        $buffer = '';
-
-        while (! $stream->eof()) {
-            $byte = $stream->read(1);
-
-            if ($byte === '') {
-                return $buffer;
-            }
-
-            $buffer .= $byte;
-
-            if ($byte === "\n") {
-                break;
-            }
-        }
-
-        return $buffer;
+        return isset($event['type']) ? $event : null;
     }
 }

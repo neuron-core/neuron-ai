@@ -21,11 +21,14 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
+        // A tool call answer carries its text in tool_plan and may have no content at all
+        $blocks = $this->extractContent($result['message']['content'] ?? []);
+
         if ($result['finish_reason'] === 'TOOL_CALL') {
-            $blocks = $this->extractContent($result['message']['content']);
+            $blocks[] = new TextContent($result['message']['tool_plan'] ?? '');
             $response = $this->createToolCallMessage($result['message']['tool_calls'], $blocks);
         } else {
-            $response = new AssistantMessage($this->extractContent($result['message']['content']));
+            $response = new AssistantMessage($blocks);
         }
 
         if (isset($result['usage'])) {

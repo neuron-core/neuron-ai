@@ -25,6 +25,7 @@ use function count;
 use function array_map;
 use function explode;
 use function json_decode;
+use function range;
 use function trim;
 
 use const JSON_THROW_ON_ERROR;
@@ -193,6 +194,35 @@ class ElasticsearchVectorStoreTest extends TestCase
         $this->assertSame(['index' => ['_index' => 'docs']], $lines[2]);
         $this->assertSame('Two', $lines[3]['content']);
         $this->assertSame('POST http://es.test:9200/docs/_refresh', $this->sentTargets()[3]);
+    }
+
+    public function test_each_bulk_request_carries_only_its_own_hundred_documents(): void
+    {
+        $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dims' => 2]]]]]];
+        $store = $this->store(null, $this->es(), $this->es($mapping), $this->es(['errors' => false]), $this->es(), $this->es(['errors' => false]), $this->es());
+
+        $store->addDocuments(array_map(fn (int $i): Document => $this->document("Document {$i}"), range(1, 101)));
+
+        $this->assertSame('POST http://es.test:9200/_bulk', $this->sentTargets()[4]);
+        $this->assertCount(200, $this->sentNdjson(2));
+        $this->assertCount(2, $this->sentNdjson(4));
+        $this->assertSame('Document 101', $this->sentNdjson(4)[1]['content']);
+    }
+
+    public function test_documents_rejected_by_a_bulk_request_raise_an_exception_naming_them(): void
+    {
+        $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dims' => 2]]]]]];
+        $rejection = ['errors' => true, 'items' => [
+            ['index' => ['status' => 201]],
+            ['index' => ['status' => 400, 'error' => ['type' => 'document_parsing_exception', 'reason' => 'The [cosine] similarity does not support vectors with zero magnitude.']]],
+        ]];
+        $store = $this->store(null, $this->es(), $this->es($mapping), $this->es($rejection), $this->es());
+        $zero = $this->document('Zero')->setEmbedding([0.0, 0.0]);
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage("Elasticsearch rejected 1 of 2 documents: [{$zero->getId()}] The [cosine] similarity does not support vectors with zero magnitude.");
+
+        $store->addDocuments([$this->document('Valid'), $zero]);
     }
 
     public function test_adding_no_documents_sends_nothing(): void

@@ -164,6 +164,22 @@ class OpenSearchVectorStoreTest extends TestCase
         $this->assertSame('Two', json_decode($lines[3], true, flags: JSON_THROW_ON_ERROR)['content']);
     }
 
+    public function test_documents_rejected_by_the_bulk_request_raise_an_exception_naming_them(): void
+    {
+        $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dimension' => 3]]]]]];
+        $rejection = ['errors' => true, 'items' => [
+            ['index' => ['status' => 201]],
+            ['index' => ['status' => 400, 'error' => ['type' => 'mapper_parsing_exception', 'reason' => 'Vector dimension mismatch. Expected: 3, Given: 2']]],
+        ]];
+        $store = $this->store(null, new Response(200), $this->jsonResponse($mapping), $this->jsonResponse($rejection), $this->jsonResponse());
+        $wrongSize = $this->document('Wrong size')->setEmbedding([0.1, 0.2]);
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage("OpenSearch rejected 1 of 2 documents: [{$wrongSize->getId()}] Vector dimension mismatch. Expected: 3, Given: 2");
+
+        $store->addDocuments([$this->document('Valid'), $wrongSize]);
+    }
+
     public function test_existing_index_with_another_dimension_gets_a_new_knn_mapping(): void
     {
         $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dimension' => 1536]]]]]];

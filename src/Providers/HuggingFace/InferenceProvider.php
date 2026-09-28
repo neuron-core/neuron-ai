@@ -6,7 +6,7 @@ namespace NeuronAI\Providers\HuggingFace;
 
 enum InferenceProvider: string
 {
-    case HF_INFERENCE = 'hf-inference/models';
+    case HF_INFERENCE = 'hf-inference';
     case CEREBRAS = 'cerebras';
     case COHERE = 'cohere';
     case FEATHERLESS_AI = 'featherless-ai';

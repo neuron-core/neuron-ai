@@ -32,10 +32,10 @@ trait HandleStream
                 continue;
             }
 
-            // Capture usage information
-            if (!empty($line['usage'])) {
-                $this->streamState->addInputTokens($line['usage']['tokens']['input_tokens'] ?? 0);
-                $this->streamState->addOutputTokens($line['usage']['tokens']['output_tokens'] ?? 0);
+            // Capture usage information, sent by message-end
+            if (!empty($line['delta']['usage'])) {
+                $this->streamState->addInputTokens($line['delta']['usage']['tokens']['input_tokens'] ?? 0);
+                $this->streamState->addOutputTokens($line['delta']['usage']['tokens']['output_tokens'] ?? 0);
             }
 
             if ($line['type'] === 'tool-plan-delta') {
@@ -56,15 +56,6 @@ trait HandleStream
                         $toolCall['id'] ?? null,
                     );
                 }
-            }
-
-            if ($line['type'] === 'tool-call-end') {
-                $message = $this->createToolCallMessage(
-                    $this->streamState->getToolCalls(),
-                    new TextContent($this->streamState->getToolPlan())
-                );
-                $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
-                return new ProviderResponse(message: $message);
             }
 
             if ($line['type'] === 'content-delta') {
@@ -88,7 +79,16 @@ trait HandleStream
             }
         }
 
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        // Built once the stream ends: parallel calls each close with their own tool-call-end
+        $blocks = $this->streamState->getContentBlocks();
+
+        if ($this->streamState->hasToolCalls()) {
+            $blocks[] = new TextContent($this->streamState->getToolPlan());
+            $message = $this->createToolCallMessage($this->streamState->getToolCalls(), $blocks);
+        } else {
+            $message = new AssistantMessage($blocks);
+        }
+
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
         return new ProviderResponse(message: $message);

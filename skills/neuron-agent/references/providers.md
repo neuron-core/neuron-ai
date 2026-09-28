@@ -32,7 +32,7 @@ new OpenAI(
 | `NeuronAI\Providers\ZAI\ZAI` | OpenAI-compatible; optional `baseUri` |
 | `NeuronAI\Providers\Alibaba\DashScopeOpenAI` | OpenAI-compatible; optional `baseUri` |
 | `NeuronAI\Providers\Cohere\Cohere` | OpenAI-compatible; optional `baseUri` (default Cohere v2) |
-| `NeuronAI\Providers\HuggingFace\HuggingFace` | `inferenceProvider`: an `InferenceProvider` enum case (`HF_INFERENCE` default, `GROQ`, `TOGETHER`, `CEREBRAS`, `FIREWORKS_AI`, ...) |
+| `NeuronAI\Providers\HuggingFace\HuggingFace` | `inferenceProvider`: an `InferenceProvider` enum case (`HF_INFERENCE`, `GROQ`, `TOGETHER`, `CEREBRAS`, `FIREWORKS_AI`, ...), or `null` (default) to let Hugging Face pick the fastest provider serving the model |
 
 The OpenAI-compatible classes extend `OpenAI`, so they share its constructor and `strict_response`.
 
@@ -53,7 +53,7 @@ new OpenAILike(
 | `NeuronAI\Providers\Ollama\Ollama` | `url` (for example `http://localhost:11434/api`), `model`; no key |
 | `NeuronAI\Providers\OpenAILike` | `baseUri`, `key`, `model`; Chat Completions wire format |
 | `NeuronAI\Providers\OpenAILikeResponses` | `baseUri`, `key`, `model`; Responses API wire format |
-| `NeuronAI\Providers\OpenAI\AzureOpenAI` | `key`, `endpoint` (the resource host), `model` (the deployment name), `version` (the `api-version` query value) |
+| `NeuronAI\Providers\OpenAI\AzureOpenAI` | `key` (a resource key, sent in the `api-key` header), `endpoint` (the resource host), `model` (the deployment name); calls Azure's v1 API, so no `api-version` |
 
 ## Platform credentials
 

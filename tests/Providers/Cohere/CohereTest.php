@@ -24,6 +24,7 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function iterator_to_array;
 use function json_decode;
 use function json_encode;
@@ -113,9 +114,10 @@ class CohereTest extends TestCase
             'finish_reason' => 'TOOL_CALL',
             'message' => [
                 'role' => 'assistant',
-                'content' => [['type' => 'text', 'text' => 'I will look it up']],
+                'tool_plan' => 'I will look it up',
                 'tool_calls' => [['id' => 'lookup_1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]],
             ],
+            'usage' => ['tokens' => ['input_tokens' => 7, 'output_tokens' => 3]],
         ], JSON_THROW_ON_ERROR);
 
         $message = $this->provider($body)->chat(new UserMessage('Where?'))->message();
@@ -123,8 +125,28 @@ class CohereTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame('I will look it up', $message->getContent());
         $this->assertSame('TOOL_CALL', $message->stopReason());
+        $this->assertSame([7, 3], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
         [$call] = $message->getToolCalls();
         $this->assertSame(['lookup', 'lookup_1', ['q' => 'rome']], [$call->getName(), $call->getCallId(), $call->getInputs()]);
+    }
+
+    public function test_tool_call_answer_keeps_the_reasoning_before_the_plan(): void
+    {
+        $body = json_encode([
+            'finish_reason' => 'TOOL_CALL',
+            'message' => [
+                'role' => 'assistant',
+                'content' => [['type' => 'thinking', 'thinking' => 'The user wants a place']],
+                'tool_plan' => 'I will look it up',
+                'tool_calls' => [['id' => 'lookup_1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $message = $this->provider($body)->chat(new UserMessage('Where?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('The user wants a place', $message->getReasoning()?->content);
+        $this->assertSame('I will look it up', $message->getContent());
     }
 
     public function test_http_error_does_not_expose_the_api_key(): void
@@ -201,7 +223,7 @@ class CohereTest extends TestCase
             ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['text' => 'Bon']]]],
             ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['text' => 'jour']]]],
             ['type' => 'content-end', 'index' => 0],
-            ['type' => 'message-end', 'delta' => ['finish_reason' => 'COMPLETE'], 'usage' => ['tokens' => ['input_tokens' => 4, 'output_tokens' => 2]]],
+            ['type' => 'message-end', 'delta' => ['finish_reason' => 'COMPLETE', 'usage' => ['tokens' => ['input_tokens' => 4, 'output_tokens' => 2]]]],
         ]));
 
         [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
@@ -209,6 +231,44 @@ class CohereTest extends TestCase
         $this->assertSame(['Bon', 'jour'], $this->contentsOf(TextChunk::class, $chunks));
         $this->assertSame('Bonjour', $message->getContent());
         $this->assertSame([4, 2], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
+    }
+
+    public function test_stream_keeps_every_parallel_tool_call_and_the_final_usage(): void
+    {
+        $events = [['type' => 'tool-plan-delta', 'delta' => ['message' => ['tool_plan' => 'Checking both.']]]];
+        foreach (['rome', 'oslo'] as $index => $city) {
+            $events[] = ['type' => 'tool-call-start', 'index' => $index, 'delta' => ['message' => ['tool_calls' => [
+                'id' => "lookup_{$index}", 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => "{\"q\":\"{$city}\"}"],
+            ]]]];
+            $events[] = ['type' => 'tool-call-end', 'index' => $index];
+        }
+        $events[] = ['type' => 'message-end', 'delta' => ['finish_reason' => 'TOOL_CALL', 'usage' => ['tokens' => ['input_tokens' => 11, 'output_tokens' => 4]]]];
+
+        [, $message] = $this->consumeStream($this->provider(self::sseBody($events))->stream(new UserMessage('Weather?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Checking both.', $message->getContent());
+        $this->assertSame(
+            [['lookup_0', ['q' => 'rome']], ['lookup_1', ['q' => 'oslo']]],
+            array_map(static fn (ToolCall $call): array => [$call->getCallId(), $call->getInputs()], $message->getToolCalls())
+        );
+        $this->assertSame([11, 4], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
+    }
+
+    public function test_streamed_reasoning_is_kept_before_the_tool_plan(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['thinking' => 'The user wants a place']]]],
+            ['type' => 'tool-plan-delta', 'delta' => ['message' => ['tool_plan' => 'I will look it up']]],
+            ['type' => 'tool-call-start', 'index' => 0, 'delta' => ['message' => ['tool_calls' => ['id' => 'lookup_1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]]]],
+            ['type' => 'tool-call-end', 'index' => 0],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Where?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('The user wants a place', $message->getReasoning()?->content);
+        $this->assertSame('I will look it up', $message->getContent());
     }
 
     public function test_streamed_tool_call_for_an_unregistered_tool_is_rejected(): void

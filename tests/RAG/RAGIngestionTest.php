@@ -7,6 +7,9 @@ namespace NeuronAI\Tests\RAG;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\RAG;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
@@ -14,6 +17,7 @@ use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Testing\VectorStoreRecord;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 use function array_filter;
 use function array_map;
@@ -122,6 +126,20 @@ class RAGIngestionTest extends TestCase
         $this->store->assertNothingStored();
     }
 
+    public function test_an_invalid_document_is_rejected_before_any_chunk_is_stored(): void
+    {
+        $this->store = new FakeVectorStore(schema: DocumentSchema::of(DocumentField::string('tenant')->required()));
+
+        try {
+            $this->rag()->addDocuments([(new Document('Valid'))->addMetadata('tenant', 'acme'), new Document('Missing tenant')], chunkSize: 1);
+            $this->fail('The invalid document must be rejected.');
+        } catch (DocumentSchemaException) {
+        }
+
+        $this->embeddings->assertNothingEmbedded();
+        $this->store->assertNothingStored();
+    }
+
     public function test_reindexing_replaces_only_the_documents_of_the_given_sources(): void
     {
         $rag = $this->rag();
@@ -181,5 +199,73 @@ class RAGIngestionTest extends TestCase
         ], chunkSize: 2);
 
         $this->assertSame([['First', 'Second'], ['Third']], $this->storedBatches());
+    }
+
+    public function test_an_invalid_replacement_leaves_the_indexed_source_untouched(): void
+    {
+        $this->store = new FakeVectorStore(schema: DocumentSchema::of(DocumentField::string('tenant')->required()));
+        $rag = $this->rag();
+        $rag->addDocuments([$this->document('Indexed', 'file', 'a.md')->addMetadata('tenant', 'acme')]);
+
+        try {
+            $rag->reindexBySource([$this->document('Missing tenant', 'file', 'a.md')]);
+            $this->fail('The invalid replacement must be rejected.');
+        } catch (DocumentSchemaException) {
+        }
+
+        $this->assertSame(['Indexed'], $this->storedContents());
+    }
+
+    public function test_a_chunk_size_below_one_leaves_the_indexed_source_untouched(): void
+    {
+        $rag = $this->rag();
+        $rag->addDocuments([$this->document('Indexed', 'file', 'a.md')]);
+
+        try {
+            $rag->reindexBySource([$this->document('Replacement', 'file', 'a.md')], chunkSize: 0);
+            $this->fail('A chunk size below one must be rejected.');
+        } catch (AgentException $exception) {
+            $this->assertSame('RAG document chunk size must be greater than zero.', $exception->getMessage());
+        }
+
+        $this->assertSame(['Indexed'], $this->storedContents());
+    }
+
+    public function test_an_embeddings_failure_leaves_the_source_being_replaced_untouched(): void
+    {
+        $rag = $this->rag();
+        $rag->addDocuments([$this->document('Old A', 'file', 'a.md'), $this->document('Old B', 'file', 'b.md')]);
+        $rag->setEmbeddingsProvider(new class () extends FakeEmbeddingsProvider {
+            public function embedText(string $text): array
+            {
+                if ($text === 'New B') {
+                    throw new RuntimeException('Rate limited');
+                }
+
+                return parent::embedText($text);
+            }
+        });
+
+        try {
+            $rag->reindexBySource([$this->document('New A', 'file', 'a.md'), $this->document('New B', 'file', 'b.md')]);
+            $this->fail('The embeddings failure must propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Rate limited', $exception->getMessage());
+        }
+
+        // Each source is either replaced or untouched, never emptied
+        $this->assertSame(['New A', 'Old B'], $this->storedContents());
+    }
+
+    #[TestWith(['post', '2024'])]
+    #[TestWith(['42', 'file.txt'])]
+    public function test_a_source_identified_by_digits_can_be_reindexed(string $sourceType, string $sourceName): void
+    {
+        $rag = $this->rag();
+        $rag->addDocuments([$this->document('Old', $sourceType, $sourceName)]);
+
+        $rag->reindexBySource([$this->document('New', $sourceType, $sourceName)]);
+
+        $this->assertSame(['New'], $this->storedContents());
     }
 }

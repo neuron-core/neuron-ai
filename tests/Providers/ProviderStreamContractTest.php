@@ -121,7 +121,7 @@ class ProviderStreamContractTest extends TestCase
         $cohereText = self::sse([
             ['type' => 'message-start', 'id' => 'msg_vendor'],
             ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['text' => 'Answer']]]],
-            ['type' => 'message-end', 'usage' => ['tokens' => ['input_tokens' => 1, 'output_tokens' => 1]]],
+            ['type' => 'message-end', 'delta' => ['usage' => ['tokens' => ['input_tokens' => 1, 'output_tokens' => 1]]]],
         ]);
         $cohereToolCall = self::sse([
             ['type' => 'message-start', 'id' => 'msg_vendor'],

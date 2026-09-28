@@ -101,7 +101,7 @@ class ElevenLabsTextToSpeechTest extends TestCase
     public function test_structured_output_is_not_supported(): void
     {
         $this->expectException(ProviderException::class);
-        $this->expectExceptionMessage('Structured output is not supported');
+        $this->expectExceptionMessage('Structured output is not supported by ElevenLabs Text to Speech.');
 
         $this->provider(new Response(200))->structured(new UserMessage('Hi'), 'Person', []);
     }

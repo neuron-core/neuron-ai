@@ -112,6 +112,22 @@ class MistralStreamTest extends TestCase
         $this->assertSame(['{"q":', '"rome"}'], $arguments);
     }
 
+    public function test_tool_calls_finished_by_a_later_chunk_are_not_lost(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            self::delta(['tool_calls' => [['id' => 'call_1', 'index' => 0, 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]]]),
+            self::delta(['content' => ''], 'tool_calls') + ['usage' => ['prompt_tokens' => 9, 'completion_tokens' => 3]],
+        ])."data: [DONE]\n\n");
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Where?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        [$call] = $message->getToolCalls();
+        $this->assertSame(['lookup', 'call_1', ['q' => 'rome']], [$call->getName(), $call->getCallId(), $call->getInputs()]);
+        $this->assertSame('tool_calls', $message->stopReason());
+        $this->assertSame([9, 3], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
+    }
+
     public function test_malformed_event_payload_raises_provider_exception(): void
     {
         $provider = $this->provider("data: {\"choices\":[{\"delta\":{\"content\":\"a\"}\n\n");

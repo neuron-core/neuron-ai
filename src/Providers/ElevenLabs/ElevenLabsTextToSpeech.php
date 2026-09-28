@@ -129,17 +129,17 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
 
     public function structured(array|Message $messages, string $class, array $response_schema): ProviderResponse
     {
-        throw new ProviderException('Structured output is not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Structured output is not supported by ElevenLabs Text to Speech.');
     }
 
     protected function messageMapper(): MessageMapperInterface
     {
-        throw new ProviderException('Messages are not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Messages are not supported by ElevenLabs Text to Speech.');
     }
 
     protected function toolPayloadMapper(): ToolMapperInterface
     {
-        throw new ProviderException('Tools are not supported by OpenAI Text to Speech.');
+        throw new ProviderException('Tools are not supported by ElevenLabs Text to Speech.');
     }
 
     public function setTools(array $tools): AIProviderInterface

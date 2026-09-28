@@ -138,6 +138,45 @@ class MistralTest extends TestCase
         $this->assertSame(['call_b', []], [$second->getCallId(), $second->getInputs()]);
     }
 
+    public function test_reasoning_answer_in_content_chunks_keeps_thinking_and_text(): void
+    {
+        $message = $this->provider(self::completion(['content' => [
+            ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Let me think']]],
+            ['type' => 'text', 'text' => 'Answer'],
+        ]]))->chat(new UserMessage('Q'))->message();
+
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertNotInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Let me think', $message->getReasoning()?->content);
+        $this->assertSame('Answer', $message->getContent());
+        $this->assertSame('stop', $message->stopReason());
+    }
+
+    public function test_tool_calls_with_null_content_are_accepted(): void
+    {
+        $message = $this->provider(self::completion([
+            'content' => null,
+            'tool_calls' => [['id' => 'c1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"x"}']]],
+        ], 'tool_calls'))->chat(new UserMessage('Q'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertNull($message->getContent());
+        [$call] = $message->getToolCalls();
+        $this->assertSame(['lookup', 'c1', ['q' => 'x']], [$call->getName(), $call->getCallId(), $call->getInputs()]);
+    }
+
+    public function test_tool_calls_with_content_chunks_keep_the_reasoning(): void
+    {
+        $message = $this->provider(self::completion([
+            'content' => [['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Need a lookup']]]],
+            'tool_calls' => [['id' => 'c1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"x"}']]],
+        ], 'tool_calls'))->chat(new UserMessage('Q'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Need a lookup', $message->getReasoning()?->content);
+        $this->assertSame('c1', $message->getToolCalls()[0]->getCallId());
+    }
+
     public function test_tool_call_for_an_unregistered_tool_is_rejected(): void
     {
         $provider = $this->provider(self::completion([

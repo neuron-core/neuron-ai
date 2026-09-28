@@ -14,11 +14,13 @@ use NeuronAI\RAG\Nodes\PreProcessNode;
 use NeuronAI\RAG\Nodes\RetrievalNode;
 use NeuronAI\RAG\PostProcessor\PostProcessorInterface;
 use NeuronAI\RAG\PreProcessor\PreProcessorInterface;
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\Workflow\Node;
 
 use function array_chunk;
+use function array_map;
 use function get_debug_type;
 
 /**
@@ -58,34 +60,32 @@ class RAG extends Agent
 
     /**
      * @param Document[] $documents
+     * @throws AgentException
+     * @throws DocumentSchemaException
      */
     public function addDocuments(array $documents, int $chunkSize = 50): void
     {
-        if ($chunkSize < 1) {
-            throw new AgentException('RAG document chunk size must be greater than zero.');
-        }
-
-        $vectorStore = $this->resolveVectorStore();
+        $this->validateBatch($documents, $chunkSize);
 
         foreach (array_chunk($documents, $chunkSize) as $chunk) {
-            foreach ($chunk as $document) {
-                $vectorStore->getSchema()->validate($document);
-            }
-
-            $vectorStore->addDocuments(
+            $this->resolveVectorStore()->addDocuments(
                 $this->resolveEmbeddingsProvider()->embedDocuments($chunk)
             );
         }
     }
 
     /**
-     * Destructive per source: existing documents of each source are deleted first.
+     * Replaces the stored documents of each source. The whole batch is validated, and each source's
+     * chunks are embedded before its old documents are deleted, so a failed validation or embedding
+     * call leaves the source as it was.
      *
      * @param Document[] $documents
-     * @throws AgentException|VectorStoreException
+     * @throws AgentException|DocumentSchemaException|VectorStoreException
      */
     public function reindexBySource(array $documents, int $chunkSize = 50): void
     {
+        $this->validateBatch($documents, $chunkSize);
+
         $grouped = [];
 
         foreach ($documents as $document) {
@@ -97,14 +97,42 @@ class RAG extends Agent
             $grouped[$sourceType][$sourceName][] = $document;
         }
 
-        foreach ($grouped as $sourceType => $sources) {
-            foreach ($sources as $sourceName => $sourceDocuments) {
+        foreach ($grouped as $sources) {
+            foreach ($sources as $sourceDocuments) {
+                $chunks = array_map(
+                    fn (array $chunk): array => $this->resolveEmbeddingsProvider()->embedDocuments($chunk),
+                    array_chunk($sourceDocuments, $chunkSize)
+                );
+
+                // Read from a document: as an array key, a name made of digits has become an integer
                 $this->resolveVectorStore()->delete(FilterGroup::and(
-                    Filter::eq('sourceType', $sourceType),
-                    Filter::eq('sourceName', $sourceName),
+                    Filter::eq('sourceType', $sourceDocuments[0]->getSourceType()),
+                    Filter::eq('sourceName', $sourceDocuments[0]->getSourceName()),
                 ));
-                $this->addDocuments($sourceDocuments, $chunkSize);
+
+                foreach ($chunks as $chunk) {
+                    $this->resolveVectorStore()->addDocuments($chunk);
+                }
             }
+        }
+    }
+
+    /**
+     * The whole batch is checked before anything is embedded or stored.
+     *
+     * @param Document[] $documents
+     * @throws AgentException|DocumentSchemaException
+     */
+    protected function validateBatch(array $documents, int $chunkSize): void
+    {
+        if ($chunkSize < 1) {
+            throw new AgentException('RAG document chunk size must be greater than zero.');
+        }
+
+        $schema = $this->resolveVectorStore()->getSchema();
+
+        foreach ($documents as $document) {
+            $schema->validate($document);
         }
     }
 

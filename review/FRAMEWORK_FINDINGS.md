@@ -19,8 +19,8 @@ The real risk sits in four places. First, the SQL toolkits' "read-only" select t
 1. **Make the SQL select tools genuinely read-only:** [TOOLS-01](#tools-01), [TOOLS-04](#tools-04), [TOOLS-05](#tools-05), [TOOLS-06](#tools-06), [TOOLS-07](#tools-07), [TOOLS-08](#tools-08), plus [TOOLS-26](#tools-26). The regex fixes close the verified bypasses. Only the read-only transaction from [TOOLS-08](#tools-08) avoids depending on SQL parsing, so do both. This comes first because prompt injection can destroy data through a tool advertised as safe. **Resolved** with the read-only transaction alone plus three refusal-only text rules, not the regex fixes; see [TOOLS-01](#tools-01).
 2. **Close the injection and exposure paths:** [RAG-01](#rag-01) (Cypher injection), [CHAT-01](#chat-01) (its fix also removes [CHAT-08](#chat-08); add the [CHAT-26](#chat-26) guard alongside), [DOCS-02](#docs-02) (documented memory leaks conversations across threads), [AGENT-01](#agent-01) with [DOCS-01](#docs-01), [STRUCTUREDOUTPUT-02](#structuredoutput-02) (model output writes non-public and static properties) and [TOOLS-10](#tools-10) (approval policies bypassed on nested fields). **Resolved so far:** [RAG-01](#rag-01), and [CHAT-01](#chat-01) with [CHAT-08](#chat-08) and [CHAT-26](#chat-26).
 3. **Harden the HTTP layer once:** [HTTPCLIENT-05](#httpclient-05), [HTTPCLIENT-06](#httpclient-06), [HTTPCLIENT-07](#httpclient-07), [HTTPCLIENT-08](#httpclient-08), [MCP-12](#mcp-12), [MCP-13](#mcp-13) and [MCP-14](#mcp-14), together with [HTTPCLIENT-04](#httpclient-04), which hides 4xx/5xx errors on the default streaming path. Most of the work lands in `CurlHttpClient` and `SseHttpTransport`.
-4. **Stop silent data loss:** [RAG-02](#rag-02), [RAG-03](#rag-03), one `FileVectorStore` pass covering [RAG-22](#rag-22), [RAG-23](#rag-23), [RAG-24](#rag-24), [RAG-48](#rag-48) and [RAG-53](#rag-53), the Typesense pair [RAG-31](#rag-31) and [RAG-52](#rag-52), [CHAT-06](#chat-06) and [CHAT-09](#chat-09). [AGENT-02](#agent-02) needs a decision on an atomic history `replace()` API.
-5. **Repair the broken providers:** [PROVIDERS-03](#providers-03), [PROVIDERS-06](#providers-06) with [PROVIDERS-25](#providers-25), [PROVIDERS-02](#providers-02), [PROVIDERS-01](#providers-01), [PROVIDERS-04](#providers-04) and [PROVIDERS-05](#providers-05). Then fix the SSE parser ([PROVIDERS-07](#providers-07), [PROVIDERS-31](#providers-31), [PROVIDERS-44](#providers-44)) and [PROVIDERS-12](#providers-12), which currently lets a stream that failed partway through be stored as a complete answer. [PROVIDERS-28](#providers-28), a cross-request reasoning leak, fits in the same pass.
+4. **Stop silent data loss:** [RAG-02](#rag-02), [RAG-03](#rag-03), one `FileVectorStore` pass covering [RAG-22](#rag-22), [RAG-23](#rag-23), [RAG-24](#rag-24), [RAG-48](#rag-48) and [RAG-53](#rag-53), the Typesense pair [RAG-31](#rag-31) and [RAG-52](#rag-52), [CHAT-06](#chat-06) and [CHAT-09](#chat-09). [AGENT-02](#agent-02) needs a decision on an atomic history `replace()` API. **Resolved so far:** [RAG-02](#rag-02) and [RAG-03](#rag-03).
+5. **Repair the broken providers:** [PROVIDERS-03](#providers-03), [PROVIDERS-06](#providers-06) with [PROVIDERS-25](#providers-25), [PROVIDERS-02](#providers-02), [PROVIDERS-01](#providers-01), [PROVIDERS-04](#providers-04) and [PROVIDERS-05](#providers-05). Then fix the SSE parser ([PROVIDERS-07](#providers-07), [PROVIDERS-31](#providers-31), [PROVIDERS-44](#providers-44)) and [PROVIDERS-12](#providers-12), which currently lets a stream that failed partway through be stored as a complete answer. [PROVIDERS-28](#providers-28), a cross-request reasoning leak, fits in the same pass. **Resolved so far:** [PROVIDERS-03](#providers-03), [PROVIDERS-06](#providers-06) with [PROVIDERS-25](#providers-25), [PROVIDERS-02](#providers-02), [PROVIDERS-01](#providers-01), [PROVIDERS-04](#providers-04), [PROVIDERS-05](#providers-05), and the SSE parser pass: [PROVIDERS-07](#providers-07), [PROVIDERS-31](#providers-31), [PROVIDERS-44](#providers-44).
 6. **Let the model correct its own mistakes:** [TOOLS-02](#tools-02), [TOOLS-12](#tools-12), [TOOLS-13](#tools-13), [STRUCTUREDOUTPUT-01](#structuredoutput-01), [STRUCTUREDOUTPUT-03](#structuredoutput-03), [STRUCTUREDOUTPUT-04](#structuredoutput-04) and [STRUCTUREDOUTPUT-05](#structuredoutput-05), plus [TOOLS-03](#tools-03) (BashTool hangs forever on large stderr). Today these either abort whole runs on routine model output or accept wrong data without a retry.
 
 ### Recurring patterns
@@ -677,59 +677,73 @@ Providers has 46 findings, 7 of them high, and this is where features are broken
 
 ### <a id="providers-01"></a>PROVIDERS-01 · Cohere crashes on v2 tool-call responses and streaming keeps only the first tool call
 
-**high** · bug · [`src/Providers/Cohere/HandleChat.php:25`](../src/Providers/Cohere/HandleChat.php#L25) · repro [`CohereToolCallsTest`](repro/Providers/CohereToolCallsTest.php) · fix validated
+**high** · bug · [`src/Providers/Cohere/HandleChat.php:25`](../src/Providers/Cohere/HandleChat.php#L25) · regression test [`CohereTest`](../tests/Providers/Cohere/CohereTest.php) · **resolved**
 
 Cohere v2 tool-call responses carry `message.tool_plan` and `message.tool_calls` but no `message.content`. `HandleChat::processChatResult()` still passes the missing `content` key to `extractContent(array)`, so every non-streaming turn where the model calls a tool throws a `TypeError`, and the tool plan is never read. This makes the Cohere agent tool loop unusable in `chat()` and `structured()`. In streaming, `HandleStream` returns on the first `tool-call-end` event. When the model makes parallel calls, every call after the first is silently dropped, the model never gets results for them, and the `message-end` usage is never read.
 
 Suggested fix: in `src/Providers/Cohere/HandleChat.php`, build the `ToolCallMessage` from `tool_calls` with `tool_plan` as its text, and default `content` to `[]`. In `src/Providers/Cohere/HandleStream.php`, remove the early return on `tool-call-end` and build the final message after the loop, once `message-end` has been read. This was validated in a sandbox against the repro and the module's tests, and `CohereTest::test_tool_call_answer_becomes_tool_call_message` should be updated to the real v2 shape.
 
+**Resolution:** applied as suggested, and the stream now builds its message once the loop ends, so parallel calls are all kept. A tool call message holds the content blocks Cohere sent, such as a reasoning model's thinking, followed by the tool plan as its text, in both `chat()` and `stream()`; the mapper still sends only the plan back as `tool_plan`, because `getContent()` skips reasoning. The review missed that streamed usage was never read at all: Cohere's API reference puts it in `delta.usage` of the `message-end` event, while the code, the repro and three test fixtures used a top-level `usage`, so every streamed Cohere response reported zero tokens. The code now reads `delta.usage`, and the fixtures use the documented shape.
+
 ### <a id="providers-02"></a>PROVIDERS-02 · ElevenLabsSpeechToText sends requests to a non-existent endpoint with invalid field and headers
 
-**high** · bug · [`src/Providers/ElevenLabs/ElevenLabsSpeechToText.php:76`](../src/Providers/ElevenLabs/ElevenLabsSpeechToText.php#L76) · repro [`ElevenLabsSpeechToTextContractTest`](repro/Providers/ElevenLabsSpeechToTextContractTest.php) · fix validated
+**high** · bug · [`src/Providers/ElevenLabs/ElevenLabsSpeechToText.php:76`](../src/Providers/ElevenLabs/ElevenLabsSpeechToText.php#L76) · regression test [`ElevenLabsSpeechToTextTest`](../tests/Providers/ElevenLabs/ElevenLabsSpeechToTextTest.php) · **resolved**
 
 `ElevenLabsSpeechToText` appends OpenAI's `/audio/transcriptions` to `https://api.elevenlabs.io/v1/speech-to-text`, sends the model as `model` instead of the required `model_id`, and its default headers force `Content-Type: application/json` onto a multipart body, which then has no boundary. So no transcription can succeed against the real API, and every call surfaces as an `HttpException`. The provider also calls `fopen()` on the audio content whatever its `SourceType` is. With base64 audio this raises a PHP warning and sends the JSON body `{"file": false, ...}` instead of a clear `ProviderException`.
 
 Suggested fix: in `src/Providers/ElevenLabs/ElevenLabsSpeechToText.php`, drop the JSON `Content-Type` header, post to `$this->baseUri` without a suffix, send `model_id`, and throw a `ProviderException` when the audio source is not `SourceType::URL`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested, matching ElevenLabs' API reference: a multipart `POST` to `https://api.elevenlabs.io/v1/speech-to-text` with `model_id`, and no JSON `Content-Type` to override the multipart one. Audio that is not a file path is refused before any request. Supporting base64 audio was left to [PROVIDERS-23](#providers-23), where `OpenAISpeechToText` has the same gap and both providers can share one way of uploading in-memory audio. The wrong vendor names in this class's exceptions were fixed with it ([PROVIDERS-40](#providers-40)).
+
 ### <a id="providers-03"></a>PROVIDERS-03 · HuggingFace provider throws in its constructor because `$baseUri` has no template
 
-**high** · bug · [`src/Providers/HuggingFace/HuggingFace.php:17`](../src/Providers/HuggingFace/HuggingFace.php#L17) · repro [`HuggingFaceConstructionTest`](repro/Providers/HuggingFaceConstructionTest.php) · fix validated
+**high** · bug · [`src/Providers/HuggingFace/HuggingFace.php:17`](../src/Providers/HuggingFace/HuggingFace.php#L17) · regression test [`HuggingFaceTest`](../tests/Providers/HuggingFace/HuggingFaceTest.php) · **resolved**
 
 `HuggingFace` redeclares `protected string $baseUri;` with no value, overriding the parent's default, and `buildBaseUri()` calls `sprintf()` on it in the constructor. Every `new HuggingFace(...)` therefore throws `Error: Typed property ... $baseUri must not be accessed before initialization`, whatever the inference provider, so the class cannot be used at all. No test constructs it. Two secondary defects would surface once construction works: URL paths are joined with `DIRECTORY_SEPARATOR`, which gives backslashes on Windows, and the nullable `?InferenceProvider` parameter would dereference `null->value`.
 
 Suggested fix: in `src/Providers/HuggingFace/HuggingFace.php`, set `$baseUri` to `'https://router.huggingface.co/%s/v1'`, make `$inferenceProvider` a non-nullable `InferenceProvider` defaulting to `HF_INFERENCE`, and join URL segments in `buildBaseUri()` with `'/'`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** the template was lost in commit `61862c036`, which removed default values from properties assigned in their constructors; for this class the default was the template the constructor reads. The suggested template was not restored: Hugging Face's current documentation describes only the unified OpenAI-compatible endpoint `https://router.huggingface.co/v1`, where the provider is chosen by a suffix on the model name, and the per-provider paths could not be verified. The provider now posts to that endpoint, appends `:{provider}` to the model when an `InferenceProvider` is given, and sends the bare model otherwise, letting Hugging Face pick the fastest provider serving it; `null` is the new default. `HF_INFERENCE` changed from `hf-inference/models` to `hf-inference`. With no URL to build, the `DIRECTORY_SEPARATOR` and `null->value` defects are gone too.
+
 ### <a id="providers-04"></a>PROVIDERS-04 · Mistral loses chunked reasoning answers, crashes on null tool-call content, drops streamed tool calls
 
-**high** · bug · [`src/Providers/Mistral/HandleChat.php:83`](../src/Providers/Mistral/HandleChat.php#L83) · repro [`MistralResponseParsingTest`](repro/Providers/MistralResponseParsingTest.php) · fix validated
+**high** · bug · [`src/Providers/Mistral/HandleChat.php:83`](../src/Providers/Mistral/HandleChat.php#L83) · regression tests [`MistralTest`](../tests/Providers/Mistral/MistralTest.php), [`MistralStreamTest`](../tests/Providers/Mistral/MistralStreamTest.php) · **resolved**
 
 The Mistral provider has three parsing defects. In non-streaming `chat()`, when `message.content` is a list of chunks, as Magistral reasoning models return it, `processChatResult()` iterates `$choice['content']` instead of `$choice['message']['content']`. It emits warnings and returns an empty `AssistantMessage`, so both the answer and the reasoning are lost. This hits every non-streaming Magistral response. A `tool_calls` response with `content: null` throws a `TypeError` when wrapped in `TextContent`. In streaming, if `finish_reason: "tool_calls"` arrives in a later chunk than the tool-call delta, the gathered calls are dropped and the tool loop ends silently. The last two are robustness gaps: Mistral usually sends `""` content and a same-chunk `finish_reason`, but its schema allows both shapes.
 
 Suggested fix: in `src/Providers/Mistral/HandleChat.php`, iterate `$choice['message']['content']` and wrap the content in `TextContent` only when it is set. In `src/Providers/Mistral/HandleStream.php`, add `finishForToolCall()` and `toolCallResponse()` helpers so a `tool_calls` finish reason returns the gathered calls in whichever chunk it arrives. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** fixed the way [PROVIDERS-01](#providers-01) fixed Cohere, not with the suggested patches. `chat()` reads `message.content` once through a new `extractContent()`, whatever its shape (a string, a list of chunks or `null`), and builds either the tool call message or the answer from the same blocks. That also covers a reasoning model's tool call whose content is a list of chunks, which wrapping the content only when set would still have crashed on. `stream()` builds its message once the stream ends, as a tool call message when calls were gathered, so the chunk carrying the finish reason no longer matters and later chunks, such as usage, are still read.
+
 ### <a id="providers-05"></a>PROVIDERS-05 · Ollama message mapper drops assistant tool calls and replays reasoning as visible text
 
-**high** · bug · [`src/Providers/Ollama/MessageMapper.php:85`](../src/Providers/Ollama/MessageMapper.php#L85) · repro [`OllamaHistoryMappingTest`](repro/Providers/OllamaHistoryMappingTest.php) · fix validated
+**high** · bug · [`src/Providers/Ollama/MessageMapper.php:85`](../src/Providers/Ollama/MessageMapper.php#L85) · regression test [`OllamaMessageMapperTest`](../tests/Providers/Ollama/OllamaMessageMapperTest.php) · **resolved**
 
 `MessageMapper::mapToolCall()` builds `tool_calls` only from a `tool_calls` metadata entry. `Ollama::createToolCallMessage()` never sets it, and messages from other providers or reloaded from storage never carry it. After the first tool round, the assistant turn is sent without its calls, so the following tool results refer to nothing, and tool-calling models can lose track of the loop. `mapMessage()` also joins every `TextContent`, and `ReasoningContent` extends it, so a thinking model's reasoning is replayed as part of its earlier answer (`'42Let me compute'`), garbling context. The existing `OllamaMessageMapperTest` hides the first bug by setting the metadata by hand.
 
 Suggested fix: in `src/Providers/Ollama/MessageMapper.php`, rebuild `tool_calls` from `$message->getToolCalls()` and skip `ReasoningContent` blocks in `mapMessage()`, then drop the hand-set metadata from `OllamaMessageMapperTest`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested. `tool_calls` is rebuilt from the message's `ToolCall` objects, so a history started with another provider, whose metadata holds that provider's own shape, maps correctly too; a tool call turn without text sends an empty `content` instead of `null`. Reasoning is left out of the history rather than sent back as `thinking`, because Ollama's API lists only `role`, `content`, `images` and `tool_calls` as input fields of a message.
+
 ### <a id="providers-06"></a>PROVIDERS-06 · AzureOpenAI throws in its constructor and builds its chat URL in the wrong order
 
-**high** · bug · [`src/Providers/OpenAI/AzureOpenAI.php:16`](../src/Providers/OpenAI/AzureOpenAI.php#L16) · repro [`AzureOpenAIConstructionTest`](repro/Providers/AzureOpenAIConstructionTest.php) · fix validated
+**high** · bug · [`src/Providers/OpenAI/AzureOpenAI.php:16`](../src/Providers/OpenAI/AzureOpenAI.php#L16) · regression test [`AzureOpenAITest`](../tests/Providers/OpenAI/AzureOpenAITest.php) · **resolved**
 
 `AzureOpenAI` redeclares `protected string $baseUri;` without the `%s` template that `setBaseUrl()` passes to `sprintf()`. Every constructor call throws `Typed property ... $baseUri must not be accessed before initialization`, so chat, stream and structured output are all unusable. No test covers the class. Even with a template restored, `setBaseUrl()` appends `?api-version=...` to the base URI, and the inherited `createChatHttpRequest()` then adds `/chat/completions` after the query string. That produces a broken URL for every entry point. The separate authentication-header problem is covered in PROVIDERS-25.
 
 Suggested fix: in `src/Providers/OpenAI/AzureOpenAI.php`, restore `$baseUri = 'https://%s/openai/deployments/%s'`, stop appending the API version in `setBaseUrl()` and make it protected, and override `createChatHttpRequest()` so it posts to `{baseUri}/chat/completions?api-version={version}`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** the template was lost in the same commit as [PROVIDERS-03](#providers-03)'s. Instead of restoring the deployment API, the provider now calls the v1 API Microsoft has recommended since August 2025, `https://{resource}/openai/v1/chat/completions`, which takes the deployment name in the body as `model` and needs no `api-version`. It is OpenAI's URL layout, so the inherited `createChatHttpRequest()` works unchanged and the class only sets its base URI; the `version` constructor parameter is removed. The constructor now calls the parent's, and the key travels in the `api-key` header ([PROVIDERS-25](#providers-25)). See [upgrade guide 49](../upgrade/49-azure-openai-v1-api.md).
+
 ### <a id="providers-07"></a>PROVIDERS-07 · SSE parsers drop any event whose JSON payload contains the substring `DONE`
 
-**high** · bug · [`src/Providers/SSEParser.php:35`](../src/Providers/SSEParser.php#L35) · repro [`DoneSentinelTest`](repro/Providers/DoneSentinelTest.php) · fix validated
+**high** · bug · [`src/Providers/SSEParser.php:35`](../src/Providers/SSEParser.php#L35) · regression tests [`SSEParserTest`](../tests/Providers/SSEParserTest.php), [`OpenAIStreamTest`](../tests/Providers/OpenAI/OpenAIStreamTest.php), [`OpenAIResponsesStreamTest`](../tests/Providers/OpenAI/Responses/OpenAIResponsesStreamTest.php) · **resolved**
 
 `SSEParser` and `OpenAIResponses::parseNextDataLine()` detect end of stream with `str_contains($line, 'DONE')` on the whole payload, not by comparing the data field to `[DONE]`. Any event whose text, reasoning or tool-argument fragment contains the uppercase substring `DONE` is returned as null and skipped. Streamed text silently loses words (`'Task is .'`). Tool arguments such as `{"status":"DONE"}` are cut to invalid JSON and decode to `[]`, so tools run with wrong parameters. This affects streaming for OpenAI and its compatible vendors, OpenAI Responses, Anthropic, Cohere, Mistral, OpenAI audio and image, and ZAI transcription. No error is raised.
 
 Suggested fix: replace the check with `$line === '[DONE]'` in `src/Providers/SSEParser.php` and in `src/Providers/OpenAI/Responses/HandleStream.php`, and remove the unused `str_contains` imports. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** `SSEParser` now compares the payload exactly to `[DONE]`, and the OpenAI Responses stream no longer has a parser of its own: `parseNextDataLine()` reads through `SSEParser` and keeps only its check that an event has a `type` ([PROVIDERS-31](#providers-31)). The same pass fixed [PROVIDERS-44](#providers-44) and [PROVIDERS-43](#providers-43), which live in the same lines. The one visible change is that a malformed Responses event now fails with `Streaming error - ...`, like every other provider.
 
 ### <a id="providers-08"></a>PROVIDERS-08 · BedrockRuntime payloads fail AWS SDK validation without a system prompt or tool description
 
@@ -869,11 +883,13 @@ Suggested fix: in `src/Providers/OpenAI/Audio/OpenAITextToSpeech.php::stream()`,
 
 ### <a id="providers-25"></a>PROVIDERS-25 · AzureOpenAI sends resource keys as `Authorization: Bearer` instead of `api-key`
 
-**medium** · bug · [`src/Providers/OpenAI/AzureOpenAI.php:31`](../src/Providers/OpenAI/AzureOpenAI.php#L31) · repro [`AzureOpenAIAuthenticationTest`](repro/Providers/AzureOpenAIAuthenticationTest.php) · fix validated
+**medium** · bug · [`src/Providers/OpenAI/AzureOpenAI.php:31`](../src/Providers/OpenAI/AzureOpenAI.php#L31) · regression test [`AzureOpenAITest`](../tests/Providers/OpenAI/AzureOpenAITest.php) · **resolved**
 
 The `AzureOpenAI` constructor sets `'Authorization' => 'Bearer ' . $this->key`. According to Microsoft's documentation, Azure OpenAI resource keys go in an `api-key` header, and Bearer is only for Microsoft Entra ID access tokens. The provider cannot currently be constructed (PROVIDERS-06), so this causes no new outage today. But once that is fixed, every call made with a resource key would still be rejected with 401, which rests on the vendor documentation and cannot be proven offline. A sandbox repro that bypasses the constructor defect confirmed that the request carries `Authorization: Bearer` and no `api-key` header.
 
 Suggested fix: in `src/Providers/OpenAI/AzureOpenAI.php`, replace the `Authorization` header with `'api-key' => $this->key`, together with the constructor and URL fix. Entra ID token support, if wanted, would be a separate option to discuss. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** fixed with [PROVIDERS-06](#providers-06). The key is sent in the `api-key` header, which Microsoft documents for resource keys on the v1 API too. Entra ID tokens remain unsupported.
 
 ### <a id="providers-26"></a>PROVIDERS-26 · OpenAI provider drops tool calls unless `finish_reason` is exactly `tool_calls`
 
@@ -917,11 +933,13 @@ Suggested fix: Add a `createImageContent()` helper in `src/Providers/OpenAI/Resp
 
 ### <a id="providers-31"></a>PROVIDERS-31 · OpenAI Responses stream drops any event containing "DONE" and reads byte by byte
 
-**medium** · bug · [`src/Providers/OpenAI/Responses/HandleStream.php:198`](../src/Providers/OpenAI/Responses/HandleStream.php#L198) · repro [`OpenAIResponsesStreamReadingTest`](repro/Providers/OpenAIResponsesStreamReadingTest.php) · fix validated
+**medium** · bug · [`src/Providers/OpenAI/Responses/HandleStream.php:198`](../src/Providers/OpenAI/Responses/HandleStream.php#L198) · regression test [`OpenAIResponsesStreamTest`](../tests/Providers/OpenAI/Responses/OpenAIResponsesStreamTest.php) · **resolved**
 
 `OpenAIResponses` has its own SSE parser (`parseNextDataLine()` and `readLine()` in `HandleStream`) that duplicates `SSEParser`'s defects. It returns null for any data line containing the substring `DONE`, so a delta such as `"Task DONE."` produces no `TextChunk`. The same happens to reasoning deltas, function-call arguments and item text. Model output is lost without an error, and tool arguments can arrive corrupted. The parser also builds each line with `read(1)` calls instead of `StreamInterface::readLine()`: about 10KB of text caused 10,232 stream calls. On `AmpStream`, each read copies the remaining buffer, so cost grows quadratically (0.84s versus 0.008s for a 262KB chunk). This affects everyone streaming through `OpenAIResponses` and its subclasses.
 
 Suggested fix: In `src/Providers/OpenAI/Responses/HandleStream.php`, read with `$stream->readLine()`, strip `strlen('data:')`, compare the payload exactly to `[DONE]`, and delete the protected `readLine()` method. This was validated in a sandbox against the repro and the module's tests. The same exact-sentinel fix belongs in `SSEParser::parseNextSSEEvent()`, after which Responses could reuse one shared parser.
+
+**Resolution:** done that way, with [PROVIDERS-07](#providers-07). The Responses stream reads through `SSEParser`, which reads whole lines, and the byte-by-byte `readLine()` is deleted. A 10,000-character delta now takes a handful of `readLine()` calls and no `read()` calls.
 
 ### <a id="providers-32"></a>PROVIDERS-32 · OpenAI Responses stream ignores response.incomplete, losing usage, stop reason and tool calls
 
@@ -982,11 +1000,13 @@ Suggested fix: In `src/Providers/Anthropic/HandleStream.php::handleMessageDelta(
 
 ### <a id="providers-40"></a>PROVIDERS-40 · ElevenLabs providers' exceptions name "OpenAI Text to Speech"
 
-**low** · docs-mismatch · [`src/Providers/ElevenLabs/ElevenLabsSpeechToText.php:92`](../src/Providers/ElevenLabs/ElevenLabsSpeechToText.php#L92) · repro [`ElevenLabsUnsupportedOperationsTest`](repro/Providers/ElevenLabsUnsupportedOperationsTest.php) · fix validated
+**low** · docs-mismatch · [`src/Providers/ElevenLabs/ElevenLabsSpeechToText.php:92`](../src/Providers/ElevenLabs/ElevenLabsSpeechToText.php#L92) · regression tests [`ElevenLabsSpeechToTextTest`](../tests/Providers/ElevenLabs/ElevenLabsSpeechToTextTest.php), [`ElevenLabsTextToSpeechTest`](../tests/Providers/ElevenLabs/ElevenLabsTextToSpeechTest.php) · **resolved**
 
 The unsupported-operation exceptions in `ElevenLabsSpeechToText` (`stream`, `structured`, `messageMapper`, `toolPayloadMapper`) and `ElevenLabsTextToSpeech` (`structured`, `messageMapper`, `toolPayloadMapper`) were copied from the OpenAI providers and all say "not supported by OpenAI Text to Speech". A developer who calls one of these operations, for example by wiring the provider into an Agent, gets an error and log entries that name the wrong vendor. The speech-to-text class also names the wrong direction. The correct exception type is thrown, so functionality is unaffected, but debugging starts in the wrong place.
 
 Suggested fix: Change the messages to "by ElevenLabs Speech to Text." in `src/Providers/ElevenLabs/ElevenLabsSpeechToText.php` and to "by ElevenLabs Text to Speech." in `src/Providers/ElevenLabs/ElevenLabsTextToSpeech.php`. This was validated in a sandbox against the repro and the module's tests. `OpenAISpeechToText` and `OpenAIImage` could get correct messages in a separate follow-up.
+
+**Resolution:** applied as suggested, together with [PROVIDERS-02](#providers-02). The tests now pin the exact messages.
 
 ### <a id="providers-41"></a>PROVIDERS-41 · Gemini chat() drops usage for a MAX_TOKENS answer without parts
 
@@ -1006,19 +1026,23 @@ Suggested fix: In `src/Providers/Ollama/HandleChat.php`, add a protected `conten
 
 ### <a id="providers-43"></a>PROVIDERS-43 · SSEParser returns JSON scalars, causing a TypeError instead of skipping the line
 
-**low** · bug · [`src/Providers/SSEParser.php:27`](../src/Providers/SSEParser.php#L27) · repro [`SSEParserScalarLineTest`](repro/Providers/SSEParserScalarLineTest.php) · fix validated
+**low** · bug · [`src/Providers/SSEParser.php:27`](../src/Providers/SSEParser.php#L27) · regression test [`SSEParserTest`](../tests/Providers/SSEParserTest.php) · **resolved**
 
 For lines that do not start with `data:`, the NDJSON fallback in `SSEParser::parseNextSSEEvent()` returns any truthy `json_decode` result. A non-conforming proxy or OpenAI-compatible server (for example through `OpenAILike` with a custom base URL) that sends a bare keep-alive such as `1`, `"ping"` or `true` makes the method return a scalar. That violates the `?array` return type and aborts the stream with an uncaught `TypeError`, which code catching `ProviderException` does not handle. A `data:` line holding a JSON scalar is caught inside the `try` block and rethrown as a misleading `ProviderException`, so it does not escape as a `TypeError`. It still fails the whole stream on a valid value. Official Anthropic and OpenAI streams are not affected.
 
 Suggested fix: In `src/Providers/SSEParser.php`, return the decoded value only when `is_array()` holds and null otherwise, on both the NDJSON and `data:` paths. This was validated in a sandbox against the repro and the module's tests. One behaviour change is that a bare `{}` line now returns `[]` instead of null, and existing callers handle that safely.
 
+**Resolution:** fixed with [PROVIDERS-07](#providers-07). Both branches return a decoded value only when it is an array, so a scalar line, with or without `data:`, is skipped; a bare `{}` still returns null as before.
+
 ### <a id="providers-44"></a>PROVIDERS-44 · SSE data: lines without the optional space lose their first character
 
-**low** · bug · [`src/Providers/SSEParser.php:33`](../src/Providers/SSEParser.php#L33) · repro [`SSEDataFieldWithoutSpaceTest`](repro/Providers/SSEDataFieldWithoutSpaceTest.php) · fix validated
+**low** · bug · [`src/Providers/SSEParser.php:33`](../src/Providers/SSEParser.php#L33) · regression test [`SSEParserTest`](../tests/Providers/SSEParserTest.php) · **resolved**
 
 `SSEParser` accepts lines starting with `data:` but always strips `mb_strlen('data: ')`, which is 6 bytes. The SSE spec makes the space after the colon optional, so a server that sends `data:{"type":"ping"}` loses the opening `{`. The first event then throws `ProviderException: Streaming error - Syntax error` and the stream stops. `src/Providers/OpenAI/Responses/HandleStream.php` has the same defect. The main vendors send the space, so this affects only self-hosted or proxy OpenAI-compatible gateways. For those, streaming through every `SSEParser` client and the Responses stream breaks completely. Non-streaming calls are unaffected.
 
 Suggested fix: Strip `strlen('data:')` instead and let the existing `trim()` remove the optional space, in `src/Providers/SSEParser.php` and `src/Providers/OpenAI/Responses/HandleStream.php`, and swap the `mb_strlen` imports for `strlen`. This was validated in a sandbox against the repro and the module's tests. The `str_contains($line, 'DONE')` check in both places should become an exact `[DONE]` comparison (see PROVIDERS-31).
+
+**Resolution:** applied as suggested, with [PROVIDERS-07](#providers-07). Since the Responses stream now reads through `SSEParser`, the fix lives in one place.
 
 ### <a id="providers-45"></a>PROVIDERS-45 · ZAI stream() drops reasoning_content that chat() keeps
 
@@ -1537,19 +1561,23 @@ Suggested fix: in `src/RAG/GraphStore/Neo4jGraphStore.php`, route the relation t
 
 ### <a id="rag-02"></a>RAG-02 · reindexBySource deletes a source before validating or embedding its replacement
 
-**high** · bug · [`src/RAG/RAG.php:102`](../src/RAG/RAG.php#L102) · repro [`ReindexValidatesBeforeDeleteTest`](repro/RAG/ReindexValidatesBeforeDeleteTest.php) · fix validated
+**high** · bug · [`src/RAG/RAG.php:102`](../src/RAG/RAG.php#L102) · regression test [`RAGIngestionTest`](../tests/RAG/RAGIngestionTest.php) · **resolved**
 
 For each source, `RAG::reindexBySource()` deletes the stored documents first and only then calls `addDocuments()`, where the chunk-size guard, schema validation and embedding happen. If one replacement document fails the store's `DocumentSchema`, if `chunkSize` is below 1, or if the embeddings provider throws (rate limit, network error, bad API key), the source's previously indexed documents are permanently gone and nothing replaces them. With several sources in one call, earlier sources are replaced, the failing one is emptied and later ones keep old data, and retrieval silently returns nothing for the wiped source until it is re-ingested.
 
 Suggested fix: in `src/RAG/RAG.php`, extract protected `assertValidChunkSize()` and `validateDocuments()` helpers (reused by `addDocuments()`), call them at the top of `reindexBySource()`, and embed each source's chunks before calling `delete()` and storing them. This was validated in a sandbox against the repro and the module's tests; the store-level delete and add remain non-atomic, which is a separate design topic.
 
+**Resolution:** a protected `validateBatch()` checks the chunk size and every document against the schema at the top of both `addDocuments()` and `reindexBySource()`, so an invalid batch changes nothing, and `addDocuments()` no longer stores the chunks that precede an invalid document. `reindexBySource()` then embeds each source's chunks before deleting its old documents and storing the new ones. A failed check or embedding call leaves the source as it was, and with several sources each one ends up fully replaced or untouched, never empty. The store failing between the delete and the add can still leave a source missing until the call is repeated: an atomic replace on `VectorStoreInterface` was not added, because few backends could implement one. [RAG-15](#rag-15) was fixed in the same change.
+
 ### <a id="rag-03"></a>RAG-03 · Elasticsearch addDocuments re-sends all earlier chunks in each bulk request
 
-**high** · bug · [`src/RAG/VectorStore/ElasticsearchVectorStore.php:143`](../src/RAG/VectorStore/ElasticsearchVectorStore.php#L143) · repro [`ElasticsearchBulkReproTest`](repro/RAG/ElasticsearchBulkReproTest.php) · fix validated
+**high** · bug · [`src/RAG/VectorStore/ElasticsearchVectorStore.php:143`](../src/RAG/VectorStore/ElasticsearchVectorStore.php#L143) · regression tests [`ElasticsearchVectorStoreTest`](../tests/RAG/VectorStore/ElasticsearchVectorStoreTest.php), [`ElasticsearchTest`](../tests/RAG/VectorStore/ElasticsearchTest.php), [`OpenSearchVectorStoreTest`](../tests/RAG/VectorStore/OpenSearchVectorStoreTest.php), [`OpenSearchTest`](../tests/RAG/VectorStore/OpenSearchTest.php) · **resolved**
 
 In `ElasticsearchVectorStore::addDocuments()`, `$params = ['body' => []]` is initialised once outside the chunk loop and never reset, so each `_bulk` request carries every previous chunk plus the current one. Documents have no `_id`, so Elasticsearch indexes the earlier chunks again: with 101 documents the second request carries 101 documents instead of 1, and with 1,000 documents 5,500 index operations produce 4,500 duplicates. Any ingestion above 100 documents silently corrupts the index; duplicate chunks crowd relevant context out of `topK`, waste LLM tokens, and growing payloads can hit `http.max_content_length`.
 
 Suggested fix: in `src/RAG/VectorStore/ElasticsearchVectorStore.php`, move `$params = ['body' => []];` inside the `foreach ($chunks as $chunk)` loop, and add the repro as a regression test under `tests/RAG/VectorStore/`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** each bulk request now carries only its own batch. On Elasticsearch 9.5 the old code left 201 documents in the index for 101 added. The trigger is narrower than described: `RAG::addDocuments()` hands the store at most `chunkSize` documents per call (50 by default), so only direct store calls with more than 100 documents, or a `chunkSize` above 100, were affected. The review missed a second silent loss in the same method. The bulk API answers HTTP 200 even when it rejects documents, and neither `ElasticsearchVectorStore` nor `OpenSearchVectorStore` read the response, so a document with a zero vector or a vector of the wrong size vanished without an error. Verified on Elasticsearch 9.5: three documents sent, one stored, no exception. Both stores now throw a `VectorStoreException` naming each rejected document and the server's reason, after refreshing the index so the accepted documents are searchable; Elasticsearch sends no further batches.
 
 ### <a id="rag-04"></a>RAG-04 · FileDataLoader silently returns no documents when a single file fails to load
 
@@ -1641,11 +1669,13 @@ Suggested fix: in `src/RAG/Nodes/InstructionsNode.php`, make `buildBlockContent(
 
 ### <a id="rag-15"></a>RAG-15 · reindexBySource fails for sources whose name or type is a numeric string
 
-**medium** · bug · [`src/RAG/RAG.php:95`](../src/RAG/RAG.php#L95) · repro [`ReindexNumericSourceTest`](repro/RAG/ReindexNumericSourceTest.php) · fix validated
+**medium** · bug · [`src/RAG/RAG.php:95`](../src/RAG/RAG.php#L95) · regression test [`RAGIngestionTest`](../tests/RAG/RAGIngestionTest.php) · **resolved**
 
 `RAG::reindexBySource()` groups documents in an array keyed by `sourceType` and `sourceName`. PHP converts numeric-string keys such as `'2024'` or `'42'` to integers, so the delete filter becomes `Filter::eq('sourceName', 2024)` and schema validation throws `DocumentSchemaException` (`expects string; int given`) with every backend. Sources named after record ids, years or numeric file names can never be reindexed. The error is loud rather than silent, but in a mixed batch the sources processed before the numeric one have already been replaced, leaving the reindex partially applied.
 
 Suggested fix: in `reindexBySource()` in `src/RAG/RAG.php`, cast the keys back with `(string) $sourceType` and `(string) $sourceName` when building the delete filter. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** fixed with [RAG-02](#rag-02). The delete filter reads the source type and name from the source's first document instead of the array keys, so they stay strings without casts.
 
 ### <a id="rag-16"></a>RAG-16 · Text-less questions crash SimilarityRetrieval with a TypeError
 

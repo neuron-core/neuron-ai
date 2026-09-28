@@ -26,7 +26,7 @@ class CohereReasoningStreamTest extends TestCase
             $events[] = ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['thinking' => $fragment]]]];
         }
         $events[] = ['type' => 'content-delta', 'index' => 1, 'delta' => ['message' => ['content' => ['text' => 'Answer']]]];
-        $events[] = ['type' => 'message-end', 'usage' => ['tokens' => ['input_tokens' => 3, 'output_tokens' => 4]]];
+        $events[] = ['type' => 'message-end', 'delta' => ['usage' => ['tokens' => ['input_tokens' => 3, 'output_tokens' => 4]]]];
         $provider = new Cohere('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
 

@@ -4,40 +4,29 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI;
 
-use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 
 use function preg_replace;
-use function sprintf;
-use function trim;
 
 class AzureOpenAI extends OpenAI
 {
-    protected string $baseUri;
-
+    /**
+     * @param array<string, mixed> $parameters
+     */
     public function __construct(
         protected string $key,
         protected string $endpoint,
         protected string $model,
-        protected string $version,
         protected bool $strict_response = false,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
     ) {
-        $this->setBaseUrl();
+        parent::__construct($key, $model, $parameters, $strict_response, $httpClient);
 
-        $this->httpClient = $httpClient ?? new CurlHttpClient();
-        $this->httpHeaders = [
-            'Authorization' => 'Bearer ' . $this->key,
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ];
-    }
+        $this->baseUri = 'https://'.preg_replace('/^https?:\/\/|\/+$/', '', $endpoint).'/openai/v1';
 
-    private function setBaseUrl(): void
-    {
-        $this->endpoint = preg_replace('/^https?:\/\/([^\/]*)\/?$/', '$1', $this->endpoint);
-        $this->baseUri = sprintf($this->baseUri, $this->endpoint, $this->model);
-        $this->baseUri = trim($this->baseUri, '/').'/?api-version='.$this->version;
+        // Resource keys go in api-key: a Bearer token is only for Microsoft Entra ID
+        unset($this->httpHeaders['Authorization']);
+        $this->httpHeaders['api-key'] = $key;
     }
 }

@@ -29,7 +29,6 @@ use function array_filter;
 use function array_reduce;
 use function array_unshift;
 use function is_array;
-use function array_key_exists;
 use function array_merge;
 
 trait HandleStream
@@ -89,6 +88,7 @@ trait HandleStream
             }
 
             $choice = $line['choices'][0];
+            $lastFinishReason = $choice['finish_reason'] ?? $lastFinishReason;
 
             // Compile tool calls
             if ($this->isToolCallPart($line)) {
@@ -105,15 +105,6 @@ trait HandleStream
                             $toolCall['id'] ?? null,
                         );
                     }
-                }
-
-                // Handle tool calls
-                if ($choice['finish_reason'] === 'tool_calls') {
-                    $message = $this->createToolCallMessage(
-                        $this->streamState->getToolCalls(),
-                        $this->streamState->getContentBlocks()
-                    )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
-                    return new ProviderResponse(message: $message);
                 }
 
                 continue;
@@ -156,13 +147,14 @@ trait HandleStream
             if ($chunk !== null) {
                 yield $chunk;
             }
-
-            if (array_key_exists('finish_reason', $choice)) {
-                $lastFinishReason = $choice['finish_reason'];
-            }
         }
 
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        // Built once the stream ends: the tool_calls finish reason may arrive in a later chunk than the calls
+        $blocks = $this->streamState->getContentBlocks();
+
+        $message = $this->streamState->hasToolCalls()
+            ? $this->createToolCallMessage($this->streamState->getToolCalls(), $blocks)
+            : new AssistantMessage($blocks);
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
         if ($lastFinishReason !== null) {

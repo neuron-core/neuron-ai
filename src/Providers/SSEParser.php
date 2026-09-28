@@ -8,10 +8,10 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
 use Throwable;
 
+use function is_array;
 use function json_decode;
-use function mb_strlen;
-use function str_contains;
 use function str_starts_with;
+use function strlen;
 use function substr;
 use function trim;
 
@@ -24,22 +24,26 @@ class SSEParser
         $line = $stream->readLine();
 
         if (! str_starts_with($line, 'data:')) {
-            if ($line = json_decode($line, true)) {
-                return $line;
-            }
-            return null;
+            $event = json_decode($line, true);
+
+            return is_array($event) && $event !== [] ? $event : null;
         }
 
-        $line = trim(substr($line, mb_strlen('data: ')));
+        // The space after the colon is optional
+        $line = trim(substr($line, strlen('data:')));
 
-        if (str_contains($line, 'DONE')) {
+        // Only the exact sentinel ends the stream: a payload may well contain the word DONE
+        if ($line === '[DONE]') {
             return null;
         }
 
         try {
-            return json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+            $event = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
             throw new ProviderException('Streaming error - '.$exception->getMessage(), $exception->getCode(), $exception);
         }
+
+        // A bare keep-alive such as 1 or "ping" carries no event
+        return is_array($event) ? $event : null;
     }
 }

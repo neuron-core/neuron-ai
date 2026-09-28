@@ -10,12 +10,15 @@ use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\Responses\OpenAIResponses;
 use NeuronAI\Providers\ProviderResponse;
+use NeuronAI\Tests\Providers\Stub\CountingStream;
+use NeuronAI\Tests\Providers\Stub\StreamingHttpClient;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
@@ -27,6 +30,7 @@ use function array_values;
 use function json_decode;
 use function restore_error_handler;
 use function set_error_handler;
+use function str_repeat;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -164,8 +168,37 @@ class OpenAIResponsesStreamTest extends TestCase
     public function test_malformed_event_payload_aborts_the_stream(): void
     {
         $this->expectException(ProviderException::class);
-        $this->expectExceptionMessage('OpenAI streaming JSON decode error');
+        $this->expectExceptionMessage('Streaming error - Syntax error');
 
         $this->consumeStream($this->provider("data: {\"type\":\"response.output_text.delta\",\n\n")->stream(new UserMessage('Hi')));
+    }
+
+    public function test_a_text_delta_containing_done_is_kept(): void
+    {
+        $body = self::sseBody([
+            ['type' => 'response.output_item.added', 'item' => ['type' => 'message', 'id' => 'msg_1', 'content' => []]],
+            ['type' => 'response.output_text.delta', 'item_id' => 'msg_1', 'delta' => 'Task DONE.'],
+            ['type' => 'response.completed', 'response' => ['output' => []]],
+        ]);
+
+        [$chunks] = $this->consumeStream($this->provider($body)->stream(new UserMessage('Hi')));
+
+        $this->assertSame(['Task DONE.'], $this->contentsOf(TextChunk::class, $chunks));
+    }
+
+    public function test_the_stream_is_read_line_by_line_not_byte_by_byte(): void
+    {
+        $stream = new CountingStream(self::sseBody([
+            ['type' => 'response.output_item.added', 'item' => ['type' => 'message', 'id' => 'msg_1', 'content' => []]],
+            ['type' => 'response.output_text.delta', 'item_id' => 'msg_1', 'delta' => str_repeat('a', 10000)],
+            ['type' => 'response.completed', 'response' => ['output' => []]],
+        ]));
+        $provider = new OpenAIResponses('sk-test', 'gpt-test', httpClient: new StreamingHttpClient($stream));
+
+        [$chunks] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertSame([str_repeat('a', 10000)], $this->contentsOf(TextChunk::class, $chunks));
+        $this->assertSame(0, $stream->readCalls);
+        $this->assertLessThan(20, $stream->readLineCalls);
     }
 }
