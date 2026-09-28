@@ -93,7 +93,7 @@ class GuzzleHttpClientTest extends TestCase
         $this->assertStringStartsWith('multipart/form-data; boundary=', $sent->getHeaderLine('Content-Type'));
         $this->assertStringContainsString('name="file"; filename="' . basename($tmpFile) . '"', $body);
         $this->assertStringContainsString("\r\n\r\ntest file content\r\n", $body);
-        $this->assertStringContainsString("name=\"model\"\r\n\r\nwhisper-1\r\n", $body);
+        $this->assertMatchesRegularExpression('/name="model"\r\n(?:[^\r\n]+\r\n)*\r\nwhisper-1\r\n/', $body);
     }
 
     public function test_multipart_part_keeps_its_filename_and_headers(): void

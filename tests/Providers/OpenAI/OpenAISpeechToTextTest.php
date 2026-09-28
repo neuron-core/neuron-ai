@@ -91,10 +91,10 @@ class OpenAISpeechToTextTest extends TestCase
         $this->assertStringStartsWith('multipart/form-data; boundary=', $request->getHeaderLine('Content-Type'));
         $body = $this->sentBody();
         $this->assertMatchesRegularExpression('/name="file"; filename="[^"]+"\r\n.*\r\n\r\nfake-audio\r\n/s', $body);
-        $this->assertMatchesRegularExpression('/name="model"\r\n\r\nwhisper-1\r\n/', $body);
-        $this->assertMatchesRegularExpression('/name="language"\r\n\r\nit\r\n/', $body);
-        $this->assertMatchesRegularExpression('/name="response_format"\r\n\r\njson\r\n/', $body);
-        $this->assertMatchesRegularExpression('/name="prompt"\r\n\r\nTranscribe this\r\n/', $body);
+        $this->assertMatchesRegularExpression('/name="model"\r\n(?:[^\r\n]+\r\n)*\r\nwhisper-1\r\n/', $body);
+        $this->assertMatchesRegularExpression('/name="language"\r\n(?:[^\r\n]+\r\n)*\r\nit\r\n/', $body);
+        $this->assertMatchesRegularExpression('/name="response_format"\r\n(?:[^\r\n]+\r\n)*\r\njson\r\n/', $body);
+        $this->assertMatchesRegularExpression('/name="prompt"\r\n(?:[^\r\n]+\r\n)*\r\nTranscribe this\r\n/', $body);
         $this->assertStringNotContainsString('name="stream"', $body);
     }
 
@@ -121,7 +121,7 @@ class OpenAISpeechToTextTest extends TestCase
         $this->assertSame('Hello world', $message->getContent());
         $this->assertSame(7, $message->getUsage()->inputTokens);
         $this->assertSame(2, $message->getUsage()->outputTokens);
-        $this->assertMatchesRegularExpression('/name="stream"\r\n\r\n1\r\n/', $this->sentBody());
+        $this->assertMatchesRegularExpression('/name="stream"\r\n(?:[^\r\n]+\r\n)*\r\n1\r\n/', $this->sentBody());
     }
 
     public function test_structured_output_is_not_supported(): void

@@ -24,12 +24,12 @@
         "amphp/amp": "^3.1.1",
         "amphp/http-client": "^5.3",
         "aws/aws-sdk-php": "^3.209",
-        "elasticsearch/elasticsearch": "^8.0|^9.0",
+        "elasticsearch/elasticsearch": "^8.19|^9.0",
         "friendsofphp/php-cs-fixer": "^3.75",
         "google/auth": "^1.49",
         "guzzlehttp/guzzle": "^7.0|^8.0",
         "html2text/html2text": "^4.3",
-        "illuminate/database": "^10.20|^11.0|^12.0",
+        "illuminate/database": "^10.21|^11.0|^12.0",
         "laudis/neo4j-php-client": "^3.4",
         "mongodb/mongodb": "^2.3",
         "opensearch-project/opensearch-php": "^2.5",
@@ -41,7 +41,7 @@
         "rector/rector": "^2.0",
         "spatie/fork": "^1.2",
         "tomasvotruba/type-coverage": "^2.0",
-        "typesense/typesense-php": "^5.0",
+        "typesense/typesense-php": "^5.0.2",
         "vlucas/phpdotenv": "^5.6"
     },
     "bin": [
