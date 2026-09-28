@@ -137,7 +137,6 @@ class EloquentPersistence implements PersistenceInterface
         return true;
     }
 
-    /** @return Builder<Model> */
     protected function records(): Builder
     {
         $query = $this->modelClass::query();

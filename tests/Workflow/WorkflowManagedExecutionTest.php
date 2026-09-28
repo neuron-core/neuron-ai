@@ -218,7 +218,8 @@ class WorkflowManagedExecutionTest extends TestCase
             $workflow->run(ExecutionRequest::resume());
         } catch (RuntimeException) {
         }
-        self::assertSame(2, $workflow->inspect()->executionAttempt);
+        $retried = $workflow->inspect();
+        self::assertSame(2, $retried->executionAttempt);
         try {
             $workflow->abandon('reserved', 1);
             self::fail('Expected stale attempt rejection.');

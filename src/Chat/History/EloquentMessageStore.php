@@ -113,8 +113,6 @@ class EloquentMessageStore implements MessageStoreInterface
     /**
      * Reads that precede a write use the write connection, so replica lag never
      * shows the working history a stale thread.
-     *
-     * @return Builder<Model>
      */
     protected function writeQuery(Model $model): Builder
     {

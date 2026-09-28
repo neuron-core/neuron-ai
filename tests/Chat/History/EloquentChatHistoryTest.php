@@ -266,7 +266,7 @@ class EloquentChatHistoryTest extends TestCase
         $this->history->addMessage(new UserMessage('Hello'));
         $this->history->addMessage($message);
 
-        $record = ChatMessage::query()->where('message_id', $message->getId())->firstOrFail();
+        $record = ChatMessage::query()->where('message_id', $message->getId())->first();
 
         $this->assertSame('assistant', $record->role);
         $this->assertSame([
