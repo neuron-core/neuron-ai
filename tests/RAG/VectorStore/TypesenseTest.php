@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\VectorStore;
 
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
@@ -14,6 +15,7 @@ use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 use Typesense\Client;
 
+use function array_map;
 use function bin2hex;
 use function file_get_contents;
 use function json_decode;
@@ -121,5 +123,51 @@ class TypesenseTest extends TestCase
         $results = $store->search(new SearchRequest($this->embedding));
         $this->assertCount(1, $results);
         $this->assertSame('file', $results[0]->getSourceType());
+    }
+
+    public function test_documents_the_server_rejects_are_reported_and_the_accepted_ones_kept(): void
+    {
+        $collection = 'test-'.bin2hex(random_bytes(5));
+        $store = new TypesenseVectorStore($this->client, $collection, $this->vectorDimension);
+
+        try {
+            $store->addDocuments([
+                (new Document('Accepted'))->setId('accepted')->setEmbedding($this->embedding),
+                (new Document('Too short'))->setId('too-short')->setEmbedding([0.1, 0.2, 0.3]),
+            ]);
+            $this->fail('A document the server rejects must be reported.');
+        } catch (VectorStoreException $exception) {
+            $this->assertSame(
+                "Typesense rejected 1 of 2 documents: [too-short] Field `embedding` must have {$this->vectorDimension} dimensions.",
+                $exception->getMessage()
+            );
+        } finally {
+            $results = $store->search(new SearchRequest($this->embedding));
+            $this->client->collections[$collection]->delete();
+        }
+
+        $this->assertSame(['Accepted'], array_map(static fn (Document $document): string => $document->getContent(), $results));
+    }
+
+    public function test_a_repeated_id_replaces_the_stored_document(): void
+    {
+        $collection = 'test-'.bin2hex(random_bytes(5));
+        $store = new TypesenseVectorStore($this->client, $collection, $this->vectorDimension);
+        $contents = fn (): array => array_map(
+            static fn (Document $document): string => $document->getContent(),
+            $store->search(new SearchRequest($this->embedding))
+        );
+
+        try {
+            $store->addDocument((new Document('First'))->setId('same')->setEmbedding($this->embedding));
+            $store->addDocuments([(new Document('Second'))->setId('same')->setEmbedding($this->embedding)]);
+            $afterBulk = $contents();
+            $store->addDocument((new Document('Third'))->setId('same')->setEmbedding($this->embedding));
+            $afterSingle = $contents();
+        } finally {
+            $this->client->collections[$collection]->delete();
+        }
+
+        $this->assertSame([['Second'], ['Third']], [$afterBulk, $afterSingle]);
     }
 }

@@ -18,17 +18,21 @@ use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RecordsVectorStoreRequests;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RejectsInvalidInputBeforeRemoteCalls;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Typesense\Client;
 
+use function array_fill;
 use function count;
 use function array_map;
 use function array_slice;
 use function explode;
+use function implode;
 use function json_decode;
 use function range;
 
 use const JSON_THROW_ON_ERROR;
+use const NAN;
 
 /**
  * Offline contract of the Typesense requests; TypesenseTest covers a live server.
@@ -79,16 +83,24 @@ class TypesenseVectorStoreTest extends TestCase
             ->setMetadata(['tenant' => 'acme', 'year' => 2026]);
     }
 
+    /**
+     * What Typesense answers an import in which every document was stored.
+     */
+    protected function imported(int $documents): Response
+    {
+        return new Response(200, [], implode("\n", array_fill(0, $documents, '{"success":true}')));
+    }
+
     public function test_missing_collection_is_created_with_typed_schema_fields(): void
     {
-        $store = $this->store($this->schema(), $this->jsonResponse(['message' => 'Not Found'], 404), $this->jsonResponse(), $this->jsonResponse());
+        $store = $this->store($this->schema(), $this->jsonResponse(['message' => 'Not Found'], 404), $this->jsonResponse(), $this->imported(1));
 
         $store->addDocument($this->document());
 
         $this->assertSame([
             'GET http://ts.test:8108/collections/docs',
             'POST http://ts.test:8108/collections',
-            'POST http://ts.test:8108/collections/docs/documents/',
+            'POST http://ts.test:8108/collections/docs/documents/import?action=upsert',
         ], $this->sentTargets());
         $this->assertSame([
             'name' => 'docs',
@@ -106,8 +118,8 @@ class TypesenseVectorStoreTest extends TestCase
         ], $this->sentJson(1));
         $this->assertSame([
             'id' => 'doc-1',
-            'content' => 'Hello',
             'embedding' => [0.5, 0.25],
+            'content' => 'Hello',
             'sourceType' => 'file',
             'sourceName' => 'a.txt',
             '_neuron_metadata' => '{"tenant":"acme","year":2026}',
@@ -128,7 +140,7 @@ class TypesenseVectorStoreTest extends TestCase
             DocumentField::boolean('draft'),
             DocumentField::booleans('flags'),
         );
-        $store = $this->store($schema, $this->jsonResponse(['message' => 'Not Found'], 404), $this->jsonResponse(), $this->jsonResponse());
+        $store = $this->store($schema, $this->jsonResponse(['message' => 'Not Found'], 404), $this->jsonResponse(), $this->imported(1));
 
         $store->addDocument($this->document());
 
@@ -167,11 +179,11 @@ class TypesenseVectorStoreTest extends TestCase
 
     public function test_bulk_import_sends_one_json_line_per_document(): void
     {
-        $store = $this->store(null, $this->collection(), $this->collection(), new Response(200, [], "{\"success\":true}\n{\"success\":true}"));
+        $store = $this->store(null, $this->collection(), $this->collection(), $this->imported(2));
 
         $store->addDocuments([$this->document('a'), $this->document('b')->setId(7)]);
 
-        $this->assertSame('POST http://ts.test:8108/collections/docs/documents/import', $this->sentTargets()[2]);
+        $this->assertSame('POST http://ts.test:8108/collections/docs/documents/import?action=upsert', $this->sentTargets()[2]);
         $lines = explode("\n", (string) $this->sentRequest(2)->getBody());
         $this->assertCount(2, $lines);
         $this->assertSame('a', json_decode($lines[0], true, flags: JSON_THROW_ON_ERROR)['id']);
@@ -181,18 +193,80 @@ class TypesenseVectorStoreTest extends TestCase
     public function test_bulk_import_is_split_into_chunks_of_one_hundred_lines(): void
     {
         $documents = array_map(fn (int $i): Document => $this->document("doc-{$i}"), range(1, 101));
-        $store = $this->store(null, $this->collection(), $this->collection(), new Response(200), new Response(200));
+        $store = $this->store(null, $this->collection(), $this->collection(), $this->imported(100), $this->imported(1));
 
         $store->addDocuments($documents);
 
         $this->assertSame([
             'GET http://ts.test:8108/collections/docs',
             'GET http://ts.test:8108/collections/docs',
-            'POST http://ts.test:8108/collections/docs/documents/import',
-            'POST http://ts.test:8108/collections/docs/documents/import',
+            'POST http://ts.test:8108/collections/docs/documents/import?action=upsert',
+            'POST http://ts.test:8108/collections/docs/documents/import?action=upsert',
         ], $this->sentTargets());
         $this->assertCount(100, explode("\n", (string) $this->sentRequest(2)->getBody()));
         $this->assertSame('doc-101', json_decode((string) $this->sentRequest(3)->getBody(), true, flags: JSON_THROW_ON_ERROR)['id']);
+    }
+
+    public function test_documents_the_import_rejected_are_reported(): void
+    {
+        $store = $this->store(null, $this->collection(), $this->collection(), new Response(200, [], implode("\n", [
+            '{"success":true}',
+            '{"code":400,"error":"Field `embedding` must have 2 dimensions.","success":false}',
+            '{"success":true}',
+        ])));
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Typesense rejected 1 of 3 documents: [b] Field `embedding` must have 2 dimensions.');
+
+        $store->addDocuments([$this->document('a'), $this->document('b'), $this->document('c')]);
+    }
+
+    public function test_no_further_chunk_is_sent_after_a_rejection(): void
+    {
+        $documents = array_map(fn (int $i): Document => $this->document("doc-{$i}"), range(1, 101));
+        $rejected = array_fill(0, 100, '{"success":true}');
+        $rejected[99] = '{"code":400,"error":"Field `tenant` must be a string.","success":false}';
+        $store = $this->store(null, $this->collection(), $this->collection(), new Response(200, [], implode("\n", $rejected)), $this->imported(1));
+
+        try {
+            $store->addDocuments($documents);
+            $this->fail('A rejected document must be reported.');
+        } catch (VectorStoreException $exception) {
+            $this->assertSame('Typesense rejected 1 of 100 documents: [doc-100] Field `tenant` must be a string.', $exception->getMessage());
+        }
+
+        $this->assertCount(3, $this->sentRequests);
+    }
+
+    /**
+     * @return array<string, array{string, string, float[], string}>
+     */
+    public static function documentsThatCannotBeEncoded(): array
+    {
+        return [
+            'content with invalid UTF-8' => ["Legacy caf\xE9 menu", 'a.txt', [0.5, 0.25], 'Malformed UTF-8 characters, possibly incorrectly encoded'],
+            'source name with invalid UTF-8' => ['Hello', "file-\xC3\x28.txt", [0.5, 0.25], 'Malformed UTF-8 characters, possibly incorrectly encoded'],
+            'embedding with NaN' => ['Hello', 'a.txt', [NAN, 0.25], 'Inf and NaN cannot be JSON encoded'],
+        ];
+    }
+
+    /**
+     * @param float[] $embedding
+     */
+    #[DataProvider('documentsThatCannotBeEncoded')]
+    public function test_a_document_that_cannot_be_encoded_refuses_the_batch_before_any_request(string $content, string $sourceName, array $embedding, string $reason): void
+    {
+        $store = $this->store(null);
+        $broken = (new Document($content))->setId('broken')->setEmbedding($embedding)->setSourceName($sourceName);
+
+        try {
+            $store->addDocuments([$this->document('clean'), $broken]);
+            $this->fail('A document that cannot be encoded must be refused.');
+        } catch (VectorStoreException $exception) {
+            $this->assertSame("Document broken is not JSON serializable: {$reason}", $exception->getMessage());
+        }
+
+        $this->assertSame([], $this->sentRequests);
     }
 
     public function test_adding_no_documents_sends_nothing(): void

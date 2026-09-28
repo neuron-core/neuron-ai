@@ -22,9 +22,13 @@ use function array_chunk;
 use function array_key_exists;
 use function array_map;
 use function count;
+use function explode;
 use function implode;
+use function json_decode;
 use function json_encode;
 use function max;
+
+use const JSON_THROW_ON_ERROR;
 
 class TypesenseVectorStore implements VectorStoreInterface
 {
@@ -108,24 +112,11 @@ class TypesenseVectorStore implements VectorStoreInterface
     /**
      * @throws Exception
      * @throws TypesenseClientError
-     * @throws JsonException
+     * @throws VectorStoreException
      */
     public function addDocument(Document $document): VectorStoreInterface
     {
-        $this->validateDocument($document);
-
-        $this->checkIndexStatus($document);
-
-        $this->client->collections[$this->collection]->documents->create([
-            'id' => (string) $document->getId(), // Unique ID is required
-            'content' => $document->getContent(),
-            'embedding' => $document->getEmbedding(),
-            'sourceType' => $document->getSourceType(),
-            'sourceName' => $document->getSourceName(),
-            ...MetadataMapper::toStorage($document, $this->schema),
-        ]);
-
-        return $this;
+        return $this->addDocuments([$document]);
     }
 
     /**
@@ -144,12 +135,12 @@ class TypesenseVectorStore implements VectorStoreInterface
     }
 
     /**
-     * Bulk save.
+     * Bulk save. A document whose ID is already stored replaces it.
      *
      * @param Document[] $documents
      * @throws Exception
-     * @throws JsonException
-     * @throws TypesenseClientError|\NeuronAI\Exceptions\VectorStoreException
+     * @throws TypesenseClientError
+     * @throws VectorStoreException
      */
     public function addDocuments(array $documents): VectorStoreInterface
     {
@@ -159,28 +150,64 @@ class TypesenseVectorStore implements VectorStoreInterface
 
         $this->validateDocuments($documents);
 
+        // Every line is encoded before any request: a document that cannot be stored refuses the whole batch
+        $lines = array_map($this->encodeLine(...), $documents);
+
         $this->checkIndexStatus($documents[0]);
 
-        $lines = [];
-        foreach ($documents as $document) {
-            $lines[] = json_encode([
+        $documentChunks = array_chunk($documents, 100);
+
+        foreach (array_chunk($lines, 100) as $index => $chunk) {
+            $answer = $this->client->collections[$this->collection]->documents->import(
+                implode("\n", $chunk),
+                ['action' => 'upsert']
+            );
+            $this->assertImported($documentChunks[$index], (string) $answer);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @throws VectorStoreException
+     */
+    protected function encodeLine(Document $document): string
+    {
+        try {
+            return json_encode([
                 'id' => (string) $document->getId(), // Unique ID is required
                 'embedding' => $document->getEmbedding(),
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),
                 'sourceName' => $document->getSourceName(),
                 ...MetadataMapper::toStorage($document, $this->schema),
-            ]);
+            ], JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new VectorStoreException("Document {$document->getId()} is not JSON serializable: {$exception->getMessage()}", $exception->getCode(), $exception);
+        }
+    }
+
+    /**
+     * Typesense answers an import with HTTP 200 and one result line per document, in order.
+     *
+     * @param Document[] $documents
+     * @throws VectorStoreException
+     */
+    protected function assertImported(array $documents, string $answer): void
+    {
+        $rejections = [];
+        foreach (explode("\n", $answer) as $position => $line) {
+            $result = json_decode($line, true);
+            if (($result['success'] ?? false) !== true) {
+                $rejections[] = "[{$documents[$position]->getId()}] ".($result['error'] ?? $line);
+            }
         }
 
-        $chunks = array_chunk($lines, 100);
-
-        foreach ($chunks as $chunk) {
-            $ndjson = implode("\n", $chunk);
-            $this->client->collections[$this->collection]->documents->import($ndjson);
+        if ($rejections !== []) {
+            throw new VectorStoreException(
+                'Typesense rejected '.count($rejections).' of '.count($documents).' documents: '.implode('; ', $rejections)
+            );
         }
-
-        return $this;
     }
 
     /**
