@@ -15,8 +15,13 @@ use NeuronAI\HttpClient\HttpRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function basename;
+use function bin2hex;
+use function file_get_contents;
 use function file_put_contents;
+use function is_file;
 use function parse_url;
+use function random_bytes;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
@@ -69,41 +74,86 @@ class HttpClientSecurityTest extends TestCase
     }
 
     /**
+     * Providers authenticate through Authorization and through custom headers (x-api-key,
+     * api-key, x-goog-api-key), set on the request or as client defaults.
+     *
+     * @return iterable<string, array{Closure(): HttpClientInterface, array<string, string>, bool}>
+     */
+    public static function credentialsMeetingARedirect(): iterable
+    {
+        $clients = [
+            'curl' => static fn (array $defaults): HttpClientInterface => new CurlHttpClient($defaults),
+            'guzzle' => static fn (array $defaults): HttpClientInterface => new GuzzleHttpClient($defaults),
+            'amp' => static fn (array $defaults): HttpClientInterface => new AmpHttpClient($defaults),
+        ];
+
+        foreach ($clients as $name => $make) {
+            foreach (['request' => false, 'stream' => true] as $call => $streamed) {
+                yield "{$name} {$call}, Authorization" => [static fn (): HttpClientInterface => $make([]), ['Authorization' => 'Bearer provider-secret'], $streamed];
+                yield "{$name} {$call}, x-api-key" => [static fn (): HttpClientInterface => $make([]), ['x-api-key' => 'provider-secret'], $streamed];
+                yield "{$name} {$call}, client default x-api-key" => [static fn (): HttpClientInterface => $make(['x-api-key' => 'provider-secret']), [], $streamed];
+            }
+        }
+    }
+
+    /**
+     * The other origin records what it receives: refused, or followed without them,
+     * the credentials must never reach it.
+     *
+     * @param Closure(): HttpClientInterface $makeClient
+     * @param array<string, string> $headers
+     */
+    #[DataProvider('credentialsMeetingARedirect')]
+    public function test_credentials_never_reach_another_origin_on_redirect(Closure $makeClient, array $headers, bool $streamed): void
+    {
+        $record = sys_get_temp_dir() . '/neuron-redirect-' . bin2hex(random_bytes(6));
+        $request = HttpRequest::get(static::$baseUri . '/redirect-to-other-host?record=' . basename($record), $headers);
+
+        try {
+            $client = $makeClient();
+            $streamed ? $client->stream($request)->read(1024) : $client->request($request);
+        } catch (HttpException $refused) {
+            $this->assertNull($refused->response);
+        } finally {
+            $received = is_file($record) ? (string) file_get_contents($record) : '';
+            @unlink($record);
+        }
+
+        $this->assertStringNotContainsString('provider-secret', $received);
+    }
+
+    /**
+     * @return iterable<string, array{Closure(): HttpClientInterface, bool}>
+     */
+    public static function clientsRefusingRedirectsToAnotherOrigin(): iterable
+    {
+        yield 'curl request' => [static fn (): HttpClientInterface => new CurlHttpClient(), false];
+        yield 'curl stream' => [static fn (): HttpClientInterface => new CurlHttpClient(), true];
+        yield 'guzzle request' => [static fn (): HttpClientInterface => new GuzzleHttpClient(), false];
+        yield 'guzzle stream' => [static fn (): HttpClientInterface => new GuzzleHttpClient(), true];
+    }
+
+    /**
+     * @param Closure(): HttpClientInterface $makeClient
+     */
+    #[DataProvider('clientsRefusingRedirectsToAnotherOrigin')]
+    public function test_a_redirect_to_another_origin_is_refused_naming_its_target(Closure $makeClient, bool $streamed): void
+    {
+        $request = HttpRequest::get(static::$baseUri . '/redirect-to-other-host');
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('refused a redirect to another origin: http://localhost:' . $this->port() . '/headers');
+
+        $streamed ? $makeClient()->stream($request) : $makeClient()->request($request);
+    }
+
+    /**
      * @param Closure(): HttpClientInterface $makeClient
      */
     #[DataProvider('clients')]
-    public function test_authorization_is_not_forwarded_to_another_host_on_redirect(Closure $makeClient): void
+    public function test_a_redirect_within_the_origin_is_followed(Closure $makeClient): void
     {
-        $received = $makeClient()->request(
-            HttpRequest::get(static::$baseUri . '/redirect-to-other-host', ['Authorization' => 'Bearer provider-secret'])
-        )->json();
-
-        $this->assertSame('localhost:' . $this->port(), $received['host']);
-        $this->assertArrayNotHasKey('authorization', $received);
-    }
-
-    /**
-     * @return iterable<string, array{Closure(): HttpClientInterface}>
-     */
-    public static function clientsDroppingCredentialHeadersOnRedirect(): iterable
-    {
-        yield 'amp' => [static fn (): HttpClientInterface => new AmpHttpClient()];
-    }
-
-    /**
-     * Providers authenticate through custom headers too (x-api-key, api-key, x-goog-api-key).
-     *
-     * @param Closure(): HttpClientInterface $makeClient
-     */
-    #[DataProvider('clientsDroppingCredentialHeadersOnRedirect')]
-    public function test_custom_credential_headers_are_not_forwarded_to_another_host_on_redirect(Closure $makeClient): void
-    {
-        $received = $makeClient()->request(
-            HttpRequest::get(static::$baseUri . '/redirect-to-other-host', ['x-api-key' => 'provider-secret'])
-        )->json();
-
-        $this->assertSame('localhost:' . $this->port(), $received['host']);
-        $this->assertArrayNotHasKey('x-api-key', $received);
+        $this->assertSame(['status' => 'success'], $makeClient()->request(HttpRequest::get(static::$baseUri . '/redirect'))->json());
     }
 
     /**

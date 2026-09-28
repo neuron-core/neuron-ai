@@ -17,7 +17,9 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\HttpClient\MergesHttpHeaders;
 use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 
 use function getmypid;
 use function is_array;
@@ -238,6 +240,16 @@ class GuzzleHttpClient implements HttpClientInterface
         }
 
         $uri = $this->resolveRequestUri($request->uri, $this->baseUri);
+
+        // Guzzle drops only Authorization and Cookie when a redirect leaves the origin, while
+        // providers also authenticate through custom headers such as x-api-key
+        $options[RequestOptions::ALLOW_REDIRECTS] ??= [
+            'on_redirect' => function (RequestInterface $redirected, ResponseInterface $response, UriInterface $target) use ($request, $uri): void {
+                if (!$this->isSameOrigin($uri, (string) $target)) {
+                    throw HttpException::networkError($request, "refused a redirect to another origin: {$target}");
+                }
+            },
+        ];
 
         return $client->request($request->method->value, $uri, $options);
     }

@@ -64,13 +64,19 @@ switch ($path) {
 
     case '/headers':
         \header('Content-Type: application/json');
-        echo \json_encode(\array_change_key_case(getallheaders(), \CASE_LOWER));
+        $received = (string) \json_encode(\array_change_key_case(getallheaders(), \CASE_LOWER));
+        if (isset($_GET['record'])) {
+            // Tells a test what reached this origin, even when the client never read the answer.
+            \file_put_contents(\sys_get_temp_dir() . '/' . \basename((string) $_GET['record']), $received);
+        }
+        echo $received;
         break;
 
     case '/redirect-to-other-host':
         // Same server, different origin: localhost instead of 127.0.0.1.
         \http_response_code(302);
-        \header("Location: http://localhost:{$_SERVER['SERVER_PORT']}/headers");
+        $record = isset($_GET['record']) ? '?record=' . \rawurlencode((string) $_GET['record']) : '';
+        \header("Location: http://localhost:{$_SERVER['SERVER_PORT']}/headers{$record}");
         break;
 
     case '/redirect-loop':

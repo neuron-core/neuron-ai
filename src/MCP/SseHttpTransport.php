@@ -116,6 +116,8 @@ class SseHttpTransport implements McpTransportInterface
                 'method' => 'GET',
                 'header' => $headerString,
                 'timeout' => $this->config['timeout'] ?? 30,
+                // PHP would follow a redirect to any host with the token and every header
+                'follow_location' => 0,
             ],
             'ssl' => [
                 'verify_peer' => $this->config['verify'] ?? true,

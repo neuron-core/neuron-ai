@@ -43,14 +43,12 @@ class CurlStream implements StreamInterface
     protected int $offset = 0;
     protected bool $complete = false;
 
-    protected CurlHeaderCollector $headers;
-
     public function __construct(
         protected CurlMultiHandle $multiHandle,
         protected CurlHandle $handle,
         protected HttpRequest $request,
+        protected CurlHeaderCollector $headers,
     ) {
-        $this->headers = new CurlHeaderCollector();
     }
 
     /**
@@ -221,7 +219,7 @@ class CurlStream implements StreamInterface
 
         while (($info = curl_multi_info_read($this->multiHandle)) !== false) {
             if ($info['result'] !== CURLE_OK) {
-                throw HttpException::networkError($this->request, (string) curl_strerror($info['result']));
+                throw HttpException::networkError($this->request, $this->headers->getRefusal() ?? (string) curl_strerror($info['result']));
             }
         }
     }

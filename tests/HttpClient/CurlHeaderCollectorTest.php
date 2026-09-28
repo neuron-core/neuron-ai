@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use Closure;
 use NeuronAI\HttpClient\Curl\CurlHeaderCollector;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -118,7 +119,7 @@ class CurlHeaderCollectorTest extends TestCase
 
     public function test_every_line_reports_its_full_length_as_curl_requires(): void
     {
-        $collector = new CurlHeaderCollector();
+        $collector = $this->collector();
 
         // Returning fewer bytes than received makes curl abort the transfer.
         foreach (["HTTP/1.1 200 OK\r\n", "X-Header:  value \r\n", "no separator\r\n", "\r\n", ''] as $line) {
@@ -126,9 +127,37 @@ class CurlHeaderCollectorTest extends TestCase
         }
     }
 
+    public function test_a_refused_redirect_aborts_the_transfer_before_curl_follows_it(): void
+    {
+        $collector = $this->collector(fn (string $location): bool => $location !== 'https://evil.example/collect');
+
+        $this->assertSame(strlen("HTTP/1.1 302 Found\r\n"), $collector->ingestLine("HTTP/1.1 302 Found\r\n"));
+        $this->assertSame(0, $collector->ingestLine("Location: https://evil.example/collect\r\n"));
+        $this->assertSame('refused a redirect to another origin: https://evil.example/collect', $collector->getRefusal());
+        $this->assertSame([], $collector->getHeaders());
+    }
+
+    public function test_only_a_redirect_location_is_judged(): void
+    {
+        $collector = $this->collector(fn (string $location): bool => false);
+
+        $this->ingestInto($collector, "HTTP/1.1 201 Created\r\n", "Location: https://elsewhere.example/items/1\r\n", "\r\n");
+
+        $this->assertNull($collector->getRefusal());
+        $this->assertSame(['Location' => ['https://elsewhere.example/items/1']], $collector->getHeaders());
+    }
+
+    /**
+     * @param (Closure(string): bool)|null $allowsRedirectTo
+     */
+    protected function collector(?Closure $allowsRedirectTo = null): CurlHeaderCollector
+    {
+        return new CurlHeaderCollector($allowsRedirectTo ?? fn (string $location): bool => true);
+    }
+
     protected function ingest(string ...$lines): CurlHeaderCollector
     {
-        $collector = new CurlHeaderCollector();
+        $collector = $this->collector();
         $this->ingestInto($collector, ...$lines);
 
         return $collector;

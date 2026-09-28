@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\HttpClient\Curl;
 
+use Closure;
 use CurlHandle;
 use CurlShareHandle;
 use CURLStringFile;
@@ -57,6 +58,7 @@ use const CURLOPT_WRITEFUNCTION;
 use const CURLPROTO_HTTP;
 use const CURLPROTO_HTTPS;
 use const CURLSHOPT_SHARE;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Default HTTP client built on ext-curl. Dependency-free.
@@ -114,7 +116,7 @@ class CurlHttpClient implements HttpClientInterface
         $request = $this->applyRequestHooks($request);
         $handle = $this->reusableHandle();
 
-        $headers = new CurlHeaderCollector();
+        $headers = new CurlHeaderCollector($this->redirectPolicy($request));
         $options = $this->buildOptions($request) + [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADERFUNCTION => fn (CurlHandle $curlHandle, string $line): int => $headers->ingestLine($line),
@@ -125,7 +127,7 @@ class CurlHttpClient implements HttpClientInterface
         $body = curl_exec($handle);
 
         if ($body === false) {
-            throw HttpException::networkError($request, curl_error($handle));
+            throw HttpException::networkError($request, $headers->getRefusal() ?? curl_error($handle));
         }
 
         $response = new HttpResponse(
@@ -149,7 +151,7 @@ class CurlHttpClient implements HttpClientInterface
 
         $handle = curl_init();
         $multiHandle = curl_multi_init();
-        $stream = new CurlStream($multiHandle, $handle, $request);
+        $stream = new CurlStream($multiHandle, $handle, $request, new CurlHeaderCollector($this->redirectPolicy($request)));
 
         $options = $this->buildOptions($request) + [
             CURLOPT_WRITEFUNCTION => fn (CurlHandle $curlHandle, string $data): int => $stream->write($data),
@@ -335,7 +337,7 @@ class CurlHttpClient implements HttpClientInterface
                     // curl generates the multipart boundary and Content-Type itself.
                     $options[CURLOPT_POSTFIELDS] = $this->buildMultipartFields($request->body);
                 } else {
-                    $options[CURLOPT_POSTFIELDS] = json_encode($request->body);
+                    $options[CURLOPT_POSTFIELDS] = json_encode($request->body, JSON_THROW_ON_ERROR);
                     if (!$this->hasHeader($headers, 'Content-Type')) {
                         $headers['Content-Type'] = 'application/json';
                     }
@@ -366,6 +368,19 @@ class CurlHttpClient implements HttpClientInterface
     protected function resolveUri(HttpRequest $request): string
     {
         return $this->resolveRequestUri($request->uri, $this->baseUri);
+    }
+
+    /**
+     * curl drops only Authorization and Cookie when a redirect leaves the origin, while
+     * providers also authenticate through custom headers such as x-api-key.
+     *
+     * @return Closure(string): bool
+     */
+    protected function redirectPolicy(HttpRequest $request): Closure
+    {
+        $uri = $this->resolveUri($request);
+
+        return fn (string $location): bool => $this->isSameOrigin($uri, $location);
     }
 
     /**

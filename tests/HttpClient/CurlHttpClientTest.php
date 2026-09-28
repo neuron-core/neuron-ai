@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpMethod;
@@ -62,6 +63,22 @@ class CurlHttpClientTest extends TestCase
         $this->assertEquals('application/json', $echo['contentType']);
         $this->assertEquals('Bearer token-123', $echo['authorization']);
         $this->assertEquals('{"key":"value"}', $echo['body']);
+    }
+
+    public function test_a_body_that_cannot_be_json_encoded_is_refused_before_sending(): void
+    {
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage('Malformed UTF-8 characters');
+
+        (new CurlHttpClient())->request(HttpRequest::post(static::$baseUri . '/echo', ['text' => "invalid \xB1 utf-8"]));
+    }
+
+    public function test_a_streamed_body_that_cannot_be_json_encoded_is_refused_before_sending(): void
+    {
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage('Malformed UTF-8 characters');
+
+        (new CurlHttpClient())->stream(HttpRequest::post(static::$baseUri . '/echo', ['text' => "invalid \xB1 utf-8"]));
     }
 
     public function test_expect_continue_is_suppressed(): void

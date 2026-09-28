@@ -26,6 +26,8 @@ use function is_array;
 use function is_resource;
 use function json_encode;
 
+use const JSON_THROW_ON_ERROR;
+
 class AmpHttpClient implements HttpClientInterface
 {
     use ResolvesHttpRequest;
@@ -221,7 +223,7 @@ class AmpHttpClient implements HttpClientInterface
                 if (!$ampRequest->hasHeader('Content-Type')) {
                     $ampRequest->setHeader('Content-Type', 'application/json');
                 }
-                $ampRequest->setBody(json_encode($request->body));
+                $ampRequest->setBody(json_encode($request->body, JSON_THROW_ON_ERROR));
             } else {
                 $ampRequest->setBody($request->body);
             }

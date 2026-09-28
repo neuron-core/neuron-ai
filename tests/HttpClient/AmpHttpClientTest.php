@@ -29,6 +29,14 @@ class AmpHttpClientTest extends TestCase
         $this->assertSame('{"key":"value","n":1}', $echo['body']);
     }
 
+    public function test_a_body_that_cannot_be_json_encoded_fails_naming_the_cause(): void
+    {
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Malformed UTF-8 characters');
+
+        (new AmpHttpClient())->request(HttpRequest::post(static::$baseUri . '/echo', ['text' => "invalid \xB1 utf-8"]));
+    }
+
     public function test_raw_string_body_and_its_content_type_are_sent_unchanged(): void
     {
         $echo = (new AmpHttpClient())->request(
