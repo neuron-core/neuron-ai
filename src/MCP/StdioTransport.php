@@ -14,9 +14,11 @@ use function fread;
 use function function_exists;
 use function fwrite;
 use function getenv;
+use function is_array;
 use function is_resource;
 use function json_decode;
 use function json_encode;
+use function json_last_error;
 use function proc_close;
 use function proc_get_status;
 use function proc_open;
@@ -27,8 +29,12 @@ use function stream_set_read_buffer;
 use function stream_set_write_buffer;
 use function mb_strlen;
 use function microtime;
+use function strpos;
+use function substr;
+use function trim;
 use function usleep;
 
+use const JSON_ERROR_NONE;
 use const JSON_THROW_ON_ERROR;
 
 class StdioTransport implements McpTransportInterface
@@ -42,6 +48,8 @@ class StdioTransport implements McpTransportInterface
      * @var null|array<int, resource|false> $pipes
      */
     private ?array $pipes = null;
+
+    private string $readBuffer = '';
 
     /**
      * Create a new StdioTransport with the given configuration
@@ -147,12 +155,16 @@ class StdioTransport implements McpTransportInterface
         // Set stream to non-blocking mode
         stream_set_blocking($this->pipes[1], false);
 
-        $response = "";
         $startTime = microtime(true);
         $timeout = 30.0; // 30-second timeout
 
         // Keep reading until we get a complete JSON response or timeout
         while (microtime(true) - $startTime < $timeout) {
+            $decoded = $this->decodeResponseFromBuffer();
+            if ($decoded !== null) {
+                return $decoded;
+            }
+
             $status = proc_get_status($this->process);
 
             if (!$status['running']) {
@@ -161,14 +173,7 @@ class StdioTransport implements McpTransportInterface
 
             $chunk = fread($this->pipes[1], 4096);
             if ($chunk !== false && $chunk !== '') {
-                $response .= $chunk;
-
-                // Try to parse what we have so far
-                $decoded = json_decode($response, true, 64, JSON_THROW_ON_ERROR);
-                if ($decoded !== null) {
-                    // We've got a valid JSON response
-                    return $decoded;
-                }
+                $this->readBuffer .= $chunk;
             }
 
             // Small delay to prevent CPU spinning
@@ -176,6 +181,41 @@ class StdioTransport implements McpTransportInterface
         }
 
         throw new McpException("Timeout waiting for response from MCP server");
+    }
+
+    /**
+     * @return null|array<string, mixed>
+     * @throws JsonException|McpException
+     */
+    private function decodeResponseFromBuffer(): ?array
+    {
+        while (($position = strpos($this->readBuffer, "\n")) !== false) {
+            $line = trim(substr($this->readBuffer, 0, $position));
+            $this->readBuffer = substr($this->readBuffer, $position + 1);
+
+            if ($line === '') {
+                continue;
+            }
+
+            return json_decode($line, true, 64, JSON_THROW_ON_ERROR);
+        }
+
+        if ($this->readBuffer === '') {
+            return null;
+        }
+
+        $decoded = json_decode($this->readBuffer, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $this->readBuffer = '';
+
+            if (!is_array($decoded)) {
+                throw new McpException("Invalid JSON response from MCP server");
+            }
+
+            return $decoded;
+        }
+
+        return null;
     }
 
     /**
