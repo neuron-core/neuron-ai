@@ -57,7 +57,7 @@ class WeatherTool extends Tool
         ];
     }
 
-    public function __invoke(string $location, ?string $units = 'celsius'): ToolOutput
+    public function __invoke(string $location, string $units = 'celsius'): ToolOutput
     {
         // Your API call or logic here
         $weatherData = $this->fetchWeather($location, $units);
@@ -117,7 +117,7 @@ class DatabaseQueryTool extends Tool
         ];
     }
 
-    public function __invoke(?string $email = null, ?int $limit = 10): ToolOutput
+    public function __invoke(?string $email = null, int $limit = 10): ToolOutput
     {
         $query = "SELECT * FROM users";
 
@@ -732,11 +732,13 @@ public function __invoke(string $email, int $limit = 10): ToolOutput
 
 ### 7. Use Type Hints
 
+Declare an optional input's default in the `__invoke()` signature. When the model leaves the input out, or sends `null` where the parameter can't take it, the default applies. Make a parameter nullable only when `null` means something to the tool, because a nullable parameter receives the model's `null` as it is. A required input that is missing, or `null` when the property isn't nullable, goes back to the model as feedback, and `__invoke()` isn't called.
+
 ```php
 // Use specific types in __invoke signature
 public function __invoke(
     string $query,
-    ?int $limit = 10,
+    int $limit = 10,
     bool $includeMetadata = false
 ): ToolOutput {
     // ...
