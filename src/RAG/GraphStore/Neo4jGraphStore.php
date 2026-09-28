@@ -8,10 +8,15 @@ use Laudis\Neo4j\Authentication\Authenticate;
 use Laudis\Neo4j\ClientBuilder;
 use Laudis\Neo4j\Contracts\ClientInterface;
 use Exception;
+use InvalidArgumentException;
 
+use function str_contains;
 use function str_replace;
 use function strtoupper;
 
+/**
+ * Requires Neo4j 5.26 or later: relationship types travel as query parameters.
+ */
 class Neo4jGraphStore implements GraphStoreInterface
 {
     protected ClientInterface $client;
@@ -24,6 +29,11 @@ class Neo4jGraphStore implements GraphStoreInterface
         protected string $database = 'neo4j',
         protected string $nodeLabel = 'Entity',
     ) {
+        // The label is written into every statement between backticks, where only a backtick (ending the name)
+        // and a backslash (starting an escape, which Neo4j expands even into a backtick) have a meaning
+        if ($this->nodeLabel === '' || str_contains($this->nodeLabel, '`') || str_contains($this->nodeLabel, '\\')) {
+            throw new InvalidArgumentException("nodeLabel must not be empty or contain a backtick or a backslash, '{$this->nodeLabel}' given.");
+        }
     }
 
     public function upsert(string $subject, string $relation, string $object): void
@@ -31,15 +41,17 @@ class Neo4jGraphStore implements GraphStoreInterface
         // Normalize relationship type: spaces to underscores, uppercase
         $relationshipType = strtoupper(str_replace(' ', '_', $relation));
 
+        // A relationship type written into the statement could close its backticks, so it travels as a parameter
         $query = <<<CYPHER
             MERGE (n1:`{$this->nodeLabel}` {id: \$subject})
             MERGE (n2:`{$this->nodeLabel}` {id: \$object})
-            MERGE (n1)-[r:`{$relationshipType}`]->(n2)
+            MERGE (n1)-[r:\$(\$relationshipType)]->(n2)
             CYPHER;
 
         $this->client()->run($query, [
             'subject' => $subject,
             'object' => $object,
+            'relationshipType' => $relationshipType,
         ]);
 
         // Invalidate schema cache
@@ -52,7 +64,7 @@ class Neo4jGraphStore implements GraphStoreInterface
 
         // Delete the specific relationship
         $query = <<<CYPHER
-            MATCH (n1:`{$this->nodeLabel}`)-[r:`{$relationshipType}`]->(n2:`{$this->nodeLabel}`)
+            MATCH (n1:`{$this->nodeLabel}`)-[r:\$(\$relationshipType)]->(n2:`{$this->nodeLabel}`)
             WHERE n1.id = \$subject AND n2.id = \$object
             DELETE r
             CYPHER;
@@ -60,6 +72,7 @@ class Neo4jGraphStore implements GraphStoreInterface
         $this->client()->run($query, [
             'subject' => $subject,
             'object' => $object,
+            'relationshipType' => $relationshipType,
         ]);
 
         // Clean up isolated nodes (nodes with no relationships)

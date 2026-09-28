@@ -12,6 +12,7 @@ use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
 use function count;
+use function strtoupper;
 
 class Neo4jGraphStoreTest extends TestCase
 {
@@ -144,6 +145,50 @@ class Neo4jGraphStoreTest extends TestCase
         // Should only have one relationship
         $triplets = $this->store->get('Alice');
         $this->assertCount(1, $triplets);
+    }
+
+    public function test_a_hostile_relation_is_stored_as_a_plain_relationship_type(): void
+    {
+        $hostile = "KNOWS`]->(n2)\nWITH\t*\nMATCH\t(X)\nDETACH\tDELETE\tX\n//";
+        $this->store->upsert('Carol', 'KNOWS', 'Dave');
+
+        $this->store->upsert('Alice', $hostile, 'Bob');
+
+        $this->assertCount(1, $this->store->get('Carol'));
+        $this->assertSame(strtoupper($hostile), $this->store->get('Alice')[0]->relation);
+    }
+
+    public function test_a_relation_with_punctuation_keeps_its_type(): void
+    {
+        $this->store->upsert('Alice', 'co-founded', 'Acme');
+
+        $this->assertSame('CO-FOUNDED', $this->store->get('Alice')[0]->relation);
+
+        $this->store->delete('Alice', 'co-founded', 'Acme');
+
+        $this->assertSame([], $this->store->get('Alice'));
+    }
+
+    public function test_delete_removes_a_relationship_written_into_the_statement_by_earlier_versions(): void
+    {
+        $this->store->query("CREATE (:TestEntity {id: 'Alice'})-[:`PART-OF`]->(:TestEntity {id: 'Acme'})");
+
+        $this->store->delete('Alice', 'part-of', 'Acme');
+
+        $this->assertSame([], $this->store->get('Alice'));
+    }
+
+    public function test_a_node_label_with_punctuation_still_works(): void
+    {
+        $store = new Neo4jGraphStore(uri: 'bolt://localhost:7687', username: 'neo4j', password: 'test_password', nodeLabel: 'Test-Entity');
+
+        try {
+            $store->upsert('Alice', 'KNOWS', 'Bob');
+
+            $this->assertSame('KNOWS', $store->get('Alice')[0]->relation);
+        } finally {
+            $store->query('MATCH (n:`Test-Entity`) DETACH DELETE n');
+        }
     }
 
     public function test_relationship_type_normalization(): void

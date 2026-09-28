@@ -76,4 +76,4 @@ Only `sourceType`, `sourceName` and declared filterable fields are portable filt
 
 ## Ingestion
 
-`DataLoader/` (file and string loaders with pluggable readers) → `Splitter/` (`SplitterInterface` chunking strategies) → `Embeddings/` (`EmbeddingsProviderInterface`) → `RAG::addDocuments()` / `reindexBySource()`. `GraphStore/` is the separate knowledge-graph integration (subject-relation-object triplets, Neo4j).
+`DataLoader/` (file and string loaders with pluggable readers) → `Splitter/` (`SplitterInterface` chunking strategies) → `Embeddings/` (`EmbeddingsProviderInterface`) → `RAG::addDocuments()` / `reindexBySource()`. `GraphStore/` is the separate knowledge-graph integration (subject-relation-object triplets, Neo4j). Relations usually come from triplets a model extracted from untrusted documents, so `Neo4jGraphStore` passes the relationship type as a query parameter through Neo4j's dynamic types (`$(...)`, Neo4j 5.26+), never in the statement text. The node label is the only value written into statements, so the constructor refuses one that is empty or contains a backtick or a backslash, the only characters with a meaning inside backticks.

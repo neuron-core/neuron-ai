@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\GraphStore;
 
+use InvalidArgumentException;
 use Laudis\Neo4j\Types\CypherList;
 use Laudis\Neo4j\Types\CypherMap;
 use Laudis\Neo4j\Types\Node;
@@ -12,6 +13,7 @@ use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
 use NeuronAI\RAG\GraphStore\Triplet;
 use NeuronAI\Tests\RAG\GraphStore\Stub\Neo4jGraphStoreWithClient;
 use NeuronAI\Tests\RAG\GraphStore\Stub\RecordingNeo4jClient;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -19,7 +21,9 @@ use function array_column;
 use function array_keys;
 use function array_map;
 use function array_slice;
+use function chr;
 use function preg_replace;
+use function strtoupper;
 use function trim;
 
 class Neo4jGraphStoreQueryTest extends TestCase
@@ -36,15 +40,15 @@ class Neo4jGraphStoreQueryTest extends TestCase
         $this->store = new Neo4jGraphStoreWithClient($this->client, nodeLabel: 'Person');
     }
 
-    public function test_upsert_merges_both_entities_and_the_relationship_with_bound_entity_values(): void
+    public function test_upsert_merges_both_entities_and_the_relationship_with_bound_values(): void
     {
         $this->store->upsert(self::HOSTILE_ENTITY, 'KNOWS', 'Bob $object');
 
         $this->assertCount(1, $this->client->runs);
         $run = $this->client->runs[0];
-        $this->assertSame(['subject' => self::HOSTILE_ENTITY, 'object' => 'Bob $object'], $run['parameters']);
+        $this->assertSame(['subject' => self::HOSTILE_ENTITY, 'object' => 'Bob $object', 'relationshipType' => 'KNOWS'], $run['parameters']);
         $this->assertSame(
-            'MERGE (n1:`Person` {id: $subject}) MERGE (n2:`Person` {id: $object}) MERGE (n1)-[r:`KNOWS`]->(n2)',
+            'MERGE (n1:`Person` {id: $subject}) MERGE (n2:`Person` {id: $object}) MERGE (n1)-[r:$($relationshipType)]->(n2)',
             $this->statement(0)
         );
     }
@@ -53,7 +57,7 @@ class Neo4jGraphStoreQueryTest extends TestCase
     {
         $this->store->upsert('Alice', 'works with', 'Bob');
 
-        $this->assertStringContainsString('[r:`WORKS_WITH`]', $this->client->runs[0]['statement']);
+        $this->assertSame('WORKS_WITH', $this->client->runs[0]['parameters']['relationshipType']);
     }
 
     public function test_delete_removes_the_relationship_then_the_orphaned_entities_with_bound_values(): void
@@ -64,15 +68,73 @@ class Neo4jGraphStoreQueryTest extends TestCase
         [$relationshipDeletion, $orphanCleanup] = $this->client->runs;
 
         $this->assertSame(
-            'MATCH (n1:`Person`)-[r:`WORKS_WITH`]->(n2:`Person`) WHERE n1.id = $subject AND n2.id = $object DELETE r',
+            'MATCH (n1:`Person`)-[r:$($relationshipType)]->(n2:`Person`) WHERE n1.id = $subject AND n2.id = $object DELETE r',
             $this->statement(0)
         );
         $this->assertSame(
             'MATCH (n:`Person`) WHERE n.id IN [$subject, $object] AND NOT (n)-[]-() DELETE n',
             $this->statement(1)
         );
-        $this->assertSame(['subject' => self::HOSTILE_ENTITY, 'object' => 'Bob'], $relationshipDeletion['parameters']);
+        $this->assertSame(['subject' => self::HOSTILE_ENTITY, 'object' => 'Bob', 'relationshipType' => 'WORKS_WITH'], $relationshipDeletion['parameters']);
         $this->assertSame(['subject' => self::HOSTILE_ENTITY, 'object' => 'Bob'], $orphanCleanup['parameters']);
+    }
+
+    public function test_a_relation_never_changes_the_upsert_or_delete_statement(): void
+    {
+        $hostile = "KNOWS`]->(n2)\nWITH\t*\nMATCH\t(X)\nDETACH\tDELETE\tX\n//";
+
+        $this->store->upsert('Alice', 'KNOWS', 'Bob');
+        $this->store->upsert('Alice', $hostile, 'Bob');
+        $this->store->delete('Alice', 'KNOWS', 'Bob');
+        $this->store->delete('Alice', $hostile, 'Bob');
+
+        $this->assertSame($this->client->runs[0]['statement'], $this->client->runs[1]['statement']);
+        $this->assertSame($this->client->runs[2]['statement'], $this->client->runs[4]['statement']);
+        $this->assertSame(strtoupper($hostile), $this->client->runs[1]['parameters']['relationshipType']);
+        $this->assertSame(strtoupper($hostile), $this->client->runs[4]['parameters']['relationshipType']);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unsafeNodeLabelProvider(): iterable
+    {
+        yield 'backtick' => ['Person`) MATCH (x) DETACH DELETE x //'];
+        yield 'unicode escape of a backtick' => ['Person' . chr(92) . 'u0060) MATCH (x) DETACH DELETE x //'];
+        yield 'backslash of a class name' => ['App' . chr(92) . 'Models' . chr(92) . 'Entity'];
+        yield 'empty' => [''];
+    }
+
+    #[DataProvider('unsafeNodeLabelProvider')]
+    public function test_a_node_label_that_could_change_the_statement_is_refused(string $nodeLabel): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new Neo4jGraphStore(nodeLabel: $nodeLabel);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function safeNodeLabelProvider(): iterable
+    {
+        yield 'default' => ['Entity'];
+        yield 'digits and underscores' => ['Tenant_42_Entity'];
+        yield 'accented letters' => ['Persönlichkeit'];
+        yield 'non-latin letters' => ['実体'];
+        yield 'dash' => ['Knowledge-Entity'];
+        yield 'space' => ['Knowledge Entity'];
+        yield 'colon' => ['Person:Admin'];
+    }
+
+    #[DataProvider('safeNodeLabelProvider')]
+    public function test_a_node_label_without_a_backtick_or_a_backslash_is_accepted(string $nodeLabel): void
+    {
+        $store = new Neo4jGraphStoreWithClient($this->client, nodeLabel: $nodeLabel);
+
+        $store->upsert('Alice', 'KNOWS', 'Bob');
+
+        $this->assertStringContainsString("(n1:`{$nodeLabel}` {id: \$subject})", $this->client->runs[0]['statement']);
     }
 
     public function test_get_maps_outgoing_relationships_to_triplets_of_the_requested_subject(): void
