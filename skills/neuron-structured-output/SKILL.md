@@ -476,6 +476,7 @@ class Team
 ```php
 use NeuronAI\StructuredOutput\Validation\Rules\IsTrue;
 use NeuronAI\StructuredOutput\Validation\Rules\IsFalse;
+use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNull;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNotNull;
 
@@ -487,8 +488,10 @@ class Settings
     #[IsFalse]
     public bool $isBlocked;
 
+    // Rules skip an optional property the model leaves out: required makes this one due
+    #[SchemaProperty(required: true)]
     #[IsNotNull]
-    public ?string $optionalValue;
+    public ?string $referralCode;
 }
 ```
 

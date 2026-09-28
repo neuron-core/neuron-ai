@@ -381,6 +381,47 @@ class ValidationTest extends TestCase
         $this->assertSame(['children must be an array of '.Category::class], Validator::validate($root));
     }
 
+    public function test_a_missing_optional_property_passes_every_rule(): void
+    {
+        $class = new class () {
+            #[Email]
+            public ?string $email = null;
+
+            #[NotBlank]
+            public ?string $nickname = null;
+
+            #[Enum(values: ['low', 'high'])]
+            public ?string $priority = null;
+
+            #[Count(min: 1)]
+            #[ArrayOf('string')]
+            public ?array $tags = null;
+
+            #[Length(min: 3)]
+            public ?string $code = null;
+
+            #[IsNotNull]
+            public ?string $referral = null;
+        };
+
+        $object = Deserializer::make()->fromJson('{}', $class::class);
+
+        $this->assertSame([], Validator::validate($object));
+    }
+
+    public function test_a_required_property_left_null_keeps_its_rules(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(required: true)]
+            #[NotBlank]
+            public ?string $nickname = null;
+        };
+
+        $object = Deserializer::make()->fromJson('{"nickname": null}', $class::class);
+
+        $this->assertSame(['nickname cannot be blank'], Validator::validate($object));
+    }
+
     public function test_attributes_that_are_not_rules_are_never_instantiated(): void
     {
         $object = new class () {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation;
 
+use NeuronAI\StructuredOutput\SchemaProperty;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
@@ -60,6 +61,11 @@ class Validator
                 // Get the value of the property
                 $name = $path.$property->getName();
                 $value = $property->isInitialized($obj) ? $property->getValue($obj) : null;
+
+                // A missing optional property is valid: whether a value is due is the schema's call, as for the Deserializer
+                if ($value === null && !SchemaProperty::isRequired($reflection, $property)) {
+                    continue;
+                }
 
                 // Apply all the validation rules to the value; other attributes are never instantiated
                 foreach ($property->getAttributes(ValidationRuleInterface::class, ReflectionAttribute::IS_INSTANCEOF) as $attribute) {
