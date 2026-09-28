@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use JsonException;
 use NeuronAI\HttpClient\HttpResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -18,20 +19,26 @@ class HttpResponseTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{string}>
+     * @return iterable<string, array{string, string}>
      */
-    public static function undecodableBodies(): iterable
+    public static function bodiesThatAreNotAJsonObjectOrArray(): iterable
     {
-        yield 'empty body' => [''];
-        yield 'invalid json' => ['{"unterminated":'];
-        yield 'html error page' => ['<html><body>Bad Gateway</body></html>'];
-        yield 'json null' => ['null'];
+        yield 'empty body' => ['', 'Syntax error'];
+        yield 'invalid json' => ['{"unterminated":', 'Syntax error'];
+        yield 'html error page' => ['<html><body>Bad Gateway</body></html>', 'Syntax error'];
+        yield 'json null' => ['null', 'The response body is not a JSON object or array'];
+        yield 'json number' => ['42', 'The response body is not a JSON object or array'];
+        yield 'json string' => ['"ok"', 'The response body is not a JSON object or array'];
+        yield 'json boolean' => ['true', 'The response body is not a JSON object or array'];
     }
 
-    #[DataProvider('undecodableBodies')]
-    public function test_json_of_a_body_without_a_json_value_is_empty(string $body): void
+    #[DataProvider('bodiesThatAreNotAJsonObjectOrArray')]
+    public function test_json_of_a_body_that_is_not_a_json_object_or_array_throws(string $body, string $message): void
     {
-        $this->assertSame([], (new HttpResponse(502, $body))->json());
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage($message);
+
+        (new HttpResponse(200, $body))->json();
     }
 
     /**

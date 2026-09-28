@@ -91,8 +91,9 @@ class TokenCounter
         $data = $block->sourceType === SourceType::BASE64 ? base64_decode($block->getContent(), true) : false;
         $size = $data === false ? false : @getimagesizefromstring($data);
 
-        // Without a readable size, the image is priced like a common 1024 x 1024 upload until the provider reports its usage
-        if ($size === false || $size[0] < 1 || $size[1] < 1) {
+        // Without a readable size, the image is priced like a common 1024 x 1024 upload until the provider reports its usage.
+        // PHP 8.5+ reads an SVG's declared size, but a vector has no pixel size to price.
+        if ($size === false || $size['mime'] === 'image/svg+xml' || $size[0] < 1 || $size[1] < 1) {
             return $this->calculateImageChars(1024, 1024);
         }
 
