@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\HttpClient\Guzzle;
 
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
 
+use function strlen;
 use function strpos;
 use function substr;
 
@@ -20,8 +23,15 @@ class GuzzleStream implements StreamInterface
 {
     private string $buffer = '';
 
+    protected int $received = 0;
+
+    /**
+     * @param int|null $contentLength The body size the response declares, if any
+     */
     public function __construct(
-        private readonly PsrStreamInterface $stream
+        private readonly PsrStreamInterface $stream,
+        protected readonly HttpRequest $request,
+        protected readonly ?int $contentLength = null,
     ) {
     }
 
@@ -38,7 +48,7 @@ class GuzzleStream implements StreamInterface
             return $result;
         }
 
-        return $this->stream->read($length);
+        return $this->pull($length);
     }
 
     public function readLine(): string
@@ -67,5 +77,26 @@ class GuzzleStream implements StreamInterface
     {
         $this->buffer = '';
         $this->stream->close();
+    }
+
+    /**
+     * Guzzle streams through PHP's stream reader, which ends quietly when the connection
+     * drops: a body shorter than its Content-Length is the only cut it lets us see.
+     *
+     * @throws HttpException
+     */
+    protected function pull(int $length): string
+    {
+        $chunk = $this->stream->read($length);
+        $this->received += strlen($chunk);
+
+        if ($this->contentLength !== null && $this->received < $this->contentLength && $this->stream->eof()) {
+            throw HttpException::networkError(
+                $this->request,
+                "Response body ended after {$this->received} of the {$this->contentLength} bytes declared by Content-Length",
+            );
+        }
+
+        return $chunk;
     }
 }

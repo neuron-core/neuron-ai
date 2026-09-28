@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\HttpClient\Guzzle;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Exception\RequestException;
-use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\RequestOptions;
 use NeuronAI\Exceptions\HttpException;
@@ -24,7 +23,6 @@ use Psr\Http\Message\UriInterface;
 use function getmypid;
 use function is_array;
 use function is_resource;
-use function method_exists;
 
 class GuzzleHttpClient implements HttpClientInterface
 {
@@ -96,8 +94,9 @@ class GuzzleHttpClient implements HttpClientInterface
             ];
 
             $response = $this->runRequest($request, $options, $client);
+            $contentLength = $response->hasHeader('Content-Length') ? (int) $response->getHeaderLine('Content-Length') : null;
 
-            return new GuzzleStream($response->getBody());
+            return new GuzzleStream($response->getBody(), $request, $contentLength);
         } catch (GuzzleException $e) {
             $this->handleException($request, $e);
         }
@@ -239,7 +238,8 @@ class GuzzleHttpClient implements HttpClientInterface
      */
     protected function handleException(HttpRequest $request, GuzzleException $e): never
     {
-        if ($e instanceof ResponseException || ($e instanceof RequestException && method_exists($e, 'hasResponse') && $e->hasResponse())) {
+        // A body cut short or a redirect loop carries a response too, but only a 4xx or 5xx is a status error
+        if ($e instanceof BadResponseException) {
             $psrResponse = $e->getResponse();
             $response = new HttpResponse(
                 statusCode: $psrResponse->getStatusCode(),

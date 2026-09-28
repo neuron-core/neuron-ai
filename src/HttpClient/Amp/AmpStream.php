@@ -6,6 +6,8 @@ namespace NeuronAI\HttpClient\Amp;
 
 use Amp\ByteStream\ReadableStream;
 use Amp\ByteStream\StreamException;
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 
 use function strlen;
@@ -24,7 +26,8 @@ class AmpStream implements StreamInterface
     private string $buffer = '';
 
     public function __construct(
-        private readonly ReadableStream $stream
+        private readonly ReadableStream $stream,
+        protected readonly HttpRequest $request,
     ) {
     }
 
@@ -35,34 +38,29 @@ class AmpStream implements StreamInterface
 
     public function read(int $length): string
     {
-        try {
-            // If we have buffered data, return from buffer first
-            if ($this->buffer !== '') {
-                $result = substr($this->buffer, 0, $length);
-                $this->buffer = substr($this->buffer, $length);
-                return $result;
-            }
+        // If we have buffered data, return from buffer first
+        if ($this->buffer !== '') {
+            $result = substr($this->buffer, 0, $length);
+            $this->buffer = substr($this->buffer, $length);
+            return $result;
+        }
 
-            // Read from stream
-            $chunk = $this->stream->read();
+        // Read from stream
+        $chunk = $this->pull();
 
-            if ($chunk === null) {
-                $this->eof = true;
-                return '';
-            }
-
-            // If chunk is larger than requested, buffer the rest
-            if (strlen($chunk) > $length) {
-                $result = substr($chunk, 0, $length);
-                $this->buffer = substr($chunk, $length);
-                return $result;
-            }
-
-            return $chunk;
-        } catch (StreamException) {
+        if ($chunk === null) {
             $this->eof = true;
             return '';
         }
+
+        // If chunk is larger than requested, buffer the rest
+        if (strlen($chunk) > $length) {
+            $result = substr($chunk, 0, $length);
+            $this->buffer = substr($chunk, $length);
+            return $result;
+        }
+
+        return $chunk;
     }
 
     public function readLine(): string
@@ -82,14 +80,7 @@ class AmpStream implements StreamInterface
                 return $line;
             }
 
-            try {
-                $chunk = $this->stream->read();
-            } catch (StreamException) {
-                $this->eof = true;
-                $line = $this->buffer;
-                $this->buffer = '';
-                return $line;
-            }
+            $chunk = $this->pull();
 
             if ($chunk === null) {
                 $this->eof = true;
@@ -106,5 +97,19 @@ class AmpStream implements StreamInterface
     {
         $this->eof = true;
         $this->buffer = '';
+    }
+
+    /**
+     * A connection dropped mid-response must not pass for the end of the body.
+     *
+     * @throws HttpException
+     */
+    protected function pull(): ?string
+    {
+        try {
+            return $this->stream->read();
+        } catch (StreamException $e) {
+            throw HttpException::networkError($this->request, $e->getMessage(), $e);
+        }
     }
 }

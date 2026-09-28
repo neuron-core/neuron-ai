@@ -135,7 +135,7 @@ class AmpHttpClient implements HttpClientInterface
                 throw HttpException::statusError($request, $this->buffer($response));
             }
 
-            return new AmpStream($response->getBody());
+            return new AmpStream($response->getBody(), $request);
         } catch (HttpException $e) {
             throw $e;
         } catch (Throwable $e) {
