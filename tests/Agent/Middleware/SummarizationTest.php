@@ -166,6 +166,72 @@ class SummarizationTest extends TestCase
         $this->assertStringContainsString('Summary', (string) $history->getMessages()[0]->getContent());
     }
 
+    public function test_kept_messages_no_longer_count_the_summarized_tokens(): void
+    {
+        $answer2 = (new AssistantMessage('Answer 2'))->setUsage(new Usage(80, 20, 30, 5));
+
+        $messages = $this->summarize([
+            new UserMessage('Question 1'),
+            (new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)),
+            new UserMessage('Question 2'),
+            $answer2,
+            new UserMessage('Question 3'),
+            (new AssistantMessage('Answer 3'))->setUsage(new Usage(150, 30)),
+        ], messagesToKeep: 3);
+
+        // The cutoff, Answer 2, was generated from 80 input tokens: the conversation now summarized.
+        $this->assertEquals(
+            [new Usage(0, 20, 30, 5), null, new Usage(70, 30)],
+            array_map(fn (Message $message): ?Usage => $message->getUsage(), array_slice($messages, 1))
+        );
+        $this->assertEquals(new Usage(80, 20, 30, 5), $answer2->getUsage());
+    }
+
+    public function test_replaying_the_step_does_not_summarize_the_summary(): void
+    {
+        $store = new InMemoryMessageStore();
+        $history = new ChatHistory($store, 'thread');
+        $history->addMessage(new UserMessage('Question 1'));
+        $history->addMessage((new AssistantMessage('Answer 1'))->setUsage(new Usage(40, 10)));
+        $history->addMessage(new UserMessage('Question 2'));
+        $history->addMessage((new AssistantMessage('Answer 2'))->setUsage(new Usage(80, 20)));
+        $provider = new FakeAIProvider(new AssistantMessage('Summary'), new AssistantMessage('Summary of summary'));
+        $middleware = new Summarization($provider, maxTokens: 99, messagesToKeep: 1);
+
+        $middleware->before(new ChatNode(), new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $history, $provider));
+        $afterFirstRun = $this->contents($history->getMessages());
+
+        // The inference crashed after the rewrite: recovery re-runs the same step's middleware.
+        $replayedHistory = new ChatHistory($store, 'thread');
+        $middleware->before(new ChatNode(), new AIInferenceEvent(), new AgentState(), AgentResourcesFactory::make([], $replayedHistory, $provider));
+
+        $provider->assertCallCount(1);
+        $this->assertSame(["## Previous conversation summary:\n\nSummary", 'Answer 2'], $afterFirstRun);
+        $this->assertSame($afterFirstRun, $this->contents($replayedHistory->getMessages()));
+    }
+
+    public function test_a_tool_loop_summarizes_the_conversation_once(): void
+    {
+        $call = new ToolCall('search', 'call_1', ['query' => 'PHP']);
+        $agentProvider = new FakeAIProvider(
+            (new AssistantMessage('Answer 1'))->setUsage(new Usage(80, 20)),
+            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(30, 5)),
+            (new AssistantMessage('Answer 2'))->setUsage(new Usage(40, 5)),
+        );
+        $summarizer = new FakeAIProvider(new AssistantMessage('Summary'), new AssistantMessage('Summary of summary'));
+
+        $agent = Agent::make()
+            ->setAiProvider($agentProvider)
+            ->setTools([new SearchTool()])
+            ->addMiddleware(InferenceNode::class, new Summarization($summarizer, maxTokens: 90, messagesToKeep: 1));
+
+        $agent->chat(new UserMessage('Question 1'));
+        $agent->chat(new UserMessage('Question 2'));
+
+        $agentProvider->assertCallCount(3);
+        $summarizer->assertCallCount(1);
+    }
+
     public function test_the_summary_request_offers_no_tools(): void
     {
         $history = new ChatHistory(new InMemoryMessageStore(), 'thread');

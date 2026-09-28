@@ -108,7 +108,7 @@ class Summarization extends AgentMiddleware
      */
     protected function discountSummarizedTokens(array $messages): array
     {
-        $summarizedTokens = $messages[0]->getUsage()?->inputTokens ?? 0;
+        $summarizedTokens = $messages[0]->getUsage()->inputTokens ?? 0;
 
         return array_map(function (Message $message) use ($summarizedTokens): Message {
             $usage = $message->getUsage();
