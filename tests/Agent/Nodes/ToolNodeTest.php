@@ -12,8 +12,8 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
-use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolRunsExceededException;
+use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
 use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
 use NeuronAI\Tests\Tools\Stub\Ticket;
 use NeuronAI\Tools\ObjectProperty;
@@ -22,6 +22,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Throwable;
 
 class ToolNodeTest extends TestCase
@@ -51,24 +52,20 @@ class ToolNodeTest extends TestCase
     }
 
     /**
-     * Test that MissingCallbackParameter is caught by error handler
+     * An exception escaping the tool is caught by the error handler
      * and the result is set on the call directly.
      */
-    public function test_error_handler_catches_missing_required_parameter(): void
+    public function test_error_handler_catches_an_exception_escaping_the_tool(): void
     {
-        // A call WITHOUT the required property - this triggers MissingCallbackParameter
-        $call = ToolCall::make('test_tool', 'call_1', []);
+        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'php']);
 
         $errorHandler = fn (Throwable $e, ToolCall $call): string => "Error handled: {$e->getMessage()}";
 
         // Should NOT throw because the error handler catches it
-        $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState(), $errorHandler);
+        $this->runNode([new AgentFailingTool()], [$call], new AgentState(), $errorHandler);
 
         // The call result was set to the error handler's message
-        $this->assertSame(
-            'Error handled: Missing required parameter: required_input',
-            $call->getResult()
-        );
+        $this->assertSame('Error handled: Tool failed!', $call->getResult());
     }
 
     /**
@@ -77,27 +74,27 @@ class ToolNodeTest extends TestCase
      */
     public function test_error_handler_returning_null_declines_and_exception_propagates(): void
     {
-        $call = ToolCall::make('test_tool', 'call_1', []);
+        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'php']);
 
         $errorHandler = fn (Throwable $e, ToolCall $call): ?string => null;
 
-        $this->expectException(MissingCallbackParameter::class);
+        $this->expectException(RuntimeException::class);
 
-        $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState(), $errorHandler);
+        $this->runNode([new AgentFailingTool()], [$call], new AgentState(), $errorHandler);
     }
 
     public function test_error_handler_can_return_error_output(): void
     {
-        $call = ToolCall::make('test_tool', 'call_1', []);
+        $call = ToolCall::make('failing_tool', 'call_1', ['input' => 'php']);
 
         $errorHandler = fn (Throwable $e, ToolCall $call): ToolOutput => ToolOutput::error($e->getMessage());
 
-        $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState(), $errorHandler);
+        $this->runNode([new AgentFailingTool()], [$call], new AgentState(), $errorHandler);
 
         $result = $call->getResult();
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertTrue($result->isError());
-        $this->assertSame('Missing required parameter: required_input', $result->getText());
+        $this->assertSame('Tool failed!', $result->getText());
     }
 
     public function test_a_call_runs_on_a_copy_bound_to_its_id_and_inputs(): void
@@ -119,16 +116,18 @@ class ToolNodeTest extends TestCase
     }
 
     /**
-     * Test that MissingCallbackParameter escapes when no error handler is set.
+     * A required input the model left out is its mistake to correct: feedback, not an abort.
      */
-    public function test_missing_required_parameter_throws_without_error_handler(): void
+    public function test_a_missing_required_parameter_is_feedback_without_an_error_handler(): void
     {
         $call = ToolCall::make('test_tool', 'call_1', []);
 
-        $this->expectException(MissingCallbackParameter::class);
-        $this->expectExceptionMessage('Missing required parameter: required_input');
-
         $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState());
+
+        $result = $call->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('Parameter "required_input" is required.', $result->getText());
     }
 
     public function test_a_non_object_for_a_mapped_object_is_settled_as_a_tool_error_instead_of_aborting(): void

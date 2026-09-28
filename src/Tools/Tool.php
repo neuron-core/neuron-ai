@@ -10,6 +10,8 @@ use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
 use ReflectionException;
+use ReflectionMethod;
+use ReflectionParameter;
 use stdClass;
 
 use function array_key_exists;
@@ -190,14 +192,22 @@ abstract class Tool implements ToolInterface
         foreach ($this->getProperties() as $property) {
             $name = $property->getName();
 
-            if (!array_key_exists($name, $cast)) {
-                continue;
-            }
-
             try {
+                if (!array_key_exists($name, $cast)) {
+                    if ($property->isRequired()) {
+                        throw new InvalidToolInput('is required');
+                    }
+
+                    continue;
+                }
+
+                if ($cast[$name] === null && $property->isRequired() && !$property->isNullable()) {
+                    throw new InvalidToolInput("must be of type {$property->getType()->value}, null given");
+                }
+
                 $cast[$name] = $property->cast($cast[$name]);
             } catch (InvalidToolInput $exception) {
-                // A value the model sent in the wrong type is feedback to correct the call, not a bug
+                // A value the model left out or sent in the wrong type is feedback to correct the call, not a bug
                 $this->invalidInput = "Parameter \"{$name}\" {$exception->getMessage()}.";
                 return $this;
             }
@@ -345,25 +355,50 @@ abstract class Tool implements ToolInterface
             ));
         }
 
+        if ($this->invalidInput !== null) {
+            $this->setResult(ToolOutput::error($this->invalidInput));
+            return;
+        }
+
+        // Reached only by a tool executed without setInputs(), which settles a missing input as feedback
         foreach ($this->getProperties() as $property) {
             if ($property->isRequired() && !array_key_exists($property->getName(), $this->getInputs())) {
                 throw new MissingCallbackParameter("Missing required parameter: {$property->getName()}");
             }
         }
 
-        if ($this->invalidInput !== null) {
-            $this->setResult(ToolOutput::error($this->invalidInput));
-            return;
-        }
-
+        $signature = $this->invokeParameters();
         $parameters = [];
 
         foreach ($this->getProperties() as $property) {
-            // Missing optional properties become explicit nulls for a consistent structure
-            $parameters[$property->getName()] = $this->inputs[$property->getName()] ?? null;
+            $name = $property->getName();
+            $parameter = $signature[$name] ?? null;
+
+            // Left out, or null where the parameter can't take it: PHP applies the declared default
+            if (
+                $parameter?->isDefaultValueAvailable()
+                && (!array_key_exists($name, $this->inputs) || ($this->inputs[$name] === null && !$parameter->allowsNull()))
+            ) {
+                continue;
+            }
+
+            $parameters[$name] = $this->inputs[$name] ?? null;
         }
 
         $this->setResult($this->__invoke(...$parameters));
+    }
+
+    /**
+     * @return array<string, ReflectionParameter>
+     */
+    protected function invokeParameters(): array
+    {
+        $parameters = [];
+        foreach ((new ReflectionMethod($this, '__invoke'))->getParameters() as $parameter) {
+            $parameters[$parameter->getName()] = $parameter;
+        }
+
+        return $parameters;
     }
 
     public function jsonSerialize(): array

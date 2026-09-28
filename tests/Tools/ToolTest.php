@@ -18,6 +18,7 @@ use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -79,10 +80,11 @@ class ToolTest extends TestCase
 
     public function test_get_input_reads_one_cast_value_and_null_when_it_is_absent(): void
     {
-        $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'false']);
+        $tool = (new StrictApprovalTool())->setInputs(['permanent' => 'false', 'account_id' => '7']);
 
         $this->assertFalse($tool->getInput('permanent'));
-        $this->assertNull($tool->getInput('account_id'));
+        $this->assertSame(7, $tool->getInput('account_id'));
+        $this->assertNull($tool->getInput('reason'));
     }
 
     public function test_a_rejected_binding_keeps_the_model_inputs_verbatim(): void
@@ -195,20 +197,33 @@ class ToolTest extends TestCase
      * @param array<string, mixed> $inputs
      */
     #[DataProvider('inputsMissingARequiredParameter')]
-    public function test_missing_required_parameter_is_an_exception_and_never_invokes(array $inputs): void
+    public function test_a_missing_required_parameter_is_feedback_and_never_invokes(array $inputs): void
     {
         $tool = new StrictApprovalTool();
         $tool->setInputs($inputs);
 
+        $this->assertFalse($tool->requiresApproval());
+
+        $tool->execute();
+
+        $this->assertSame(0, $tool->invocations);
+        $this->assertInstanceOf(ToolOutput::class, $tool->getResult());
+        $this->assertTrue($tool->getResult()->isError());
+        $this->assertSame('Parameter "account_id" is required.', $tool->getResult()->getText());
+    }
+
+    public function test_executing_a_tool_that_was_never_bound_is_an_exception(): void
+    {
+        $tool = new StrictApprovalTool();
+
         try {
             $tool->execute();
-            $this->fail('A missing required parameter must throw.');
+            $this->fail('Executing an unbound tool must throw.');
         } catch (MissingCallbackParameter $exception) {
-            $this->assertSame('Missing required parameter: account_id', $exception->getMessage());
+            $this->assertSame('Missing required parameter: permanent', $exception->getMessage());
         }
 
         $this->assertSame(0, $tool->invocations);
-        $this->assertFalse($tool->hasResult());
     }
 
     public static function inputsMissingARequiredParameter(): array
