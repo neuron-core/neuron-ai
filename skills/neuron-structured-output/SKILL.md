@@ -685,6 +685,8 @@ Deserializer handles various date formats:
 - Unix timestamps: `1705320600`
 - Relative formats: `"next Monday"`
 
+A property typed `DateTimeInterface` receives a `DateTimeImmutable`.
+
 ## Best Practices
 
 ### 1. Always Add Descriptions

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use DateTimeImmutable;
 use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tests\Tools\Stub\Address;
@@ -22,6 +23,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
+
+use const DATE_ATOM;
 
 class ObjectPropertyTest extends TestCase
 {
@@ -701,6 +704,19 @@ class ObjectPropertyTest extends TestCase
         // The tool property model has no anyOf, so the union reaches the model as a string
         $this->assertSame(['type' => 'string'], $property->getJsonSchema()['properties']['id']);
         $this->assertSame(5, $property->cast(['id' => 5])->id);
+    }
+
+    public function test_a_mapped_class_with_a_date_property_is_built_and_bound(): void
+    {
+        $class = new class () {
+            public DateTimeImmutable $dueAt;
+        };
+
+        $property = new ObjectProperty('ticket', class: $class::class);
+
+        // The tool property model has no format, so the date reaches the model as a plain string
+        $this->assertSame(['type' => 'string'], $property->getJsonSchema()['properties']['dueAt']);
+        $this->assertSame('2024-01-15T10:30:00+00:00', $property->cast(['dueAt' => '2024-01-15T10:30:00Z'])->dueAt->format(DATE_ATOM));
     }
 
     public function test_null_for_a_nullable_mapped_object_binds_null(): void

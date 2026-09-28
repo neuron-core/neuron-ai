@@ -261,7 +261,7 @@ class Deserializer
             'bool' => $this->castScalar($value, 'boolean', $property),
             'array' => $this->handleArray($value, $property),
             'DateTime' => $this->createDateTime($value),
-            'DateTimeImmutable' => $this->createDateTimeImmutable($value),
+            'DateTimeImmutable', 'DateTimeInterface' => $this->createDateTimeImmutable($value),
             default => $this->handleSingleObject($value, $typeName, $property)
         };
     }

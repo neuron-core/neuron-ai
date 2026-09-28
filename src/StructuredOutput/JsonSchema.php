@@ -13,6 +13,7 @@ use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionUnionType;
+use stdClass;
 
 use function array_map;
 use function array_merge;
@@ -102,6 +103,11 @@ class JsonSchema
             }
         }
 
+        // An empty array would be encoded as a JSON list, not an object
+        if ($schema['properties'] === []) {
+            $schema['properties'] = new stdClass();
+        }
+
         if ($requiredProperties !== []) {
             $schema['required'] = $requiredProperties;
         }
@@ -176,12 +182,6 @@ class JsonSchema
                     $schema['maxItems'] = $attribute->max;
                 }
             }
-        } elseif ($typeName && enum_exists($typeName)) {
-            $enumReflection = new ReflectionEnum($typeName);
-            $schema = array_merge($schema, $this->processEnum($enumReflection));
-        } elseif ($typeName && class_exists($typeName)) {
-            $classSchema = $this->generateClassSchema($typeName);
-            $schema = array_merge($schema, $classSchema);
         } elseif ($typeName) {
             $typeSchema = $this->getBasicTypeSchema($typeName);
             $schema = array_merge($schema, $typeSchema);
@@ -285,6 +285,11 @@ class JsonSchema
                     'items' => ['type' => 'string'],
                 ];
 
+            case 'DateTime':
+            case 'DateTimeImmutable':
+            case 'DateTimeInterface':
+                return ['type' => 'string', 'format' => 'date-time'];
+
             default:
                 if (class_exists($type)) {
                     return $this->generateClassSchema($type);
@@ -337,7 +342,7 @@ class JsonSchema
                     'enum' => [$discriminatorValue],
                     'description' => 'This property is mandatory and can only be filled with "'.$discriminatorValue.'". It is used as a discriminator for class type resolution.',
                 ],
-                ...($schema['properties'] ?? []),
+                ...(array) ($schema['properties'] ?? []),
             ];
 
             $schema['required'] = array_unique([

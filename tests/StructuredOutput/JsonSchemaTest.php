@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\StructuredOutput;
 
+use DateTime;
+use DateTimeImmutable;
+use DateTimeInterface;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\Department;
+use NeuronAI\Tests\StructuredOutput\Stub\DividerBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\DummyEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\Employee;
@@ -27,6 +31,7 @@ use ReflectionException;
 
 use function array_column;
 use function array_keys;
+use function json_encode;
 
 class JsonSchemaTest extends TestCase
 {
@@ -341,6 +346,19 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['type' => 'string', 'enum' => ['one', 'two', 'three']], $items[1]);
     }
 
+    public function test_discriminator_is_injected_into_an_anyof_item_without_properties(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [TextBlock::class, DividerBlock::class])]
+            public array $blocks;
+        };
+
+        $items = (new JsonSchema())->generate($class::class)['properties']['blocks']['items']['anyOf'];
+
+        $this->assertSame(['__classname__'], array_keys($items[1]['properties']));
+        $this->assertSame(['__classname__'], $items[1]['required']);
+    }
+
     public function test_discriminator_is_not_injected_for_single_type_arrays(): void
     {
         $schema = (new JsonSchema())->generate(Person::class);
@@ -488,6 +506,23 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['default' => null, 'type' => ['object', 'null']], $schema['properties']['next']);
     }
 
+    public function test_a_date_is_described_as_a_date_time_string(): void
+    {
+        $class = new class () {
+            public DateTime $startsAt;
+
+            public ?DateTimeImmutable $endsAt = null;
+
+            public DateTimeInterface|string $remindAt;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(['type' => 'string', 'format' => 'date-time'], $schema['properties']['startsAt']);
+        $this->assertSame(['default' => null, 'type' => ['string', 'null'], 'format' => 'date-time'], $schema['properties']['endsAt']);
+        $this->assertSame([['type' => 'string', 'format' => 'date-time'], ['type' => 'string']], $schema['properties']['remindAt']['anyOf']);
+    }
+
     public function test_promoted_property_with_default_is_not_required_and_advertises_its_default(): void
     {
         $class = new class ('Ada') {
@@ -542,8 +577,8 @@ class JsonSchemaTest extends TestCase
         };
 
         $this->assertSame(
-            ['type' => 'object', 'properties' => [], 'additionalProperties' => false],
-            (new JsonSchema())->generate($class::class)
+            '{"type":"object","properties":{},"additionalProperties":false}',
+            json_encode((new JsonSchema())->generate($class::class))
         );
     }
 

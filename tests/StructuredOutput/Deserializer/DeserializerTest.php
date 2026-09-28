@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\StructuredOutput\Deserializer;
 
 use DateTime;
 use DateTimeImmutable;
+use DateTimeInterface;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonSchema;
@@ -730,6 +731,18 @@ class DeserializerTest extends TestCase
         $obj = Deserializer::make()->fromJson('{"createdAt": 86400}', $class::class);
 
         $this->assertSame('1970-01-02T00:00:00+00:00', $obj->createdAt->format(DATE_ATOM));
+    }
+
+    public function test_a_date_interface_property_is_built_as_an_immutable_date(): void
+    {
+        $class = new class () {
+            public DateTimeInterface $remindAt;
+        };
+
+        $obj = Deserializer::make()->fromJson('{"remindAt": "2023-11-14T22:13:20Z"}', $class::class);
+
+        $this->assertInstanceOf(DateTimeImmutable::class, $obj->remindAt);
+        $this->assertSame('2023-11-14T22:13:20+00:00', $obj->remindAt->format(DATE_ATOM));
     }
 
     /**
