@@ -640,9 +640,17 @@ class ObjectPropertyTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function validTicket(): array
+    {
+        return ['title' => 'Fix the login', 'priority' => 'high', 'urgent' => true, 'score' => 1.5, 'watchers' => []];
+    }
+
     public function test_quoted_values_in_a_mapped_object_keep_their_meaning(): void
     {
-        $ticket = (new ObjectProperty('ticket', class: Ticket::class))->cast(['urgent' => 'false', 'score' => '1.5', 'estimate' => '3']);
+        $ticket = (new ObjectProperty('ticket', class: Ticket::class))->cast([...self::validTicket(), 'urgent' => 'false', 'score' => '1.5', 'estimate' => '3']);
 
         $this->assertInstanceOf(Ticket::class, $ticket);
         $this->assertFalse($ticket->urgent);
@@ -663,11 +671,23 @@ class ObjectPropertyTest extends TestCase
     #[DataProvider('mappedObjectValuesOfTheWrongType')]
     public function test_a_mapped_object_value_of_the_wrong_type_is_tool_feedback(array $ticket, string $reason): void
     {
-        $tool = $this->ticketTool()->setInputs(['ticket' => $ticket]);
+        $tool = $this->ticketTool()->setInputs(['ticket' => [...self::validTicket(), ...$ticket]]);
 
         $tool->execute();
 
         $this->assertToolError("Parameter \"ticket\" is invalid: {$reason}.", $tool->getResult());
+    }
+
+    public function test_a_mapped_object_missing_a_required_field_is_tool_feedback(): void
+    {
+        $ticket = self::validTicket();
+        unset($ticket['priority']);
+
+        $tool = $this->ticketTool()->setInputs(['ticket' => $ticket]);
+
+        $tool->execute();
+
+        $this->assertToolError('Parameter "ticket" is invalid: Property "priority" is required.', $tool->getResult());
     }
 
     public function test_null_for_a_nullable_mapped_object_binds_null(): void

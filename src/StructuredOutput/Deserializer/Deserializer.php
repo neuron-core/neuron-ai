@@ -15,6 +15,7 @@ use ReflectionClass;
 use ReflectionEnum;
 use ReflectionException;
 use ReflectionNamedType;
+use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionType;
 use ReflectionUnionType;
@@ -97,21 +98,29 @@ class Deserializer
             }
 
             $propertyName = $property->getName();
+            $key = $this->findPropertyKey($data, $propertyName);
+            $type = $property->getType();
+            $nullable = $type?->allowsNull() ?? true;
 
-            $value = $this->findPropertyValue($data, $propertyName);
-
-            if ($value !== null) {
-                $type = $property->getType();
-
-                if ($type) {
-                    $value = $this->castValue($value, $type, $property);
+            // Left out, or null where the property can't hold it: a required one is the model's to fix, an optional one gets its default
+            if ($key === null || ($data[$key] === null && !$nullable)) {
+                if (SchemaProperty::isRequired($property)) {
+                    throw new DeserializerException($key === null ? "Property \"{$propertyName}\" is required" : "Property \"{$propertyName}\" must not be null");
                 }
 
-                $property->setValue($instance, $value);
+                continue;
+            }
 
-                if ($property->isPromoted()) {
-                    $promotedArgs[ $propertyName ] = $value;
-                }
+            $value = $data[$key];
+
+            if ($value !== null && $type) {
+                $value = $this->castValue($value, $type, $property);
+            }
+
+            $property->setValue($instance, $value);
+
+            if ($property->isPromoted()) {
+                $promotedArgs[ $propertyName ] = $value;
             }
         }
 
@@ -121,26 +130,51 @@ class Deserializer
             $constructor->invokeArgs($instance, $promotedArgs);
         }
 
+        $this->applyDefaults($instance, $properties);
+
         return $instance;
+    }
+
+    /**
+     * What the model left out gets its default, or null when it has none but can hold one.
+     *
+     * @param ReflectionProperty[] $properties
+     */
+    protected function applyDefaults(object $instance, array $properties): void
+    {
+        foreach ($properties as $property) {
+            if ($property->isStatic() || $property->isInitialized($instance)) {
+                continue;
+            }
+
+            // Only a constructor applies a promoted default, and it may not have run
+            $parameter = $property->isPromoted() ? new ReflectionParameter([$property->class, '__construct'], $property->name) : null;
+
+            if ($parameter?->isDefaultValueAvailable()) {
+                $property->setValue($instance, $parameter->getDefaultValue());
+            } elseif ($property->getType()?->allowsNull()) {
+                $property->setValue($instance, null);
+            }
+        }
     }
 
     /**
      * Matches the exact key first, then snake_case and camelCase variants.
      */
-    protected function findPropertyValue(array $data, string $propertyName): mixed
+    protected function findPropertyKey(array $data, string $propertyName): ?string
     {
         if (array_key_exists($propertyName, $data)) {
-            return $data[$propertyName];
+            return $propertyName;
         }
 
         $snakeCase = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', $propertyName));
         if (array_key_exists($snakeCase, $data)) {
-            return $data[$snakeCase];
+            return $snakeCase;
         }
 
         $camelCase = lcfirst(str_replace('_', '', ucwords($propertyName, '_')));
         if (array_key_exists($camelCase, $data)) {
-            return $data[$camelCase];
+            return $camelCase;
         }
 
         return null;

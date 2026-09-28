@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput;
 
 use Attribute;
+use ReflectionParameter;
 use ReflectionProperty;
 
 #[Attribute(Attribute::TARGET_PROPERTY)]
@@ -48,5 +49,27 @@ class SchemaProperty
         }
 
         return null;
+    }
+
+    /**
+     * Whether the model must send the property: the one rule JsonSchema advertises and
+     * Deserializer enforces. A required flag decides; without one, a property is required
+     * when it can't be null and has no default.
+     */
+    public static function isRequired(ReflectionProperty $property): bool
+    {
+        $required = self::resolve($property)?->required;
+
+        if ($required !== null) {
+            return $required;
+        }
+
+        $nullable = $property->getType()?->allowsNull() ?? true;
+
+        // A promoted property's default lives on its constructor parameter
+        $promotedDefault = $property->isPromoted()
+            && (new ReflectionParameter([$property->class, '__construct'], $property->name))->isDefaultValueAvailable();
+
+        return !$nullable && !$property->hasDefaultValue() && !$promotedDefault;
     }
 }

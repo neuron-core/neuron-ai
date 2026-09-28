@@ -459,6 +459,20 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['default' => [], 'type' => 'array', 'items' => ['type' => 'string']], $schema['properties']['filters']);
     }
 
+    public function test_promoted_property_with_default_is_not_required_and_advertises_its_default(): void
+    {
+        $class = new class ('Ada') {
+            public function __construct(public string $name, public string $title = 'untitled')
+            {
+            }
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(['name'], $schema['required']);
+        $this->assertSame(['default' => 'untitled', 'type' => 'string'], $schema['properties']['title']);
+    }
+
     public function test_required_true_attribute_forces_nullable_property_into_required(): void
     {
         $class = new class () {

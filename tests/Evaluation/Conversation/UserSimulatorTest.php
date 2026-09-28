@@ -75,6 +75,7 @@ class UserSimulatorTest extends TestCase
     {
         yield 'stop with a message' => [true, 'One more thing...'];
         yield 'continue with an empty message' => [false, ''];
+        yield 'continue with a null message' => [false, null];
     }
 
     #[DataProvider('stopDecisions')]
@@ -83,6 +84,26 @@ class UserSimulatorTest extends TestCase
         $provider = new FakeAIProvider($this->simulatorResponse(stop: $stop, message: $message));
 
         $this->assertNull($this->makeSimulator($provider)->nextTurn($this->emptyTrajectory()));
+    }
+
+    public function test_next_turn_ends_the_conversation_when_the_optional_message_is_left_out(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('{"stop": false}'));
+
+        $this->assertNull($this->makeSimulator($provider)->nextTurn($this->emptyTrajectory()));
+    }
+
+    public function test_an_answer_missing_the_stop_decision_is_retried(): void
+    {
+        $provider = new FakeAIProvider(
+            new AssistantMessage('{"message": "Hello"}'),
+            $this->simulatorResponse(stop: false, message: 'I want a refund'),
+        );
+
+        $message = $this->makeSimulator($provider)->nextTurn($this->emptyTrajectory());
+
+        $this->assertSame('I want a refund', $message?->getContent());
+        $provider->assertCallCount(2);
     }
 
     public function test_first_turn_prompt_is_exact(): void

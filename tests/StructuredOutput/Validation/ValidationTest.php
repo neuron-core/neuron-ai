@@ -190,7 +190,7 @@ class ValidationTest extends TestCase
 
     public function test_nested_array_with_deserialize(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 
@@ -199,7 +199,7 @@ class ValidationTest extends TestCase
 
     public function test_invalid_deeply_nested_value_after_deserialize_is_reported_on_the_root_property(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": ""}]}]}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": [{"name": "agent", "properties": [{"value": ""}]}]}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 

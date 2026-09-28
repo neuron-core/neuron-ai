@@ -207,10 +207,22 @@ class StructuredOutputNodeTest extends TestCase
         );
     }
 
-    public function test_a_value_of_the_wrong_type_is_fed_back_to_the_model(): void
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function answersTheDeserializerRejects(): array
     {
-        $wrongType = new AssistantMessage('{"firstName":"Jane","lastName":"Doe","address":"Rome","tags":[]}');
-        $provider = new FakeAIProvider($wrongType, $this->validPerson('Jane'));
+        return [
+            'a value of the wrong type' => ['{"firstName":"Jane","lastName":"Doe","address":"Rome","tags":[]}', 'Property "address" must be of type object, string given'],
+            'a required property left out' => ['{"firstName":"Jane","lastName":"Doe","tags":[]}', 'Property "address" is required'],
+        ];
+    }
+
+    #[DataProvider('answersTheDeserializerRejects')]
+    public function test_a_deserialization_error_is_fed_back_to_the_model(string $answer, string $error): void
+    {
+        $rejected = new AssistantMessage($answer);
+        $provider = new FakeAIProvider($rejected, $this->validPerson('Jane'));
         $state = $this->structuredState(Person::class, 1);
         $node = new StructuredOutputNode();
         $node->setWorkflowContext(new NodeContext());
@@ -218,9 +230,9 @@ class StructuredOutputNodeTest extends TestCase
         $this->assertInstanceOf(AgentOutputEvent::class, $node(new StructuredInferenceEvent(), $state, AgentResourcesFactory::make([], null, $provider)));
 
         $correction = "There was a problem in your previous response that generated the following error:\n\n"
-            . "Property \"address\" must be of type object, string given\n\n"
+            . "{$error}\n\n"
             . 'Try to generate the correct JSON structure based on the provided schema.';
-        $this->assertSame(['Generate a person', $wrongType->getContent(), $correction], array_map(
+        $this->assertSame(['Generate a person', $rejected->getContent(), $correction], array_map(
             static fn (Message $message): ?string => $message->getContent(),
             $provider->getRecorded()[1]->messages
         ));

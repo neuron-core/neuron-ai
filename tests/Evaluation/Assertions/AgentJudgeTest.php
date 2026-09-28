@@ -61,6 +61,19 @@ class AgentJudgeTest extends TestCase
         $this->assertEquals('The output meets the criteria.', $result->message);
     }
 
+    public function test_an_answer_missing_the_reasoning_is_retried(): void
+    {
+        $provider = new FakeAIProvider(
+            new AssistantMessage('{"score": 0.9}'),
+            new AssistantMessage('{"score": 0.9, "reasoning": "Accurate and complete"}'),
+        );
+
+        $result = (new AgentJudge(Agent::make()->setAiProvider($provider), 'Check quality'))->evaluate('Some output');
+
+        $this->assertSame('Accurate and complete', $result->message);
+        $provider->assertCallCount(2);
+    }
+
     public function test_passes_when_score_equals_threshold(): void
     {
         $agent = $this->createFakeAgentWithScore(0.7, 'Exactly at threshold');

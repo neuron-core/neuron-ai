@@ -10,6 +10,7 @@ use ReflectionEnum;
 use ReflectionEnumBackedCase;
 use ReflectionException;
 use ReflectionNamedType;
+use ReflectionParameter;
 use ReflectionProperty;
 
 use function array_merge;
@@ -94,20 +95,8 @@ class JsonSchema
 
             $schema['properties'][$propertyName] = $this->processProperty($property);
 
-            $attribute = $this->getPropertyAttribute($property);
-            if ($attribute instanceof SchemaProperty && $attribute->required !== null) {
-                if ($attribute->required) {
-                    $requiredProperties[] = $propertyName;
-                }
-            } else {
-                // No attribute: non-nullable properties without a default are required
-                $type = $property->getType();
-
-                $isNullable = $type ? $type->allowsNull() : true;
-
-                if (!$isNullable && !$property->hasDefaultValue()) {
-                    $requiredProperties[] = $propertyName;
-                }
+            if (SchemaProperty::isRequired($property)) {
+                $requiredProperties[] = $propertyName;
             }
         }
 
@@ -144,6 +133,13 @@ class JsonSchema
 
         if ($property->hasDefaultValue()) {
             $schema['default'] = $property->getDefaultValue();
+        } elseif ($property->isPromoted()) {
+            // A promoted property's default lives on its constructor parameter
+            $parameter = new ReflectionParameter([$property->class, '__construct'], $property->name);
+
+            if ($parameter->isDefaultValueAvailable()) {
+                $schema['default'] = $parameter->getDefaultValue();
+            }
         }
 
         if ($typeName === 'array') {

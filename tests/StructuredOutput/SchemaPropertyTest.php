@@ -8,6 +8,7 @@ use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
@@ -73,5 +74,63 @@ class SchemaPropertyTest extends TestCase
             SchemaProperty::resolve(new ReflectionProperty($class, 'name'))
         );
         $this->assertNull(SchemaProperty::resolve(new ReflectionProperty($class, 'bare')));
+    }
+
+    /**
+     * @return array<string, array{string, bool}>
+     */
+    public static function requiredRule(): array
+    {
+        return [
+            'a type that cannot hold null' => ['name', true],
+            'a nullable type' => ['nickname', false],
+            'mixed' => ['anything', false],
+            'a declared default' => ['status', false],
+            'a promoted parameter without a default' => ['id', true],
+            'a promoted default' => ['title', false],
+            'required by the attribute despite a default' => ['country', true],
+            'optional by the attribute despite no default' => ['age', false],
+        ];
+    }
+
+    #[DataProvider('requiredRule')]
+    public function test_a_property_is_required_when_it_cannot_be_null_and_has_no_default(string $property, bool $required): void
+    {
+        $class = new class (1) {
+            public string $name;
+
+            public ?string $nickname;
+
+            public mixed $anything;
+
+            public string $status = 'draft';
+
+            #[SchemaProperty(required: true)]
+            public string $country = 'IT';
+
+            #[SchemaProperty(required: false)]
+            public int $age;
+
+            public function __construct(public int $id, public string $title = 'untitled')
+            {
+            }
+        };
+
+        $this->assertSame($required, SchemaProperty::isRequired(new ReflectionProperty($class, $property)));
+    }
+
+    public function test_a_runtime_entry_decides_whether_the_property_is_required(): void
+    {
+        $class = new class () implements SchemaPropertiesInterface {
+            #[SchemaProperty(required: true)]
+            public string $name;
+
+            public static function schemaProperties(): array
+            {
+                return ['name' => new SchemaProperty(required: false)];
+            }
+        };
+
+        $this->assertFalse(SchemaProperty::isRequired(new ReflectionProperty($class, 'name')));
     }
 }

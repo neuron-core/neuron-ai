@@ -42,7 +42,7 @@ class DeserializerTest extends TestCase
 {
     public function test_person_deserializer(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe"}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": []}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 
@@ -53,7 +53,7 @@ class DeserializerTest extends TestCase
 
     public function test_person_with_address(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": []}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 
@@ -101,12 +101,12 @@ class DeserializerTest extends TestCase
 
     public function test_constructor_with_required_parameters_is_not_invoked(): void
     {
-        $obj = Deserializer::make()->fromJson('{"r": 0.5, "g": "0.25"}', Color::class);
+        $obj = Deserializer::make()->fromJson('{"r": 0.5, "g": "0.25", "b": 1}', Color::class);
 
         $this->assertInstanceOf(Color::class, $obj);
         $this->assertSame(0.5, $obj->r);
         $this->assertSame(0.25, $obj->g);
-        $this->assertFalse(isset($obj->b));
+        $this->assertSame(1.0, $obj->b);
     }
 
     public function test_non_public_constructor_is_not_invoked(): void
@@ -135,7 +135,7 @@ class DeserializerTest extends TestCase
 
     public function test_deserialize_array(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent"}, {"name": "ops"}]}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": [{"name": "agent"}, {"name": "ops"}]}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 
@@ -273,9 +273,10 @@ class DeserializerTest extends TestCase
 
         $json = '{"number": null}';
 
-        $obj = Deserializer::make()->fromJson($json, $class::class);
-        $this->assertInstanceOf($class::class, $obj);
-        $this->assertFalse(isset($obj->number));
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage('Property "number" must not be null');
+
+        Deserializer::make()->fromJson($json, $class::class);
     }
 
     public function test_deserialize_empty_input(): void
@@ -287,9 +288,10 @@ class DeserializerTest extends TestCase
 
         $json = '{}';
 
-        $obj = Deserializer::make()->fromJson($json, $class::class);
-        $this->assertInstanceOf($class::class, $obj);
-        $this->assertFalse(isset($obj->number));
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage('Property "number" is required');
+
+        Deserializer::make()->fromJson($json, $class::class);
     }
 
     public function test_missing_values_keep_property_defaults(): void
@@ -303,6 +305,82 @@ class DeserializerTest extends TestCase
 
         $this->assertSame('draft', $obj->status);
         $this->assertNull($obj->note);
+    }
+
+    /**
+     * One property per case of the required rule.
+     */
+    protected function requiredRuleClass(): string
+    {
+        return (new class () {
+            public string $name;
+
+            #[SchemaProperty(required: true)]
+            public ?string $note;
+
+            public ?string $nickname = 'guest';
+
+            public string $status = 'draft';
+
+            public ?string $alias;
+
+            #[SchemaProperty(required: false)]
+            public int $age;
+        })::class;
+    }
+
+    public function test_an_optional_value_left_out_gets_its_default_or_null(): void
+    {
+        $obj = Deserializer::make()->fromJson('{"name": "Ada", "note": null}', $this->requiredRuleClass());
+
+        $this->assertNull($obj->note);
+        $this->assertSame('guest', $obj->nickname);
+        $this->assertSame('draft', $obj->status);
+        $this->assertNull($obj->alias);
+        $this->assertFalse(isset($obj->age));
+    }
+
+    public function test_an_explicit_null_is_kept_where_the_property_can_hold_it(): void
+    {
+        $obj = Deserializer::make()->fromJson('{"name": "Ada", "note": "x", "nickname": null, "status": null}', $this->requiredRuleClass());
+
+        $this->assertNull($obj->nickname);
+        $this->assertSame('draft', $obj->status);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function requiredValuesLeftOut(): array
+    {
+        return [
+            'a required property left out' => ['{"note": null}', 'Property "name" is required'],
+            'null for a required property that cannot hold it' => ['{"name": null, "note": null}', 'Property "name" must not be null'],
+            'a required nullable property left out' => ['{"name": "Ada"}', 'Property "note" is required'],
+        ];
+    }
+
+    #[DataProvider('requiredValuesLeftOut')]
+    public function test_a_required_value_left_out_is_rejected(string $json, string $message): void
+    {
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage($message);
+
+        Deserializer::make()->fromJson($json, $this->requiredRuleClass());
+    }
+
+    public function test_a_promoted_default_applies_when_the_constructor_cannot_run(): void
+    {
+        $class = new class ('Ada') {
+            public function __construct(public string $name, public string $title = 'untitled', public ?string $nickname = null)
+            {
+            }
+        };
+
+        $obj = Deserializer::make()->fromJson('{"name": "Ada"}', $class::class);
+
+        $this->assertSame('untitled', $obj->title);
+        $this->assertNull($obj->nickname);
     }
 
     public function test_invalid_json_is_rejected(): void
@@ -430,10 +508,10 @@ class DeserializerTest extends TestCase
     public function test_a_value_that_would_change_is_rejected(string $json, string $message): void
     {
         $class = new class () {
-            public int $age;
-            public float $ratio;
-            public string $name;
-            public bool $approved;
+            public int $age = 0;
+            public float $ratio = 0.0;
+            public string $name = '';
+            public bool $approved = false;
         };
 
         $this->expectException(DeserializerException::class);
@@ -476,12 +554,12 @@ class DeserializerTest extends TestCase
     public function test_a_value_of_the_wrong_shape_is_rejected(string $json, string $message): void
     {
         $class = new class () {
-            public Address $address;
+            public ?Address $address = null;
             #[SchemaProperty(anyOf: [Tag::class])]
-            public array $tags;
+            public array $tags = [];
             #[SchemaProperty(anyOf: [FtpMode::class, EmailMode::class])]
-            public array $modes;
-            public IntEnum $level;
+            public array $modes = [];
+            public ?IntEnum $level = null;
         };
 
         $this->expectException(DeserializerException::class);
@@ -546,8 +624,8 @@ class DeserializerTest extends TestCase
     public function test_invalid_dates_are_rejected(string $json, string $message): void
     {
         $class = new class () {
-            public DateTime $createdAt;
-            public DateTimeImmutable $updatedAt;
+            public ?DateTime $createdAt = null;
+            public ?DateTimeImmutable $updatedAt = null;
         };
 
         $this->expectException(DeserializerException::class);
@@ -558,7 +636,7 @@ class DeserializerTest extends TestCase
 
     public function test_nested_object_array(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "Via Roma", "city": "Rome", "zip": "00100"}, "tags": [{"name": "agent", "properties": [{"value": "prop"}]}]}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
         $this->assertInstanceOf(Person::class, $obj);
@@ -570,7 +648,7 @@ class DeserializerTest extends TestCase
 
     public function test_nested_object_type_is_decided_by_the_declared_property_type_only(): void
     {
-        $json = '{"firstName": "John", "lastName": "Doe", "address": {"__classname__": "person", "@type": "'.addslashes(Person::class).'", "street": "Via Roma", "city": "Rome", "zip": "1"}}';
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"__classname__": "person", "@type": "'.addslashes(Person::class).'", "street": "Via Roma", "city": "Rome", "zip": "1"}, "tags": []}';
 
         $obj = Deserializer::make()->fromJson($json, Person::class);
 
