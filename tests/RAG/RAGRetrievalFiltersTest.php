@@ -47,7 +47,7 @@ class RAGRetrievalFiltersTest extends TestCase
 
         return (new FakeMiddleware())->setBeforeHandler(
             static function (NodeInterface $node, Event $event, WorkflowState $state, WorkflowResources $resources) use ($filter, $onlyOnce, &$injected): void {
-                if ($event instanceof QueryPreProcessedEvent && !($onlyOnce && $injected)) {
+                if ($event instanceof QueryPreProcessedEvent && (!$onlyOnce || !$injected)) {
                     $event->addFilters($filter);
                     $injected = true;
                 }

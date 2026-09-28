@@ -56,7 +56,7 @@ class NeuronAITest extends TestCase
 
     public function test_static_constructor_forwards_named_arguments(): void
     {
-        $call = ToolCall::make('search', inputs: ['query' => 'php'], callId: 'call_1');
+        $call = ToolCall::make('search', callId: 'call_1', inputs: ['query' => 'php']);
 
         $this->assertSame('search', $call->getName());
         $this->assertSame('call_1', $call->getCallId());

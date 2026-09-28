@@ -24,5 +24,11 @@ parameters:
     excludePaths:
         - tests/Integration/Frontend/node_modules (?)
 
+    ignoreErrors:
+        # Fixtures deliberately declare untyped __invoke signatures to test node validation.
+        -
+            identifier: typeCoverage.paramTypeCoverage
+            path: tests/Workflow/NodeSignatureTest.php
+
     editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
 

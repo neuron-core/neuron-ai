@@ -792,7 +792,7 @@ class ToolTest extends TestCase
                 return [
                     new ToolProperty('query', PropertyType::STRING, 'The query', true),
                     new ToolProperty('limit', PropertyType::INTEGER, nullable: true),
-                    new ArrayProperty('tags', items: new ToolProperty('tag', PropertyType::STRING), required: true),
+                    new ArrayProperty('tags', required: true, items: new ToolProperty('tag', PropertyType::STRING)),
                 ];
             }
         };

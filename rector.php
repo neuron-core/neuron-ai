@@ -37,4 +37,8 @@ return RectorConfig::configure()
             // Runtime validation of a docblock-only type (list<string>) that callers can still violate.
             __DIR__ . '/src/Classifier/Score.php',
         ],
+        Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnNewRector::class => [
+            // Fixtures deliberately declare invalid __invoke signatures to test node validation.
+            __DIR__ . '/tests/Workflow/NodeSignatureTest.php',
+        ],
     ]);

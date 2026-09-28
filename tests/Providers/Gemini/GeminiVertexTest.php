@@ -85,7 +85,7 @@ class GeminiVertexTest extends TestCase
 
     protected function tearDown(): void
     {
-        HttpClientCache::setHttpClient(null);
+        HttpClientCache::setHttpClient();
         @unlink($this->credentialsPath);
     }
 
