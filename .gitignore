@@ -17,3 +17,4 @@ DOCS_*
 /node_modules/
 /packages/streaming/dist/
 /artifacts/
+/review/
