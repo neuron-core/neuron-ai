@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -17,15 +18,8 @@ use function json_encode;
 use function mb_strlen;
 use function array_reduce;
 use function base64_decode;
-use function filter_var;
-use function getimagesize;
 use function getimagesizefromstring;
-use function preg_match;
-use function str_starts_with;
-use function strpos;
-use function substr;
-
-use const FILTER_VALIDATE_URL;
+use function max;
 
 class TokenCounter
 {
@@ -93,48 +87,29 @@ class TokenCounter
 
     protected function handleImageBlock(ImageContent $block): int
     {
-        $input = $block->getContent();
+        // A URL or an ID is never opened: counting would fetch a host or read a file chosen by the message's author
+        $data = $block->sourceType === SourceType::BASE64 ? base64_decode($block->getContent(), true) : false;
+        $size = $data === false ? false : @getimagesizefromstring($data);
 
-        // 1. Check if the input is a Base64 string
-        // We look for the "data:" scheme or check if it's a valid base64 blob
-        if (str_starts_with($input, 'data:image') || !filter_var($input, FILTER_VALIDATE_URL)) {
-
-            // Strip the prefix if it exists
-            if (preg_match('/^data:image\/(\w+);base64,/', $input)) {
-                $input = substr($input, strpos($input, ',') + 1);
-            }
-
-            $data = base64_decode($input, true);
-
-            // If decoding succeeded, treat as string data
-            if ($data) {
-                $size = getimagesizefromstring($data);
-                return $this->calculateImageChars($size[0], $size[1]);
-            }
+        // Without a readable size, the image is priced like a common 1024 x 1024 upload until the provider reports its usage
+        if ($size === false || $size[0] < 1 || $size[1] < 1) {
+            return $this->calculateImageChars(1024, 1024);
         }
 
-        // 2. Otherwise, treat it as a URL or File Path
-        // getimagesize() handles local paths and remote URLs (if allow_url_fopen is on)
-        $size = @getimagesize($input);
-
-        if ($size) {
-            return $this->calculateImageChars($size[0], $size[1]);
-        }
-
-        return 0;
+        return $this->calculateImageChars($size[0], $size[1]);
     }
 
     protected function calculateImageChars(int $width, int $height): int
     {
-        // 2. Scale down to fit within a 2048 x 2048 square if necessary
+        // 2. Scale down to fit within a 2048 x 2048 square if necessary, keeping at least one pixel per side
         if ($width > 2048 || $height > 2048) {
             $aspectRatio = $width / $height;
             if ($aspectRatio > 1) {
                 $width = 2048;
-                $height = (int)(2048 / $aspectRatio);
+                $height = max(1, (int)(2048 / $aspectRatio));
             } else {
                 $height = 2048;
-                $width = (int)(2048 * $aspectRatio);
+                $width = max(1, (int)(2048 * $aspectRatio));
             }
         }
 

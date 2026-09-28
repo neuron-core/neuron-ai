@@ -17,7 +17,7 @@ The real risk sits in four places. First, the SQL toolkits' "read-only" select t
 ### Where to start
 
 1. **Make the SQL select tools genuinely read-only:** [TOOLS-01](#tools-01), [TOOLS-04](#tools-04), [TOOLS-05](#tools-05), [TOOLS-06](#tools-06), [TOOLS-07](#tools-07), [TOOLS-08](#tools-08), plus [TOOLS-26](#tools-26). The regex fixes close the verified bypasses. Only the read-only transaction from [TOOLS-08](#tools-08) avoids depending on SQL parsing, so do both. This comes first because prompt injection can destroy data through a tool advertised as safe. **Resolved** with the read-only transaction alone plus three refusal-only text rules, not the regex fixes; see [TOOLS-01](#tools-01).
-2. **Close the injection and exposure paths:** [RAG-01](#rag-01) (Cypher injection), [CHAT-01](#chat-01) (its fix also removes [CHAT-08](#chat-08); add the [CHAT-26](#chat-26) guard alongside), [DOCS-02](#docs-02) (documented memory leaks conversations across threads), [AGENT-01](#agent-01) with [DOCS-01](#docs-01), [STRUCTUREDOUTPUT-02](#structuredoutput-02) (model output writes non-public and static properties) and [TOOLS-10](#tools-10) (approval policies bypassed on nested fields).
+2. **Close the injection and exposure paths:** [RAG-01](#rag-01) (Cypher injection), [CHAT-01](#chat-01) (its fix also removes [CHAT-08](#chat-08); add the [CHAT-26](#chat-26) guard alongside), [DOCS-02](#docs-02) (documented memory leaks conversations across threads), [AGENT-01](#agent-01) with [DOCS-01](#docs-01), [STRUCTUREDOUTPUT-02](#structuredoutput-02) (model output writes non-public and static properties) and [TOOLS-10](#tools-10) (approval policies bypassed on nested fields). **Resolved so far:** [RAG-01](#rag-01), and [CHAT-01](#chat-01) with [CHAT-08](#chat-08) and [CHAT-26](#chat-26).
 3. **Harden the HTTP layer once:** [HTTPCLIENT-05](#httpclient-05), [HTTPCLIENT-06](#httpclient-06), [HTTPCLIENT-07](#httpclient-07), [HTTPCLIENT-08](#httpclient-08), [MCP-12](#mcp-12), [MCP-13](#mcp-13) and [MCP-14](#mcp-14), together with [HTTPCLIENT-04](#httpclient-04), which hides 4xx/5xx errors on the default streaming path. Most of the work lands in `CurlHttpClient` and `SseHttpTransport`.
 4. **Stop silent data loss:** [RAG-02](#rag-02), [RAG-03](#rag-03), one `FileVectorStore` pass covering [RAG-22](#rag-22), [RAG-23](#rag-23), [RAG-24](#rag-24), [RAG-48](#rag-48) and [RAG-53](#rag-53), the Typesense pair [RAG-31](#rag-31) and [RAG-52](#rag-52), [CHAT-06](#chat-06) and [CHAT-09](#chat-09). [AGENT-02](#agent-02) needs a decision on an atomic history `replace()` API.
 5. **Repair the broken providers:** [PROVIDERS-03](#providers-03), [PROVIDERS-06](#providers-06) with [PROVIDERS-25](#providers-25), [PROVIDERS-02](#providers-02), [PROVIDERS-01](#providers-01), [PROVIDERS-04](#providers-04) and [PROVIDERS-05](#providers-05). Then fix the SSE parser ([PROVIDERS-07](#providers-07), [PROVIDERS-31](#providers-31), [PROVIDERS-44](#providers-44)) and [PROVIDERS-12](#providers-12), which currently lets a stream that failed partway through be stored as a complete answer. [PROVIDERS-28](#providers-28), a cross-request reasoning leak, fits in the same pass.
@@ -459,11 +459,13 @@ Chat has 26 findings, centred on HistoryTrimmer, TokenCounter and the message st
 
 ### <a id="chat-01"></a>CHAT-01 · TokenCounter opens user-supplied image URLs and paths while counting tokens
 
-**high** · security · [`src/Chat/History/TokenCounter.php:118`](../src/Chat/History/TokenCounter.php#L118) · repro [`TokenCounterImageFetchTest`](repro/Chat/TokenCounterImageFetchTest.php) · fix validated
+**high** · security · [`src/Chat/History/TokenCounter.php:118`](../src/Chat/History/TokenCounter.php#L118) · regression tests [`TokenCounterTest`](../tests/Chat/History/TokenCounterTest.php), [`ChatHistoryTest`](../tests/Chat/History/ChatHistoryTest.php) · **resolved**
 
 `TokenCounter::handleImageBlock()` passes any image content that is not decodable base64 to `@getimagesize()`, which goes through PHP stream wrappers, and it ignores the block's `SourceType`. Because `ChatHistory::addMessage()` and `calculateTotalUsage()` count tokens on every append, a user-supplied image URL makes the server fetch attacker-chosen hosts, including internal services and cloud metadata endpoints (blind SSRF), and a slow or large resource blocks the request each time. Local paths, including `SourceType::ID` images, are read from disk, and the resulting token count (256 for an existing 1x1 PNG versus 1 for a missing file) reveals whether a server-side file exists and its dimensions.
 
 Suggested fix: in `src/Chat/History/TokenCounter.php`, make `handleImageBlock()` measure only `SourceType::BASE64` content with `getimagesizefromstring()`, never open URL or ID sources, and fall back to the fixed 200-token media estimate (a small `unmeasuredMediaChars()` helper, also used by the `count()` default arm) when the source is not inline or the data cannot be parsed. This also removes the `TypeError` on non-image base64 data described in `CHAT-08`, and it was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** `handleImageBlock()` no longer opens anything and no longer guesses from the content. It trusts the block's `SourceType`: only `BASE64` content is decoded, as the bare payload every provider mapper sends, and measured with `getimagesizefromstring()`. A URL or ID image, and inline data without a readable size, is priced like a 1024x1024 image (765 tokens) instead of the suggested 200-token media estimate. 200 is below what the formula charges for the smallest image (255 tokens for 1x1), and guessing low lets the history outgrow the window while guessing high only trims earlier; the provider's usage replaces the guess once it answers. A `data:` URI inside a `BASE64` block is no longer measured, since no provider can send that shape. The rewrite also removes two crashes the review did not list: an image ID that happens to be valid base64, such as `file1234`, was decoded as image bytes and threw the `TypeError` of [CHAT-08](#chat-08), and an empty payload threw `ValueError` from `getimagesize('')`. No upgrade guide: applications have nothing to refactor, only the estimates change.
 
 ### <a id="chat-02"></a>CHAT-02 · Trimming rebuilds kept messages' Usage and drops cached and reasoning token counts
 
@@ -515,11 +517,13 @@ Suggested fix: in `src/Chat/History/TokenCounter.php::count()`, add the length o
 
 ### <a id="chat-08"></a>CHAT-08 · TokenCounter throws TypeError on base64 image content that is not a parseable image
 
-**medium** · bug · [`src/Chat/History/TokenCounter.php:112`](../src/Chat/History/TokenCounter.php#L112) · repro [`TokenCounterInvalidImageTest`](repro/Chat/TokenCounterInvalidImageTest.php) · fix validated
+**medium** · bug · [`src/Chat/History/TokenCounter.php:112`](../src/Chat/History/TokenCounter.php#L112) · regression test [`TokenCounterTest`](../tests/Chat/History/TokenCounterTest.php) · **resolved**
 
 When `handleImageBlock()` decodes base64 successfully but `getimagesizefromstring()` returns `false` (an SVG, a truncated or corrupt upload, a data URI with a non-image payload, or any text that happens to be valid base64), `$size[0]` is `null` and `calculateImageChars()` throws a `TypeError` under strict types, along with a PHP notice and warning. Because the trimmer counts tokens on every append, `ChatHistory::addMessage()` fails and the user's turn never reaches the provider. The message is not stored, so the thread remains usable, but any end user can trigger the crash with a malformed attachment.
 
 Suggested fix: in `src/Chat/History/TokenCounter.php::handleImageBlock()`, suppress and check the result of `getimagesizefromstring()` and fall back to an estimate when it is `false`, as the URL/path branch already does. The rewrite proposed in `CHAT-01` covers this case too with a fixed media estimate; the minimal guard was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** fixed by the [CHAT-01](#chat-01) rewrite. A payload `getimagesizefromstring()` cannot read, such as an SVG, a truncated upload or plain text, is priced like a 1024x1024 image instead of throwing.
 
 ### <a id="chat-09"></a>CHAT-09 · Media content blocks drop empty or '0' content on serialization, making the thread unloadable
 
@@ -659,11 +663,13 @@ Suggested fix: normalise `Usage.inputTokens` to the whole prompt in `src/Provide
 
 ### <a id="chat-26"></a>CHAT-26 · TokenCounter throws DivisionByZeroError for images declaring zero height, breaking ChatHistory::addMessage
 
-**medium** · bug · [`src/Chat/History/TokenCounter.php:143`](../src/Chat/History/TokenCounter.php#L143) · repro [`ZeroDimensionImageTokenCountTest`](repro/Chat/ZeroDimensionImageTokenCountTest.php) · fix validated
+**medium** · bug · [`src/Chat/History/TokenCounter.php:143`](../src/Chat/History/TokenCounter.php#L143) · regression test [`TokenCounterTest`](../tests/Chat/History/TokenCounterTest.php) · **resolved**
 
 `TokenCounter::calculateImageChars()` divides by the image height when computing aspect ratios. `getimagesizefromstring()` accepts a PNG or GIF header declaring a zero dimension (a 33-byte crafted PNG is enough) and returns a valid size array, so counting throws `DivisionByZeroError`. Since trimming counts tokens on every append, `ChatHistory::addMessage()` fails and nothing is stored; in an Agent this happens after the provider call was made and billed. The error is an `Error`, so handlers catching `Exception` miss it. The damage is limited to failing the uploader's current request. This is separate from the case where `getimagesizefromstring()` returns `false`.
 
 Suggested fix: at the top of `calculateImageChars()` in `src/Chat/History/TokenCounter.php`, return only the base cost (`85 * charsPerToken`) when width or height is less than or equal to zero. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** a declared zero width or height counts as a size the counter cannot read, so the image is priced like a 1024x1024 image as in [CHAT-01](#chat-01), not at the suggested 85-token base cost, which is below any real image. The suggested guard also missed a second path to the same division: a valid image wider than 2048:1, such as 5000x2, is fitted into 2048 as 2048x0.82, and the `(int)` cast rounds the height to 0. The fit step now keeps at least one pixel per side, so 5000x2 prices as 2048x1 (four tiles), and its portrait twin 2x5000, which counted zero tiles before, as 1x2048.
 
 ## <a id="module-providers"></a>Providers
 

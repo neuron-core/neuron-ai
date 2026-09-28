@@ -17,14 +17,21 @@ use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tests\Chat\History\Stub\RecordingStreamWrapper;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function base64_encode;
+use function file_put_contents;
 use function pack;
 use function str_repeat;
+use function stream_wrapper_register;
+use function stream_wrapper_unregister;
+use function sys_get_temp_dir;
+use function uniqid;
+use function unlink;
 
 class TokenCounterTest extends TestCase
 {
@@ -101,34 +108,75 @@ class TokenCounterTest extends TestCase
             'wide, fitted in 2048' => [4096, 1024, 766],
             'tall, fitted in 2048' => [100, 3000, 766],
             'huge square' => [8192, 8192, 766],
+            // 5000x2 fits as 2048x1 (4x1 tiles), never 0px tall; the portrait twin as 1x2048.
+            'wider than 2048:1' => [5000, 2, 766],
+            'taller than 1:2048' => [2, 5000, 766],
         ];
     }
 
     #[DataProvider('imageSizes')]
     public function test_a_base64_image_is_measured_by_its_tiles(int $width, int $height, int $tokens): void
     {
-        $image = new ImageContent(base64_encode($this->pngHeader($width, $height)), SourceType::BASE64, 'image/png');
+        $image = new ImageContent(base64_encode(self::pngHeader($width, $height)), SourceType::BASE64, 'image/png');
 
         $this->assertSame($tokens, (new TokenCounter())->count(new UserMessage([$image])));
     }
 
-    public function test_a_data_uri_image_is_measured_like_its_base64_payload(): void
+    /**
+     * @return array<string, array{ImageContent}>
+     */
+    public static function imagesWithoutReadableSize(): array
     {
-        $payload = base64_encode($this->pngHeader(1024, 512));
-        $counter = new TokenCounter();
-
-        $this->assertSame(
-            $counter->count(new UserMessage([new ImageContent($payload, SourceType::BASE64)])),
-            $counter->count(new UserMessage([new ImageContent('data:image/png;base64,' . $payload, SourceType::BASE64)]))
-        );
+        return [
+            'url' => [new ImageContent('https://example.com/cat.png', SourceType::URL)],
+            'provider file id' => [new ImageContent('file_011CNha8iCJcU1wXNR6q4V8w', SourceType::ID)],
+            'id that is also valid base64' => [new ImageContent('file1234', SourceType::ID)],
+            'data uri instead of a bare payload' => [new ImageContent('data:image/png;base64,' . base64_encode(self::pngHeader(512, 512)), SourceType::BASE64)],
+            'empty payload' => [new ImageContent('', SourceType::BASE64)],
+            'text payload' => [new ImageContent(base64_encode('hello'), SourceType::BASE64, 'image/png')],
+            'svg payload' => [new ImageContent(base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'), SourceType::BASE64, 'image/svg+xml')],
+            'truncated png' => [new ImageContent(base64_encode("\x89PNG\r\n\x1a\n"), SourceType::BASE64, 'image/png')],
+            'zero height' => [new ImageContent(base64_encode(self::pngHeader(100, 0)), SourceType::BASE64, 'image/png')],
+            'zero width' => [new ImageContent(base64_encode(self::pngHeader(0, 100)), SourceType::BASE64, 'image/png')],
+            'zero width and height' => [new ImageContent(base64_encode(self::pngHeader(0, 0)), SourceType::BASE64, 'image/png')],
+            'oversized width, zero height' => [new ImageContent(base64_encode(self::pngHeader(5000, 0)), SourceType::BASE64, 'image/png')],
+        ];
     }
 
-    public function test_an_image_that_cannot_be_measured_is_counted_without_error(): void
+    #[DataProvider('imagesWithoutReadableSize')]
+    public function test_an_image_without_a_readable_size_is_priced_like_a_1024_square(ImageContent $image): void
     {
-        // Its weight is deliberately not pinned: only that counting never fails.
-        $image = new ImageContent('file-does-not-exist', SourceType::ID);
+        // 4 role chars + a 1024x1024 image: 85 + 4 tiles x 170 tokens
+        $this->assertSame(766, (new TokenCounter())->count(new UserMessage([$image])));
+    }
 
-        $this->assertGreaterThanOrEqual(1, (new TokenCounter())->count(new UserMessage([$image])));
+    public function test_counting_never_opens_an_image_url(): void
+    {
+        RecordingStreamWrapper::$opened = [];
+        stream_wrapper_register('probe', RecordingStreamWrapper::class);
+
+        try {
+            (new TokenCounter())->count(new UserMessage([new ImageContent('probe://169.254.169.254/latest/meta-data', SourceType::URL)]));
+        } finally {
+            stream_wrapper_unregister('probe');
+        }
+
+        $this->assertSame([], RecordingStreamWrapper::$opened);
+    }
+
+    public function test_an_image_id_is_never_read_from_disk(): void
+    {
+        $path = sys_get_temp_dir() . '/token-counter-' . uniqid() . '.png';
+        file_put_contents($path, self::pngHeader(1, 1));
+
+        try {
+            $tokens = (new TokenCounter())->count(new UserMessage([new ImageContent($path, SourceType::ID)]));
+        } finally {
+            unlink($path);
+        }
+
+        // Read from disk, the 1x1 PNG would cost 256 and reveal that the file exists
+        $this->assertSame(766, $tokens);
     }
 
     public function test_a_tool_result_counts_its_results_and_call_ids(): void
@@ -160,7 +208,7 @@ class TokenCounterTest extends TestCase
     /**
      * The IHDR header is all getimagesize() reads to size a PNG.
      */
-    protected function pngHeader(int $width, int $height): string
+    protected static function pngHeader(int $width, int $height): string
     {
         return "\x89PNG\r\n\x1a\n" . pack('N', 13) . 'IHDR' . pack('NN', $width, $height) . "\x08\x02\x00\x00\x00" . pack('N', 0);
     }

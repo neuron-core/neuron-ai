@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\HistoryTrimmerInterface;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Tests\Chat\History\Stub\RecordingStreamWrapper;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -24,6 +27,8 @@ use function array_pop;
 use function array_slice;
 use function count;
 use function json_encode;
+use function stream_wrapper_register;
+use function stream_wrapper_unregister;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -440,6 +445,20 @@ class ChatHistoryTest extends TestCase
     public function test_an_empty_history_measures_zero(): void
     {
         $this->assertSame(0, $this->history()->calculateTotalUsage());
+    }
+
+    public function test_appending_an_image_never_opens_its_url(): void
+    {
+        RecordingStreamWrapper::$opened = [];
+        stream_wrapper_register('probe', RecordingStreamWrapper::class);
+
+        try {
+            $this->history()->addMessage(new UserMessage([new ImageContent('probe://169.254.169.254/latest/meta-data', SourceType::URL)]));
+        } finally {
+            stream_wrapper_unregister('probe');
+        }
+
+        $this->assertSame([], RecordingStreamWrapper::$opened);
     }
 
     public function test_the_last_message_is_the_latest_in_the_context(): void
