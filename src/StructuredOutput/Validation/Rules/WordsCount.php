@@ -35,8 +35,12 @@ class WordsCount extends AbstractValidationRule
             throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "WordsCount"');
         }
 
-        if (is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
-            $violations[] = $this->buildMessage($name, '{name} cannot be empty');
+        // A missing value is empty: it only falls short of a minimum
+        if (is_null($value)) {
+            if ($this->min > 0 || $this->exactly > 0) {
+                $violations[] = $this->buildMessage($name, '{name} cannot be empty');
+            }
+
             return;
         }
 

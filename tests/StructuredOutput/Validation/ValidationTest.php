@@ -15,6 +15,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\IsNotNull;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNull;
 use NeuronAI\StructuredOutput\Validation\Rules\Length;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
+use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
@@ -289,6 +290,26 @@ class ValidationTest extends TestCase
         $this->expectExceptionMessage('You cannot provide both "values" and "class" options simultaneously. Please use only one.');
 
         Validator::validate(new $class());
+    }
+
+    public function test_optional_properties_the_model_leaves_out_pass_their_maximums(): void
+    {
+        $class = new class () {
+            public string $name;
+
+            #[Count(max: 3)]
+            public ?array $tags = null;
+
+            #[Length(max: 20)]
+            public ?string $nickname = null;
+
+            #[WordsCount(max: 50)]
+            public ?string $bio = null;
+        };
+
+        $object = Deserializer::make()->fromJson('{"name": "Ada"}', $class::class);
+
+        $this->assertSame([], Validator::validate($object));
     }
 
     public function test_static_properties_are_not_validated(): void

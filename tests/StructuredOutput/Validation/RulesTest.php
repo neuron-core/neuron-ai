@@ -130,12 +130,14 @@ class RulesTest extends TestCase
             'Length max boundary' => [new Length(max: 2), 'ab'],
             'Length exactly zero on empty string' => [new Length(exactly: 0), ''],
             'Length stringable' => [new Length(min: 3, max: 3), self::stringable('abc')],
+            'Length null with only max' => [new Length(max: 2), null],
 
             'Count exactly' => [new Count(exactly: 2), [1, 2]],
             'Count min boundary' => [new Count(min: 2), [1, 2]],
             'Count max boundary' => [new Count(max: 2), [1, 2]],
             'Count countable object' => [new Count(max: 2), new ArrayObject([1, 2])],
             'Count min zero on empty array' => [new Count(min: 0), []],
+            'Count null with only max' => [new Count(max: 2), null],
 
             'WordsCount exactly' => [new WordsCount(exactly: 3), 'hello world test'],
             'WordsCount ignores repeated separators' => [new WordsCount(exactly: 2), "  hello \r\n  world  "],
@@ -143,6 +145,7 @@ class RulesTest extends TestCase
             'WordsCount max boundary' => [new WordsCount(max: 2), 'hello world'],
             'WordsCount stringable' => [new WordsCount(exactly: 1), self::stringable('hello')],
             'WordsCount splits hyphenated words' => [new WordsCount(exactly: 2), 'well-known'],
+            'WordsCount null with only max' => [new WordsCount(max: 2), null],
 
             'Enum listed value' => [new Enum(values: ['one', 'two']), 'two'],
             'Enum null when nullable' => [new Enum(values: ['one'], nullable: true), null],
@@ -236,6 +239,8 @@ class RulesTest extends TestCase
             'Json unquoted keys' => [new Json(), '{a:1}', ['field must be a valid JSON string']],
             'Json single quotes' => [new Json(), "{'a':1}", ['field must be a valid JSON string']],
             'Json truncated' => [new Json(), '{"a":', ['field must be a valid JSON string']],
+            'Json on array value' => [new Json(), ['a'], ['field must be a valid JSON string']],
+            'Json on plain object' => [new Json(), new stdClass(), ['field must be a valid JSON string']],
 
             'Regex mismatch' => [new Regex('/^[a-z]+$/'), 'abc1', ['field must match the pattern /^[a-z]+$/']],
             'Regex non string' => [new Regex('/^\d+$/'), 123, ['field must match the pattern /^\d+$/']],
@@ -259,6 +264,7 @@ class RulesTest extends TestCase
             'Count range too many' => [new Count(min: 2, max: 4), range(1, 5), ['field is too long. It must be at most 4 items']],
             'Count countable too many' => [new Count(max: 1), new ArrayObject([1, 2]), ['field is too long. It must be at most 1 items']],
             'Count null with min' => [new Count(min: 1), null, ['field cannot be empty']],
+            'Count on non countable value' => [new Count(max: 2), 'abc', ['field must be an array']],
 
             'WordsCount too many' => [new WordsCount(max: 2), 'a b c', ['field is too long. It must be at most 2 words']],
             'WordsCount hyphenated words count separately' => [new WordsCount(max: 1), 'well-known', ['field is too long. It must be at most 1 words']],
@@ -359,9 +365,6 @@ class RulesTest extends TestCase
             'Length without bounds' => [fn (): Length => new Length(), 'abc', 'Either option "min" or "max" must be given for validation rule "Length"'],
             'Count without bounds' => [fn (): Count => new Count(), [], 'Either option "min" or "max" must be given for validation rule'],
             'WordsCount without bounds' => [fn (): WordsCount => new WordsCount(), 'abc', 'Either option "min" or "max" must be given for validation rule "WordsCount"'],
-            'Count on non countable value' => [fn (): Count => new Count(max: 2), 'abc', 'field must be an array or a Countable object'],
-            'Json on array value' => [fn (): Json => new Json(), ['a'], 'Cannot validate a non-scalar value.'],
-            'Json on plain object' => [fn (): Json => new Json(), new stdClass(), 'Cannot validate a non-scalar value.'],
             'Enum with values and class' => [fn (): Enum => new Enum(values: ['one'], class: StringEnum::class), 'one', 'You cannot provide both "values" and "class" options simultaneously. Please use only one.'],
             'Enum without values or class' => [fn (): Enum => new Enum(), 'one', 'Either option "values" or "class" must be given for validation rule "Enum"'],
             'Enum with null values and no class' => [fn (): Enum => new Enum(values: null), 'one', 'Either option "values" or "class" must be given for validation rule "Enum"'],

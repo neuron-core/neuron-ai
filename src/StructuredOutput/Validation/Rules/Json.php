@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation\Rules;
 
-use NeuronAI\StructuredOutput\StructuredOutputException;
 use Attribute;
 use JsonException;
 use Stringable;
@@ -26,7 +25,8 @@ class Json extends AbstractValidationRule
         }
 
         if (!is_scalar($value) && !$value instanceof Stringable) {
-            throw new StructuredOutputException('Cannot validate a non-scalar value.');
+            $violations[] = $this->buildMessage($name, $this->message);
+            return;
         }
 
         $value = (string) $value;

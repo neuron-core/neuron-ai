@@ -32,13 +32,18 @@ class Count extends AbstractValidationRule
             throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "Length"');
         }
 
-        if (is_null($value) && ($this->min > 0 || $this->exactly > 0)) {
-            $violations[] = $this->buildMessage($name, '{name} cannot be empty');
+        // A missing value is empty: it only falls short of a minimum
+        if (is_null($value)) {
+            if ($this->min > 0 || $this->exactly > 0) {
+                $violations[] = $this->buildMessage($name, '{name} cannot be empty');
+            }
+
             return;
         }
 
         if (!is_array($value) && !$value instanceof Countable) {
-            throw new StructuredOutputException($name. ' must be an array or a Countable object');
+            $violations[] = $this->buildMessage($name, '{name} must be an array');
+            return;
         }
 
 

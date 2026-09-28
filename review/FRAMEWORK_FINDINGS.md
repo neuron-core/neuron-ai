@@ -2152,11 +2152,13 @@ Suggested fix: in `src/StructuredOutput/Validation/Rules/ArrayOf.php`, continue 
 
 ### <a id="structuredoutput-14"></a>STRUCTUREDOUTPUT-14 · Count and Json rules throw instead of reporting violations, aborting the agent run
 
-**medium** · bug · [`src/StructuredOutput/Validation/Rules/Count.php:41`](../src/StructuredOutput/Validation/Rules/Count.php#L41) · repro [`NullableCountedArrayTest`](repro/StructuredOutput/NullableCountedArrayTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/Validation/Rules/Count.php:41`](../src/StructuredOutput/Validation/Rules/Count.php#L41) · regression tests [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php), [`ValidationTest`](../tests/StructuredOutput/Validation/ValidationTest.php) · **resolved**
 
 `#[Count(max: N)]` on an optional `?array` property throws `StructuredOutputException('... must be an array or a Countable object')` when the value is null or missing, because the empty check only runs when `min` is set. `StructuredOutputNode` does not catch this exception, so a model that legitimately omits an optional list crashes the run with no correction or retry. `#[Json]` likewise throws for non-scalar values, but only on untyped or `mixed` properties that receive an object or array; string-typed properties are converted to `'Array'` first and produce an ordinary violation.
 
 Suggested fix: in `Count.php`, return early for null (adding a violation only when `min > 0`) and turn the non-countable case into a violation; in `Json.php`, replace the non-scalar throw with a violation, keeping throws only for misconfigured rules. This was validated in a sandbox against the repro and the module's tests; three data-set cases in `tests/StructuredOutput/Validation/RulesTest.php` move from the throws provider to the violations provider.
+
+**Resolution:** applied as suggested, and extended to `Length` and `WordsCount`, which share `Count`'s null check. With only `max` set, a missing value skipped that check and failed the type check. `Count` threw there, while `Length` and `WordsCount` reported a false violation such as "nickname must be a scalar or a stringable object", which forced the model to invent values for optional fields. In all three rules a missing value now counts as empty: it fails only a required minimum ("cannot be empty", as before) and passes a maximum. A value of the wrong shape is a violation: `Count` reports "must be an array", dropping the PHP-only "or a Countable object", and `Json` reports its own "must be a valid JSON string". Misconfigured rules still throw. The three data-set cases moved as described.
 
 ### <a id="structuredoutput-15"></a>STRUCTUREDOUTPUT-15 · Comparison rule messages omit the field and bound; LowerThan says greater than
 
