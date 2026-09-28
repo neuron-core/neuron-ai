@@ -2102,11 +2102,13 @@ Suggested fix: in `JsonExtractor::findJSONLikeStrings()` bound the loop with `st
 
 ### <a id="structuredoutput-09"></a>STRUCTUREDOUTPUT-09 · Union and self property types crash schema generation or deserialize to the wrong type
 
-**medium** · bug · [`src/StructuredOutput/JsonSchema.php:139`](../src/StructuredOutput/JsonSchema.php#L139) · repro [`UnionTypesTest`](repro/StructuredOutput/UnionTypesTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/JsonSchema.php:139`](../src/StructuredOutput/JsonSchema.php#L139) · regression tests [`JsonSchemaTest`](../tests/StructuredOutput/JsonSchemaTest.php), [`DeserializerTest`](../tests/StructuredOutput/Deserializer/DeserializerTest.php), [`ObjectPropertyTest`](../tests/Tools/ObjectPropertyTest.php) · **resolved**
 
 `JsonSchema::processProperty` calls `getName()` on the property type, which throws `Error: Call to undefined method ReflectionUnionType::getName()` for any public union-typed property such as `int|string`, so `Agent::structured()` fails before calling the provider. The `Deserializer` does handle unions, but it takes the first member whose cast does not throw, and scalar casts never throw, so `{"identifier": 5}` becomes `'5'`. A recursive `?self` property is described as `['string','null']` because `class_exists('self')` is false, and an object answer then fails with a `TypeError` in `setValue`, outside the retry loop.
 
 Suggested fix: in `JsonSchema::processProperty()` emit an `anyOf` for `ReflectionUnionType` and resolve `self` to the declaring class; in `Deserializer::castValue()` prefer the union member matching the decoded JSON type, and resolve `self` in `castToSingleType()`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested. `JsonSchema` describes a union as `anyOf`, one schema per member, with `{"type": "null"}` for `null`; Gemini's schema adapter already recurses into `anyOf`. `self` resolves to the class declaring the property in both `JsonSchema` and the Deserializer, so `?self` is `["object", "null"]` and deserializes to that class. The Deserializer offers a union's value to classes and enums first. The remaining members follow PHP's own rule: the value's own type if the union has it, otherwise int, float, string, bool. So `5` stays an int in `int|string` and becomes `5.0` in `float|string`. A tool argument mapped to such a class can now be built as well: `ObjectProperty` already fell back to a string for a schema without a `type`, but `createScalarProperty()` ignored that fallback. The tool property model has no `anyOf`, so on that path the union reaches the model as a string. The value still deserializes by the rule above.
 
 ### <a id="structuredoutput-10"></a>STRUCTUREDOUTPUT-10 · DateTime properties get an unsatisfiable object schema; empty classes encode properties as list
 

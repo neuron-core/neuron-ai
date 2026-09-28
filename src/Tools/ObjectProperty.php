@@ -175,7 +175,7 @@ class ObjectProperty implements ToolPropertyInterface
     {
         return new ToolProperty(
             $name,
-            PropertyType::fromSchema($propertyData['type']),
+            PropertyType::fromSchema($propertyData['type'] ?? 'string'),
             $description,
             $required,
             $propertyData['enum'] ?? [],

@@ -690,6 +690,19 @@ class ObjectPropertyTest extends TestCase
         $this->assertToolError('Parameter "ticket" is invalid: Property "priority" is required.', $tool->getResult());
     }
 
+    public function test_a_mapped_class_with_a_union_property_is_built_and_bound(): void
+    {
+        $class = new class () {
+            public int|string $id;
+        };
+
+        $property = new ObjectProperty('ticket', class: $class::class);
+
+        // The tool property model has no anyOf, so the union reaches the model as a string
+        $this->assertSame(['type' => 'string'], $property->getJsonSchema()['properties']['id']);
+        $this->assertSame(5, $property->cast(['id' => 5])->id);
+    }
+
     public function test_null_for_a_nullable_mapped_object_binds_null(): void
     {
         $tool = $this->ticketTool(nullable: true)->setInputs(['ticket' => null]);

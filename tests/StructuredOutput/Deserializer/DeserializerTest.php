@@ -617,6 +617,50 @@ class DeserializerTest extends TestCase
     }
 
     /**
+     * @return array<string, array{string, string, mixed}>
+     */
+    public static function unionValues(): array
+    {
+        return [
+            'an int stays an int' => ['{"id": 5}', 'id', 5],
+            'a numeric string stays a string' => ['{"id": "5"}', 'id', '5'],
+            'an int becomes a float before a string' => ['{"amount": 5}', 'amount', 5.0],
+            'a numeric string becomes an int before a float' => ['{"ratio": "5"}', 'ratio', 5],
+            'a decimal string becomes a float' => ['{"ratio": "2.5"}', 'ratio', 2.5],
+            'an enum value becomes the enum' => ['{"status": "one"}', 'status', StringEnum::ONE],
+            'any other string stays a string' => ['{"status": "other"}', 'status', 'other'],
+        ];
+    }
+
+    #[DataProvider('unionValues')]
+    public function test_a_union_member_is_chosen_the_way_php_chooses_it(string $json, string $property, mixed $expected): void
+    {
+        $class = new class () {
+            public int|string $id = 0;
+            public float|string $amount = 0.0;
+            public int|float $ratio = 0;
+            public StringEnum|string $status = '';
+        };
+
+        $this->assertSame($expected, Deserializer::make()->fromJson($json, $class::class)->{$property});
+    }
+
+    public function test_a_self_typed_property_builds_the_declaring_class(): void
+    {
+        $class = new class () {
+            public string $value;
+
+            public ?self $next = null;
+        };
+
+        $node = Deserializer::make()->fromJson('{"value": "a", "next": {"value": "b"}}', $class::class);
+
+        $this->assertInstanceOf($class::class, $node->next);
+        $this->assertSame('b', $node->next->value);
+        $this->assertNull($node->next->next);
+    }
+
+    /**
      * @return array<string, array{string, string}>
      */
     public static function valuesOfTheWrongShape(): array

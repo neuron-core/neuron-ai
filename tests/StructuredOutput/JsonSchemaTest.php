@@ -25,6 +25,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\User;
 use PHPUnit\Framework\TestCase;
 use ReflectionException;
 
+use function array_column;
 use function array_keys;
 
 class JsonSchemaTest extends TestCase
@@ -457,6 +458,34 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayNotHasKey('required', $schema);
         $this->assertSame(['default' => 1, 'type' => 'integer'], $schema['properties']['page']);
         $this->assertSame(['default' => [], 'type' => 'array', 'items' => ['type' => 'string']], $schema['properties']['filters']);
+    }
+
+    public function test_a_union_type_is_described_as_any_of_its_members(): void
+    {
+        $class = new class () {
+            public int|string $id;
+
+            public Address|string|null $location = null;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(['string', 'integer'], array_column($schema['properties']['id']['anyOf'], 'type'));
+        $this->assertSame(['object', 'string', 'null'], array_column($schema['properties']['location']['anyOf'], 'type'));
+        $this->assertSame(['id'], $schema['required']);
+    }
+
+    public function test_a_self_typed_property_is_an_object_of_the_declaring_class(): void
+    {
+        $class = new class () {
+            public string $value;
+
+            public ?self $next = null;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(['default' => null, 'type' => ['object', 'null']], $schema['properties']['next']);
     }
 
     public function test_promoted_property_with_default_is_not_required_and_advertises_its_default(): void

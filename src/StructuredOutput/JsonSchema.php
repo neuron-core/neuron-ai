@@ -12,7 +12,9 @@ use ReflectionException;
 use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
+use ReflectionUnionType;
 
+use function array_map;
 use function array_merge;
 use function array_pop;
 use function array_unique;
@@ -127,9 +129,7 @@ class JsonSchema
             }
         }
 
-        /** @var ?ReflectionNamedType $type */
         $type = $property->getType();
-        $typeName = $type?->getName();
 
         if ($property->hasDefaultValue()) {
             $schema['default'] = $property->getDefaultValue();
@@ -141,6 +141,19 @@ class JsonSchema
                 $schema['default'] = $parameter->getDefaultValue();
             }
         }
+
+        if ($type instanceof ReflectionUnionType) {
+            $schema['anyOf'] = array_map(
+                fn (ReflectionNamedType $member): array => $member->getName() === 'null'
+                    ? ['type' => 'null']
+                    : $this->getBasicTypeSchema($this->typeName($member, $property)),
+                $type->getTypes()
+            );
+
+            return $schema;
+        }
+
+        $typeName = $type instanceof ReflectionNamedType ? $this->typeName($type, $property) : null;
 
         if ($typeName === 'array') {
             $schema['type'] = 'array';
@@ -208,6 +221,14 @@ class JsonSchema
         }
 
         return $schema;
+    }
+
+    /**
+     * The type's name, with self resolved to the class declaring the property.
+     */
+    protected function typeName(ReflectionNamedType $type, ReflectionProperty $property): string
+    {
+        return $type->getName() === 'self' ? $property->getDeclaringClass()->getName() : $type->getName();
     }
 
     protected function processEnum(ReflectionEnum $enum): array

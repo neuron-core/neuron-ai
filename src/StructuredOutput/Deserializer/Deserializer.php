@@ -22,8 +22,10 @@ use ReflectionUnionType;
 use UnitEnum;
 
 use function array_column;
+use function array_flip;
 use function array_key_exists;
 use function array_keys;
+use function array_unique;
 use function basename;
 use function class_exists;
 use function count;
@@ -44,8 +46,10 @@ use function preg_replace;
 use function str_replace;
 use function strtolower;
 use function ucwords;
+use function usort;
 
 use const JSON_ERROR_NONE;
+use const PHP_INT_MAX;
 
 /**
  * @method static static make(string $discriminator = '__classname__')
@@ -201,7 +205,7 @@ class Deserializer
     protected function castValue(mixed $value, ReflectionType $type, ReflectionProperty $property): mixed
     {
         if ($type instanceof ReflectionUnionType) {
-            foreach ($type->getTypes() as $unionType) {
+            foreach ($this->unionMembers($type, $value) as $unionType) {
                 try {
                     return $this->castToSingleType($value, $unionType, $property);
                 } catch (Exception) {
@@ -216,6 +220,23 @@ class Deserializer
     }
 
     /**
+     * The members in the order they are offered the value: classes and enums first, then PHP's
+     * own rule for the rest, the value's own type if the union has it, else int, float, string, bool.
+     *
+     * @return ReflectionNamedType[]
+     */
+    protected function unionMembers(ReflectionUnionType $type, mixed $value): array
+    {
+        $order = array_flip(array_unique([get_debug_type($value), 'int', 'float', 'string', 'bool']));
+        $rank = fn (ReflectionNamedType $member): int => $member->isBuiltin() ? ($order[$member->getName()] ?? PHP_INT_MAX) : -1;
+
+        $members = $type->getTypes();
+        usort($members, fn (ReflectionNamedType $a, ReflectionNamedType $b): int => $rank($a) <=> $rank($b));
+
+        return $members;
+    }
+
+    /**
      * @throws DeserializerException|ReflectionException
      */
     protected function castToSingleType(
@@ -223,7 +244,8 @@ class Deserializer
         ReflectionNamedType $type,
         ReflectionProperty $property
     ): mixed {
-        $typeName = $type->getName();
+        // self names the class declaring the property
+        $typeName = $type->getName() === 'self' ? $property->getDeclaringClass()->getName() : $type->getName();
 
         if ($value === null) {
             if ($type->allowsNull()) {
