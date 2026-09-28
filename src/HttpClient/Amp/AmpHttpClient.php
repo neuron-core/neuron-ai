@@ -61,13 +61,13 @@ class AmpHttpClient implements HttpClientInterface
     public function request(HttpRequest $request): HttpResponse
     {
         try {
-            $response = $this->execute($request);
+            $response = $this->buffer($this->execute($request));
 
-            return new HttpResponse(
-                statusCode: $response->getStatus(),
-                body: $response->getBody()->buffer(),
-                headers: $response->getHeaders(),
-            );
+            if ($response->statusCode >= 400) {
+                throw HttpException::statusError($request, $response);
+            }
+
+            return $response;
         } catch (HttpException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -130,6 +130,11 @@ class AmpHttpClient implements HttpClientInterface
     {
         try {
             $response = $this->execute($request);
+
+            // The error body is read whole so the exception can report it, as with the other clients
+            if ($response->getStatus() >= 400) {
+                throw HttpException::statusError($request, $this->buffer($response));
+            }
 
             return new AmpStream($response->getBody());
         } catch (HttpException $e) {
@@ -221,6 +226,15 @@ class AmpHttpClient implements HttpClientInterface
 
         // Execute request and get streaming body
         return $client->request($ampRequest);
+    }
+
+    protected function buffer(Response $response): HttpResponse
+    {
+        return new HttpResponse(
+            statusCode: $response->getStatus(),
+            body: $response->getBody()->buffer(),
+            headers: $response->getHeaders(),
+        );
     }
 
     /**

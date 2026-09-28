@@ -111,6 +111,35 @@ class AmpHttpClientTest extends TestCase
         }
     }
 
+    public function test_error_status_throws_http_exception_with_response(): void
+    {
+        try {
+            (new AmpHttpClient())->request(HttpRequest::get(static::$baseUri . '/error'));
+            $this->fail('Expected HttpException was not thrown');
+        } catch (HttpException $exception) {
+            $this->assertNotNull($exception->response);
+            $this->assertSame(422, $exception->response->statusCode);
+            $this->assertSame(['error' => 'invalid input'], $exception->response->json());
+            $this->assertSame(
+                'HTTP 422 error during GET ' . static::$baseUri . '/error: {"error":"invalid input"}',
+                $exception->getMessage(),
+            );
+            $this->assertSame(static::$baseUri . '/error', $exception->request?->uri);
+        }
+    }
+
+    public function test_stream_error_status_throws_http_exception_with_body(): void
+    {
+        try {
+            (new AmpHttpClient())->stream(HttpRequest::get(static::$baseUri . '/error'));
+            $this->fail('Expected HttpException was not thrown');
+        } catch (HttpException $exception) {
+            $this->assertNotNull($exception->response);
+            $this->assertSame(422, $exception->response->statusCode);
+            $this->assertSame(['error' => 'invalid input'], $exception->response->json());
+        }
+    }
+
     public function test_stream_delivers_the_body_line_by_line(): void
     {
         $stream = (new AmpHttpClient())->stream(HttpRequest::get(static::$baseUri . '/sse'));
