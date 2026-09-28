@@ -8,42 +8,77 @@ use ReflectionClass;
 use ReflectionException;
 use ReflectionProperty;
 
+use function is_object;
+use function spl_object_id;
+
 class Validator
 {
     /**
-     * Validate an object
+     * Objects being validated along the current path, so a cycle stops where it closes.
+     *
+     * @var array<int, true>
+     */
+    protected static array $validating = [];
+
+    /**
+     * Validate an object, and every object its public properties hold, against their rules
      *
      * @return array<int, string>
      * @throws ReflectionException
      */
     public static function validate(mixed $obj): array
     {
-        $reflection = new ReflectionClass($obj);
-        $violations = [];
+        return static::validateObject($obj, '');
+    }
 
-        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            // Get all attributes for this property
-            $attributes = $property->getAttributes();
+    /**
+     * @param string $path Where the object sits in the root, prefixed to its property names
+     * @return array<int, string>
+     * @throws ReflectionException
+     */
+    protected static function validateObject(object $obj, string $path): array
+    {
+        $id = spl_object_id($obj);
 
-            if ($property->isStatic() || empty($attributes)) {
-                continue;
-            }
-
-            // Get the value of the property
-            $name = $property->getName();
-            $value = $property->isInitialized($obj) ? $property->getValue($obj) : null;
-
-            // Apply all the validation rules to the value
-            foreach ($attributes as $attribute) {
-                $instance = $attribute->newInstance();
-
-                // Perform validation
-                if ($instance instanceof ValidationRuleInterface) {
-                    $instance->validate($name, $value, $violations);
-                }
-            }
+        // ArrayOf re-enters validate() for list items, so the guard is shared across calls
+        if (isset(static::$validating[$id])) {
+            return [];
         }
 
-        return $violations;
+        static::$validating[$id] = true;
+
+        try {
+            $reflection = new ReflectionClass($obj);
+            $violations = [];
+
+            foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+                if ($property->isStatic()) {
+                    continue;
+                }
+
+                // Get the value of the property
+                $name = $path.$property->getName();
+                $value = $property->isInitialized($obj) ? $property->getValue($obj) : null;
+
+                // Apply all the validation rules to the value
+                foreach ($property->getAttributes() as $attribute) {
+                    $instance = $attribute->newInstance();
+
+                    // Perform validation
+                    if ($instance instanceof ValidationRuleInterface) {
+                        $instance->validate($name, $value, $violations);
+                    }
+                }
+
+                // A nested object is held to its own class's rules, reported under its path
+                if (is_object($value)) {
+                    $violations = [...$violations, ...static::validateObject($value, "{$name}.")];
+                }
+            }
+
+            return $violations;
+        } finally {
+            unset(static::$validating[$id]);
+        }
     }
 }

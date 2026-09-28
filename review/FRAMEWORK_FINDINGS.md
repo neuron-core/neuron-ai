@@ -2172,11 +2172,13 @@ Suggested fix: in the six rule classes under `src/StructuredOutput/Validation/Ru
 
 ### <a id="structuredoutput-16"></a>STRUCTUREDOUTPUT-16 · Validator ignores validation rules declared on nested object properties
 
-**medium** · design · [`src/StructuredOutput/Validation/Validator.php:26`](../src/StructuredOutput/Validation/Validator.php#L26) · repro [`ValidatorNestedObjectTest`](repro/StructuredOutput/ValidatorNestedObjectTest.php) · fix validated
+**medium** · design · [`src/StructuredOutput/Validation/Validator.php:26`](../src/StructuredOutput/Validation/Validator.php#L26) · regression test [`ValidationTest`](../tests/StructuredOutput/Validation/ValidationTest.php) · **resolved**
 
 `Validator::validate()` only evaluates attributes on the root object's public properties; only arrays annotated with `#[ArrayOf(Class)]` recurse. Rules on a nested object, such as `#[NotBlank]` on `Address::$street` inside `Person::$address`, are never checked, so a model answer with an empty nested object passes validation, the correction retry never fires, and the caller receives an object that violates its own declared constraints. This is inconsistent with `ArrayOf`, which does validate the same class inside an array.
 
 Suggested fix: rewrite `src/StructuredOutput/Validation/Validator.php` to recurse into object-valued public properties, prefixing violations with a dotted path such as `address.street`, skipping enums and tracking visited objects to avoid cycles. This was validated in a sandbox against the repro and the module's tests; the path format and always-on recursion versus an opt-in `#[Valid]`-style attribute are design choices to decide.
+
+**Resolution:** recursion is always on, like the schema and the Deserializer, which never need opting in, and the path is dotted. Every object held by a public property is validated against its own class's rules. Its path is passed to the rules as the field name, so violations read `address.street cannot be blank`, and custom rules get the path too. The cycle guard is a set of the objects being validated along the current path, shared across calls, because `ArrayOf` re-enters `Validator::validate()` for list items: a child whose `parent` points back through an `ArrayOf` list would otherwise loop. Enums need no special case, since they hold no rules. `ArrayOf` is unchanged: it still validates the objects in a list and reports its generic message, and objects inside arrays without `ArrayOf` are still not validated.
 
 ### <a id="structuredoutput-17"></a>STRUCTUREDOUTPUT-17 · JsonExtractor::getJson docblock promises an empty string but the method returns null
 

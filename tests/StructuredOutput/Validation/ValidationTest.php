@@ -18,6 +18,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
 use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
+use NeuronAI\Tests\StructuredOutput\Stub\Category;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
@@ -310,6 +311,52 @@ class ValidationTest extends TestCase
         $object = Deserializer::make()->fromJson('{"name": "Ada"}', $class::class);
 
         $this->assertSame([], Validator::validate($object));
+    }
+
+    public function test_rules_of_a_nested_object_are_reported_under_its_path(): void
+    {
+        $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "", "city": "Rome", "zip": ""}, "tags": []}';
+
+        $person = Deserializer::make()->fromJson($json, Person::class);
+
+        $this->assertSame(['address.street cannot be blank', 'address.zip cannot be blank'], Validator::validate($person));
+    }
+
+    public function test_the_path_grows_with_each_nested_level(): void
+    {
+        $class = new class () {
+            public Person $owner;
+        };
+        $object = new $class();
+        $object->owner = new Person();
+        $object->owner->firstName = 'John';
+        $object->owner->tags = [];
+        $object->owner->address = new Address();
+        $object->owner->address->street = 'Via Roma';
+        $object->owner->address->zip = '';
+
+        $this->assertSame(['owner.address.zip cannot be blank'], Validator::validate($object));
+    }
+
+    public function test_a_cycle_through_object_properties_is_validated_once(): void
+    {
+        $category = new Category();
+        $category->name = '';
+        $category->parent = $category;
+
+        $this->assertSame(['name cannot be blank'], Validator::validate($category));
+    }
+
+    public function test_a_cycle_through_an_array_of_list_is_validated_once(): void
+    {
+        $root = new Category();
+        $root->name = 'Books';
+        $child = new Category();
+        $child->name = '';
+        $child->parent = $root;
+        $root->children = [$child];
+
+        $this->assertSame(['children must be an array of '.Category::class], Validator::validate($root));
     }
 
     public function test_static_properties_are_not_validated(): void
