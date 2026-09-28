@@ -25,6 +25,7 @@ use function mkdir;
 use function rawurlencode;
 use function rename;
 use function strlen;
+use function strpbrk;
 use function tempnam;
 use function unlink;
 
@@ -42,11 +43,17 @@ class FileMessageStore implements MessageStoreInterface
 {
     use PaginatesMessages;
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function __construct(
         protected string $directory,
         protected string $prefix = 'neuron_',
         protected string $ext = '.chat',
     ) {
+        if (strpbrk($this->prefix.$this->ext, "/\\\0") !== false) {
+            throw new ChatHistoryException("Prefix '{$this->prefix}' and extension '{$this->ext}' must be part of a file name, not a path: put folders in \$directory.");
+        }
     }
 
     /**

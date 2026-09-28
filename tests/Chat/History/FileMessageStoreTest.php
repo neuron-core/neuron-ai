@@ -138,6 +138,38 @@ class FileMessageStoreTest extends TestCase
     }
 
     /**
+     * Unlike the thread ID, the prefix and extension go into the file name as given.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function prefixesAndExtensionsHoldingAPath(): array
+    {
+        return [
+            'parent directory in the prefix' => ['../tenant_', '.chat'],
+            'nested folder in the prefix' => ['tenants/acme_', '.chat'],
+            'windows separator in the prefix' => ['..\\tenant_', '.chat'],
+            'null byte in the prefix' => ["tenant\0_", '.chat'],
+            'path in the extension' => ['neuron_', '/../../escaped.chat'],
+        ];
+    }
+
+    #[DataProvider('prefixesAndExtensionsHoldingAPath')]
+    public function test_a_prefix_or_extension_holding_a_path_is_refused(string $prefix, string $ext): void
+    {
+        try {
+            (new FileMessageStore($this->directory, $prefix, $ext))->append('thread', new UserMessage('Hello'));
+            $this->fail('A prefix or extension holding a path must be refused.');
+        } catch (ChatHistoryException $exception) {
+            $this->assertSame(
+                "Prefix '{$prefix}' and extension '{$ext}' must be part of a file name, not a path: put folders in \$directory.",
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertDirectoryDoesNotExist($this->parent);
+    }
+
+    /**
      * Threads stored by earlier releases are found only while the encoding stays the same.
      *
      * @return array<string, array{string, string}>

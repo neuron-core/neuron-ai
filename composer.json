@@ -1,6 +1,6 @@
 {
     "name": "neuron-core/neuron-ai",
-    "description": "A unified PHP layer for building AI apps with modern streaming, multi-modality support, and durable workflow.",
+    "description": "A unified layer for building AI-native applications in PHP.",
     "minimum-stability": "stable",
     "authors": [
         {

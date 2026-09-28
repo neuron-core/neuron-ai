@@ -11,10 +11,16 @@ use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\Tests\Support\FileSystemSandbox;
 use PHPUnit\Framework\TestCase;
 
+use function chmod;
+use function clearstatcache;
 use function file_get_contents;
 use function file_put_contents;
+use function fileperms;
 use function is_link;
 use function mkdir;
+use function umask;
+
+use const PHP_OS_FAMILY;
 
 class FileVectorStoreTemporaryFileFilesystemSecurityTest extends TestCase
 {
@@ -61,5 +67,29 @@ class FileVectorStoreTemporaryFileFilesystemSecurityTest extends TestCase
         $this->assertSame('important', file_get_contents($outside));
         $this->assertFalse(is_link($directory . '/neuron.store'));
         $this->assertSame('kept', $store->search(new SearchRequest([1.0, 0.0]))[0]->getContent());
+    }
+
+    public function test_delete_keeps_the_permissions_of_the_store_file(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('POSIX permissions are not available on Windows.');
+        }
+
+        // The common default umask, under which a plain new file would be 0644.
+        $umask = umask(0o022);
+
+        try {
+            // A store shared through its group, e.g. written by a CLI job and searched by the web server.
+            $store = new FileVectorStore($this->base);
+            $store->addDocument((new Document('kept'))->setEmbedding([1.0, 0.0]));
+            chmod($this->base . '/neuron.store', 0o660);
+
+            $store->delete(Filter::eq('sourceName', 'nothing-matches'));
+        } finally {
+            umask($umask);
+        }
+
+        clearstatcache();
+        $this->assertSame(0o660, fileperms($this->base . '/neuron.store') & 0o777);
     }
 }

@@ -14,6 +14,7 @@ use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -26,8 +27,15 @@ use function file_put_contents;
 use function is_dir;
 use function json_decode;
 use function mkdir;
+use function pcntl_fork;
+use function pcntl_signal;
+use function pcntl_waitpid;
+use function pcntl_wexitstatus;
+use function posix_setrlimit;
 use function rmdir;
 use function scandir;
+use function str_repeat;
+use function strlen;
 use function sys_get_temp_dir;
 use function touch;
 use function trim;
@@ -35,6 +43,12 @@ use function uniqid;
 use function unlink;
 
 use const JSON_THROW_ON_ERROR;
+use const FILE_APPEND;
+use const NAN;
+use const POSIX_RLIMIT_FSIZE;
+use const POSIX_RLIMIT_INFINITY;
+use const SIG_IGN;
+use const SIGXFSZ;
 
 class FileVectorStoreTest extends TestCase
 {
@@ -139,10 +153,67 @@ class FileVectorStoreTest extends TestCase
 
     public function test_store_file_that_cannot_be_created_is_reported(): void
     {
-        $this->expectException(VectorStoreException::class);
-        $this->expectExceptionMessage("Store file '{$this->directory}/missing/sub.store' does not exist and could not be created.");
+        // Longer than any file system allows for a single file name
+        $name = str_repeat('a', 300);
 
-        new FileVectorStore($this->directory, name: 'missing/sub');
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage("Store file '{$this->directory}/{$name}.store' does not exist and could not be created.");
+
+        new FileVectorStore($this->directory, name: $name);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function namesThatAreNotAFileName(): array
+    {
+        return [
+            'parent directory' => ['../escaped', '.store'],
+            'nested folder' => ['tenants/acme', '.store'],
+            'windows separator' => ['..\\escaped', '.store'],
+            'null byte' => ["neuron\0", '.store'],
+            'path in the extension' => ['neuron', '/../escaped.store'],
+            'empty' => ['', ''],
+            'dot' => ['.', ''],
+            'dot dot' => ['..', ''],
+        ];
+    }
+
+    #[DataProvider('namesThatAreNotAFileName')]
+    public function test_a_name_that_is_not_a_file_name_is_refused_before_anything_is_created(string $name, string $ext): void
+    {
+        mkdir($this->directory);
+
+        try {
+            new FileVectorStore($this->directory . '/stores', name: $name, ext: $ext);
+            $this->fail('A store name holding a path must be refused.');
+        } catch (VectorStoreException $exception) {
+            $this->assertSame("Store name '{$name}{$ext}' must be a file name, not a path: put folders in \$directory.", $exception->getMessage());
+        }
+
+        $this->assertSame(['.', '..'], scandir($this->directory));
+    }
+
+    /**
+     * Names are used as given, never encoded: stores created by earlier versions keep their file.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function namesUsedAsGiven(): array
+    {
+        return [
+            'email' => ['user@example.com', 'user@example.com.store'],
+            'space' => ['my docs', 'my docs.store'],
+            'dots before the extension' => ['..', '...store'],
+        ];
+    }
+
+    #[DataProvider('namesUsedAsGiven')]
+    public function test_a_name_is_used_as_the_file_name_as_given(string $name, string $fileName): void
+    {
+        new FileVectorStore($this->directory, name: $name);
+
+        $this->assertSame(['.', '..', $fileName], scandir($this->directory));
     }
 
     public function test_search_on_fresh_store_returns_no_results(): void
@@ -299,7 +370,7 @@ class FileVectorStoreTest extends TestCase
 
         $this->assertSame(['file', 'api'], array_map(static fn (array $row): string => $row['content'], $this->storedRows()));
         $this->assertStringEndsWith("\n", (string) file_get_contents($this->storeFile()));
-        $this->assertSame(['.', '..', 'neuron.store'], scandir($this->directory));
+        $this->assertSame(['.', '..', 'neuron.store', 'neuron.store.lock'], scandir($this->directory));
     }
 
     public function test_documents_added_after_a_delete_are_stored_on_their_own_line(): void
@@ -366,6 +437,97 @@ class FileVectorStoreTest extends TestCase
         }
 
         $this->assertSame('', file_get_contents($this->storeFile()));
+    }
+
+    public function test_an_empty_batch_writes_nothing(): void
+    {
+        $this->store()->addDocuments([]);
+
+        $this->assertSame('', file_get_contents($this->storeFile()));
+    }
+
+    /**
+     * @return array<string, array{string, string, float[], string}>
+     */
+    public static function documentsTheFileCannotHold(): array
+    {
+        return [
+            'content with invalid UTF-8' => ["broken \xB1 utf-8", 'manual', [1, 0], 'Malformed UTF-8 characters, possibly incorrectly encoded'],
+            'source name with invalid UTF-8' => ['content', "file-\xC3\x28.txt", [1, 0], 'Malformed UTF-8 characters, possibly incorrectly encoded'],
+            'embedding with NaN' => ['content', 'manual', [NAN, 0], 'Inf and NaN cannot be JSON encoded'],
+        ];
+    }
+
+    /**
+     * @param float[] $embedding
+     */
+    #[DataProvider('documentsTheFileCannotHold')]
+    public function test_a_document_the_file_cannot_hold_refuses_the_whole_batch(string $content, string $sourceName, array $embedding, string $reason): void
+    {
+        $store = $this->store();
+        $document = (new Document($content))->setEmbedding($embedding)->setSourceName($sourceName)->setId('broken');
+
+        try {
+            $store->addDocuments([$this->document('valid', [1, 0]), $document]);
+            $this->fail('A document that cannot be encoded must be refused.');
+        } catch (VectorStoreException $exception) {
+            $this->assertSame("Document broken is not JSON serializable: {$reason}", $exception->getMessage());
+        }
+
+        $this->assertSame('', file_get_contents($this->storeFile()));
+    }
+
+    #[RequiresPhpExtension('pcntl')]
+    #[RequiresPhpExtension('posix')]
+    public function test_a_batch_the_disk_cannot_take_leaves_the_store_as_it_was(): void
+    {
+        $store = $this->store();
+        $store->addDocument($this->document('kept', [1, 0]));
+        $before = (string) file_get_contents($this->storeFile());
+
+        $child = pcntl_fork();
+        if ($child === 0) {
+            // Room for ten more bytes, like a disk about to fill up: the next row is cut short
+            pcntl_signal(SIGXFSZ, SIG_IGN);
+            posix_setrlimit(POSIX_RLIMIT_FSIZE, strlen($before) + 10, POSIX_RLIMIT_INFINITY);
+
+            try {
+                $store->addDocument($this->document('cut short', [0, 1]));
+                exit(1);
+            } catch (VectorStoreException) {
+                exit(0);
+            }
+        }
+        pcntl_waitpid($child, $status);
+
+        $this->assertSame(0, pcntl_wexitstatus($status), 'A short write must be reported.');
+        $this->assertSame($before, file_get_contents($this->storeFile()));
+    }
+
+    public function test_blank_lines_written_by_older_versions_are_skipped(): void
+    {
+        $store = $this->store();
+        $store->addDocument($this->document('web', [1, 0], 'web'));
+        // What the old write path left for an empty batch or a document it could not encode
+        file_put_contents($this->storeFile(), "\n", FILE_APPEND);
+        $store->addDocument($this->document('kept', [0, 1]));
+
+        $this->assertSame(['web', 'kept'], $this->contents($store->search(new SearchRequest([1, 0]))));
+        $this->assertSame(['kept'], $this->contents($store->search(new SearchRequest([1, 0], filters: Filter::eq('sourceType', 'manual')))));
+
+        $store->delete(Filter::eq('sourceType', 'web'));
+
+        $this->assertSame(['kept'], array_map(static fn (array $row): string => $row['content'], $this->storedRows()));
+        $this->assertStringNotContainsString("\n\n", (string) file_get_contents($this->storeFile()));
+    }
+
+    public function test_search_skips_a_row_another_process_is_still_appending(): void
+    {
+        $store = $this->store();
+        $store->addDocument($this->document('complete', [1, 0]));
+        file_put_contents($this->storeFile(), '{"id":"x","content":"half written","embed', FILE_APPEND);
+
+        $this->assertSame(['complete'], $this->contents($store->search(new SearchRequest([1, 0]))));
     }
 
     /**
