@@ -25,7 +25,7 @@ class Validator
             // Get all attributes for this property
             $attributes = $property->getAttributes();
 
-            if (empty($attributes)) {
+            if ($property->isStatic() || empty($attributes)) {
                 continue;
             }
 

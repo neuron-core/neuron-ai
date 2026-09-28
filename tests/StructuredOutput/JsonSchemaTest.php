@@ -16,6 +16,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\Employee;
 use NeuronAI\Tests\StructuredOutput\Stub\EmailMode;
 use NeuronAI\Tests\StructuredOutput\Stub\FtpMode;
 use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
+use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\TextBlock;
@@ -738,5 +739,12 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['inferred'], $schema['required']);
         $this->assertSame(['overridden', 'optionalAtRuntime', 'inferred'], array_keys($schema['properties']));
         $this->assertSame(['type' => 'string', 'maxLength' => 3], $schema['properties']['optionalAtRuntime']);
+    }
+
+    public function test_schema_lists_only_public_instance_properties(): void
+    {
+        $schema = JsonSchema::make()->generate(MassAssignmentTarget::class);
+
+        $this->assertSame(['name'], array_keys($schema['properties']));
     }
 }

@@ -37,23 +37,28 @@ Override `exitNodes()` on an Agent or RAG subclass. Return the ingestion node in
 ```php
 use NeuronAI\RAG\Nodes\ConversationIngestionNode;
 use NeuronAI\RAG\RAG;
+use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
 class RememberingAssistant extends RAG
 {
     // Define the usual provider(), vectorStore(), and embeddings() hooks.
-    // This example uses the configured RAG store for conversation documents.
+
+    public function __construct(protected VectorStoreInterface $conversationStore)
+    {
+        parent::__construct();
+    }
 
     protected function exitNodes(): array
     {
         return [new ConversationIngestionNode(
-            vectorStore: $this->resolveVectorStore(),
+            vectorStore: $this->conversationStore,
             embeddingProvider: $this->resolveEmbeddingsProvider(),
         )];
     }
 }
 ```
 
-To store conversations separately from your knowledge base, inject the conversation store and matching embeddings provider instead. Use a durable store for cross-process retrieval. The default document schema suffices; the node writes `sourceType = 'conversation'` and `sourceName = current thread ID`. A schema requiring additional metadata needs a customized ingestion node that supplies it.
+Keep conversation documents in a vector store of their own, never in the RAG's knowledge store. Only `SemanticMemoryRetrieval` applies the thread allowlist: any other retrieval over a store holding conversations, such as the default `SimilarityRetrieval` or the document child of a `CompositeRetrieval`, returns every thread's conversations, so one user's exchanges reach another user's context. Pass the same store and embeddings provider to `SemanticMemoryRetrieval` to recall them. Use a durable store for cross-process retrieval. The default document schema suffices; the node writes `sourceType = 'conversation'` and `sourceName = current thread ID`. A schema requiring additional metadata needs a customized ingestion node that supplies it.
 
 The node handles `AgentOutputEvent` and returns `StopEvent`. Do not include `parent::exitNodes()` alongside it: both would handle the same event. Workflows with other output stages must explicitly compose their routing; registration order does not establish a chain.
 

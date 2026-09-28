@@ -190,7 +190,7 @@ class Agent extends Workflow implements AgentInterface
                     $name = (new ReflectionClass($tool))->getShortName();
                     $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
                 }
-                $innerTools = $tool->tools();
+                $innerTools = array_filter($tool->tools(), fn (ToolInterface $tool): bool => $tool->isVisible());
                 $tools = array_merge($tools, $innerTools);
 
                 if (!in_array($kitGuidelines, [null, '', '0'], true)) {

@@ -79,11 +79,16 @@ class Deserializer
 
         $instance = $reflection->newInstanceWithoutConstructor();
 
-        $properties = $reflection->getProperties();
+        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
 
         $promotedArgs = [];
 
         foreach ($properties as $property) {
+            // Model output fills only what the schema describes, never non-public or static state
+            if ($property->isStatic()) {
+                continue;
+            }
+
             $propertyName = $property->getName();
 
             $value = $this->findPropertyValue($data, $propertyName);

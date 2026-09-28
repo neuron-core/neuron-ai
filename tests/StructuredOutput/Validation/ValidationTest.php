@@ -18,6 +18,7 @@ use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
+use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
@@ -288,5 +289,13 @@ class ValidationTest extends TestCase
         $this->expectExceptionMessage('You cannot provide both "values" and "class" options simultaneously. Please use only one.');
 
         Validator::validate(new $class());
+    }
+
+    public function test_static_properties_are_not_validated(): void
+    {
+        $target = new MassAssignmentTarget();
+        $target->name = 'John';
+
+        $this->assertSame([], Validator::validate($target));
     }
 }

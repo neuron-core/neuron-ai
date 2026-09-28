@@ -362,17 +362,20 @@ For cross-cutting handling of escaped exceptions, the agent-level `toolErrorHand
 
 ## Tool Visibility
 
-Hidden tools are executable but not shown to the LLM:
+A hidden tool is off the agent: it is not offered to the LLM, and a call naming it fails with `ToolException`. Hiding works the same inside a toolkit:
 
 ```php
-// Visible to LLM (default)
+// Offered to the LLM (default)
 $tool->visible(true);
 
-// Hidden from LLM schema but still callable
+// Neither offered nor callable
 $tool->visible(false);
+
+// A toolkit tool, hidden the same way
+$toolkit->with(DeleteFileTool::class, fn (ToolInterface $tool): ToolInterface => $tool->visible(false));
 ```
 
-Use case: Internal tools called by other tools, not directly by the agent.
+Use case: attaching a tool only under a condition, such as `DeleteFileTool::make()->visible($user->isAdmin())`.
 
 ## Max Runs
 

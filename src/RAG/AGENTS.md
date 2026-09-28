@@ -41,7 +41,7 @@ class WorkoutTipsAgent extends RAG
 
 `RetrievalInterface::retrieve(Message $query, ?FilterExpression $filters)` receives the per-run filters; a strategy must AND them with its own, never drop them. `SimilarityRetrieval` performs similarity search. `SemanticMemoryRetrieval` specializes it with conversation source filters and an explicit thread-ID allowlist. `CompositeRetrieval` calls its children in order and concatenates results, forwarding mandatory filters to each; the existing retrieval node deduplicates and the shared postprocessors process the combined set.
 
-Conversation creation is opt-in through `ConversationIngestionNode` in `exitNodes()`. It handles `AgentOutputEvent`, embeds and stores the final plain user/assistant exchange under the current history thread, and returns `StopEvent`. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md).
+Conversation creation is opt-in through `ConversationIngestionNode` in `exitNodes()`. It handles `AgentOutputEvent`, embeds and stores the final plain user/assistant exchange under the current history thread, and returns `StopEvent`. Give it a dedicated conversation store: only `SemanticMemoryRetrieval` applies the thread allowlist. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md).
 
 Configuration setters may be called during execution. Each segment keeps its resolved processors, retrieval strategy and scope. The default retrieval strategy is constructed per segment from the currently configured embeddings provider and vector store. An explicit `setRetrieval()` strategy remains an application-supplied service and takes precedence over that default.
 

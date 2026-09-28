@@ -143,7 +143,7 @@ History is a resource of the segment (`AgentResources::$history`), never carried
 
 ## Conversation memory
 
-Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/thread filters from an explicit thread-ID allowlist. `CompositeRetrieval` combines it with document retrieval. Creation is opt-in: override `exitNodes()` with `NeuronAI\RAG\Nodes\ConversationIngestionNode`, providing the vector store and embeddings provider; the node reads the chat history from the segment's resources. Agent has no memory collaborator or memory-specific routing.
+Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/thread filters from an explicit thread-ID allowlist. `CompositeRetrieval` combines it with document retrieval. Creation is opt-in: override `exitNodes()` with `NeuronAI\RAG\Nodes\ConversationIngestionNode`, providing a dedicated conversation store and its embeddings provider; the node reads the chat history from the segment's resources. Agent has no memory collaborator or memory-specific routing.
 
 `resetConversation()` abandons the pending execution and clears chat history. Stored conversation documents have a separate lifecycle and are deleted explicitly through the vector store. See [conversation memory](../../skills/neuron-agent/references/conversation-memory.md) for attachment, retrieval and deletion examples.
 

@@ -841,7 +841,7 @@ $provider->chat(new UserMessage('Hi'));
 ### Hidden Tools Not Sent to Provider
 
 ```php
-// Hidden tools are executable but not sent to AI
+// Hidden tools are neither sent to the AI nor callable
 $agent->addTool((new SecretTool())->visible(false));
 
 // This will NOT include 'secret' in tools configured

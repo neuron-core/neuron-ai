@@ -86,6 +86,10 @@ class JsonSchema
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
 
         foreach ($properties as $property) {
+            if ($property->isStatic()) {
+                continue;
+            }
+
             $propertyName = $property->getName();
 
             $schema['properties'][$propertyName] = $this->processProperty($property);

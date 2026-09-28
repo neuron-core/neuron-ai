@@ -19,6 +19,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\EmailMode;
 use NeuronAI\Tests\StructuredOutput\Stub\FtpMode;
 use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
+use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\ProtectedConstructorModel;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
@@ -664,6 +665,24 @@ class DeserializerTest extends TestCase
             'global class name' => ['DateTime'],
             'path traversal like value' => ['../ftpmode'],
         ];
+    }
+
+    public function test_model_output_never_reaches_non_public_or_static_properties(): void
+    {
+        try {
+            $target = Deserializer::make()->fromJson(
+                '{"name": "John", "isAdmin": true, "internalToken": "forged", "registry": "forged"}',
+                MassAssignmentTarget::class
+            );
+
+            $this->assertInstanceOf(MassAssignmentTarget::class, $target);
+            $this->assertSame('John', $target->name);
+            $this->assertFalse($target->isAdmin());
+            $this->assertSame('server-side', $target->internalToken());
+            $this->assertSame('', MassAssignmentTarget::$registry);
+        } finally {
+            MassAssignmentTarget::$registry = '';
+        }
     }
 
     #[DataProvider('forgedDiscriminatorProvider')]

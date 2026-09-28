@@ -7,6 +7,12 @@ namespace NeuronAI\Tests\Agent;
 use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
 use NeuronAI\Tests\Agent\Stub\AgentSearchTool;
 use NeuronAI\Tests\Agent\Stub\AgentSecretTool;
+use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
+use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
+use NeuronAI\Tools\ProviderToolInterface;
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use Generator;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
@@ -335,6 +341,50 @@ class AgentTest extends TestCase
         $this->expectExceptionMessage('The tool secret is not registered on this agent');
 
         $agent->chat(new UserMessage('Test'));
+    }
+
+    public function test_a_hidden_toolkit_tool_is_neither_offered_nor_listed_in_the_guidelines(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
+
+        $agent->chat(new UserMessage('Hi'));
+
+        $record = $provider->getRecorded()[0];
+        $this->assertSame(
+            ['get_weather'],
+            array_map(static fn (ToolInterface|ProviderToolInterface $tool): string => $tool->getName(), $record->tools)
+        );
+        $this->assertStringEndsWith(
+            "Always report temperatures in Celsius.\nget_weather\n</TOOLS-GUIDELINES>",
+            (string) $record->systemPrompt?->getContent()
+        );
+    }
+
+    public function test_a_hidden_toolkit_tool_cannot_be_called_by_the_model(): void
+    {
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'x'])]),
+            new AssistantMessage('This should not be reached.')
+        );
+        $agent = Agent::make()->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
+
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('The tool search is not registered on this agent');
+
+        $agent->chat(new UserMessage('Test'));
+    }
+
+    protected function weatherToolkitHidingSearch(): ToolkitInterface
+    {
+        $toolkit = new class () extends WeatherToolkit {
+            public function provide(): array
+            {
+                return [new GetWeatherTool(), new SearchTool()];
+            }
+        };
+
+        return $toolkit->with(SearchTool::class, fn (ToolInterface $tool): ToolInterface => $tool->visible(false));
     }
 
     public function test_a_missing_provider_is_reported(): void

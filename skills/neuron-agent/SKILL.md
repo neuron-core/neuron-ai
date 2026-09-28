@@ -321,7 +321,7 @@ The default in-memory store lives as long as the Agent instance. For later-proce
 
 ### Conversation memory
 
-Conversation memory is a RAG composition: `SemanticMemoryRetrieval` accepts the authorized thread IDs and builds its filters; `CompositeRetrieval` combines it with ordinary document retrieval. Attach `ConversationIngestionNode` through `exitNodes()` to create conversation documents after a completed response. Creation and recall are independent opt-ins.
+Conversation memory is a RAG composition: `SemanticMemoryRetrieval` accepts the authorized thread IDs and builds its filters; `CompositeRetrieval` combines it with ordinary document retrieval. Attach `ConversationIngestionNode` through `exitNodes()` to create conversation documents after a completed response, in a dedicated conversation store. Creation and recall are independent opt-ins.
 
 See [conversation memory](references/conversation-memory.md) for complete retrieval, ingestion, recovery and deletion examples. `resetConversation()` clears the working history and pending execution; delete conversation documents explicitly through the vector store.
 
