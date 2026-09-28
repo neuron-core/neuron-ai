@@ -58,9 +58,11 @@ class BashTool extends FileSystemTool
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
-            2 => ['pipe', 'w'],
+            // stderr shares the stdout pipe: reading two pipes in turn deadlocks once the unread one fills up
+            2 => ['redirect', 1],
         ];
 
+        /** @phpstan-ignore argument.type (PHPStan's stub omits the ['redirect', fd] descriptor, valid since PHP 7.4) */
         $process = proc_open($command, $descriptors, $pipes, $cwd);
 
         if ($process === false) {
@@ -69,17 +71,10 @@ class BashTool extends FileSystemTool
 
         fclose($pipes[0]);
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
+        $output = (string) stream_get_contents($pipes[1]);
         fclose($pipes[1]);
-        fclose($pipes[2]);
 
         $exitCode = proc_close($process);
-
-        $output = $stdout !== false ? $stdout : '';
-        if ($stderr !== false && $stderr !== '') {
-            $output .= ($output !== '' ? "\n" : '') . $stderr;
-        }
 
         if ($exitCode !== 0) {
             return ToolOutput::error("Command exited with code {$exitCode}." . ($output !== '' ? "\n\n{$output}" : ''));

@@ -9,7 +9,6 @@ use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
 use NeuronAI\StaticConstructor;
-use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use ReflectionException;
 use stdClass;
 
@@ -179,7 +178,6 @@ abstract class Tool implements ToolInterface
      * Binding is casting: the approval policy, the run key and __invoke() must all
      * judge the same typed values, never the model's raw spelling of them.
      *
-     * @throws DeserializerException
      * @throws ReflectionException
      */
     public function setInputs(?array $inputs): self

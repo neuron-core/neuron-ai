@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use NeuronAI\Exceptions\InvalidToolInput;
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tests\Tools\Stub\Address;
 use NeuronAI\Tests\Tools\Stub\Company;
 use NeuronAI\Tests\Tools\Stub\Contact;
@@ -16,12 +18,15 @@ use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function json_encode;
 
 class ObjectPropertyTest extends TestCase
 {
+    use ToolErrorAssertions;
+
     public function test_simple_object_property_creation(): void
     {
         $property = new ObjectProperty(
@@ -599,5 +604,134 @@ class ObjectPropertyTest extends TestCase
         $tool->setInputs(['ticket' => ['title' => 'Fix', 'priority' => 'low', 'urgent' => false, 'score' => 0, 'watchers' => []]])->execute();
 
         $this->assertSame('Fix (low)', $tool->getResult());
+    }
+
+    public static function nonObjects(): array
+    {
+        return [
+            'string' => ['Fix the login', 'string'],
+            'int' => [42, 'int'],
+            'bool' => [true, 'bool'],
+        ];
+    }
+
+    #[DataProvider('nonObjects')]
+    public function test_a_non_object_for_a_mapped_object_is_tool_feedback_and_never_gated(mixed $input, string $given): void
+    {
+        $tool = $this->ticketTool();
+        $tool->requireApproval()->setInputs(['ticket' => $input]);
+
+        $this->assertFalse($tool->requiresApproval());
+
+        $tool->execute();
+
+        $this->assertToolError("Parameter \"ticket\" must be of type object, {$given} given.", $tool->getResult());
+    }
+
+    public function test_a_mapped_object_the_deserializer_rejects_is_tool_feedback(): void
+    {
+        $tool = $this->ticketTool()->setInputs(['ticket' => ['title' => 'Fix the login', 'priority' => 'urgent']]);
+
+        $tool->execute();
+
+        $this->assertToolError(
+            "Parameter \"ticket\" is invalid: Invalid enum value 'urgent' for " . TicketPriority::class . '.',
+            $tool->getResult()
+        );
+    }
+
+    public function test_null_for_a_nullable_mapped_object_binds_null(): void
+    {
+        $tool = $this->ticketTool(nullable: true)->setInputs(['ticket' => null]);
+
+        $tool->execute();
+
+        $this->assertSame('none', $tool->getResult());
+    }
+
+    public function test_fields_of_an_object_without_a_class_are_bound_as_their_declared_types(): void
+    {
+        $tool = $this->transferTool()->setInputs(['transfer' => ['amount' => '500', 'international' => 'true']]);
+
+        $this->assertSame(['transfer' => ['amount' => 500, 'international' => true]], $tool->getInputs());
+        $this->assertSame('International transfer', $tool->requiresApproval());
+    }
+
+    public function test_a_field_of_the_wrong_type_is_reported_with_its_name(): void
+    {
+        $tool = $this->transferTool()->setInputs(['transfer' => ['amount' => 'lots', 'international' => false]]);
+
+        $tool->execute();
+
+        $this->assertToolError('Parameter "transfer" field "amount" must be of type integer, string given.', $tool->getResult());
+    }
+
+    public function test_a_non_object_for_an_object_without_a_class_is_tool_feedback(): void
+    {
+        $tool = $this->transferTool()->setInputs(['transfer' => 'all my money']);
+
+        $tool->execute();
+
+        $this->assertToolError('Parameter "transfer" must be of type object, string given.', $tool->getResult());
+    }
+
+    public function test_objects_in_an_array_are_cast_field_by_field(): void
+    {
+        $transfers = new ArrayProperty('transfers', items: new ObjectProperty('transfer', properties: [
+            new ToolProperty('amount', PropertyType::INTEGER),
+        ]));
+
+        $this->assertSame([['amount' => 5]], $transfers->cast([['amount' => '5']]));
+
+        $this->expectException(InvalidToolInput::class);
+        $this->expectExceptionMessage('element 1 field "amount" must be of type integer, string given');
+
+        $transfers->cast([['amount' => 5], ['amount' => 'lots']]);
+    }
+
+    protected function ticketTool(bool $nullable = false): Tool
+    {
+        return new class ($nullable) extends Tool {
+            protected string $name = 'open_ticket';
+
+            public function __construct(protected bool $nullable)
+            {
+            }
+
+            protected function properties(): array
+            {
+                return [new ObjectProperty('ticket', required: true, class: Ticket::class, nullable: $this->nullable)];
+            }
+
+            public function __invoke(?Ticket $ticket): string
+            {
+                return $ticket->title ?? 'none';
+            }
+        };
+    }
+
+    protected function transferTool(): Tool
+    {
+        return new class () extends Tool {
+            protected string $name = 'transfer';
+
+            protected function properties(): array
+            {
+                return [new ObjectProperty('transfer', required: true, properties: [
+                    new ToolProperty('amount', PropertyType::INTEGER, required: true),
+                    new ToolProperty('international', PropertyType::BOOLEAN, required: true),
+                ])];
+            }
+
+            protected function approvalPolicy(): bool|string
+            {
+                return $this->inputs['transfer']['international'] === true ? 'International transfer' : false;
+            }
+
+            public function __invoke(array $transfer): string
+            {
+                return 'sent';
+            }
+        };
     }
 }

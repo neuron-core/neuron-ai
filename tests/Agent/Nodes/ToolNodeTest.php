@@ -15,6 +15,8 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
+use NeuronAI\Tests\Tools\Stub\Ticket;
+use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
@@ -127,6 +129,31 @@ class ToolNodeTest extends TestCase
         $this->expectExceptionMessage('Missing required parameter: required_input');
 
         $this->runNode([new TestToolWithRequiredInput()], [$call], new AgentState());
+    }
+
+    public function test_a_non_object_for_a_mapped_object_is_settled_as_a_tool_error_instead_of_aborting(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'open_ticket';
+
+            protected function properties(): array
+            {
+                return [new ObjectProperty('ticket', required: true, class: Ticket::class)];
+            }
+
+            public function __invoke(Ticket $ticket): string
+            {
+                return $ticket->title;
+            }
+        };
+        $call = ToolCall::make('open_ticket', 'call_1', ['ticket' => 'Fix the login']);
+
+        $this->runNode([$tool], [$call], new AgentState());
+
+        $result = $call->getResult();
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame('Parameter "ticket" must be of type object, string given.', $result->getText());
     }
 
     public function test_parameterized_tool_tracked_by_run_key(): void

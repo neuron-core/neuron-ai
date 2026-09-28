@@ -15,6 +15,7 @@ use function array_map;
 use function file_put_contents;
 use function getcwd;
 use function mkdir;
+use function str_repeat;
 
 class BashToolTest extends TestCase
 {
@@ -56,11 +57,20 @@ class BashToolTest extends TestCase
         $this->assertToolError("Command exited with code 42.\n\nboom\n", (new BashTool())('echo boom && exit 42'));
     }
 
-    public function test_stderr_is_appended_after_stdout(): void
+    public function test_stdout_and_stderr_are_merged_in_the_order_they_were_written(): void
     {
-        $result = (new BashTool())('echo out; echo err >&2');
+        $result = (new BashTool())('echo out; echo err >&2; echo again');
 
-        $this->assertSame("out\n\nerr\n", $result['output']);
+        $this->assertSame("out\nerr\nagain\n", $result['output']);
+    }
+
+    public function test_a_command_writing_more_than_a_pipe_buffer_to_stderr_completes(): void
+    {
+        // The outer timeout turns a deadlock into a failure: without it the tool would never return
+        $result = (new BashTool())("timeout 5 sh -c 'head -c 200000 /dev/zero | tr \"\\\\0\" x >&2; echo done'");
+
+        $this->assertIsArray($result);
+        $this->assertSame(str_repeat('x', 200000) . "done\n", $result['output']);
     }
 
     public function test_stderr_alone_is_the_output(): void

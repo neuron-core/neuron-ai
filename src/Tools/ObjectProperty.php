@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tools;
 
 use NeuronAI\Exceptions\ArrayPropertyException;
+use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\StaticConstructor;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
@@ -13,10 +14,12 @@ use NeuronAI\StructuredOutput\JsonSchema;
 use ReflectionException;
 
 use function array_filter;
+use function array_key_exists;
 use function array_map;
 use function array_reduce;
 use function array_values;
 use function class_exists;
+use function get_debug_type;
 use function in_array;
 use function is_null;
 use function is_array;
@@ -259,11 +262,55 @@ class ObjectProperty implements ToolPropertyInterface
     }
 
     /**
-     * @throws DeserializerException
+     * @throws InvalidToolInput
      * @throws ReflectionException
      */
     public function cast(mixed $input): mixed
     {
-        return $this->class === null ? $input : Deserializer::make()->fromJson(json_encode($input), $this->class);
+        if ($input === null) {
+            return null;
+        }
+
+        if (!is_array($input)) {
+            throw new InvalidToolInput('must be of type object, ' . get_debug_type($input) . ' given');
+        }
+
+        return $this->class === null ? $this->castFields($input) : $this->deserialize($input);
+    }
+
+    /**
+     * @throws InvalidToolInput
+     * @throws ReflectionException
+     */
+    protected function castFields(array $input): array
+    {
+        foreach ($this->properties as $property) {
+            $name = $property->getName();
+
+            if (!array_key_exists($name, $input)) {
+                continue;
+            }
+
+            try {
+                $input[$name] = $property->cast($input[$name]);
+            } catch (InvalidToolInput $exception) {
+                throw new InvalidToolInput("field \"{$name}\" {$exception->getMessage()}", $exception->getCode(), $exception);
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * @throws InvalidToolInput
+     * @throws ReflectionException
+     */
+    protected function deserialize(array $input): object
+    {
+        try {
+            return Deserializer::make()->fromJson(json_encode($input), $this->class);
+        } catch (DeserializerException $exception) {
+            throw new InvalidToolInput("is invalid: {$exception->getMessage()}", $exception->getCode(), $exception);
+        }
     }
 }
