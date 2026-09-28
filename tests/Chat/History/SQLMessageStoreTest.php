@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
+use JsonException;
 use NeuronAI\Chat\History\SQLMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -149,6 +150,35 @@ class SQLMessageStoreTest extends TestCase
 
         $this->assertSame('row_identity', $loaded->getId());
         $this->assertSame('end_turn', $loaded->getMetadata('stop_reason'));
+    }
+
+    /**
+     * @return array<string, array{UserMessage}>
+     */
+    public static function messagesThatCannotBeEncoded(): array
+    {
+        $badMetadata = new UserMessage('valid');
+        $badMetadata->addMetadata('note', "\xff");
+
+        return [
+            'content' => [new UserMessage("Not UTF-8: \xff")],
+            'metadata' => [$badMetadata],
+        ];
+    }
+
+    #[DataProvider('messagesThatCannotBeEncoded')]
+    public function test_a_message_that_cannot_be_encoded_is_refused_and_nothing_is_stored(UserMessage $message): void
+    {
+        $pdo = $this->database();
+
+        try {
+            (new SQLMessageStore($pdo))->append('thread', $message);
+            $this->fail('A message that cannot be encoded must be refused.');
+        } catch (JsonException $exception) {
+            $this->assertSame('Malformed UTF-8 characters, possibly incorrectly encoded', $exception->getMessage());
+        }
+
+        $this->assertSame('0', (string) $pdo->query('SELECT COUNT(*) FROM chat_messages')->fetchColumn());
     }
 
     public function test_a_row_without_content_or_meta_loads_as_an_empty_message(): void

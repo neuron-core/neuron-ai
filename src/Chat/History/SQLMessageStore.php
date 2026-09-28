@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Chat\History;
 
+use JsonException;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\MessageDeserializer;
 use NeuronAI\Exceptions\ChatHistoryException;
@@ -18,6 +19,8 @@ use function implode;
 use function json_decode;
 use function json_encode;
 use function preg_match;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Stores one row per message, associated to a thread_id. Archived messages keep
@@ -169,6 +172,7 @@ class SQLMessageStore implements MessageStoreInterface
      * Split a message into the role, content, and meta columns.
      *
      * @return array{role: string, content: string|null, meta: string|null}
+     * @throws JsonException
      */
     protected function serializeMessage(Message $message): array
     {
@@ -181,8 +185,8 @@ class SQLMessageStore implements MessageStoreInterface
 
         return [
             'role' => $message->getRole(),
-            'content' => $content !== null ? json_encode($content) : null,
-            'meta' => $data === [] ? null : json_encode($data),
+            'content' => $content !== null ? json_encode($content, JSON_THROW_ON_ERROR) : null,
+            'meta' => $data === [] ? null : json_encode($data, JSON_THROW_ON_ERROR),
         ];
     }
 }
