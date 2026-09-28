@@ -115,7 +115,7 @@ class Deserializer
 
             // Left out, or null where the property can't hold it: a required one is the model's to fix, an optional one gets its default
             if ($key === null || ($data[$key] === null && !$nullable)) {
-                if (SchemaProperty::isRequired($property)) {
+                if (SchemaProperty::isRequired($reflection, $property)) {
                     throw new DeserializerException($key === null ? "Property \"{$propertyName}\" is required" : "Property \"{$propertyName}\" must not be null");
                 }
 
@@ -125,7 +125,7 @@ class Deserializer
             $value = $data[$key];
 
             if ($value !== null && $type) {
-                $value = $this->castValue($value, $type, $property);
+                $value = $this->castValue($value, $type, $reflection, $property);
             }
 
             // One write per property: the constructor assigns what it promotes, and a readonly
@@ -202,12 +202,12 @@ class Deserializer
     /**
      * @throws DeserializerException|ReflectionException
      */
-    protected function castValue(mixed $value, ReflectionType $type, ReflectionProperty $property): mixed
+    protected function castValue(mixed $value, ReflectionType $type, ReflectionClass $class, ReflectionProperty $property): mixed
     {
         if ($type instanceof ReflectionUnionType) {
             foreach ($this->unionMembers($type, $value) as $unionType) {
                 try {
-                    return $this->castToSingleType($value, $unionType, $property);
+                    return $this->castToSingleType($value, $unionType, $class, $property);
                 } catch (Exception) {
                     continue;
                 }
@@ -216,7 +216,7 @@ class Deserializer
         }
 
         // @phpstan-ignore-next-line
-        return $this->castToSingleType($value, $type, $property);
+        return $this->castToSingleType($value, $type, $class, $property);
     }
 
     /**
@@ -242,6 +242,7 @@ class Deserializer
     protected function castToSingleType(
         mixed $value,
         ReflectionNamedType $type,
+        ReflectionClass $class,
         ReflectionProperty $property
     ): mixed {
         // self names the class declaring the property
@@ -259,7 +260,7 @@ class Deserializer
             'int' => $this->castScalar($value, 'integer', $property),
             'float' => $this->castScalar($value, 'number', $property),
             'bool' => $this->castScalar($value, 'boolean', $property),
-            'array' => $this->handleArray($value, $property),
+            'array' => $this->handleArray($value, $class, $property),
             'DateTime' => $this->createDateTime($value),
             'DateTimeImmutable', 'DateTimeInterface' => $this->createDateTimeImmutable($value),
             default => $this->handleSingleObject($value, $typeName, $property)
@@ -300,13 +301,13 @@ class Deserializer
     /**
      * @throws DeserializerException|ReflectionException
      */
-    protected function handleArray(mixed $value, ReflectionProperty $property): array
+    protected function handleArray(mixed $value, ReflectionClass $class, ReflectionProperty $property): array
     {
         if (!is_array($value)) {
             throw $this->typeMismatch("Property \"{$property->getName()}\"", 'array', $value);
         }
 
-        $types = SchemaProperty::resolve($property)->anyOf ?? [];
+        $types = SchemaProperty::resolve($class, $property)->anyOf ?? [];
 
         if ($types === [] || (count($types) === 1 && !class_exists($types[0]))) {
             return $value;

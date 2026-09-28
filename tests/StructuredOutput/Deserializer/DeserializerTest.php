@@ -10,9 +10,11 @@ use DateTimeInterface;
 use NeuronAI\StructuredOutput\Deserializer\Deserializer;
 use NeuronAI\StructuredOutput\Deserializer\DeserializerException;
 use NeuronAI\StructuredOutput\JsonSchema;
+use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\Article;
+use NeuronAI\Tests\StructuredOutput\Stub\Catalog;
 use NeuronAI\Tests\StructuredOutput\Stub\CodeBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
@@ -172,6 +174,24 @@ class DeserializerTest extends TestCase
         $this->assertCount(1, $obj->tags);
         $this->assertInstanceOf(Tag::class, $obj->tags[0]);
         $this->assertSame('agent', $obj->tags[0]->name);
+    }
+
+    public function test_the_described_class_map_applies_to_inherited_properties(): void
+    {
+        $class = new class () extends Catalog implements SchemaPropertiesInterface {
+            public static function schemaProperties(): array
+            {
+                return [
+                    'title' => new SchemaProperty(required: false),
+                    'items' => new SchemaProperty(anyOf: [Tag::class]),
+                ];
+            }
+        };
+
+        $catalog = Deserializer::make()->fromJson('{"items": [{"name": "agent"}]}', $class::class);
+
+        $this->assertInstanceOf(Tag::class, $catalog->items[0]);
+        $this->assertSame('agent', $catalog->items[0]->name);
     }
 
     public function test_deserialize_array(): void

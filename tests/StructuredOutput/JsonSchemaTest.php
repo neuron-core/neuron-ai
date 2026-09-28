@@ -12,6 +12,7 @@ use NeuronAI\StructuredOutput\SchemaProperty;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
+use NeuronAI\Tests\StructuredOutput\Stub\Catalog;
 use NeuronAI\Tests\StructuredOutput\Stub\Department;
 use NeuronAI\Tests\StructuredOutput\Stub\DividerBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\DummyEnum;
@@ -24,6 +25,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
+use NeuronAI\Tests\StructuredOutput\Stub\Tag;
 use NeuronAI\Tests\StructuredOutput\Stub\TextBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\TreeNode;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
@@ -865,6 +867,25 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['inferred'], $schema['required']);
         $this->assertSame(['overridden', 'optionalAtRuntime', 'inferred'], array_keys($schema['properties']));
         $this->assertSame(['type' => 'string', 'maxLength' => 3], $schema['properties']['optionalAtRuntime']);
+    }
+
+    public function test_the_described_class_map_describes_inherited_properties(): void
+    {
+        $class = new class () extends Catalog implements SchemaPropertiesInterface {
+            public static function schemaProperties(): array
+            {
+                return [
+                    'title' => new SchemaProperty(description: 'Shown on the cover', required: false),
+                    'items' => new SchemaProperty(anyOf: [Tag::class]),
+                ];
+            }
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame('Shown on the cover', $schema['properties']['title']['description']);
+        $this->assertSame(['items'], $schema['required']);
+        $this->assertSame('object', $schema['properties']['items']['items']['type']);
     }
 
     public function test_schema_lists_only_public_instance_properties(): void

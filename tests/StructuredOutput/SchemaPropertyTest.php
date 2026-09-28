@@ -6,10 +6,12 @@ namespace NeuronAI\Tests\StructuredOutput;
 
 use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\StructuredOutput\SchemaProperty;
+use NeuronAI\Tests\StructuredOutput\Stub\Catalog;
 use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use ReflectionProperty;
 
 class SchemaPropertyTest extends TestCase
@@ -21,7 +23,7 @@ class SchemaPropertyTest extends TestCase
             public array $tags;
         };
 
-        $resolved = SchemaProperty::resolve(new ReflectionProperty($class, 'tags'));
+        $resolved = $this->resolve($class, 'tags');
 
         $this->assertEquals(
             new SchemaProperty('Title', 'Desc', true, 1, 2, 3, 4, [Tag::class]),
@@ -35,19 +37,19 @@ class SchemaPropertyTest extends TestCase
             public string $name;
         };
 
-        $this->assertNull(SchemaProperty::resolve(new ReflectionProperty($class, 'name')));
+        $this->assertNull($this->resolve($class, 'name'));
     }
 
     public function test_runtime_entry_replaces_the_attribute_entirely(): void
     {
-        $resolved = SchemaProperty::resolve(new ReflectionProperty(DynamicPerson::class, 'nickName'));
+        $resolved = $this->resolve(DynamicPerson::class, 'nickName');
 
         $this->assertEquals(new SchemaProperty(description: 'Runtime wins'), $resolved);
     }
 
     public function test_attribute_is_used_when_the_runtime_map_has_no_entry(): void
     {
-        $resolved = SchemaProperty::resolve(new ReflectionProperty(DynamicPerson::class, 'lastName'));
+        $resolved = $this->resolve(DynamicPerson::class, 'lastName');
 
         $this->assertEquals(new SchemaProperty(description: 'Attribute description'), $resolved);
     }
@@ -71,9 +73,34 @@ class SchemaPropertyTest extends TestCase
 
         $this->assertEquals(
             new SchemaProperty(description: 'From attribute'),
-            SchemaProperty::resolve(new ReflectionProperty($class, 'name'))
+            $this->resolve($class, 'name')
         );
-        $this->assertNull(SchemaProperty::resolve(new ReflectionProperty($class, 'bare')));
+        $this->assertNull($this->resolve($class, 'bare'));
+    }
+
+    public function test_the_described_class_map_applies_to_inherited_properties(): void
+    {
+        $class = new class () extends Catalog implements SchemaPropertiesInterface {
+            public static function schemaProperties(): array
+            {
+                return ['title' => new SchemaProperty(description: 'Shown on the cover')];
+            }
+        };
+
+        $this->assertEquals(new SchemaProperty(description: 'Shown on the cover'), $this->resolve($class, 'title'));
+    }
+
+    public function test_the_described_class_map_wins_and_the_declaring_class_map_is_the_fallback(): void
+    {
+        $class = new class () extends DynamicPerson {
+            public static function schemaProperties(): array
+            {
+                return ['nickName' => new SchemaProperty(description: 'Child override')];
+            }
+        };
+
+        $this->assertEquals(new SchemaProperty(description: 'Child override'), $this->resolve($class, 'nickName'));
+        $this->assertEquals(new SchemaProperty(description: 'Runtime description'), $this->resolve($class, 'firstName'));
     }
 
     /**
@@ -116,7 +143,7 @@ class SchemaPropertyTest extends TestCase
             }
         };
 
-        $this->assertSame($required, SchemaProperty::isRequired(new ReflectionProperty($class, $property)));
+        $this->assertSame($required, SchemaProperty::isRequired(new ReflectionClass($class), new ReflectionProperty($class, $property)));
     }
 
     public function test_a_runtime_entry_decides_whether_the_property_is_required(): void
@@ -131,6 +158,11 @@ class SchemaPropertyTest extends TestCase
             }
         };
 
-        $this->assertFalse(SchemaProperty::isRequired(new ReflectionProperty($class, 'name')));
+        $this->assertFalse(SchemaProperty::isRequired(new ReflectionClass($class), new ReflectionProperty($class, 'name')));
+    }
+
+    protected function resolve(object|string $class, string $property): ?SchemaProperty
+    {
+        return SchemaProperty::resolve(new ReflectionClass($class), new ReflectionProperty($class, $property));
     }
 }

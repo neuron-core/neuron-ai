@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\StructuredOutput;
 
 use Attribute;
+use ReflectionClass;
 use ReflectionParameter;
 use ReflectionProperty;
 
@@ -24,22 +25,25 @@ class SchemaProperty
     }
 
     /**
-     * Resolve the SchemaProperty for a class property.
+     * Resolve the SchemaProperty for a property of the class being described.
      *
      * Runtime definitions from SchemaPropertiesInterface take precedence
      * over the attribute, allowing dynamic values (translations, config)
-     * that PHP attribute arguments cannot express.
+     * that PHP attribute arguments cannot express. For an inherited property,
+     * the described class's map is asked before the map of the class declaring it.
      */
-    public static function resolve(ReflectionProperty $property): ?self
+    public static function resolve(ReflectionClass $class, ReflectionProperty $property): ?self
     {
-        $class = $property->getDeclaringClass();
+        $classes = $class->getName() === $property->class ? [$class] : [$class, $property->getDeclaringClass()];
 
-        if ($class->implementsInterface(SchemaPropertiesInterface::class)) {
-            /** @var class-string<SchemaPropertiesInterface> $className */
-            $className = $class->getName();
-            $schemaProperty = $className::schemaProperties()[$property->getName()] ?? null;
-            if ($schemaProperty instanceof self) {
-                return $schemaProperty;
+        foreach ($classes as $candidate) {
+            if ($candidate->implementsInterface(SchemaPropertiesInterface::class)) {
+                /** @var class-string<SchemaPropertiesInterface> $className */
+                $className = $candidate->getName();
+                $schemaProperty = $className::schemaProperties()[$property->getName()] ?? null;
+                if ($schemaProperty instanceof self) {
+                    return $schemaProperty;
+                }
             }
         }
 
@@ -56,9 +60,9 @@ class SchemaProperty
      * Deserializer enforces. A required flag decides; without one, a property is required
      * when it can't be null and has no default.
      */
-    public static function isRequired(ReflectionProperty $property): bool
+    public static function isRequired(ReflectionClass $class, ReflectionProperty $property): bool
     {
-        $required = self::resolve($property)?->required;
+        $required = self::resolve($class, $property)?->required;
 
         if ($required !== null) {
             return $required;

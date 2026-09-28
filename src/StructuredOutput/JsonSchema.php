@@ -97,9 +97,9 @@ class JsonSchema
 
             $propertyName = $property->getName();
 
-            $schema['properties'][$propertyName] = $this->processProperty($property);
+            $schema['properties'][$propertyName] = $this->processProperty($reflection, $property);
 
-            if (SchemaProperty::isRequired($property)) {
+            if (SchemaProperty::isRequired($reflection, $property)) {
                 $requiredProperties[] = $propertyName;
             }
         }
@@ -121,11 +121,11 @@ class JsonSchema
     /**
      * @throws ReflectionException
      */
-    protected function processProperty(ReflectionProperty $property): array
+    protected function processProperty(ReflectionClass $class, ReflectionProperty $property): array
     {
         $schema = [];
 
-        $attribute = $this->getPropertyAttribute($property);
+        $attribute = $this->getPropertyAttribute($class, $property);
         if ($attribute instanceof SchemaProperty) {
             if ($attribute->title !== null) {
                 $schema['title'] = $attribute->title;
@@ -256,9 +256,9 @@ class JsonSchema
     /**
      * The SchemaPropertiesInterface runtime map wins over the attribute.
      */
-    protected function getPropertyAttribute(ReflectionProperty $property): ?SchemaProperty
+    protected function getPropertyAttribute(ReflectionClass $class, ReflectionProperty $property): ?SchemaProperty
     {
-        return SchemaProperty::resolve($property);
+        return SchemaProperty::resolve($class, $property);
     }
 
     /**
