@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput\Validation;
 
+use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionProperty;
@@ -60,14 +61,9 @@ class Validator
                 $name = $path.$property->getName();
                 $value = $property->isInitialized($obj) ? $property->getValue($obj) : null;
 
-                // Apply all the validation rules to the value
-                foreach ($property->getAttributes() as $attribute) {
-                    $instance = $attribute->newInstance();
-
-                    // Perform validation
-                    if ($instance instanceof ValidationRuleInterface) {
-                        $instance->validate($name, $value, $violations);
-                    }
+                // Apply all the validation rules to the value; other attributes are never instantiated
+                foreach ($property->getAttributes(ValidationRuleInterface::class, ReflectionAttribute::IS_INSTANCEOF) as $attribute) {
+                    $attribute->newInstance()->validate($name, $value, $violations);
                 }
 
                 // A nested object is held to its own class's rules, reported under its path

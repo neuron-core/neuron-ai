@@ -42,7 +42,7 @@ class Length extends AbstractValidationRule
         }
 
         if (!is_string($value) && !$value instanceof Stringable) {
-            $violations[] = $this->buildMessage($name, '{name} must be a scalar or a stringable object');
+            $violations[] = $this->buildMessage($name, '{name} must be a string or a stringable object');
             return;
         }
 

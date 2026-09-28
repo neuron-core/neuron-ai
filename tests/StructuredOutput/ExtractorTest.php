@@ -84,6 +84,14 @@ class ExtractorTest extends TestCase
             'escaped backslash before closing quote' => ['Path: {"p":"C:\\\\"} and {x}', '{"p":"C:\\\\"}'],
             'nested objects' => ['Output: {"a":{"b":{"c":[1,2,{"d":null}]}}}', '{"a":{"b":{"c":[1,2,{"d":null}]}}}'],
             'top level list is kept' => ['[1,2]', '[1,2]'],
+            'empty object stays an object' => ['{}', '{}'],
+            'nested empty object stays an object' => ['Here you go: {"name":"Ada","settings":{}}', '{"name":"Ada","settings":{}}'],
+            'object with numeric keys stays an object' => ['{"scores":{"0":"low","1":"high"}}', '{"scores":{"0":"low","1":"high"}}'],
+            'stray closing brace in prose before the objects' => ['Sure :} here is {"a":1} and also {"b":2}', '{"a":1}'],
+            'stray closing brace after an invalid object' => ['{draft} smile :} {"a":1} {"b":2}', '{"a":1}'],
+            'stray closing brace before any object' => ['{draft} } then {"a":1}', '{"a":1}'],
+            'stray double quote in prose before the objects' => ['The TV is 55" wide: {"a":1} and {"b":2}', '{"a":1}'],
+            'stray double quote after an invalid object' => ['{draft} it is 12" long {"a":1}', '{"a":1}'],
         ];
     }
 

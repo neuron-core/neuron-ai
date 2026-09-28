@@ -2182,27 +2182,33 @@ Suggested fix: rewrite `src/StructuredOutput/Validation/Validator.php` to recurs
 
 ### <a id="structuredoutput-17"></a>STRUCTUREDOUTPUT-17 · JsonExtractor::getJson docblock promises an empty string but the method returns null
 
-**low** · docs-mismatch · [`src/StructuredOutput/JsonExtractor.php:69`](../src/StructuredOutput/JsonExtractor.php#L69) · no repro (static evidence) · fix validated
+**low** · docs-mismatch · [`src/StructuredOutput/JsonExtractor.php:69`](../src/StructuredOutput/JsonExtractor.php#L69) · regression test [`ExtractorTest`](../tests/StructuredOutput/ExtractorTest.php) · **resolved**
 
 The docblock of `JsonExtractor::getJson` says it returns an empty string on failure, while the `?string` signature and the implementation return `null`, and an existing test pins that. There is no runtime impact inside the framework, since `StructuredOutputNode` checks both `null` and `''`. Developers who call or subclass `getJson` based on the docblock may check `=== ''`, which never matches, and pass `null` onward into string-typed code.
 
 Suggested fix: update the docblock in `src/StructuredOutput/JsonExtractor.php` to state that it returns `null` when no candidate parses; optionally simplify the check in `StructuredOutputNode` to `$json === null`. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested, including the optional part. The docblock states the real contract, which `ExtractorTest` already asserted: the first candidate that parses, re-encoded as JSON, or `null` when none does. `StructuredOutputNode` now checks only for `null`. The extractor never returns an empty string, and a custom extractor that did would have it rejected by the Deserializer as invalid JSON and retried.
+
 ### <a id="structuredoutput-18"></a>STRUCTUREDOUTPUT-18 · JsonExtractor re-encoding turns empty JSON objects into empty arrays
 
-**low** · bug · [`src/StructuredOutput/JsonExtractor.php:97`](../src/StructuredOutput/JsonExtractor.php#L97) · repro [`EmptyObjectExtractionTest`](repro/StructuredOutput/EmptyObjectExtractionTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/JsonExtractor.php:97`](../src/StructuredOutput/JsonExtractor.php#L97) · regression test [`ExtractorTest`](../tests/StructuredOutput/ExtractorTest.php) · **resolved**
 
 `tryParse` decodes with `assoc=true` and `getJson` re-encodes with `json_encode`, so every `{}` becomes `[]`: `'{"meta":{}}'` comes back as `'{"meta":[]}'` and `'{}'` as `'[]'`. The framework's own flow is unaffected, because the `Deserializer` decodes with `assoc=true` again. The wrong shape is visible in the `$json` carried by the `Extracted`, `Validating` and `Validated` observability events, and to anyone who calls `getJson` directly and forwards the result to a consumer that distinguishes objects from lists, such as a schema validator expecting `type: object`.
 
 Suggested fix: in `JsonExtractor::tryParse()` decode without `assoc` and accept only arrays or objects, adjusting the imports. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested. `tryParse()` keeps objects as objects, so the re-encoded JSON has the model's shape. That also fixes a case the review missed: an object whose keys are `"0"`, `"1"` came back as a list, so `{"scores":{"0":"low","1":"high"}}` became `{"scores":["low","high"]}`. A JSON scalar is now rejected explicitly. Before, it was returned from a method typed `?array`, and `getJson()` swallowed the resulting `TypeError`. The existing no-JSON cases pin that the outcome is the same.
+
 ### <a id="structuredoutput-19"></a>STRUCTUREDOUTPUT-19 · A stray closing brace in prose breaks the JSON-like fallback scanner
 
-**low** · bug · [`src/StructuredOutput/JsonExtractor.php:219`](../src/StructuredOutput/JsonExtractor.php#L219) · repro [`StrayClosingBraceExtractionTest`](repro/StructuredOutput/StrayClosingBraceExtractionTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/JsonExtractor.php:219`](../src/StructuredOutput/JsonExtractor.php#L219) · regression test [`ExtractorTest`](../tests/StructuredOutput/ExtractorTest.php) · **resolved**
 
 `findJSONLikeStrings` decrements `$bracketCount` on every `}` outside a string, even when the counter is already zero. After an unmatched brace in the prose, such as `:}`, the counter stays one below its true value, no later object is ever captured, and `getJson` returns `null` although valid JSON follows. This only matters when the earlier extractors also fail (no fenced block, and either a leading brace or several objects in the text), which is a realistic answer shape. `StructuredOutputNode` then retries, costing extra provider calls, or fails after `maxRetries`; no data is corrupted.
 
 Suggested fix: in `JsonExtractor::findJSONLikeStrings()` only decrement the counter when `$bracketCount > 0`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested, and extended to a stray double quote, which broke the scanner the same way. The scanner also flipped its "inside a string" flag on quotes in the prose, so a `55"` before the JSON made it read the JSON's braces as string content. Quotes now count only inside an open block, and closing braces only close an open one. The prose outside any block no longer changes the scanner's state. A `{` in the prose that never closes, or a stray quote inside a broken block, can still hide later objects. Handling those would need a scanner that backtracks.
 
 ### <a id="structuredoutput-20"></a>STRUCTUREDOUTPUT-20 · Promoted constructor properties with defaults are marked required and lose their schema default
 
@@ -2226,27 +2232,33 @@ Suggested fix: in `JsonSchema::processProperty()`, convert enum defaults to the 
 
 ### <a id="structuredoutput-22"></a>STRUCTUREDOUTPUT-22 · Multi-type anyOf accepts enums, drops unknown classes and allows colliding discriminators
 
-**low** · design · [`src/StructuredOutput/JsonSchema.php:297`](../src/StructuredOutput/JsonSchema.php#L297) · repro [`AnyOfContractTest`](repro/StructuredOutput/AnyOfContractTest.php) · fix validated
+**low** · design · [`src/StructuredOutput/JsonSchema.php:297`](../src/StructuredOutput/JsonSchema.php#L297) · regression tests [`JsonSchemaTest`](../tests/StructuredOutput/JsonSchemaTest.php), [`DeserializerTest`](../tests/StructuredOutput/Deserializer/DeserializerTest.php) · **resolved**
 
 `generateAnyOfSchema` emits enum members without a discriminator, and a schema-conforming answer with an enum item then crashes the `Deserializer` with a `TypeError` in the `fn (array $item)` closure, bypassing `StructuredOutputNode`'s retry loop; the same happens for class-only `anyOf` when the model returns a non-object item. Two classes with the same short name in different namespaces get the same discriminator value, and every item is silently hydrated as the last listed class. A misspelled or non-existent class is silently dropped from the schema. Each case requires a misconfiguration or a malformed answer.
 
 Suggested fix: in `JsonSchema::generateAnyOfSchema()` throw `StructuredOutputException` for members that are not non-enum classes and for duplicate discriminator values; in `Deserializer`, accept `mixed` in the multi-type closure and throw `DeserializerException` from `deserializeObjectWithDiscriminator()` for non-array items. This was validated in a sandbox against the repro and the module's tests; the uncommitted `test_discriminator_is_only_injected_into_object_items` must be updated or removed.
 
+**Resolution:** applied as suggested. `generateAnyOfSchema()` now throws `StructuredOutputException` at schema generation, before any provider call, in three cases, each naming the problem: a member that is not a class, an enum mixed with other members (an enum is only valid as the single `anyOf` member), and two members sharing a discriminator value (the message suggests renaming one). `test_discriminator_is_only_injected_into_object_items` was replaced by the enum rejection test. The Deserializer half had already been fixed with [STRUCTUREDOUTPUT-01](#structuredoutput-01): a non-object item in a multi-type list is a `DeserializerException` the agent retries, and `DeserializerTest` covers it.
+
 ### <a id="structuredoutput-23"></a>STRUCTUREDOUTPUT-23 · Property named like the discriminator overwrites its schema and makes required a JSON object
 
-**low** · bug · [`src/StructuredOutput/JsonSchema.php:313`](../src/StructuredOutput/JsonSchema.php#L313) · repro [`DiscriminatorNameCollisionTest`](repro/StructuredOutput/DiscriminatorNameCollisionTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/JsonSchema.php:313`](../src/StructuredOutput/JsonSchema.php#L313) · regression test [`JsonSchemaTest`](../tests/StructuredOutput/JsonSchemaTest.php) · **resolved**
 
 `injectDiscriminator` builds the properties as `[discriminator => {...}, ...$schema['properties']]`, so an `anyOf` class with a property of the same name (for example `kind` with `new JsonSchema('kind')`) overwrites the injected definition, removing the `enum` and the instruction the model needs. `array_unique([discriminator, ...required])` keeps the original keys, so `required` encodes as `{"0":"kind","2":"label"}`, which strict providers reject. With multiple `anyOf` types the `Deserializer` also unsets the discriminator key before hydration, leaving the class's own property uninitialized. With the default `__classname__` a collision is unlikely.
 
 Suggested fix: in `JsonSchema::injectDiscriminator()` throw `StructuredOutputException` when the class already defines the discriminator property, and build `required` without `array_unique`, removing the import. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested. `injectDiscriminator()` refuses a class with a property named like the discriminator field, naming the property and the `anyOf` member. The Deserializer takes that field away to pick the class, so such a property could never be filled. `required` is now built as a plain list. `array_unique()` had only ever removed that colliding duplicate, and the gap in its keys is what encoded `required` as an object.
+
 ### <a id="structuredoutput-24"></a>STRUCTUREDOUTPUT-24 · Count misconfiguration error message names the Length rule instead of Count
 
-**low** · api-inconsistency · [`src/StructuredOutput/Validation/Rules/Count.php:32`](../src/StructuredOutput/Validation/Rules/Count.php#L32) · repro [`CountMisconfigurationMessageTest`](repro/StructuredOutput/CountMisconfigurationMessageTest.php) · fix validated
+**low** · api-inconsistency · [`src/StructuredOutput/Validation/Rules/Count.php:32`](../src/StructuredOutput/Validation/Rules/Count.php#L32) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 Using `#[Count]` without `exactly`, `min` or `max` throws `Either option "min" or "max" must be given for validation rule "Length"`, a copy-paste leftover that sends developers looking at the wrong attribute. Validation results for correctly configured rules are unchanged. A related wording issue is that `Length` rejects non-strings with "must be a scalar or a stringable object", although its check accepts only strings and `Stringable`.
 
 Suggested fix: change the message in `src/StructuredOutput/Validation/Rules/Count.php` to name the `Count` rule, and optionally change the `Length.php` violation text to "must be a string or a stringable object". This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested, including the optional `Length` wording, which now matches `WordsCount`. The `Count without bounds` row had asserted only the start of the message, stopping before the rule name, so it now checks the full text. A new `Length non string` row pins the corrected violation.
 
 ### <a id="structuredoutput-25"></a>STRUCTUREDOUTPUT-25 · Enum and ArrayOf violation messages contain unresolved {values} and {types} placeholders
 
@@ -2260,43 +2272,53 @@ Suggested fix: in `Enum.php` pass the key `values` instead of `choices`, and in 
 
 ### <a id="structuredoutput-26"></a>STRUCTUREDOUTPUT-26 · GreaterThanEqual(0) lets null or missing values pass validation
 
-**low** · bug · [`src/StructuredOutput/Validation/Rules/GreaterThanEqual.php:21`](../src/StructuredOutput/Validation/Rules/GreaterThanEqual.php#L21) · repro [`GreaterThanEqualNullValueTest`](repro/StructuredOutput/GreaterThanEqualNullValueTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/Validation/Rules/GreaterThanEqual.php:21`](../src/StructuredOutput/Validation/Rules/GreaterThanEqual.php#L21) · regression tests [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php), [`ValidationTest`](../tests/StructuredOutput/Validation/ValidationTest.php) · **resolved**
 
 `GreaterThanEqual` checks `is_null($this->reference) || $value < $this->reference` but never checks the value for null. With PHP loose comparison, `null < 0` is false, so with a falsy reference (`0` or `0.0`) a missing or null value passes, while `GreaterThan`, `LowerThan` and `LowerThanEqual` reject it. `#[GreaterThanEqual(0)]` is the usual way to express "non-negative", so an omitted field skips the correction retry and the application receives an uninitialized typed property or a null where a number was expected. Non-zero references are not affected.
 
 Suggested fix: in `src/StructuredOutput/Validation/Rules/GreaterThanEqual.php`, change the condition to `is_null($value) || is_null($this->reference) || $value < $this->reference`, keeping the existing null-reference guard. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** made consistent the other way: a missing value passes every comparison rule. The review's "uninitialized typed property" scenario is no longer reachable through the agent. Since [STRUCTUREDOUTPUT-03](#structuredoutput-03), the Deserializer refuses a missing required field before validation, so `null` reaches these rules only from a field declared optional, either nullable or marked `required: false`. Rejecting it there would let a rule override the type: the schema tells the model the field is optional, and the correction then forces it to invent a value. `GreaterThan`, `GreaterThanEqual`, `LowerThan`, `LowerThanEqual` and `OutOfRange` now return early for `null`. Before, the outcome depended on the bound: `GreaterThanEqual(0)` and `OutOfRange(0, 10)` accepted `null` while other bounds rejected it. To require a value, a property is declared non-nullable, or given `#[IsNotNull]`. `EqualTo`, `NotEqualTo` and the other value rules are unchanged. Whether every value rule should follow the same policy is left as a separate decision.
+
 ### <a id="structuredoutput-27"></a>STRUCTUREDOUTPUT-27 · OutOfRange strict mode accepts excluded bounds when value and bound types differ
 
-**low** · bug · [`src/StructuredOutput/Validation/Rules/OutOfRange.php:20`](../src/StructuredOutput/Validation/Rules/OutOfRange.php#L20) · repro [`OutOfRangeStrictFloatBoundTest`](repro/StructuredOutput/OutOfRangeStrictFloatBoundTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/Validation/Rules/OutOfRange.php:20`](../src/StructuredOutput/Validation/Rules/OutOfRange.php#L20) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 With `strict: true`, `OutOfRange` excludes the bounds using `$value === $this->min` and `$value === $this->max`. The identity check fails whenever the value and the bound differ in PHP type, and neither the `<` nor the `>` branch fires, so the excluded bound is accepted. The common case is a `float` property with int bounds, such as `#[OutOfRange(0, 100, strict: true)]` on `public float $score`: the Deserializer turns `{"score": 0}` into `0.0`, which passes validation. An int property with float bounds fails the same way. `StructuredOutputNode` never asks the model for a correction, and the application receives a value its declared contract forbids.
 
 Suggested fix: in `src/StructuredOutput/Validation/Rules/OutOfRange.php`, change the two strict-bound checks from `===` to `==`, matching the numeric semantics the `<` and `>` checks already use. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested. The strict bounds now compare with `==`, the same numeric comparison as the `<` and `>` checks. A float property on an int bound, such as `0.0` against `OutOfRange(0, 100, strict: true)`, is now excluded as declared, and so is an int on a float bound. A missing value never reaches these checks: since [STRUCTUREDOUTPUT-26](#structuredoutput-26), the rule returns early for `null`. Otherwise `null == 0` would have counted as the bound.
+
 ### <a id="structuredoutput-28"></a>STRUCTUREDOUTPUT-28 · Url validation rule accepts non-web schemes such as javascript://, file:// and gopher://
 
-**low** · security · [`src/StructuredOutput/Validation/Rules/Url.php:20`](../src/StructuredOutput/Validation/Rules/Url.php#L20) · repro [`UrlSchemeTest`](repro/StructuredOutput/UrlSchemeTest.php) · fix validated
+**low** · security · [`src/StructuredOutput/Validation/Rules/Url.php:20`](../src/StructuredOutput/Validation/Rules/Url.php#L20) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 `#[Url]` relies only on `filter_var($value, FILTER_VALIDATE_URL)`, which accepts any syntactically valid URL regardless of scheme. Values such as `javascript://x/%0Aalert(1)`, `file:///etc/passwd`, `gopher://127.0.0.1:6379/_FLUSHALL` and `data://text/plain;base64,...` produce no violation. The existing `javascript:alert(1)` test passes only because that value has no authority component. The documentation promises only a valid URL format, so no documented contract is broken, but the rule is meant for untrusted LLM output: an application that renders the value as an `href` or fetches it server-side with a scheme-agnostic client is exposed to stored XSS, local file reads or SSRF. The framework itself does not use the value.
 
 Suggested fix: in `src/StructuredOutput/Validation/Rules/Url.php`, add a constructor parameter `array $schemes = ['http', 'https']` and, after `filter_var`, check the `parse_url(..., PHP_URL_SCHEME)` result case-insensitively against that list. Other schemes would then need an explicit `#[Url(schemes: ['ftp'])]`. This adds a public constructor parameter and needs your approval; the `SKILL.md` description of the rule would change too. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested, with the new parameter approved. `#[Url]` accepts `http` and `https` by default, and `#[Url(schemes: ['ftp'])]` sets another list. The scheme is compared case-insensitively after the format check. The violation now names the accepted schemes, e.g. "must be a valid URL (http, https)", so the model knows what to fix. The rule table in `skills/neuron-structured-output/SKILL.md` describes the new default.
+
 ### <a id="structuredoutput-29"></a>STRUCTUREDOUTPUT-29 · WordsCount miscounts words separated by tabs or NBSP and has an ungrammatical message
 
-**low** · bug · [`src/StructuredOutput/Validation/Rules/WordsCount.php:48`](../src/StructuredOutput/Validation/Rules/WordsCount.php#L48) · repro [`WordsCountWhitespaceTest`](repro/StructuredOutput/WordsCountWhitespaceTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/Validation/Rules/WordsCount.php:48`](../src/StructuredOutput/Validation/Rules/WordsCount.php#L48) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 `WordsCount` splits words with `/[ \-\r\n]+/`, so words separated by a tab, a non-breaking space or other Unicode whitespace count as one word. With `WordsCount(max: 1)`, `"one\ttwo"` and `"one\u{00A0}two"` produce no violation, so max limits are not enforced and min limits can fail when they should pass. Separately, the exact-count rule reports too few words as `{name} must have exactly {exact} words long` but too many as `{name} must have exactly {exact} words`. This message is sent back to the LLM on retry and reaches callers, so the too-few version is ungrammatical and code matching the text sees two different strings.
 
 Suggested fix: in `src/StructuredOutput/Validation/Rules/WordsCount.php`, split on `/[\s\-]+/u` and drop `long` from the too-few message. With the `/u` flag, invalid UTF-8 makes `preg_split` return `false` and `count()` throw a `TypeError`, so either fall back to the non-`u` pattern in that case or use `/[\s\-]+/` without `/u`, which handles tabs but not NBSP. This was validated in a sandbox against the repro and the module's tests.
 
+**Resolution:** applied as suggested, with the fallback. Words are split on any Unicode whitespace or hyphen (`/[\s\-]+/u`), which covers tabs, non-breaking spaces and wide spaces. Text that is not valid UTF-8 makes that split fail, so it is split on ASCII whitespace instead of crashing `count()`. Answers from the model are always valid UTF-8, because `json_decode` rejects anything else, so the fallback only matters for objects validated directly. The too-few exact-count message drops `long`, so both directions read "must have exactly N words".
+
 ### <a id="structuredoutput-30"></a>STRUCTUREDOUTPUT-30 · Validator instantiates every property attribute and crashes on unrelated or uninstantiable attributes
 
-**low** · bug · [`src/StructuredOutput/Validation/Validator.php:38`](../src/StructuredOutput/Validation/Validator.php#L38) · repro [`ValidatorForeignAttributeTest`](repro/StructuredOutput/ValidatorForeignAttributeTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/Validation/Validator.php:38`](../src/StructuredOutput/Validation/Validator.php#L38) · regression test [`ValidationTest`](../tests/StructuredOutput/Validation/ValidationTest.php) · **resolved**
 
 `Validator::validate()` calls `$property->getAttributes()` with no filter and runs `newInstance()` on every attribute before checking `instanceof ValidationRuleInterface`. PHP resolves an attribute class only at `newInstance()`, so an unrelated attribute that cannot be built throws an `Error`. Examples are a class from a package not installed in production (`Attribute class "..." not found`) or a class-only attribute placed on a property (`cannot target property`). Unrelated attributes with constructor side effects also run during validation. The `Error` is neither an `AgentException` nor a `DeserializerException`, so it escapes the correction loop in `StructuredOutputNode`, and the structured call fails after the provider request was already made. Direct `Validator::validate()` calls and `ArrayOf` nested validation fail the same way.
 
 Suggested fix: in `src/StructuredOutput/Validation/Validator.php`, use `getAttributes(ValidationRuleInterface::class, ReflectionAttribute::IS_INSTANCEOF)`, which only returns loaded validation-rule attributes. Then call `newInstance()->validate(...)` directly and remove the now-redundant `instanceof` check. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested. The `Validator` asks reflection only for attributes that implement `ValidationRuleInterface`, so it never instantiates any other attribute. A class from a package that isn't installed, or a class-only attribute placed on a property, no longer breaks validation, and unrelated attribute constructors no longer run.
 
 ## <a id="module-httpclient"></a>HTTP client
 

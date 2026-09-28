@@ -7,7 +7,8 @@ namespace NeuronAI\StructuredOutput;
 use JsonException;
 use Throwable;
 
-use function in_array;
+use function is_array;
+use function is_object;
 use function is_string;
 use function json_decode;
 use function json_encode;
@@ -69,7 +70,7 @@ class JsonExtractor
 
     /**
      * Attempt to find and parse a complete valid JSON string in the input.
-     * Returns a JSON-encoded string on success or an empty string on failure.
+     * Returns the first candidate that parses, re-encoded as JSON, or null when none does.
      */
     public function getJson(string $input): ?string
     {
@@ -109,19 +110,16 @@ class JsonExtractor
     }
 
     /**
-     * Returns an associative array on success, or null if the parsing fails.
+     * Returns the decoded object or list, or null for any other JSON value.
      *
      * @throws JsonException
      */
-    private function tryParse(string $maybeJson): ?array
+    private function tryParse(string $maybeJson): array|object|null
     {
-        $data = json_decode($maybeJson, true, 512, JSON_THROW_ON_ERROR);
+        // Objects stay objects, so re-encoding keeps {} and numeric keys as the model wrote them
+        $data = json_decode($maybeJson, false, 512, JSON_THROW_ON_ERROR);
 
-        if (in_array($data, [false, null, ''], true)) {
-            return null;
-        }
-
-        return $data;
+        return is_array($data) || is_object($data) ? $data : null;
     }
 
     /**
@@ -219,13 +217,14 @@ class JsonExtractor
                         $currentCandidate = '';
                     }
                     $bracketCount++;
-                } elseif ($char === '}') {
+                } elseif ($char === '}' && $bracketCount > 0) {
+                    // Only an open block can close: a stray brace in the prose is ignored
                     $bracketCount--;
                 }
             }
 
-            // Toggle inString if we encounter an unescaped quote
-            if ($char === '"' && !$escape) {
+            // Toggle inString on an unescaped quote inside a block: a quote in the prose starts no string
+            if ($char === '"' && !$escape && $bracketCount > 0) {
                 $inString = !$inString;
             }
 

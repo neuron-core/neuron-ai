@@ -29,7 +29,7 @@ class Count extends AbstractValidationRule
         }
 
         if (null === $this->min && null === $this->max) {
-            throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "Length"');
+            throw new StructuredOutputException('Either option "min" or "max" must be given for validation rule "Count"');
         }
 
         // A missing value is empty: it only falls short of a minimum

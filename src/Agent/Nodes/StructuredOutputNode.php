@@ -157,7 +157,7 @@ class StructuredOutputNode extends InferenceNode
         // It avoids TypeError on the extractor and go through a new generation attempt.
         $json = $this->extractor->getJson($response->getContent() ?? '');
         $this->emit(new Extracted($response, $schema, $json));
-        if ($json === null || $json === '') {
+        if ($json === null) {
             throw new AgentException("The response does not contains a valid JSON Object.");
         }
 

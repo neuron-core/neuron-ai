@@ -9,9 +9,11 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use NeuronAI\StructuredOutput\JsonSchema;
 use NeuronAI\StructuredOutput\SchemaProperty;
+use NeuronAI\StructuredOutput\StructuredOutputException;
 use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\SchemaPropertiesInterface;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
+use NeuronAI\Tests\StructuredOutput\Stub\Blog\Item as BlogItem;
 use NeuronAI\Tests\StructuredOutput\Stub\Catalog;
 use NeuronAI\Tests\StructuredOutput\Stub\Department;
 use NeuronAI\Tests\StructuredOutput\Stub\DividerBlock;
@@ -24,6 +26,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
+use NeuronAI\Tests\StructuredOutput\Stub\Shop\Item as ShopItem;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
 use NeuronAI\Tests\StructuredOutput\Stub\TextBlock;
@@ -339,17 +342,56 @@ class JsonSchemaTest extends TestCase
         $this->assertArrayNotHasKey('__classname__', $items[1]['properties']);
     }
 
-    public function test_discriminator_is_only_injected_into_object_items(): void
+    public function test_a_property_named_like_the_discriminator_is_rejected(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [ImageBlock::class, TextBlock::class])]
+            public array $blocks;
+        };
+
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("The property 'type' of anyOf member 'imageblock' collides with the discriminator field");
+
+        (new JsonSchema('type'))->generate($class::class);
+    }
+
+    public function test_an_enum_cannot_be_one_of_several_any_of_members(): void
     {
         $class = new class () {
             #[SchemaProperty(anyOf: [FtpMode::class, StringEnum::class])]
             public array $values;
         };
 
-        $items = (new JsonSchema())->generate($class::class)['properties']['values']['items']['anyOf'];
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf member '".StringEnum::class."' is an enum: an enum can only be the single anyOf member");
 
-        $this->assertSame(['__classname__', 'mode', 'account'], array_keys($items[0]['properties']));
-        $this->assertSame(['type' => 'string', 'enum' => ['one', 'two', 'three']], $items[1]);
+        (new JsonSchema())->generate($class::class);
+    }
+
+    public function test_an_unknown_class_cannot_be_one_of_several_any_of_members(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [FtpMode::class, 'NeuronAI\Tests\StructuredOutput\Stub\DoesNotExist'])]
+            public array $values;
+        };
+
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf member 'NeuronAI\\Tests\\StructuredOutput\\Stub\\DoesNotExist' is not a class");
+
+        (new JsonSchema())->generate($class::class);
+    }
+
+    public function test_any_of_members_cannot_share_a_discriminator_value(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [BlogItem::class, ShopItem::class])]
+            public array $items;
+        };
+
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf members share the discriminator value 'item': rename one of the classes");
+
+        (new JsonSchema())->generate($class::class);
     }
 
     public function test_discriminator_is_injected_into_an_anyof_item_without_properties(): void

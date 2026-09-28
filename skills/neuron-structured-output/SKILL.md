@@ -565,7 +565,7 @@ class Contact
 | `Length` | String length bounds | `#[Length(min: 1, max: 100)]` |
 | `WordsCount` | Word count bounds | `#[WordsCount(min: 5, max: 50)]` |
 | `Email` | Valid email format | `#[Email]` |
-| `Url` | Valid URL format | `#[Url]` |
+| `Url` | Valid http or https URL (`schemes:` accepts others) | `#[Url]` |
 | `IPAddress` | Valid IP address | `#[IPAddress]` |
 | `Json` | Valid JSON string | `#[Json]` |
 | `Enum` | Value in allowed list | `#[Enum(class: Status::class)]` |

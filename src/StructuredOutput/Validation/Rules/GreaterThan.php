@@ -18,6 +18,11 @@ class GreaterThan extends AbstractValidationRule
 
     public function validate(string $name, mixed $value, array &$violations): void
     {
+        // Presence is the type's to decide: a comparison applies only when there is a value
+        if (is_null($value)) {
+            return;
+        }
+
         if (is_null($this->reference) || $value <= $this->reference) {
             $violations[] = $this->buildMessage($name, '{name} must be greater than {compare}', ['compare' => json_encode($this->reference)]);
         }

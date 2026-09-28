@@ -11,14 +11,18 @@ use NeuronAI\StructuredOutput\Validation\Rules\ArrayOf;
 use NeuronAI\StructuredOutput\Validation\Rules\Count;
 use NeuronAI\StructuredOutput\Validation\Rules\Email;
 use NeuronAI\StructuredOutput\Validation\Rules\Enum;
+use NeuronAI\StructuredOutput\Validation\Rules\GreaterThan;
+use NeuronAI\StructuredOutput\Validation\Rules\GreaterThanEqual;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNotNull;
 use NeuronAI\StructuredOutput\Validation\Rules\IsNull;
 use NeuronAI\StructuredOutput\Validation\Rules\Length;
 use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
+use NeuronAI\StructuredOutput\Validation\Rules\OutOfRange;
 use NeuronAI\StructuredOutput\Validation\Rules\WordsCount;
 use NeuronAI\StructuredOutput\Validation\Validator;
 use NeuronAI\Tests\StructuredOutput\Stub\Address;
 use NeuronAI\Tests\StructuredOutput\Stub\Category;
+use NeuronAI\Tests\StructuredOutput\Stub\ClassOnlyMarker;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
@@ -313,6 +317,24 @@ class ValidationTest extends TestCase
         $this->assertSame([], Validator::validate($object));
     }
 
+    public function test_optional_properties_the_model_leaves_out_pass_their_comparisons(): void
+    {
+        $class = new class () {
+            #[GreaterThanEqual(5)]
+            public ?int $quantity = null;
+
+            #[GreaterThan(-1)]
+            public ?int $stock = null;
+
+            #[OutOfRange(1, 10)]
+            public ?int $rating = null;
+        };
+
+        $object = Deserializer::make()->fromJson('{}', $class::class);
+
+        $this->assertSame([], Validator::validate($object));
+    }
+
     public function test_rules_of_a_nested_object_are_reported_under_its_path(): void
     {
         $json = '{"firstName": "John", "lastName": "Doe", "address": {"street": "", "city": "Rome", "zip": ""}, "tags": []}';
@@ -357,6 +379,18 @@ class ValidationTest extends TestCase
         $root->children = [$child];
 
         $this->assertSame(['children must be an array of '.Category::class], Validator::validate($root));
+    }
+
+    public function test_attributes_that_are_not_rules_are_never_instantiated(): void
+    {
+        $object = new class () {
+            #[ClassOnlyMarker] // @phpstan-ignore attribute.target (a class-only attribute on a property cannot be instantiated)
+            #[\Vendor\Package\NotInstalledAttribute] // @phpstan-ignore attribute.notFound (an attribute from a package that is not installed)
+            #[NotBlank]
+            public string $name = '';
+        };
+
+        $this->assertSame(['name cannot be blank'], Validator::validate($object));
     }
 
     public function test_static_properties_are_not_validated(): void

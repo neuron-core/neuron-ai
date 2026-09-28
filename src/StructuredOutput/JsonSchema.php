@@ -19,7 +19,7 @@ use UnitEnum;
 use function array_map;
 use function array_merge;
 use function array_pop;
-use function array_unique;
+use function array_values;
 use function basename;
 use function class_exists;
 use function count;
@@ -306,52 +306,62 @@ class JsonSchema
     }
 
     /**
-     * @param string[] $types Class/enum type strings
+     * @param string[] $types Class names
      * @throws ReflectionException
+     * @throws StructuredOutputException
      */
     protected function generateAnyOfSchema(array $types): array
     {
         $schemas = [];
 
+        // The Deserializer tells the items apart by the discriminator, which only an object carries
         foreach ($types as $type) {
-            $schema = null;
-
-            if (class_exists($type)) {
-                $schema = $this->generateClassSchema($type);
-            } elseif (enum_exists($type)) {
-                $schema = $this->processEnum(new ReflectionEnum($type));
+            if (!class_exists($type)) {
+                throw new StructuredOutputException("anyOf member '{$type}' is not a class");
             }
 
-            if ($schema !== null) {
-                $shortName = strtolower(basename(str_replace('\\', '/', $type)));
-                $schema = $this->injectDiscriminator($schema, $shortName);
-                $schemas[] = $schema;
+            if (enum_exists($type)) {
+                throw new StructuredOutputException("anyOf member '{$type}' is an enum: an enum can only be the single anyOf member");
             }
+
+            $shortName = strtolower(basename(str_replace('\\', '/', $type)));
+
+            if (isset($schemas[$shortName])) {
+                throw new StructuredOutputException("anyOf members share the discriminator value '{$shortName}': rename one of the classes");
+            }
+
+            $schemas[$shortName] = $this->injectDiscriminator($this->generateClassSchema($type), $shortName);
         }
 
-        return ['anyOf' => $schemas];
+        return ['anyOf' => array_values($schemas)];
     }
 
     /**
      * Inject a required discriminator field (lowercase class name) into object
      * schemas so the Deserializer can resolve the concrete anyOf type.
+     *
+     * @throws StructuredOutputException
      */
     protected function injectDiscriminator(array $schema, string $discriminatorValue): array
     {
         if (isset($schema['type']) && $schema['type'] === 'object') {
+            $properties = (array) ($schema['properties'] ?? []);
+
+            // The Deserializer takes the field away to pick the class, so a property of that name could never be filled
+            if (isset($properties[$this->discriminator])) {
+                throw new StructuredOutputException("The property '{$this->discriminator}' of anyOf member '{$discriminatorValue}' collides with the discriminator field");
+            }
+
             $schema['properties'] = [
                 $this->discriminator => [
                     'type' => 'string',
                     'enum' => [$discriminatorValue],
                     'description' => 'This property is mandatory and can only be filled with "'.$discriminatorValue.'". It is used as a discriminator for class type resolution.',
                 ],
-                ...(array) ($schema['properties'] ?? []),
+                ...$properties,
             ];
 
-            $schema['required'] = array_unique([
-                $this->discriminator,
-                ...($schema['required'] ?? []),
-            ]);
+            $schema['required'] = [$this->discriminator, ...($schema['required'] ?? [])];
         }
 
         return $schema;

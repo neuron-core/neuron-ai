@@ -109,6 +109,8 @@ class RulesTest extends TestCase
             'Email with plus and subdomain' => [new Email(), 'first.last+tag@mail.example.co'],
             'Url https' => [new Url(), 'https://inspector.dev'],
             'Url with port path and query' => [new Url(), 'http://localhost:8080/path?q=1#top'],
+            'Url scheme is case insensitive' => [new Url(), 'HTTPS://inspector.dev/path'],
+            'Url with a scheme the rule is given' => [new Url(schemes: ['ftp']), 'ftp://files.inspector.dev/a.zip'],
             'IPAddress v4' => [new IPAddress(), '127.0.0.1'],
             'IPAddress v6' => [new IPAddress(), '2001:db8::1'],
 
@@ -168,6 +170,11 @@ class RulesTest extends TestCase
             'OutOfRange max boundary' => [new OutOfRange(1, 10), 10],
             'OutOfRange float inside' => [new OutOfRange(0.5, 1.5), 1.0],
             'OutOfRange strict inside' => [new OutOfRange(1, 10, strict: true), 2],
+            'GreaterThan null value' => [new GreaterThan(30), null],
+            'GreaterThanEqual null value' => [new GreaterThanEqual(5), null],
+            'LowerThan null value' => [new LowerThan(30), null],
+            'LowerThanEqual null value' => [new LowerThanEqual(30), null],
+            'OutOfRange null value' => [new OutOfRange(1, 10), null],
 
             'ArrayOf strings' => [new ArrayOf('string'), ['a', 'b']],
             'ArrayOf type name is case insensitive' => [new ArrayOf('STRING'), ['a']],
@@ -224,11 +231,17 @@ class RulesTest extends TestCase
             'Email null' => [new Email(), null, ['field must be a valid email address']],
             'Email array' => [new Email(), ['a@b.co'], ['field must be a valid email address']],
 
-            'Url without scheme' => [new Url(), 'inspector.dev', ['field must be a valid URL']],
-            'Url with header injection' => [new Url(), "https://inspector.dev/\r\nX-Injected: 1", ['field must be a valid URL']],
-            'Url with spaces' => [new Url(), 'https://inspector .dev', ['field must be a valid URL']],
-            'Url javascript without authority' => [new Url(), 'javascript:alert(1)', ['field must be a valid URL']],
-            'Url empty' => [new Url(), '', ['field must be a valid URL']],
+            'Url without scheme' => [new Url(), 'inspector.dev', ['field must be a valid URL (http, https)']],
+            'Url with header injection' => [new Url(), "https://inspector.dev/\r\nX-Injected: 1", ['field must be a valid URL (http, https)']],
+            'Url with spaces' => [new Url(), 'https://inspector .dev', ['field must be a valid URL (http, https)']],
+            'Url javascript without authority' => [new Url(), 'javascript:alert(1)', ['field must be a valid URL (http, https)']],
+            'Url empty' => [new Url(), '', ['field must be a valid URL (http, https)']],
+            'Url javascript with an authority' => [new Url(), 'javascript://alert(1)', ['field must be a valid URL (http, https)']],
+            'Url javascript newline payload' => [new Url(), 'javascript://x/%0Aalert(1)', ['field must be a valid URL (http, https)']],
+            'Url local file' => [new Url(), 'file:///etc/passwd', ['field must be a valid URL (http, https)']],
+            'Url gopher' => [new Url(), 'gopher://127.0.0.1:6379/_FLUSHALL', ['field must be a valid URL (http, https)']],
+            'Url data' => [new Url(), 'data://text/plain;base64,SGVsbG8=', ['field must be a valid URL (http, https)']],
+            'Url outside the schemes the rule is given' => [new Url(schemes: ['ftp']), 'https://inspector.dev', ['field must be a valid URL (ftp)']],
 
             'IPAddress incomplete' => [new IPAddress(), '127.0.0', ['field must be a valid IP address']],
             'IPAddress octet overflow' => [new IPAddress(), '256.1.1.1', ['field must be a valid IP address']],
@@ -256,6 +269,7 @@ class RulesTest extends TestCase
             'Length range too long' => [new Length(min: 2, max: 4), 'abcde', ['field is too long. It must be at most 4 characters']],
             'Length null with min' => [new Length(min: 1), null, ['field cannot be empty']],
             'Length null with exactly' => [new Length(exactly: 1), null, ['field cannot be empty']],
+            'Length non string' => [new Length(max: 3), 12, ['field must be a string or a stringable object']],
 
             'Count too many' => [new Count(max: 1), [1, 2], ['field is too long. It must be at most 1 items']],
             'Count too few' => [new Count(min: 2), [1], ['field is too short. It must be at least 2 items']],
@@ -270,6 +284,10 @@ class RulesTest extends TestCase
             'WordsCount hyphenated words count separately' => [new WordsCount(max: 1), 'well-known', ['field is too long. It must be at most 1 words']],
             'WordsCount too few' => [new WordsCount(min: 2), 'a', ['field is too short. It must be at least 2 words']],
             'WordsCount exactly too many' => [new WordsCount(exactly: 1), 'a b', ['field must have exactly 1 words']],
+            'WordsCount exactly too few' => [new WordsCount(exactly: 3), 'a b', ['field must have exactly 3 words']],
+            'WordsCount splits on tabs' => [new WordsCount(max: 1), "one\ttwo", ['field is too long. It must be at most 1 words']],
+            'WordsCount splits on non-breaking spaces' => [new WordsCount(max: 1), "one\u{00A0}two", ['field is too long. It must be at most 1 words']],
+            'WordsCount splits invalid UTF-8 on ASCII whitespace' => [new WordsCount(max: 1), "bad\xC3\x28 word", ['field is too long. It must be at most 1 words']],
             'WordsCount null with min' => [new WordsCount(min: 1), null, ['field cannot be empty']],
             'WordsCount non string' => [new WordsCount(max: 1), 5, ['field must be a string or a stringable object']],
 
@@ -301,6 +319,10 @@ class RulesTest extends TestCase
             'OutOfRange below min names the field' => [new OutOfRange(1, 10), 0, ['field must be greater than or equal to 1']],
             'OutOfRange above max names the field' => [new OutOfRange(1, 10), 11, ['field must be less than or equal to 10']],
             'OutOfRange strict max names the field' => [new OutOfRange(1, 10, strict: true), 10, ['field must be strictly less than 10']],
+            'OutOfRange strict float value on an int min' => [new OutOfRange(1, 10, strict: true), 1.0, ['field must be strictly greater than 1']],
+            'OutOfRange strict float value on an int max' => [new OutOfRange(1, 10, strict: true), 10.0, ['field must be strictly less than 10']],
+            'OutOfRange strict int value on a float min' => [new OutOfRange(0.0, 1.0, strict: true), 0, ['field must be strictly greater than 0']],
+            'OutOfRange strict int value on a float max' => [new OutOfRange(0.0, 1.0, strict: true), 1, ['field must be strictly less than 1']],
         ];
     }
 
@@ -328,25 +350,20 @@ class RulesTest extends TestCase
             'NotEqualTo same value' => [new NotEqualTo('test'), 'test'],
             'GreaterThan boundary' => [new GreaterThan(30), 30],
             'GreaterThan below' => [new GreaterThan(30), 29],
-            'GreaterThan null value' => [new GreaterThan(30), null],
             'GreaterThan null reference' => [new GreaterThan(null), 5],
             'GreaterThanEqual below' => [new GreaterThanEqual(30), 29],
             'GreaterThanEqual float below' => [new GreaterThanEqual(1.5), 1.49],
             'GreaterThanEqual null reference' => [new GreaterThanEqual(null), 5],
             'LowerThan boundary' => [new LowerThan(30), 30],
             'LowerThan above' => [new LowerThan(30), 31],
-            'LowerThan null value' => [new LowerThan(30), null],
             'LowerThanEqual above' => [new LowerThanEqual(30), 31],
-            'LowerThanEqual null value' => [new LowerThanEqual(30), null],
             'OutOfRange below' => [new OutOfRange(1, 10), 0],
             'OutOfRange above' => [new OutOfRange(1, 10), 11],
             'OutOfRange float above' => [new OutOfRange(0.5, 1.5), 1.51],
-            'OutOfRange null below positive min' => [new OutOfRange(1, 10), null],
             'OutOfRange strict min boundary' => [new OutOfRange(1, 10, strict: true), 1],
             'OutOfRange strict max boundary' => [new OutOfRange(1, 10, strict: true), 10],
             'Length integer value' => [new Length(max: 3), 12],
             'Length array value' => [new Length(max: 3), ['a']],
-            'WordsCount exactly too few' => [new WordsCount(exactly: 3), 'a b'],
         ];
     }
 
@@ -373,7 +390,7 @@ class RulesTest extends TestCase
     {
         return [
             'Length without bounds' => [fn (): Length => new Length(), 'abc', 'Either option "min" or "max" must be given for validation rule "Length"'],
-            'Count without bounds' => [fn (): Count => new Count(), [], 'Either option "min" or "max" must be given for validation rule'],
+            'Count without bounds' => [fn (): Count => new Count(), [], 'Either option "min" or "max" must be given for validation rule "Count"'],
             'WordsCount without bounds' => [fn (): WordsCount => new WordsCount(), 'abc', 'Either option "min" or "max" must be given for validation rule "WordsCount"'],
             'Enum with values and class' => [fn (): Enum => new Enum(values: ['one'], class: StringEnum::class), 'one', 'You cannot provide both "values" and "class" options simultaneously. Please use only one.'],
             'Enum without values or class' => [fn (): Enum => new Enum(), 'one', 'Either option "values" or "class" must be given for validation rule "Enum"'],
