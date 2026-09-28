@@ -6,7 +6,7 @@ namespace NeuronAI\StructuredOutput\Validation\Rules;
 
 use Attribute;
 
-use function get_debug_type;
+use function json_encode;
 
 #[Attribute(Attribute::TARGET_PROPERTY)]
 class EqualTo extends AbstractValidationRule
@@ -18,7 +18,7 @@ class EqualTo extends AbstractValidationRule
     public function validate(string $name, mixed $value, array &$violations): void
     {
         if ($value !== $this->reference) {
-            $violations[] = $this->buildMessage($name, 'must be equal to {compare}', ['compare' => get_debug_type($this->reference)]);
+            $violations[] = $this->buildMessage($name, '{name} must be equal to {compare}', ['compare' => json_encode($this->reference)]);
         }
     }
 }

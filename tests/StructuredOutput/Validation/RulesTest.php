@@ -289,6 +289,16 @@ class RulesTest extends TestCase
             'ArrayOf invalid nested object' => [new ArrayOf(TagProperties::class), [new TagProperties()], ['field must be an array of '.TagProperties::class]],
             'ArrayOf array instead of object' => [new ArrayOf(TagProperties::class), [['value' => 'x']], ['field must be an array of '.TagProperties::class]],
             'ArrayOf reports once for many bad items' => [new ArrayOf('string'), [1, 2, 3], ['field must be an array of string']],
+
+            'EqualTo quotes a string bound' => [new EqualTo('EUR'), 'USD', ['field must be equal to "EUR"']],
+            'NotEqualTo quotes a string bound' => [new NotEqualTo('admin'), 'admin', ['field must not be equal to "admin"']],
+            'GreaterThan names the bound' => [new GreaterThan(30), 30, ['field must be greater than 30']],
+            'GreaterThanEqual says or equal' => [new GreaterThanEqual(0.5), 0.1, ['field must be greater than or equal to 0.5']],
+            'LowerThan says less than' => [new LowerThan(30), 30, ['field must be less than 30']],
+            'LowerThanEqual says less than or equal' => [new LowerThanEqual(30), 31, ['field must be less than or equal to 30']],
+            'OutOfRange below min names the field' => [new OutOfRange(1, 10), 0, ['field must be greater than or equal to 1']],
+            'OutOfRange above max names the field' => [new OutOfRange(1, 10), 11, ['field must be less than or equal to 10']],
+            'OutOfRange strict max names the field' => [new OutOfRange(1, 10, strict: true), 10, ['field must be strictly less than 10']],
         ];
     }
 

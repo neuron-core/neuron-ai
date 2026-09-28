@@ -2162,11 +2162,13 @@ Suggested fix: in `Count.php`, return early for null (adding a violation only wh
 
 ### <a id="structuredoutput-15"></a>STRUCTUREDOUTPUT-15 · Comparison rule messages omit the field and bound; LowerThan says greater than
 
-**medium** · bug · [`src/StructuredOutput/Validation/Rules/LowerThan.php:22`](../src/StructuredOutput/Validation/Rules/LowerThan.php#L22) · repro [`ComparisonRuleMessagesTest`](repro/StructuredOutput/ComparisonRuleMessagesTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/Validation/Rules/LowerThan.php:22`](../src/StructuredOutput/Validation/Rules/LowerThan.php#L22) · regression test [`RulesTest`](../tests/StructuredOutput/Validation/RulesTest.php) · **resolved**
 
 The violation messages of `EqualTo`, `NotEqualTo`, `GreaterThan`, `GreaterThanEqual`, `LowerThan` and `LowerThanEqual` have no `{name}` placeholder and insert `get_debug_type($reference)` as the bound, producing text such as `must be greater than int`. `LowerThan` and `LowerThanEqual` reuse the "greater than" text, telling the model the opposite constraint, and `GreaterThanEqual` omits "or equal"; `OutOfRange` messages also omit the field name. Pass/fail logic is correct, but the correction prompt cannot tell the model which field failed or which bound applies, so retries and tokens are wasted and `structured()` can fail after max retries. The same text appears in the `Validated` event and exception messages.
 
 Suggested fix: in the six rule classes under `src/StructuredOutput/Validation/Rules/`, use templates such as `{name} must be lower than {compare}` with `json_encode($this->reference)` as the compare value, and prefix the `OutOfRange` templates with `{name}`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested, with "less than" instead of "lower than", the wording `OutOfRange` already used. The six rules name the field and write the bound as JSON, the notation the model answers in, so a string bound is quoted (`currency must be equal to "EUR"`), and `true`, `false`, `null` and arrays stay readable. `LowerThan` and `LowerThanEqual` now say "less than", and `GreaterThanEqual` says "greater than or equal to". The `OutOfRange` templates gained the field name and keep their numeric bounds as they were. No test had checked these messages before: the comparison cases only asserted a rejection.
 
 ### <a id="structuredoutput-16"></a>STRUCTUREDOUTPUT-16 · Validator ignores validation rules declared on nested object properties
 
