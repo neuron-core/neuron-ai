@@ -32,7 +32,10 @@ use ReflectionException;
 
 use function array_column;
 use function array_keys;
+use function array_map;
 use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 class JsonSchemaTest extends TestCase
 {
@@ -627,6 +630,30 @@ class JsonSchemaTest extends TestCase
         $schema = (new JsonSchema())->generate($class::class);
 
         $this->assertSame(['description' => 'Pick one', 'type' => 'string', 'enum' => ['A', 'B']], $schema['properties']['choice']);
+    }
+
+    public function test_an_enum_default_is_written_like_the_enum_values(): void
+    {
+        $class = new class () {
+            public StringEnum $status = StringEnum::TWO;
+            public IntEnum $level = IntEnum::TWO;
+            public DummyEnum $choice = DummyEnum::B;
+
+            #[SchemaProperty(anyOf: [DummyEnum::class])]
+            public array $choices = [DummyEnum::A];
+
+            public function __construct(public DummyEnum $mode = DummyEnum::A)
+            {
+            }
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(
+            ['status' => 'two', 'level' => 2, 'choice' => 'B', 'choices' => ['A'], 'mode' => 'A'],
+            array_map(fn (array $property): mixed => $property['default'], $schema['properties'])
+        );
+        $this->assertJson(json_encode($schema, JSON_THROW_ON_ERROR));
     }
 
     public function test_enum_as_root_class(): void

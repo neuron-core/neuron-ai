@@ -2206,11 +2206,13 @@ Suggested fix: in `src/StructuredOutput/JsonSchema.php`, route the required chec
 
 ### <a id="structuredoutput-21"></a>STRUCTUREDOUTPUT-21 · Enum property defaults are emitted as enum objects, breaking schema encoding for pure enums
 
-**low** · bug · [`src/StructuredOutput/JsonSchema.php:142`](../src/StructuredOutput/JsonSchema.php#L142) · repro [`EnumDefaultSchemaTest`](repro/StructuredOutput/EnumDefaultSchemaTest.php) · fix validated
+**low** · bug · [`src/StructuredOutput/JsonSchema.php:142`](../src/StructuredOutput/JsonSchema.php#L142) · regression test [`JsonSchemaTest`](../tests/StructuredOutput/JsonSchemaTest.php) · **resolved**
 
 `JsonSchema::processProperty` copies `getDefaultValue()` into `default` as-is, so an enum-typed default is stored as the enum case object. For a pure enum, `json_encode` of the schema fails ("Non-backed enums have no default serialization"); the Curl and Amp HTTP clients do not check the result, so the request body is sent empty or broken and the provider fails with a confusing error. For backed enums the encoded payload is correct, but the in-memory schema holds an object where a scalar is expected, which can affect code that inspects or compares the schema.
 
 Suggested fix: in `JsonSchema::processProperty()`, convert enum defaults to the representation `processEnum()` uses: `->value` for `BackedEnum` and `->name` for `UnitEnum`. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested, through one rule. A protected `schemaValue()` writes an enum case by its backing value, or by its name when it has none, and converts each item of an array. `processEnum()` builds its value list with it, and both default paths use it: the property's own default and a promoted property's constructor default. The enum's values and its defaults therefore always match, including a list default such as `[DummyEnum::A]`, which failed the same way. The effect was worse than described: the Curl and Amp clients now encode with `JSON_THROW_ON_ERROR`, so a body-based provider such as OpenAI failed with a misleading "Network error". But Anthropic, AWS Bedrock, ZAI, Deepseek and Gemini's JSON-mode fallback write the schema into the prompt with a bare `json_encode()`, so there the schema silently disappeared.
 
 ### <a id="structuredoutput-22"></a>STRUCTUREDOUTPUT-22 · Multi-type anyOf accepts enums, drops unknown classes and allows colliding discriminators
 

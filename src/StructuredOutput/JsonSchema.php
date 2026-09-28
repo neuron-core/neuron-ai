@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\StructuredOutput;
 
+use BackedEnum;
 use NeuronAI\StaticConstructor;
 use ReflectionClass;
 use ReflectionEnum;
-use ReflectionEnumBackedCase;
 use ReflectionException;
 use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionUnionType;
 use stdClass;
+use UnitEnum;
 
 use function array_map;
 use function array_merge;
@@ -138,13 +139,13 @@ class JsonSchema
         $type = $property->getType();
 
         if ($property->hasDefaultValue()) {
-            $schema['default'] = $property->getDefaultValue();
+            $schema['default'] = $this->schemaValue($property->getDefaultValue());
         } elseif ($property->isPromoted()) {
             // A promoted property's default lives on its constructor parameter
             $parameter = new ReflectionParameter([$property->class, '__construct'], $property->name);
 
             if ($parameter->isDefaultValueAvailable()) {
-                $schema['default'] = $parameter->getDefaultValue();
+                $schema['default'] = $this->schemaValue($parameter->getDefaultValue());
             }
         }
 
@@ -233,21 +234,23 @@ class JsonSchema
 
     protected function processEnum(ReflectionEnum $enum): array
     {
-        $schema = [
+        return [
             'type' => (string) $enum->getBackingType() === 'int' ? 'integer' : 'string',
-            'enum' => [],
+            'enum' => array_map($this->schemaValue(...), $enum->getName()::cases()),
         ];
+    }
 
-        foreach ($enum->getCases() as $case) {
-            if ($enum->isBacked()) {
-                /** @var ReflectionEnumBackedCase $case */
-                $schema['enum'][] = $case->getBackingValue();
-            } else {
-                $schema['enum'][] = $case->getName();
-            }
-        }
-
-        return $schema;
+    /**
+     * A value as the schema writes it: an enum case by its backing value, or by its name when it has none.
+     */
+    protected function schemaValue(mixed $value): mixed
+    {
+        return match (true) {
+            $value instanceof BackedEnum => $value->value,
+            $value instanceof UnitEnum => $value->name,
+            is_array($value) => array_map($this->schemaValue(...), $value),
+            default => $value,
+        };
     }
 
     /**
