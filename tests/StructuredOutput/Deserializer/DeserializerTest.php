@@ -16,6 +16,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\CodeBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\ColorWithDefaults;
+use NeuronAI\Tests\StructuredOutput\Stub\DummyEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\DynamicPerson;
 use NeuronAI\Tests\StructuredOutput\Stub\EmailMode;
 use NeuronAI\Tests\StructuredOutput\Stub\FtpMode;
@@ -262,6 +263,48 @@ class DeserializerTest extends TestCase
         $this->expectExceptionMessage("Invalid enum value 'four' for " . StringEnum::class);
 
         Deserializer::make()->fromJson('{"numbers": ["one", "four"]}', $class::class);
+    }
+
+    public function test_a_pure_enum_is_read_by_the_case_name_the_schema_advertises(): void
+    {
+        $class = new class () {
+            public DummyEnum $choice;
+
+            #[SchemaProperty(anyOf: [DummyEnum::class])]
+            public array $choices;
+        };
+
+        $this->assertSame(['A', 'B'], JsonSchema::make()->generate($class::class)['properties']['choice']['enum']);
+
+        $obj = Deserializer::make()->fromJson('{"choice": "A", "choices": ["B", "A"]}', $class::class);
+
+        $this->assertSame(DummyEnum::A, $obj->choice);
+        $this->assertSame([DummyEnum::B, DummyEnum::A], $obj->choices);
+    }
+
+    /**
+     * @return array<string, array{mixed, string}>
+     */
+    public static function invalidCaseNames(): array
+    {
+        return [
+            'an unknown name' => ['C', "Invalid enum value 'C' for " . DummyEnum::class],
+            'a name in the wrong case' => ['a', "Invalid enum value 'a' for " . DummyEnum::class],
+            'not a string' => [1, "Invalid enum value '1' for " . DummyEnum::class],
+        ];
+    }
+
+    #[DataProvider('invalidCaseNames')]
+    public function test_a_pure_enum_rejects_anything_but_an_exact_case_name(mixed $choice, string $message): void
+    {
+        $class = new class () {
+            public DummyEnum $choice;
+        };
+
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage($message);
+
+        Deserializer::make()->fromJson((string) json_encode(['choice' => $choice]), $class::class);
     }
 
     public function test_deserialize_invalid_int_enum_value(): void

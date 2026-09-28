@@ -2082,11 +2082,13 @@ Suggested fix: in `Deserializer::handleArray()`, check `enum_exists($elementType
 
 ### <a id="structuredoutput-07"></a>STRUCTUREDOUTPUT-07 · Pure enum case names advertised by the schema are rejected by the Deserializer
 
-**medium** · bug · [`src/StructuredOutput/Deserializer/Deserializer.php:307`](../src/StructuredOutput/Deserializer/Deserializer.php#L307) · repro [`PureEnumRoundTripTest`](repro/StructuredOutput/PureEnumRoundTripTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/Deserializer/Deserializer.php:307`](../src/StructuredOutput/Deserializer/Deserializer.php#L307) · regression tests [`DeserializerTest`](../tests/StructuredOutput/Deserializer/DeserializerTest.php) · **resolved**
 
 `JsonSchema::processEnum` deliberately emits case names for non-backed enums, so the model answers with a valid value such as `"A"`. `Deserializer::handleEnum` only supports `BackedEnum` and throws `Cannot create BackedEnum from: ...` for any pure enum. In `StructuredOutputNode` a correct answer is sent back as a correction on every attempt, each retry costs a provider call, and the call fails once `maxRetries` is exhausted. Structured output with a pure-enum property can never succeed unless the enum is changed to a backed one.
 
 Suggested fix: in `Deserializer::handleEnum()`, resolve pure enums by matching the value against `$typeName::cases()` names (a small `findEnumCaseByName` helper) and return `UnitEnum`, keeping `tryFrom` for backed enums. This was validated in a sandbox against the repro and the module's tests; rejecting pure enums at schema generation is the alternative.
+
+**Resolution:** applied as suggested. `handleEnum()` still reads a backed enum by its value. It reads a pure enum by an exact, case-sensitive case name among its `cases()`, which are the values `JsonSchema` advertises for it. Anything else gets `Invalid enum value '...' for ...`. The method now returns `UnitEnum`, so the fix covers enum properties, lists of enum values and tool arguments mapped to a class. The `Enum` validation rule still requires a backed enum, and says so when the attribute is created.
 
 ### <a id="structuredoutput-08"></a>STRUCTUREDOUTPUT-08 · JsonExtractor scanner stops at mb_strlen while indexing bytes, losing trailing JSON
 

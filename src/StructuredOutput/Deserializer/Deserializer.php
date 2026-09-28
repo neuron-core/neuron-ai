@@ -19,7 +19,9 @@ use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionType;
 use ReflectionUnionType;
+use UnitEnum;
 
+use function array_column;
 use function array_key_exists;
 use function array_keys;
 use function basename;
@@ -401,21 +403,25 @@ class Deserializer
     }
 
     /**
+     * @param class-string<UnitEnum> $typeName
      * @throws DeserializerException
      */
-    protected function handleEnum(BackedEnum|string $typeName, mixed $value): BackedEnum
+    protected function handleEnum(string $typeName, mixed $value): UnitEnum
     {
-        if (!is_subclass_of($typeName, BackedEnum::class)) {
-            throw new DeserializerException("Cannot create BackedEnum from: {$typeName}");
+        if (is_subclass_of($typeName, BackedEnum::class)) {
+            // Read the value as the backing type first, so "1" finds the case backed by 1
+            $backingType = (string) (new ReflectionEnum($typeName))->getBackingType() === 'int' ? 'integer' : 'string';
+            $backingValue = ScalarCaster::cast($value, $backingType);
+
+            $enum = $backingValue === null ? null : $typeName::tryFrom($backingValue);
+        } else {
+            // A pure enum has no values: the schema advertises its case names
+            $cases = array_column($typeName::cases(), null, 'name');
+
+            $enum = is_string($value) ? ($cases[$value] ?? null) : null;
         }
 
-        // Read the value as the backing type first, so "1" finds the case backed by 1
-        $backingType = (string) (new ReflectionEnum($typeName))->getBackingType() === 'int' ? 'integer' : 'string';
-        $backingValue = ScalarCaster::cast($value, $backingType);
-
-        $enum = $backingValue === null ? null : $typeName::tryFrom($backingValue);
-
-        if (!$enum instanceof BackedEnum) {
+        if ($enum === null) {
             $spelling = is_string($value) ? $value : json_encode($value);
             throw new DeserializerException("Invalid enum value '{$spelling}' for {$typeName}");
         }
