@@ -67,6 +67,18 @@ class AmpStreamTest extends TestCase
         $this->assertSame('-more', $stream->read(100));
     }
 
+    public function test_close_releases_the_body_and_stops_reading(): void
+    {
+        $body = new ReadableIterableStream(["data: one\n\n", "data: two\n\n"]);
+        $stream = new AmpStream($body, HttpRequest::get('https://example.com/sse'));
+        $stream->readLine();
+
+        $stream->close();
+
+        $this->assertTrue($body->isClosed(), 'The response body stays open after close()');
+        $this->assertSame('', $stream->read(100));
+    }
+
     public function test_close_ends_the_stream_and_drops_buffered_bytes(): void
     {
         $stream = $this->stream("one\ntwo\n");

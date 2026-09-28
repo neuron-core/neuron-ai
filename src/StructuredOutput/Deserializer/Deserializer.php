@@ -25,6 +25,7 @@ use function array_column;
 use function array_flip;
 use function array_key_exists;
 use function array_keys;
+use function array_map;
 use function array_unique;
 use function basename;
 use function class_exists;
@@ -93,7 +94,11 @@ class Deserializer
 
         $instance = $reflection->newInstanceWithoutConstructor();
 
-        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        // Reflected from the declaring class: PHP 8.1 initializes a readonly property only from that scope
+        $properties = array_map(
+            static fn (ReflectionProperty $property): ReflectionProperty => new ReflectionProperty($property->class, $property->name),
+            $reflection->getProperties(ReflectionProperty::IS_PUBLIC),
+        );
 
         // Run a public zero-required-arg constructor so its initialization logic still executes
         $constructor = $reflection->getConstructor();

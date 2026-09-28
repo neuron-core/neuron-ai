@@ -45,6 +45,11 @@ class AmpStream implements StreamInterface
             return $result;
         }
 
+        // Once the body has ended or the stream was closed, the connection is never read again
+        if ($this->eof) {
+            return '';
+        }
+
         // Read from stream
         $chunk = $this->pull();
 
@@ -97,6 +102,7 @@ class AmpStream implements StreamInterface
     {
         $this->eof = true;
         $this->buffer = '';
+        $this->stream->close();
     }
 
     /**

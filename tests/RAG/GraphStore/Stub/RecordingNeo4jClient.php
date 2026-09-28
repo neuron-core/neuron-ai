@@ -17,6 +17,7 @@ use Throwable;
 
 use function array_map;
 use function array_shift;
+use function is_array;
 use function iterator_to_array;
 
 /**
@@ -54,7 +55,7 @@ class RecordingNeo4jClient implements ClientInterface
 
     public function run(string $statement, iterable $parameters = [], ?string $alias = null): SummarizedResult
     {
-        $this->runs[] = ['statement' => $statement, 'parameters' => iterator_to_array($parameters)];
+        $this->runs[] = ['statement' => $statement, 'parameters' => is_array($parameters) ? $parameters : iterator_to_array($parameters)];
 
         $response = array_shift($this->responses) ?? [];
 

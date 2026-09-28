@@ -37,7 +37,8 @@ class GuzzleStream implements StreamInterface
 
     public function eof(): bool
     {
-        return $this->buffer === '' && $this->stream->eof();
+        // A closed body is detached, and asking it anything throws: it has ended
+        return $this->buffer === '' && (!$this->stream->isReadable() || $this->stream->eof());
     }
 
     public function read(int $length): string
@@ -46,6 +47,10 @@ class GuzzleStream implements StreamInterface
             $result = substr($this->buffer, 0, $length);
             $this->buffer = substr($this->buffer, $length);
             return $result;
+        }
+
+        if (!$this->stream->isReadable()) {
+            return '';
         }
 
         return $this->pull($length);
