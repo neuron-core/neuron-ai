@@ -20,6 +20,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\Employee;
 use NeuronAI\Tests\StructuredOutput\Stub\EmailMode;
 use NeuronAI\Tests\StructuredOutput\Stub\FtpMode;
 use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
+use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
@@ -594,6 +595,26 @@ class JsonSchemaTest extends TestCase
         $this->assertSame(['type' => 'string', 'enum' => ['one', 'two', 'three']], $schema['properties']['number']);
         $this->assertSame(['type' => ['string', 'null'], 'enum' => ['one', 'two', 'three']], $schema['properties']['optional']);
         $this->assertSame(['number'], $schema['required']);
+    }
+
+    public function test_int_backed_enum_property(): void
+    {
+        $class = new class () {
+            public IntEnum $number;
+            public ?IntEnum $optional;
+
+            #[SchemaProperty(anyOf: [IntEnum::class])]
+            public array $numbers;
+
+            public IntEnum|string $either;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $schema['properties']['number']);
+        $this->assertSame(['type' => ['integer', 'null'], 'enum' => [1, 2, 3]], $schema['properties']['optional']);
+        $this->assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $schema['properties']['numbers']['items']);
+        $this->assertSame(['type' => 'integer', 'enum' => [1, 2, 3]], $schema['properties']['either']['anyOf'][0]);
     }
 
     public function test_pure_enum_property_uses_case_names(): void

@@ -234,7 +234,7 @@ class JsonSchema
     protected function processEnum(ReflectionEnum $enum): array
     {
         $schema = [
-            'type' => 'string',
+            'type' => (string) $enum->getBackingType() === 'int' ? 'integer' : 'string',
             'enum' => [],
         ];
 

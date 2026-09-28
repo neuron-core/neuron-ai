@@ -2122,11 +2122,13 @@ Suggested fix: in `src/StructuredOutput/JsonSchema.php`, describe `DateTime` and
 
 ### <a id="structuredoutput-11"></a>STRUCTUREDOUTPUT-11 · Int-backed enums are described as type string with integer enum values
 
-**medium** · bug · [`src/StructuredOutput/JsonSchema.php:216`](../src/StructuredOutput/JsonSchema.php#L216) · repro [`IntBackedEnumSchemaTest`](repro/StructuredOutput/IntBackedEnumSchemaTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/JsonSchema.php:216`](../src/StructuredOutput/JsonSchema.php#L216) · regression test [`JsonSchemaTest`](../tests/StructuredOutput/JsonSchemaTest.php) · **resolved**
 
 `JsonSchema::processEnum` always emits `'type' => 'string'`, so an int-backed enum produces `{"type":"string","enum":[1,2,3]}` (or `['string','null']` when nullable), which no value can satisfy. Strict-schema providers may reject it or push the model to emit strings; when the model returns `"1"`, `tryFrom` under `strict_types` throws a `TypeError` rather than a `DeserializerException`, so the retry loop is bypassed and structured extraction fails. Lenient providers may still return integers and work by chance. String-backed and pure enums are not affected.
 
 Suggested fix: in `JsonSchema::processEnum()` derive the type from the backing type, emitting `integer` when `getBackingType()` is `int`. This was validated in a sandbox against the repro and the module's tests; turning the `tryFrom` `TypeError` into a `DeserializerException` is covered by the Deserializer type-mismatch finding.
+
+**Resolution:** applied as suggested. `processEnum()` takes the type from the backing type, `integer` for an int-backed enum and `string` otherwise, using the same expression the Deserializer uses to read the value. Every place an enum is described goes through it: a property, a nullable property, a list item, a union member and a class-mapped tool argument. The `TypeError` on `"1"` had already been fixed with [STRUCTUREDOUTPUT-01](#structuredoutput-01): the Deserializer reads the value through the backing type, so both `1` and `"1"` give the case backed by `1`.
 
 ### <a id="structuredoutput-12"></a>STRUCTUREDOUTPUT-12 · SchemaProperty::resolve reads the declaring class, ignoring subclass runtime schema maps
 
