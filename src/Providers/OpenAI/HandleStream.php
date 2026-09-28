@@ -111,6 +111,7 @@ trait HandleStream
                     $this->streamState->getContentBlocks()
                 );
                 $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+                $this->applyStreamMetadata($message);
                 $this->enrichMessage($message);
 
                 return new ProviderResponse(message: $message);
@@ -120,12 +121,25 @@ trait HandleStream
             yield from $this->processContentDelta($choice);
         }
 
-        // "enrichMessage" applies streamState metadata
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+        $this->applyStreamMetadata($message);
         $this->enrichMessage($message);
 
         return new ProviderResponse(message: $message);
+    }
+
+    /**
+     * The metadata the stream hooks accumulated belongs to this stream's message only:
+     * applying it here, never in enrichMessage(), keeps it out of a later chat() answer.
+     */
+    protected function applyStreamMetadata(AssistantMessage $message): void
+    {
+        foreach ($this->streamState->getMetadata() as $key => $value) {
+            if ($message->getMetadata($key) === null) {
+                $message->addMetadata($key, $value);
+            }
+        }
     }
 
     protected function finishForToolCall(array $choice): bool

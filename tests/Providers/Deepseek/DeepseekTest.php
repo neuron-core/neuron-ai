@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Providers\Deepseek\Deepseek;
 use NeuronAI\Providers\Deepseek\MessageMapper;
+use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
@@ -25,6 +26,7 @@ use const PHP_EOL;
 
 class DeepseekTest extends TestCase
 {
+    use ConsumesProviderStreams;
     use RecordsHttpRequests;
 
     protected const ANSWER = '{"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"name\":\"Ada\"}"}}]}';
@@ -54,6 +56,43 @@ class DeepseekTest extends TestCase
         $this->assertSame('Thinking', $message->getMetadata('reasoning_content'));
         $this->assertInstanceOf(ReasoningContent::class, $message->getReasoning());
         $this->assertSame('Thinking', $message->getReasoning()->content);
+    }
+
+    /**
+     * One provider instance reused across users: a container singleton or a long-running worker.
+     */
+    protected function streamThenChat(string $chatAnswer): AssistantMessage
+    {
+        $stream = self::sseBody([
+            ['choices' => [['index' => 0, 'delta' => ['reasoning_content' => 'Private reasoning about user A']]]],
+            ['choices' => [['index' => 0, 'delta' => ['content' => 'Answer A'], 'finish_reason' => 'stop']]],
+        ]);
+        $provider = new Deepseek('sk-test', 'deepseek-reasoner', httpClient: $this->recordingClient(
+            new Response(200, body: $stream),
+            new Response(200, body: $chatAnswer),
+        ));
+
+        $this->consumeStream($provider->stream(new UserMessage('Question A')));
+
+        $answer = $provider->chat(new UserMessage('Question B'))->message();
+        $this->assertInstanceOf(AssistantMessage::class, $answer);
+
+        return $answer;
+    }
+
+    public function test_the_reasoning_of_an_earlier_stream_never_reaches_a_later_chat_answer(): void
+    {
+        $answer = $this->streamThenChat('{"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Answer B"}}]}');
+
+        $this->assertNull($answer->getMetadata('reasoning_content'));
+    }
+
+    public function test_a_chat_answer_keeps_its_own_reasoning_after_a_stream(): void
+    {
+        $answer = $this->streamThenChat('{"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Answer B","reasoning_content":"Reasoning B"}}]}');
+
+        $this->assertSame('Reasoning B', $answer->getMetadata('reasoning_content'));
+        $this->assertSame('Reasoning B', $answer->getReasoning()?->content);
     }
 
     public function test_mapper_sends_reasoning_content_back_for_assistant_and_tool_call_turns(): void

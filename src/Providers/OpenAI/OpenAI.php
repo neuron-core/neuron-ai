@@ -122,15 +122,6 @@ class OpenAI implements AIProviderInterface
      */
     protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
     {
-        // Apply any accumulated streaming metadata if available
-        if (isset($this->streamState)) {
-            foreach ($this->streamState->getMetadata() as $key => $value) {
-                if ($message->getMetadata($key) === null) {
-                    $message->addMetadata($key, $value);
-                }
-            }
-        }
-
         return $message;
     }
 }

@@ -70,7 +70,7 @@ class Deepseek extends OpenAI
      */
     protected function enrichMessage(AssistantMessage $message, ?array $response = null): AssistantMessage
     {
-        // First, apply parent enrichMessage (handles streaming metadata)
+        // First, apply parent enrichMessage
         $message = parent::enrichMessage($message);
 
         // For chat context: extract reasoning_content from API response
