@@ -19,6 +19,7 @@ use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
 use function array_unshift;
+use function json_encode;
 
 trait HandleStream
 {
@@ -68,6 +69,11 @@ trait HandleStream
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
                 continue;
+            }
+
+            // Shared by every OpenAI-compatible provider, so the message names none
+            if (isset($line['error'])) {
+                throw new ProviderException('Streaming error: '.($line['error']['message'] ?? json_encode($line['error'])));
             }
 
             // Capture usage information

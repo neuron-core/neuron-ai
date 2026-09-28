@@ -18,6 +18,8 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
+use function json_encode;
+
 trait HandleStream
 {
     protected StreamState $streamState;
@@ -51,6 +53,10 @@ trait HandleStream
             }
 
             $eventType = $line['type'] ?? null;
+
+            if ($eventType === 'error') {
+                throw new ProviderException('Anthropic streaming error: '.($line['error']['message'] ?? json_encode($line)));
+            }
 
             if ($eventType === 'message_start') {
                 $this->handleMessageStart($line['message']);

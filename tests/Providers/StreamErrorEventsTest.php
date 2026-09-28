@@ -15,18 +15,22 @@ use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * A vendor can abort a stream after HTTP 200: the partial answer must fail as a
+ * ProviderException, never come back as a complete response.
+ */
 class StreamErrorEventsTest extends TestCase
 {
     use ConsumesProviderStreams;
     use RecordsHttpRequests;
 
-    protected function assertStreamFailsWith(AIProviderInterface $provider, string $vendorMessage): void
+    protected function assertStreamFailsWith(AIProviderInterface $provider, string $message): void
     {
         try {
             $this->consumeStream($provider->stream(new UserMessage('Hi')));
             $this->fail('A stream interrupted by an error event must not return a partial answer as a success.');
         } catch (ProviderException $exception) {
-            $this->assertStringContainsString($vendorMessage, $exception->getMessage());
+            $this->assertSame($message, $exception->getMessage());
         }
     }
 
@@ -40,7 +44,7 @@ class StreamErrorEventsTest extends TestCase
             ['type' => 'error', 'error' => ['type' => 'overloaded_error', 'message' => 'Overloaded']],
         ]);
 
-        $this->assertStreamFailsWith(new Anthropic('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'Overloaded');
+        $this->assertStreamFailsWith(new Anthropic('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'Anthropic streaming error: Overloaded');
     }
 
     public function test_openai_chat_completions_error_payload_aborts_the_stream(): void
@@ -50,7 +54,7 @@ class StreamErrorEventsTest extends TestCase
             ['error' => ['message' => 'The server had an error while processing your request.', 'type' => 'server_error']],
         ]);
 
-        $this->assertStreamFailsWith(new OpenAI('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'The server had an error');
+        $this->assertStreamFailsWith(new OpenAI('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'Streaming error: The server had an error while processing your request.');
     }
 
     public function test_openai_responses_error_event_aborts_the_stream(): void
@@ -61,6 +65,6 @@ class StreamErrorEventsTest extends TestCase
             ['type' => 'error', 'code' => 'server_error', 'message' => 'The server had an error', 'param' => null, 'sequence_number' => 2],
         ]);
 
-        $this->assertStreamFailsWith(new OpenAIResponses('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'The server had an error');
+        $this->assertStreamFailsWith(new OpenAIResponses('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $body))), 'OpenAI streaming error: The server had an error');
     }
 }

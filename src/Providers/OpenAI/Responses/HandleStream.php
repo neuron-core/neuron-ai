@@ -21,6 +21,7 @@ use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
+use function json_encode;
 use function rtrim;
 
 /**
@@ -145,6 +146,9 @@ trait HandleStream
 
                 case 'response.failed':
                     throw new ProviderException('OpenAI streaming error: ' . $event['response']['error']['message']);
+
+                case 'error':
+                    throw new ProviderException('OpenAI streaming error: ' . ($event['message'] ?? json_encode($event)));
 
                 default:
                     // Ignore other events
