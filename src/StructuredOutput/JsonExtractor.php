@@ -11,7 +11,7 @@ use function in_array;
 use function is_string;
 use function json_decode;
 use function json_encode;
-use function mb_strlen;
+use function strlen;
 use function strpos;
 use function strrpos;
 use function substr;
@@ -21,6 +21,9 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * Inspired by: https://github.com/cognesy/instructor-php
+ *
+ * Offsets and lengths count bytes, never characters: the markers it looks for are ASCII,
+ * and no byte of a UTF-8 multibyte character is ASCII.
  */
 class JsonExtractor
 {
@@ -138,7 +141,7 @@ class JsonExtractor
 
         while (($startFence = strpos($text, $fenceTag, $offset)) !== false) {
             // Find the next triple-backtick fence AFTER the "```json"
-            $closeFence = strpos($text, '```', $startFence + mb_strlen($fenceTag));
+            $closeFence = strpos($text, '```', $startFence + strlen($fenceTag));
             if ($closeFence === false) {
                 // No closing fence found, stop scanning
                 break;
@@ -147,8 +150,8 @@ class JsonExtractor
             // Substring that represents the code block between "```json" and "```"
             $codeBlock = substr(
                 $text,
-                $startFence + mb_strlen($fenceTag),
-                $closeFence - ($startFence + mb_strlen($fenceTag))
+                $startFence + strlen($fenceTag),
+                $closeFence - ($startFence + strlen($fenceTag))
             );
 
             // Now find the first '{' and last '}' within this code block
@@ -205,7 +208,7 @@ class JsonExtractor
         $bracketCount = 0;
         $inString = false;
         $escape = false;
-        $len = mb_strlen($text);
+        $len = strlen($text);
 
         for ($i = 0; $i < $len; $i++) {
             $char = $text[$i];

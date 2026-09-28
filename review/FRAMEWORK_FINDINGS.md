@@ -2092,11 +2092,13 @@ Suggested fix: in `Deserializer::handleEnum()`, resolve pure enums by matching t
 
 ### <a id="structuredoutput-08"></a>STRUCTUREDOUTPUT-08 · JsonExtractor scanner stops at mb_strlen while indexing bytes, losing trailing JSON
 
-**medium** · bug · [`src/StructuredOutput/JsonExtractor.php:208`](../src/StructuredOutput/JsonExtractor.php#L208) · repro [`MultibyteExtractionTest`](repro/StructuredOutput/MultibyteExtractionTest.php) · fix validated
+**medium** · bug · [`src/StructuredOutput/JsonExtractor.php:208`](../src/StructuredOutput/JsonExtractor.php#L208) · regression test [`ExtractorTest`](../tests/StructuredOutput/ExtractorTest.php) · **resolved**
 
 `findJSONLikeStrings` indexes `$text[$i]` byte by byte but bounds the loop with `mb_strlen($text)`, so each extra byte of a multibyte character removes one byte from the end of the scan. When the earlier extractors fail (for example a `{bozza}` draft precedes the answer), non-ASCII text such as `è`, `ü`, CJK or emoji before or inside a trailing object causes the final `}` to be missed, and `getJson` returns `null` although valid JSON is present. `StructuredOutputNode` then retries, spending provider calls, and can end with "The response does not contains a valid JSON Object". The trigger needs multiple brace groups plus non-ASCII text, but it mostly affects non-English deployments.
 
 Suggested fix: in `JsonExtractor::findJSONLikeStrings()` bound the loop with `strlen($text)` and import `strlen`; the scanner only matches ASCII characters, so byte iteration is safe. This was validated in a sandbox against the repro and the module's tests.
+
+**Resolution:** applied as suggested. The same change went into the three `mb_strlen($fenceTag)` calls in `findByMarkdown()`, which were harmless because the tag is ASCII, but mixed character counts with byte offsets all the same. The extractor now measures bytes everywhere, and its class docblock records why that's safe: every marker it looks for is ASCII, and no byte of a UTF-8 multibyte character is.
 
 ### <a id="structuredoutput-09"></a>STRUCTUREDOUTPUT-09 · Union and self property types crash schema generation or deserialize to the wrong type
 
