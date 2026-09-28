@@ -47,7 +47,7 @@ class SseSchemeFilesystemSecurityTest extends TestCase
         $transport = new SseHttpTransport(['url' => str_replace('{base}', $this->base, $url), 'timeout' => 1]);
 
         $this->expectException(McpException::class);
-        $this->expectExceptionMessage('Invalid URL format');
+        $this->expectExceptionMessage('The MCP server URL must use http or https');
 
         $transport->connect();
     }

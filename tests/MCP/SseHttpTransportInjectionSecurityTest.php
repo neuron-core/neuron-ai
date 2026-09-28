@@ -6,9 +6,11 @@ namespace NeuronAI\Tests\MCP;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\SseHttpTransport;
+use NeuronAI\Tests\HttpClient\BootsFixtureServer;
 use NeuronAI\Tests\MCP\Stub\ScriptedHttpClient;
 use PHPUnit\Framework\TestCase;
 
+use function basename;
 use function file_put_contents;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -19,11 +21,13 @@ use const FILE_APPEND;
 /**
  * The event stream is untrusted input: only an "endpoint" event may say where
  * requests (and their credentials) are posted, and only "message" events carry
- * JSON-RPC answers. A plain file stands in for the stream, so the exact bytes
- * the server sends are scripted without a network.
+ * JSON-RPC answers. The fixture server relays a file the test writes, so the
+ * exact bytes the server sends are scripted.
  */
 class SseHttpTransportInjectionSecurityTest extends TestCase
 {
+    use BootsFixtureServer;
+
     protected const ANSWER = '{"jsonrpc":"2.0","id":1,"result":{"source":"message event"}}';
 
     protected string $stream;
@@ -44,7 +48,10 @@ class SseHttpTransportInjectionSecurityTest extends TestCase
     protected function connectedTransport(string $handshake): SseHttpTransport
     {
         file_put_contents($this->stream, $handshake);
-        $transport = new SseHttpTransport(['url' => 'file://' . $this->stream, 'timeout' => 1], $this->httpClient);
+        $transport = new SseHttpTransport(
+            ['url' => static::$baseUri . '/sse?script=' . basename($this->stream), 'timeout' => 1],
+            $this->httpClient,
+        );
         $transport->connect();
 
         return $transport;
@@ -65,7 +72,7 @@ class SseHttpTransportInjectionSecurityTest extends TestCase
 
         $transport->send(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']);
 
-        $this->assertSame('file:///messages', $this->httpClient->requests[0]->uri);
+        $this->assertSame(static::$baseUri . '/messages', $this->httpClient->requests[0]->uri);
     }
 
     public function test_answers_are_read_only_from_message_events(): void
@@ -91,9 +98,20 @@ class SseHttpTransportInjectionSecurityTest extends TestCase
         $transport->receive();
         $transport->send(['jsonrpc' => '2.0', 'method' => 'notifications/cancelled']);
 
-        $this->assertSame(['file:///messages', 'file:///messages'], [
+        $this->assertSame([static::$baseUri . '/messages', static::$baseUri . '/messages'], [
             $this->httpClient->requests[0]->uri,
             $this->httpClient->requests[1]->uri,
         ]);
+    }
+
+    protected static function serverCommand(int $port): array
+    {
+        return ['php', '-S', "127.0.0.1:{$port}", __DIR__ . '/fixtures/sse_server.php'];
+    }
+
+    protected static function serverEnvironment(): array
+    {
+        // Open streams hold a worker each until they notice the client left.
+        return ['PHP_CLI_SERVER_WORKERS' => '4'];
     }
 }

@@ -32,6 +32,27 @@ class StreamableHttpTransportTest extends TestCase
         $transport->connect();
     }
 
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function nonHttpUrls(): iterable
+    {
+        yield 'local file' => ['file:///etc/passwd'];
+        yield 'internal service over gopher' => ['gopher://127.0.0.1:6379/_FLUSHALL'];
+        yield 'ftp' => ['ftp://internal.example/'];
+    }
+
+    #[DataProvider('nonHttpUrls')]
+    public function test_connect_refuses_urls_that_are_not_http(string $url): void
+    {
+        $transport = new StreamableHttpTransport(['url' => $url], new ScriptedHttpClient());
+
+        $this->expectException(McpException::class);
+        $this->expectExceptionMessage('The MCP server URL must use http or https');
+
+        $transport->connect();
+    }
+
     public function test_connect_requires_url(): void
     {
         $transport = new StreamableHttpTransport([]);

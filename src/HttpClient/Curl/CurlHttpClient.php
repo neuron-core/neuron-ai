@@ -45,6 +45,8 @@ use const CURLOPT_HEADERFUNCTION;
 use const CURLOPT_HTTPHEADER;
 use const CURLOPT_MAXREDIRS;
 use const CURLOPT_POSTFIELDS;
+use const CURLOPT_PROTOCOLS;
+use const CURLOPT_REDIR_PROTOCOLS;
 use const CURLOPT_RETURNTRANSFER;
 use const CURLOPT_SHARE;
 use const CURLOPT_TIMEOUT;
@@ -52,6 +54,8 @@ use const CURLOPT_TIMEOUT_MS;
 use const CURLOPT_URL;
 use const CURLOPT_USERAGENT;
 use const CURLOPT_WRITEFUNCTION;
+use const CURLPROTO_HTTP;
+use const CURLPROTO_HTTPS;
 use const CURLSHOPT_SHARE;
 
 /**
@@ -318,6 +322,9 @@ class CurlHttpClient implements HttpClientInterface
             CURLOPT_TIMEOUT_MS => (int) (($request->timeout ?? $this->timeout) * 1000),
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 5,
+            // libcurl would otherwise serve file://, gopher:// and every other scheme it was built with
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_ENCODING => '',
             CURLOPT_SHARE => $this->shareHandle(),
         ];

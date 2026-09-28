@@ -20,6 +20,7 @@ use function filter_var;
 use function implode;
 use function json_decode;
 use function json_encode;
+use function preg_match;
 use function str_replace;
 use function str_starts_with;
 use function substr;
@@ -64,6 +65,10 @@ class StreamableHttpTransport implements McpTransportInterface
 
         if (!filter_var($this->config['url'], FILTER_VALIDATE_URL)) {
             throw new McpException('Invalid URL format');
+        }
+
+        if (preg_match('~^https?://~i', $this->config['url']) !== 1) {
+            throw new McpException('The MCP server URL must use http or https');
         }
 
         // No connection test: HTTP is stateless, the first request validates the endpoint

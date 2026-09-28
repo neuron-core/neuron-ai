@@ -16,7 +16,41 @@ declare(strict_types=1);
  * The stream answers each request, after some traffic a client must skip (comments,
  * other events, invalid JSON, payloads that are not JSON-RPC). tools/call echoes its
  * `value` argument and reports the headers of the POST and of the stream request.
+ *
+ * GET ...?script=<name> instead relays the file <name> in the temp directory as the test
+ * appends to it, so a test scripts the exact bytes of the stream.
  */
+
+if (isset($_GET['script'])) {
+    $script = \sys_get_temp_dir() . '/' . \basename((string) $_GET['script']);
+    \header('Content-Type: text/event-stream');
+    while (\ob_get_level() > 0) {
+        \ob_end_flush();
+    }
+
+    $offset = 0;
+    $betweenEvents = true;
+    $deadline = \microtime(true) + 10;
+
+    while (\microtime(true) < $deadline) {
+        \clearstatcache();
+        $bytes = (string) @\file_get_contents($script, false, null, $offset);
+
+        if ($bytes !== '') {
+            $offset += \strlen($bytes);
+            $betweenEvents = \str_ends_with($bytes, "\n\n");
+            echo $bytes;
+        } elseif ($betweenEvents) {
+            // Writing is also how PHP notices a client that went away.
+            echo ": heartbeat\n\n";
+        }
+
+        \flush();
+        \usleep(20_000);
+    }
+
+    return;
+}
 
 $spool = \sys_get_temp_dir() . '/neuron-mcp-sse-' . $_SERVER['SERVER_PORT'];
 if (!\is_dir($spool)) {

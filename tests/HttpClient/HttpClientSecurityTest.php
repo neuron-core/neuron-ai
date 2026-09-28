@@ -118,18 +118,9 @@ class HttpClientSecurityTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{Closure(): HttpClientInterface}>
-     */
-    public static function clientsRefusingNonHttpSchemes(): iterable
-    {
-        yield 'guzzle' => [static fn (): HttpClientInterface => new GuzzleHttpClient()];
-        yield 'amp' => [static fn (): HttpClientInterface => new AmpHttpClient()];
-    }
-
-    /**
      * @param Closure(): HttpClientInterface $makeClient
      */
-    #[DataProvider('clientsRefusingNonHttpSchemes')]
+    #[DataProvider('clients')]
     public function test_a_file_url_is_refused_instead_of_reading_local_files(Closure $makeClient): void
     {
         $secret = tempnam(sys_get_temp_dir(), 'neuron-secret');
@@ -138,6 +129,26 @@ class HttpClientSecurityTest extends TestCase
         try {
             $makeClient()->request(HttpRequest::get('file://' . $secret));
             $this->fail('A file:// URL must not be served by an HTTP client');
+        } catch (HttpException $exception) {
+            $this->assertNull($exception->response);
+            $this->assertStringNotContainsString('local secret', $exception->getMessage());
+        } finally {
+            unlink($secret);
+        }
+    }
+
+    /**
+     * @param Closure(): HttpClientInterface $makeClient
+     */
+    #[DataProvider('clients')]
+    public function test_a_streamed_file_url_is_refused_instead_of_reading_local_files(Closure $makeClient): void
+    {
+        $secret = tempnam(sys_get_temp_dir(), 'neuron-secret');
+        file_put_contents($secret, 'local secret');
+
+        try {
+            $stream = $makeClient()->stream(HttpRequest::get('file://' . $secret));
+            $this->fail('A file:// URL must not be streamed by an HTTP client: ' . $stream->read(1024));
         } catch (HttpException $exception) {
             $this->assertNull($exception->response);
             $this->assertStringNotContainsString('local secret', $exception->getMessage());

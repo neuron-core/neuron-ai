@@ -96,6 +96,11 @@ class SseHttpTransport implements McpTransportInterface
             throw new McpException('Invalid URL format');
         }
 
+        // fopen() would open file://, php://filter, data:// and every other stream wrapper
+        if (preg_match('~^https?://~i', $this->config['url']) !== 1) {
+            throw new McpException('The MCP server URL must use http or https');
+        }
+
         $headers = $this->getAuthHeaders();
 
         if ($this->sessionId !== null) {
