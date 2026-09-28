@@ -47,21 +47,25 @@ class HttpClientSecurityTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{Closure(): HttpClientInterface}>
+     * @return iterable<string, array{Closure(): HttpClientInterface, array<string, string>}>
      */
-    public static function clientsRejectingHeaderLineBreaks(): iterable
+    public static function injectedHeaders(): iterable
     {
-        yield 'guzzle' => [static fn (): HttpClientInterface => new GuzzleHttpClient()];
-        yield 'amp' => [static fn (): HttpClientInterface => new AmpHttpClient()];
+        foreach (self::clients() as $name => [$makeClient]) {
+            yield "{$name}, CRLF in a value" => [$makeClient, ['X-Tenant' => "acme\r\nX-Injected: yes"]];
+            yield "{$name}, bare LF in a value" => [$makeClient, ['X-Tenant' => "acme\nX-Injected: yes"]];
+            yield "{$name}, CRLF in a name" => [$makeClient, ["X-Tenant: acme\r\nX-Injected" => 'yes']];
+        }
     }
 
     /**
      * @param Closure(): HttpClientInterface $makeClient
+     * @param array<string, string> $headers
      */
-    #[DataProvider('clientsRejectingHeaderLineBreaks')]
-    public function test_line_breaks_in_a_header_value_cannot_inject_headers(Closure $makeClient): void
+    #[DataProvider('injectedHeaders')]
+    public function test_line_breaks_in_a_header_cannot_inject_headers(Closure $makeClient, array $headers): void
     {
-        $request = HttpRequest::get(static::$baseUri . '/headers', ['X-Tenant' => "acme\r\nX-Injected: yes"]);
+        $request = HttpRequest::get(static::$baseUri . '/headers', $headers);
 
         try {
             $received = $makeClient()->request($request)->json();

@@ -37,7 +37,10 @@ class UrlCredentialsTrustBoundarySecurityTest extends TestCase
     {
         return [
             'mcp sse stream that cannot be opened' => [
-                static fn (self $test): mixed => (new SseHttpTransport(['url' => 'http://mcp-user:'.self::PASSWORD.'@127.0.0.1:1/sse', 'timeout' => 2]))->connect(),
+                static function (self $test): mixed {
+                    (new SseHttpTransport(['url' => 'http://mcp-user:'.self::PASSWORD.'@127.0.0.1:1/sse', 'timeout' => 2]))->connect();
+                    return null;
+                },
             ],
             'mcp streamable http request rejected by the server' => [
                 static function (self $test): mixed {

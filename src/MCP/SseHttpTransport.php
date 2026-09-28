@@ -26,6 +26,7 @@ use function json_encode;
 use function microtime;
 use function parse_url;
 use function preg_match;
+use function preg_replace;
 use function str_contains;
 use function str_starts_with;
 use function stream_context_create;
@@ -128,7 +129,8 @@ class SseHttpTransport implements McpTransportInterface
         $this->sseStream = @fopen($this->config['url'], 'r', false, $context);
 
         if ($this->sseStream === false) {
-            throw new McpException('Failed to open SSE connection to: ' . $this->config['url']);
+            // Messages reach logs and error trackers: the user:password@ part of the URL must not
+            throw new McpException('Failed to open SSE connection to: ' . preg_replace('~^([a-z][a-z0-9+.-]*://)[^/?#@]*@~i', '$1', (string) $this->config['url']));
         }
 
         stream_set_blocking($this->sseStream, false);

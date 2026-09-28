@@ -58,8 +58,8 @@ class CurlHeaderCollector
         }
 
         if ($trimmed === '') {
-            // End of a header block: final unless curl is about to follow a redirect.
-            $this->complete = $this->statusCode < 300 || $this->statusCode >= 400;
+            // End of a header block: final unless it is informational (1xx) or curl is about to follow a redirect.
+            $this->complete = $this->statusCode >= 200 && ($this->statusCode < 300 || $this->statusCode >= 400);
             return $length;
         }
 

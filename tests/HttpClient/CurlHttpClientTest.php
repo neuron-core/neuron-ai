@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\HttpClient;
 
+use InvalidArgumentException;
 use JsonException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
@@ -79,6 +80,40 @@ class CurlHttpClientTest extends TestCase
         $this->expectExceptionMessage('Malformed UTF-8 characters');
 
         (new CurlHttpClient())->stream(HttpRequest::post(static::$baseUri . '/echo', ['text' => "invalid \xB1 utf-8"]));
+    }
+
+    /**
+     * @return iterable<string, array{array<string, string>, array<string, string>, bool}>
+     */
+    public static function headersBreakingTheirLine(): iterable
+    {
+        yield 'request header' => [['X-Tenant' => "acme\r\nX-Injected: yes"], [], false];
+        yield 'streamed request header' => [['X-Tenant' => "acme\r\nX-Injected: yes"], [], true];
+        yield 'client default header' => [[], ['X-Tenant' => "acme\r\nX-Injected: yes"], false];
+        yield 'NUL byte' => [['X-Tenant' => "acme\0X-Injected: yes"], [], false];
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @param array<string, string> $defaults
+     */
+    #[DataProvider('headersBreakingTheirLine')]
+    public function test_a_header_with_line_breaks_or_nul_bytes_is_refused_before_sending(array $headers, array $defaults, bool $streamed): void
+    {
+        $client = new CurlHttpClient($defaults);
+        $request = HttpRequest::get(static::$baseUri . '/headers', $headers);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Header X-Tenant must not contain line breaks or NUL bytes');
+
+        $streamed ? $client->stream($request) : $client->request($request);
+    }
+
+    public function test_a_colon_in_a_header_value_is_sent_unchanged(): void
+    {
+        $received = (new CurlHttpClient())->request(HttpRequest::get(static::$baseUri . '/headers', ['X-Tenant' => 'acme: west']))->json();
+
+        $this->assertSame('acme: west', $received['x-tenant']);
     }
 
     public function test_expect_continue_is_suppressed(): void

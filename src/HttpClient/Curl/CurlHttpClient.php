@@ -8,6 +8,7 @@ use Closure;
 use CurlHandle;
 use CurlShareHandle;
 use CURLStringFile;
+use InvalidArgumentException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -32,6 +33,7 @@ use function is_resource;
 use function json_encode;
 use function stream_get_contents;
 use function stream_get_meta_data;
+use function strpbrk;
 use function strtolower;
 use function trim;
 
@@ -349,6 +351,11 @@ class CurlHttpClient implements HttpClientInterface
 
         $headerLines = [];
         foreach ($headers as $name => $value) {
+            // libcurl sends each line as written: CR or LF would add headers, NUL would cut the line short
+            if (strpbrk("{$name}{$value}", "\r\n\0") !== false) {
+                throw new InvalidArgumentException("Header {$name} must not contain line breaks or NUL bytes");
+            }
+
             $headerLines[] = "{$name}: {$value}";
         }
         // Suppress "Expect: 100-continue" — some API gateways (e.g. Google Vertex) reject it.

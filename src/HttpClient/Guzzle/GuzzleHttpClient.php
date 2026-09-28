@@ -267,19 +267,9 @@ class GuzzleHttpClient implements HttpClientInterface
                 headers: $psrResponse->getHeaders(),
             );
 
-            throw new HttpException(
-                "HTTP {$response->statusCode} error during {$request->method->value} {$request->uri}: {$response->body}",
-                $request,
-                $response,
-                $e
-            );
+            throw HttpException::statusError($request, $response, $e);
         }
 
-        throw new HttpException(
-            "Network error during {$request->method->value} {$request->uri}: {$e->getMessage()}",
-            $request,
-            null,
-            $e
-        );
+        throw HttpException::networkError($request, $e->getMessage(), $e);
     }
 }

@@ -8,6 +8,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -56,5 +57,26 @@ class HttpExceptionTest extends TestCase
             $this->assertStringNotContainsString('sk-header-secret', $exception->getMessage());
             $this->assertStringNotContainsString('sk-body-secret', $exception->getMessage());
         }
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function uris(): iterable
+    {
+        yield 'user and password' => ['https://user:s3cret@llm.internal/v1/chat', 'https://llm.internal/v1/chat'];
+        yield 'user only' => ['https://tenant-42@llm.internal/v1/chat', 'https://llm.internal/v1/chat'];
+        yield 'an at sign in the path' => ['https://api.example.com/users/@me', 'https://api.example.com/users/@me'];
+        yield 'an at sign in the query' => ['https://api.example.com/search?q=a@b.c', 'https://api.example.com/search?q=a@b.c'];
+        yield 'a relative uri' => ['v1/chat', 'v1/chat'];
+    }
+
+    #[DataProvider('uris')]
+    public function test_messages_leave_out_the_credentials_of_a_url(string $uri, string $shown): void
+    {
+        $request = new HttpRequest(HttpMethod::GET, $uri);
+
+        $this->assertSame("HTTP 502 error during GET {$shown}: bad gateway", HttpException::statusError($request, new HttpResponse(502, 'bad gateway'))->getMessage());
+        $this->assertSame("Network error during GET {$shown}: timeout", HttpException::networkError($request, 'timeout')->getMessage());
     }
 }

@@ -94,6 +94,8 @@ class CurlHeaderCollectorTest extends TestCase
      */
     public static function finalStatuses(): iterable
     {
+        yield '100 is informational' => [100, false];
+        yield '103 is informational' => [103, false];
         yield '200 is final' => [200, true];
         yield '299 is final' => [299, true];
         yield '300 awaits a redirect' => [300, false];
@@ -103,7 +105,7 @@ class CurlHeaderCollectorTest extends TestCase
     }
 
     #[DataProvider('finalStatuses')]
-    public function test_a_header_block_is_final_unless_it_redirects(int $status, bool $final): void
+    public function test_a_header_block_is_final_unless_it_is_informational_or_redirects(int $status, bool $final): void
     {
         $collector = $this->ingest("HTTP/1.1 {$status} Reason\r\n", "\r\n");
 
