@@ -13,6 +13,7 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Tools\ToolCall;
@@ -86,13 +87,42 @@ class Summarization extends AgentMiddleware
 
         $newMessages = [
             new UserMessage("## Previous conversation summary:\n\n{$summary}"),
-            ...$recentMessages,
+            ...$this->discountSummarizedTokens($recentMessages),
         ];
 
         $chatHistory->flushAll();
         foreach ($newMessages as $message) {
             $chatHistory->addMessage($message);
         }
+    }
+
+    /**
+     * Kept messages carry the provider's cumulative input tokens, which still count the
+     * summarized conversation: the cutoff message's input tokens measure it. Subtracting
+     * them, as HistoryTrimmer does after a trim, stops the history from reading over the
+     * limit again, which would summarize the summary on the next inference. The messages
+     * are copies: the originals may still be held by the caller.
+     *
+     * @param Message[] $messages The kept messages, the cutoff message first
+     * @return Message[]
+     */
+    protected function discountSummarizedTokens(array $messages): array
+    {
+        $summarizedTokens = $messages[0]->getUsage()?->inputTokens ?? 0;
+
+        return array_map(function (Message $message) use ($summarizedTokens): Message {
+            $usage = $message->getUsage();
+            if (!$usage instanceof Usage) {
+                return $message;
+            }
+
+            return (clone $message)->setUsage(new Usage(
+                max(0, $usage->inputTokens - $summarizedTokens),
+                $usage->outputTokens,
+                $usage->cachedInputTokens,
+                $usage->reasoningTokens,
+            ));
+        }, $messages);
     }
 
     /**

@@ -206,6 +206,9 @@ class MessageDeserializer
     {
         $type = ContentBlockType::from($block['type']);
 
+        // Earlier versions left out a media block's content when it was '' or '0'
+        $block['content'] ??= '';
+
         $item = match ($type) {
             ContentBlockType::TEXT => new TextContent(
                 content: $block['content']

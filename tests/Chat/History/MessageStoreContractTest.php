@@ -344,6 +344,21 @@ class MessageStoreContractTest extends TestCase
     }
 
     #[DataProvider('stores')]
+    public function test_a_thread_holding_an_empty_attachment_loads(callable $make): void
+    {
+        $store = $make($this->directory);
+        $store->append('thread', new UserMessage('Before'));
+        $store->append('thread', new UserMessage([new FileContent('', SourceType::BASE64, 'text/plain', 'empty.txt')]));
+        $store->append('thread', new UserMessage('After'));
+
+        $loaded = $store->loadAll('thread');
+
+        $this->assertCount(3, $loaded);
+        $this->assertSame('', $loaded[1]->getContentBlocks()[0]->getContent());
+        $this->assertCount(3, $store->loadActive('thread'));
+    }
+
+    #[DataProvider('stores')]
     public function test_insertion_order_does_not_depend_on_the_message_ids(callable $make): void
     {
         $store = $make($this->directory);

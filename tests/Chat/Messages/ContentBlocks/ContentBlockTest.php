@@ -67,6 +67,26 @@ class ContentBlockTest extends TestCase
                 new FileContent('https://example.com/a.pdf', SourceType::URL),
                 ['type' => ContentBlockType::FILE, 'content' => 'https://example.com/a.pdf', 'source_type' => SourceType::URL],
             ],
+            'empty upload' => [
+                new FileContent('', SourceType::BASE64, 'text/plain', 'empty.txt'),
+                ['type' => ContentBlockType::FILE, 'content' => '', 'source_type' => SourceType::BASE64, 'media_type' => 'text/plain', 'filename' => 'empty.txt'],
+            ],
+            'file named 0' => [
+                new FileContent('0', SourceType::ID, filename: '0'),
+                ['type' => ContentBlockType::FILE, 'content' => '0', 'source_type' => SourceType::ID, 'filename' => '0'],
+            ],
+            'empty image' => [
+                new ImageContent('', SourceType::BASE64, 'image/png'),
+                ['type' => ContentBlockType::IMAGE, 'content' => '', 'source_type' => SourceType::BASE64, 'media_type' => 'image/png'],
+            ],
+            'empty audio' => [
+                new AudioContent('', SourceType::BASE64, 'audio/wav'),
+                ['type' => ContentBlockType::AUDIO, 'content' => '', 'source_type' => SourceType::BASE64, 'media_type' => 'audio/wav'],
+            ],
+            'empty video' => [
+                new VideoContent('', SourceType::BASE64, 'video/mp4'),
+                ['type' => ContentBlockType::VIDEO, 'content' => '', 'source_type' => SourceType::BASE64, 'media_type' => 'video/mp4'],
+            ],
         ];
     }
 

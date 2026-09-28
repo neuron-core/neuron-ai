@@ -87,6 +87,9 @@ class SQLMessageStore implements MessageStoreInterface
         return $this->deserialize($limit === null ? $records : array_reverse($records));
     }
 
+    /**
+     * @throws JsonException
+     */
     public function append(string $threadId, Message $message): void
     {
         $stmt = $this->pdo->prepare(

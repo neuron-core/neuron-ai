@@ -183,6 +183,34 @@ class MessageDeserializerTest extends TestCase
         $this->assertSame([], $restored->getContentBlocks());
     }
 
+    /**
+     * Earlier versions left the content out of a media block when it was '' or '0'.
+     *
+     * @return array<string, array{array<string, mixed>, class-string}>
+     */
+    public static function mediaBlocksStoredWithoutContent(): array
+    {
+        return [
+            'file' => [['type' => 'file', 'source_type' => 'base64', 'media_type' => 'text/plain', 'filename' => 'empty.txt'], FileContent::class],
+            'image' => [['type' => 'image', 'source_type' => 'base64', 'media_type' => 'image/png'], ImageContent::class],
+            'audio' => [['type' => 'audio', 'source_type' => 'base64', 'media_type' => 'audio/wav'], AudioContent::class],
+            'video' => [['type' => 'video', 'source_type' => 'url'], VideoContent::class],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     * @param class-string $class
+     */
+    #[DataProvider('mediaBlocksStoredWithoutContent')]
+    public function test_a_media_block_stored_without_its_content_loads_as_empty(array $block, string $class): void
+    {
+        $restored = (new MessageDeserializer())->deserialize(['role' => 'user', 'content' => [$block]]);
+
+        $this->assertInstanceOf($class, $restored->getContentBlocks()[0]);
+        $this->assertSame('', $restored->getContentBlocks()[0]->getContent());
+    }
+
     public function test_legacy_string_content_becomes_a_text_block(): void
     {
         $restored = (new MessageDeserializer())->deserialize(['role' => 'assistant', 'content' => 'Plain legacy text']);

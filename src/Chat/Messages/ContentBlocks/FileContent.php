@@ -8,8 +8,6 @@ use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 
-use function array_filter;
-
 class FileContent extends ContentBlock
 {
     public readonly ?string $mediaType;
@@ -34,7 +32,7 @@ class FileContent extends ContentBlock
      */
     public function toArray(): array
     {
-        return array_filter([
+        return $this->withoutAbsentFields([
             'type' => $this->getType(),
             'content' => $this->content,
             'source_type' => $this->sourceType,
