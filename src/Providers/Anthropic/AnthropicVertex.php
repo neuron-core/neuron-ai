@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use Google\Auth\Credentials\ServiceAccountCredentials;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\Providers\HandleGoogleServiceAccount;
 
 use function rtrim;
 
@@ -16,6 +16,8 @@ use function rtrim;
  */
 class AnthropicVertex extends Anthropic
 {
+    use HandleGoogleServiceAccount;
+
     protected string $key = ''; // Not used for Vertex AI, but required by the parent
 
     /**
@@ -34,16 +36,11 @@ class AnthropicVertex extends Anthropic
             ? "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/anthropic/models"
             : "https://aiplatform.googleapis.com/v1/projects/{$projectId}/locations/global/publishers/anthropic/models";
 
-        $credentials = new ServiceAccountCredentials(
-            'https://www.googleapis.com/auth/cloud-platform',
-            $pathJsonCredentials
-        );
-
-        $token = $credentials->fetchAuthToken();
+        $this->useServiceAccount($pathJsonCredentials);
 
         // Initialize the parent provider. The parent's x-api-key/anthropic-version
-        // headers are replaced below; Vertex authenticates with a Bearer token and
-        // reads the version from the body (see requestBody()).
+        // headers are replaced below; Vertex authenticates with a Bearer token
+        // (see requestHeaders()) and reads the version from the body (see requestBody()).
         parent::__construct(
             key: $this->key,
             model: $model,
@@ -55,7 +52,6 @@ class AnthropicVertex extends Anthropic
         $this->httpHeaders = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'Authorization' => 'Bearer ' . $token['access_token'],
         ];
     }
 

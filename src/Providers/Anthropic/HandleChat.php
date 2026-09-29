@@ -36,7 +36,7 @@ trait HandleChat
             HttpRequest::post(
                 uri: $this->requestUri(false),
                 body: $json,
-                headers: $this->httpHeaders,
+                headers: $this->requestHeaders(),
             )
         );
 

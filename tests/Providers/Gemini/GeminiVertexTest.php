@@ -110,9 +110,23 @@ class GeminiVertexTest extends TestCase
         $this->assertFalse($request->hasHeader('x-goog-api-key'));
     }
 
-    public function test_token_is_obtained_with_a_signed_service_account_assertion(): void
+    public function test_building_the_provider_fetches_no_token(): void
     {
         new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro');
+
+        $this->assertSame([], $this->tokenRequests);
+    }
+
+    public function test_token_is_obtained_with_a_signed_service_account_assertion(): void
+    {
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+        );
+        $provider->chat(new UserMessage('Hi'));
 
         $this->assertCount(1, $this->tokenRequests);
         $tokenRequest = $this->tokenRequests[0]['request'];
@@ -158,5 +172,44 @@ class GeminiVertexTest extends TestCase
             'POST https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-2.5-flash:streamGenerateContent',
         ], $this->sentTargets());
         $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_a_valid_access_token_is_reused_across_requests(): void
+    {
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)),
+        );
+
+        $provider->chat(new UserMessage('Hi'));
+        $provider->chat(new UserMessage('Hi again'));
+
+        $this->assertCount(1, $this->tokenRequests);
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_an_access_token_about_to_expire_is_refreshed_before_the_next_request(): void
+    {
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.first","expires_in":30,"token_type":"Bearer"}'),
+            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.second","expires_in":3600,"token_type":"Bearer"}'),
+        ]));
+        HttpClientCache::setHttpClient(new Client(['handler' => $stack]));
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)),
+        );
+
+        $provider->chat(new UserMessage('Hi'));
+        $provider->chat(new UserMessage('Hi again'));
+
+        $this->assertSame('Bearer ya29.first', $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('Bearer ya29.second', $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
     }
 }

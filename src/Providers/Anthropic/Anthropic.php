@@ -76,6 +76,16 @@ class Anthropic implements AIProviderInterface
         return $this->model;
     }
 
+    /**
+     * Headers of each chat and stream request.
+     *
+     * @return array<string, string>
+     */
+    protected function requestHeaders(): array
+    {
+        return $this->httpHeaders;
+    }
+
     public function systemPrompt(SystemMessage|string|null $prompt): AIProviderInterface
     {
         $this->system = is_string($prompt) ? new SystemMessage($prompt) : $prompt;

@@ -66,7 +66,7 @@ trait HandleChat
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/{$this->model}:generateContent",
                 body: $body,
-                headers: $this->httpHeaders,
+                headers: $this->requestHeaders(),
             )
         );
 

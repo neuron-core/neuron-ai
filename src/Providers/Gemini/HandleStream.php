@@ -75,7 +75,7 @@ trait HandleStream
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/{$this->model}:streamGenerateContent",
                 body: $body,
-                headers: $this->httpHeaders,
+                headers: $this->requestHeaders(),
             )
         );
 

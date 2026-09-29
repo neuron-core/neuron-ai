@@ -40,7 +40,7 @@ trait HandleStream
             HttpRequest::post(
                 uri: $this->requestUri(true),
                 body: $this->requestBody($messages, true),
-                headers: $this->httpHeaders,
+                headers: $this->requestHeaders(),
             )
         );
 

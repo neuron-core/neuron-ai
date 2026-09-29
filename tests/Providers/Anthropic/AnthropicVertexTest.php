@@ -19,9 +19,9 @@ use function json_decode;
 class AnthropicVertexTest extends TestCase
 {
     /**
-     * Build an AnthropicVertex provider without performing the OAuth token fetch.
-     * The request-building hooks (requestUri/requestBody) are what we test here;
-     * the credential flow is identical to GeminiVertex and is not exercised.
+     * Build an AnthropicVertex provider without credentials. The request-building
+     * hooks (requestUri/requestBody) are what we test here; the credential flow
+     * is covered by AnthropicVertexCredentialsTest.
      */
     private function provider(string $model, string $location, ?HandlerStack $stack = null): AnthropicVertex
     {
@@ -35,6 +35,11 @@ class AnthropicVertexTest extends TestCase
                 $this->baseUri = "https://{$location}-aiplatform.googleapis.com/v1/projects/test-project/locations/{$location}/publishers/anthropic/models";
 
                 $this->httpClient = new GuzzleHttpClient(handler: $this->stack);
+            }
+
+            protected function requestHeaders(): array
+            {
+                return $this->httpHeaders;
             }
         };
     }

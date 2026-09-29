@@ -15,7 +15,9 @@ use NeuronAI\Tests\Support\RecordsHttpRequests;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function file_put_contents;
+use function iterator_to_array;
 use function json_encode;
 use function openssl_pkey_export;
 use function openssl_pkey_new;
@@ -26,7 +28,7 @@ use function unlink;
 use const JSON_THROW_ON_ERROR;
 
 /**
- * Exercises the real constructor: the OAuth token exchange is answered by a
+ * Exercises the real credentials: the OAuth token exchange is answered by a
  * mocked Google token endpoint, so no network is involved.
  */
 class AnthropicVertexCredentialsTest extends TestCase
@@ -35,7 +37,11 @@ class AnthropicVertexCredentialsTest extends TestCase
 
     protected static string $privateKey = '';
 
+    protected const ANSWER = '{"content":[{"type":"text","text":"Hi"}]}';
+
     protected string $credentialsFile;
+
+    protected MockHandler $tokenEndpoint;
 
     public static function setUpBeforeClass(): void
     {
@@ -55,9 +61,10 @@ class AnthropicVertexCredentialsTest extends TestCase
             'token_uri' => 'https://oauth2.googleapis.com/token',
         ], JSON_THROW_ON_ERROR));
 
-        HttpClientCache::setHttpClient(new Client(['handler' => HandlerStack::create(new MockHandler([
+        $this->tokenEndpoint = new MockHandler([
             new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.vertex-token","expires_in":3600,"token_type":"Bearer"}'),
-        ]))]));
+        ]);
+        HttpClientCache::setHttpClient(new Client(['handler' => HandlerStack::create($this->tokenEndpoint)]));
     }
 
     protected function tearDown(): void
@@ -95,5 +102,59 @@ class AnthropicVertexCredentialsTest extends TestCase
         $this->assertSame('Bearer ya29.vertex-token', $request->getHeaderLine('Authorization'));
         $this->assertFalse($request->hasHeader('x-api-key'));
         $this->assertFalse($request->hasHeader('anthropic-version'));
+    }
+
+    public function test_building_the_provider_fetches_no_token(): void
+    {
+        $this->provider();
+
+        $this->assertSame(1, $this->tokenEndpoint->count());
+    }
+
+    public function test_a_valid_access_token_is_reused_across_requests(): void
+    {
+        $provider = $this->provider(new Response(200, body: self::ANSWER), new Response(200, body: 'data: {"type":"message_stop"}' . "\n\n"));
+        $provider->chat(new UserMessage('Hi'));
+        iterator_to_array($provider->stream(new UserMessage('Hi again')));
+
+        $this->assertSame(['Bearer ya29.vertex-token', 'Bearer ya29.vertex-token'], $this->sentAuthorizations());
+        $this->assertSame(0, $this->tokenEndpoint->count());
+    }
+
+    public function test_an_access_token_about_to_expire_is_refreshed_before_the_next_request(): void
+    {
+        $this->tokenEndpoint->reset();
+        $this->tokenEndpoint->append(
+            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.first","expires_in":30,"token_type":"Bearer"}'),
+            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.second","expires_in":3600,"token_type":"Bearer"}'),
+        );
+
+        $provider = $this->provider();
+        $provider->chat(new UserMessage('Hi'));
+        $provider->chat(new UserMessage('Hi again'));
+
+        $this->assertSame(['Bearer ya29.first', 'Bearer ya29.second'], $this->sentAuthorizations());
+    }
+
+    protected function provider(Response ...$responses): AnthropicVertex
+    {
+        return new AnthropicVertex(
+            pathJsonCredentials: $this->credentialsFile,
+            location: 'us-east5',
+            projectId: 'test-project',
+            model: 'claude-test',
+            httpClient: $this->recordingClient(...($responses !== [] ? $responses : [new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)])),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function sentAuthorizations(): array
+    {
+        return array_map(
+            static fn (array $entry): string => $entry['request']->getHeaderLine('Authorization'),
+            $this->sentRequests,
+        );
     }
 }
