@@ -28,8 +28,19 @@ use PHPUnit\Framework\TestCase;
 use function extension_loaded;
 use function class_exists;
 use function array_values;
+use function escapeshellarg;
 use function getmypid;
 use function iterator_to_array;
+use function json_decode;
+use function pcntl_async_signals;
+use function pcntl_signal;
+use function pcntl_signal_get_handler;
+use function shell_exec;
+
+use const PHP_BINARY;
+use const SIGINT;
+use const SIGQUIT;
+use const SIGTERM;
 
 class ParallelToolsTest extends TestCase
 {
@@ -62,6 +73,74 @@ class ParallelToolsTest extends TestCase
         $this->assertCount(2, $processIds);
         $this->assertNotContains((string) getmypid(), $processIds);
         $this->assertNotSame($processIds[0], $processIds[1]);
+    }
+
+    public function test_a_parallel_batch_keeps_the_process_signal_handlers(): void
+    {
+        $previous = [SIGINT => pcntl_signal_get_handler(SIGINT), SIGQUIT => pcntl_signal_get_handler(SIGQUIT), SIGTERM => pcntl_signal_get_handler(SIGTERM)];
+        $asyncSignals = pcntl_async_signals(false);
+        // A queue worker installs its graceful stop once, when it starts
+        $gracefulStop = static function (): void {
+        };
+        pcntl_signal(SIGTERM, $gracefulStop);
+
+        try {
+            $agent = Agent::make()->setThreadId('thread_1')->parallelToolCalls(true)->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
+                new ToolCallMessage(null, [
+                    ToolCall::make('process_id', 'call_1'),
+                    ToolCall::make('process_id', 'call_2'),
+                ]),
+                new AssistantMessage('Done'),
+            ));
+
+            $agent->chat(new UserMessage('Where do tools run?'));
+
+            $this->assertNotContains((string) getmypid(), $this->results($agent));
+            $this->assertSame($gracefulStop, pcntl_signal_get_handler(SIGTERM));
+            $this->assertSame($previous[SIGINT], pcntl_signal_get_handler(SIGINT));
+            $this->assertSame($previous[SIGQUIT], pcntl_signal_get_handler(SIGQUIT));
+            $this->assertFalse(pcntl_async_signals());
+        } finally {
+            foreach ($previous as $signal => $handler) {
+                pcntl_signal($signal, $handler);
+            }
+            pcntl_async_signals($asyncSignals);
+        }
+    }
+
+    public function test_tools_run_in_the_calling_process_where_forking_is_disabled(): void
+    {
+        // PHP-FPM on Debian and Ubuntu keeps pcntl loaded but disables its functions
+        $script = <<<'PHP'
+            require $argv[1];
+            $agent = NeuronAI\Agent\Agent::make()->setThreadId('thread_1')->parallelToolCalls(true)
+                ->addTool(new NeuronAI\Tests\Tools\Stub\ProcessIdTool())
+                ->setAiProvider(new NeuronAI\Testing\FakeAIProvider(
+                    new NeuronAI\Chat\Messages\ToolCallMessage(null, [
+                        NeuronAI\Tools\ToolCall::make('process_id', 'call_1'),
+                        NeuronAI\Tools\ToolCall::make('process_id', 'call_2'),
+                    ]),
+                    new NeuronAI\Chat\Messages\AssistantMessage('Done'),
+                ));
+            $answer = $agent->chat(new NeuronAI\Chat\Messages\UserMessage('Where do tools run?'))->getMessage()?->getContent();
+            $results = [];
+            foreach ($agent->getChatHistory()->getMessages() as $message) {
+                if ($message instanceof NeuronAI\Chat\Messages\ToolResultMessage) {
+                    foreach ($message->getToolCalls() as $call) {
+                        $results[] = (string) $call->getResult();
+                    }
+                }
+            }
+            echo json_encode(['process' => (string) getmypid(), 'answer' => $answer, 'results' => $results]);
+            PHP;
+        $command = escapeshellarg(PHP_BINARY) . ' -d disable_functions=pcntl_fork -r ' . escapeshellarg($script)
+            . ' ' . escapeshellarg(__DIR__ . '/../../vendor/autoload.php') . ' 2>&1';
+
+        $output = json_decode((string) shell_exec($command), true);
+
+        $this->assertIsArray($output);
+        $this->assertSame('Done', $output['answer']);
+        $this->assertSame([$output['process'], $output['process']], $output['results']);
     }
 
     public function test_sequential_tool_calls_run_in_the_calling_process(): void

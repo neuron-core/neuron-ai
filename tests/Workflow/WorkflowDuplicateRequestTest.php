@@ -11,8 +11,11 @@ use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\Executor\Ignition;
+use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -20,9 +23,12 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ArrayObject;
 
+use function time;
+
 /**
  * A retried request never executes twice: a reserved run ID refuses a second
  * ignition, and the run and attempt a caller observed refuse a second answer.
+ * A reserved start asking to recover finishes its own dead run instead.
  */
 class WorkflowDuplicateRequestTest extends TestCase
 {
@@ -78,6 +84,93 @@ class WorkflowDuplicateRequestTest extends TestCase
         self::assertSame(WorkflowStatus::Completed, $completed->getStatus());
         self::assertSame($started->getRunId(), $completed->getRunId());
         self::assertSame(3, $completed->getExecutionAttempt());
+    }
+
+    /**
+     * A queue job sends the same reserved start on every delivery: a redelivery after
+     * a failure finishes the run from its last committed step.
+     */
+    public function test_a_redelivered_reserved_start_asking_to_recover_finishes_its_own_failed_run(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $invocations = new ArrayObject();
+        $make = static fn (): Workflow => Workflow::make('order')->setPersistence($persistence)->addNode(
+            new class ($invocations) extends Node {
+                /** @param ArrayObject<int, true> $invocations */
+                public function __construct(protected ArrayObject $invocations)
+                {
+                }
+
+                public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+                {
+                    $this->invocations->append(true);
+                    if ($this->invocations->count() === 1) {
+                        throw new RuntimeException('transient');
+                    }
+                    return new StopEvent();
+                }
+            }
+        );
+        $delivery = ExecutionRequest::start(runId: 'delivery-1', recoverFailed: true);
+        try {
+            $make()->run($delivery);
+            self::fail('The first delivery must fail.');
+        } catch (RuntimeException $error) {
+            self::assertSame('transient', $error->getMessage());
+        }
+
+        $state = $make()->run($delivery);
+
+        self::assertSame(WorkflowStatus::Completed, $state->getStatus());
+        self::assertSame('delivery-1', $state->getRunId());
+        self::assertSame(2, $state->getExecutionAttempt());
+        self::assertCount(2, $invocations);
+    }
+
+    public function test_a_redelivered_reserved_start_asking_to_recover_takes_over_the_run_its_dead_worker_left(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        // The worker processing delivery-1 was killed mid-step, its lease has since expired
+        $persistence->initializeIfAbsent(
+            'order',
+            '__control',
+            $serializer->serialize(new WorkflowControl('delivery-1', WorkflowStatus::Running, leaseExpiresAt: time() - 1)),
+            ['__ignition' => $serializer->serialize(new Ignition('delivery-1', new StartEvent()))],
+        );
+
+        $state = KeyedWorkflow::make('order')->setPersistence($persistence)
+            ->run(ExecutionRequest::start(runId: 'delivery-1', recoverFailed: true));
+
+        self::assertTrue($state->isInterrupted());
+        self::assertSame('delivery-1', $state->getRunId());
+        self::assertSame(2, $state->getExecutionAttempt());
+    }
+
+    public function test_a_redelivered_reserved_start_is_told_how_to_read_its_retained_outcome(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $make = static fn (): Workflow => Workflow::make('order')->setPersistence($persistence)
+            ->retainCompletionUntilAcknowledged()
+            ->addNode(new class () extends Node {
+                public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+                {
+                    return new StopEvent('charged');
+                }
+            });
+        $make()->run(ExecutionRequest::start(runId: 'delivery-1', recoverFailed: true));
+
+        try {
+            $make()->run(ExecutionRequest::start(runId: 'delivery-1', recoverFailed: true));
+            self::fail('A retained completion must be replayed by resume(), never by another start.');
+        } catch (RunInFlightException $error) {
+            self::assertSame('delivery-1', $error->reservedRunId);
+            self::assertStringContainsString(
+                "replay it with run(ExecutionRequest::resume(expectedRunId: 'delivery-1')), record it, then call acknowledge('delivery-1').",
+                $error->getMessage(),
+            );
+        }
+        self::assertSame(WorkflowStatus::Completed, $make()->inspect()?->status);
     }
 
     public function test_a_reserved_start_neither_recovers_nor_replaces_a_failed_run(): void

@@ -211,8 +211,8 @@ class WorkflowEngine
         $ignited = $store->initialize($control, $ignition);
         $current = $ignited ? null : $store->loadControl();
 
-        if (!$reserved && $request->recoverFailed && $current?->status === WorkflowStatus::Failed) {
-            // Fence the observed failure so recovery cannot target a generation
+        if ($request->recoverFailed && $current instanceof WorkflowControl && $this->recovers($request, $current)) {
+            // Fence the observed generation so recovery cannot target a generation
             // or attempt that another worker replaced while we were reading.
             return $this->continueRun(
                 $store,
@@ -241,6 +241,7 @@ class WorkflowEngine
                     executionAttempt: $current->executionAttempt,
                     leaseExpiresAt: $current->leaseExpiresAt,
                     interrupt: $current->interrupt?->request,
+                    reservedRunId: $request->runId,
                 )
                 : new WorkflowException(
                     "Cannot ignite a new run for workflow ID '{$store->workflowId}': "
@@ -249,6 +250,20 @@ class WorkflowEngine
         }
 
         return $this->openSegment($store, $ignition, $state, $leaseTimeout, $retainCompletion);
+    }
+
+    /**
+     * A plain start recovers a failed run. A reserved start recovers only its own
+     * run, failed or left running by a process whose lease expired: the run a
+     * redelivered queue message left behind. Any other run is superseded or refused.
+     */
+    protected function recovers(ExecutionRequest $request, WorkflowControl $current): bool
+    {
+        if ($request->runId === null) {
+            return $current->status === WorkflowStatus::Failed;
+        }
+
+        return $current->runId === $request->runId && $this->isDeadGeneration($current);
     }
 
     protected function isDeadGeneration(WorkflowControl $control): bool

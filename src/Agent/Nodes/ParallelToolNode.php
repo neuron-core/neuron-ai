@@ -25,12 +25,19 @@ use function array_diff_key;
 use function array_values;
 use function class_exists;
 use function count;
-use function extension_loaded;
+use function function_exists;
 use function is_array;
 use function ksort;
+use function pcntl_async_signals;
+use function pcntl_signal;
+use function pcntl_signal_get_handler;
 use function serialize;
 use function unserialize;
 use function array_keys;
+
+use const SIGINT;
+use const SIGQUIT;
+use const SIGTERM;
 
 class ParallelToolNode extends ToolNode
 {
@@ -64,9 +71,10 @@ class ParallelToolNode extends ToolNode
      */
     protected function executeLocalTools(array $calls, string $messageId, AgentState $state, ToolRegistry $tools): Generator
     {
-        // Sequential fallbacks: pcntl unavailable (e.g. Windows), spatie/fork
-        // not installed, or a single call not worth forking for.
-        if (!extension_loaded('pcntl')) {
+        // Sequential fallbacks: forking unavailable (Windows, or the pcntl functions
+        // PHP-FPM disables on Debian and Ubuntu), spatie/fork not installed, or a
+        // single call not worth forking for.
+        if (!function_exists('pcntl_fork')) {
             return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
         }
 
@@ -131,8 +139,8 @@ class ParallelToolNode extends ToolNode
                 // tool object and its dependencies never cross the process boundary.
                 $beforeChild = $this->beforeChild;
                 $afterChild = $this->afterChild;
-                return Fork::new()->run(
-                    ...array_map(
+                return $this->runInChildProcesses(
+                    array_map(
                         fn (ToolInterface $tool): Closure => function () use ($tool, $beforeChild, $afterChild): string {
                             try {
                                 if ($beforeChild instanceof Closure) {
@@ -192,5 +200,31 @@ class ParallelToolNode extends ToolNode
         }
 
         return $executedCalls;
+    }
+
+    /**
+     * spatie/fork replaces the SIGTERM, SIGINT and SIGQUIT handlers with its
+     * own, which kill the process, and never restores them: a queue worker
+     * would lose its graceful shutdown for good after one parallel batch.
+     *
+     * @param array<int, Closure(): string> $tasks
+     * @return array<int, string>
+     */
+    protected function runInChildProcesses(array $tasks): array
+    {
+        $handlers = [];
+        foreach ([SIGINT, SIGQUIT, SIGTERM] as $signal) {
+            $handlers[$signal] = pcntl_signal_get_handler($signal);
+        }
+        $asyncSignals = pcntl_async_signals();
+
+        try {
+            return Fork::new()->run(...$tasks);
+        } finally {
+            foreach ($handlers as $signal => $handler) {
+                pcntl_signal($signal, $handler);
+            }
+            pcntl_async_signals($asyncSignals);
+        }
     }
 }

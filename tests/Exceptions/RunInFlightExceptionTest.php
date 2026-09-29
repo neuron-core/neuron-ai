@@ -123,6 +123,67 @@ class RunInFlightExceptionTest extends TestCase
         );
     }
 
+    /**
+     * @return iterable<string, array{string, WorkflowStatus, ?int, string}>
+     */
+    public static function reserved_starts(): iterable
+    {
+        $own = " is the one this reserved start ignited before. ";
+        $other = " holds it, and a reserved start never replaces another run. ";
+        yield 'own suspended run' => ['run-a', WorkflowStatus::Suspended, null, $own
+            . "It is waiting on #4 wait_for_event 'payment': deliver the awaited input with run(ExecutionRequest::resume(\$payload, 'run-a', 2))."];
+        yield 'own retained completion' => ['run-a', WorkflowStatus::Completed, null, $own
+            . "Its outcome is retained: replay it with run(ExecutionRequest::resume(expectedRunId: 'run-a')), record it, then call acknowledge('run-a')."];
+        yield 'own run without lease' => ['run-a', WorkflowStatus::Running, null, $own
+            . "If its process died, recover it with run(ExecutionRequest::resume(null, 'run-a', 2))."];
+        yield 'own run with an expired lease' => ['run-a', WorkflowStatus::Running, 1_000_000_000, $own
+            . "If its process died, recover it with run(ExecutionRequest::resume(null, 'run-a', 2)), or deliver the start with recoverFailed: true."];
+        yield 'own failed run' => ['run-a', WorkflowStatus::Failed, null, $own
+            . "It failed: recover it with run(ExecutionRequest::resume(null, 'run-a', 2)), or deliver the start with recoverFailed: true."];
+        yield 'another suspended run' => ['run-b', WorkflowStatus::Suspended, null, $other
+            . "Answer its wait on #4 wait_for_event 'payment', or discard it with abandon('run-a', 2)."];
+        yield 'another retained completion' => ['run-b', WorkflowStatus::Completed, null, $other
+            . "Its outcome is retained: read it with run(ExecutionRequest::resume(expectedRunId: 'run-a')), then call acknowledge('run-a')."];
+        yield 'another run without lease' => ['run-b', WorkflowStatus::Running, null, $other
+            . "If its process died, recover it with run(ExecutionRequest::resume(null, 'run-a', 2)), or discard it with abandon('run-a', 2)."];
+        yield 'another failed run' => ['run-b', WorkflowStatus::Failed, null, $other
+            . "It failed: recover it with run(ExecutionRequest::resume(null, 'run-a', 2)), or discard it with abandon('run-a', 2)."];
+    }
+
+    #[DataProvider('reserved_starts')]
+    public function test_a_reserved_start_is_told_how_to_settle_the_run_that_holds_the_workflow_id(
+        string $reservedRunId,
+        WorkflowStatus $status,
+        ?int $leaseExpiresAt,
+        string $advice,
+    ): void {
+        $interrupt = $status === WorkflowStatus::Suspended ? (new WaitForEventRequest('payment'))->withId(4) : null;
+
+        $exception = new RunInFlightException('thread-1', 'run-a', $status, 2, $leaseExpiresAt, $interrupt, $reservedRunId);
+
+        $this->assertSame($reservedRunId, $exception->reservedRunId);
+        $this->assertSame(self::PREFIX . $advice, $exception->getMessage());
+    }
+
+    public function test_a_reserved_start_meeting_a_live_lease_is_told_when_to_retry(): void
+    {
+        $leaseExpiresAt = time() + 3600;
+        $expiry = date(DateTimeInterface::ATOM, $leaseExpiresAt);
+
+        $own = new RunInFlightException('thread-1', 'run-a', WorkflowStatus::Running, 2, $leaseExpiresAt, reservedRunId: 'run-a');
+        $other = new RunInFlightException('thread-1', 'run-a', WorkflowStatus::Running, 2, $leaseExpiresAt, reservedRunId: 'run-b');
+
+        $this->assertSame(
+            self::PREFIX . " is the one this reserved start ignited before. It is executing and holds a lease until {$expiry}: "
+            . 'if its process died, deliver the start again with recoverFailed: true once the lease expires.',
+            $own->getMessage()
+        );
+        $this->assertSame(
+            self::PREFIX . " holds it, and a reserved start never replaces another run. It is executing and holds a lease until {$expiry}: wait for it to settle.",
+            $other->getMessage()
+        );
+    }
+
     public function test_a_running_run_with_an_expired_lease_asks_for_a_retry(): void
     {
         $exception = new RunInFlightException('thread-1', 'run-a', WorkflowStatus::Running, 2, time() - 1);
