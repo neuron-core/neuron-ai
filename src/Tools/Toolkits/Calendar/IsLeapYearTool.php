@@ -21,7 +21,7 @@ class IsLeapYearTool extends Tool
         return [
             ToolProperty::make(
                 name: 'year',
-                type: PropertyType::NUMBER,
+                type: PropertyType::INTEGER,
                 description: 'Year to check (4-digit year)',
                 required: true,
             ),

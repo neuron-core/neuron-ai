@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 use NeuronAI\Tools\Toolkits\Calendar\GetTimezoneInfoTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use DateTime;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -86,6 +87,17 @@ class GetTimezoneInfoToolTest extends TestCase
         $this->assertSame('JST', $data['abbreviation']);
         $this->assertArrayHasKey('location', $data);
         $this->assertSame('JP', $data['location']['country_code']);
+    }
+
+    #[TestWith(['America/St_Johns', '2023-01-15 12:00:00', '-03:30'])]
+    #[TestWith(['Pacific/Marquesas', '2023-01-15 12:00:00', '-09:30'])]
+    #[TestWith(['Africa/Monrovia', '1970-06-01 12:00:00', '-00:44'])]
+    #[TestWith(['Asia/Kathmandu', '2023-01-15 12:00:00', '+05:45'])]
+    public function test_fractional_offsets_are_formatted_toward_zero(string $timezone, string $referenceDate, string $expected): void
+    {
+        $data = json_decode(($this->tool)($timezone, $referenceDate), true);
+
+        $this->assertSame($expected, $data['offset_formatted']);
     }
 
     public function test_get_timezone_info_with_timestamp(): void

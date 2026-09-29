@@ -107,6 +107,13 @@ class GetDaysInMonthToolTest extends TestCase
         $this->assertSame('Error: Month must be between 1 and 12', ($this->tool)($month, 2023));
     }
 
+    public function test_a_fractional_month_is_an_input_error_for_the_model(): void
+    {
+        $this->tool->setInputs(['month' => 2.5, 'year' => 2024])->execute();
+
+        $this->assertSame('Parameter "month" must be of type integer, float given.', (string) $this->tool->getResult());
+    }
+
     public function test_tool_properties(): void
     {
         $this->assertSame('get_days_in_month', $this->tool->getName());

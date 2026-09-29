@@ -80,7 +80,7 @@ class LogListenerTest extends TestCase
         ], array_column($logger->records, 'message'));
         $this->assertSame([LogLevel::INFO], array_values(array_unique(array_column($logger->records, 'level'))));
         $this->assertSame(['node' => NodeOne::class], $logger->records[1]['context']);
-        $this->assertSame(['node' => NodeOne::class], $logger->records[2]['context']);
+        $this->assertSame(['node' => NodeOne::class, 'outcome' => 'completed'], $logger->records[2]['context']);
     }
 
     public function test_log_listener_uses_the_configured_level(): void

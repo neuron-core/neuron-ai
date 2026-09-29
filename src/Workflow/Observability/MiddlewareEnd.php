@@ -11,7 +11,8 @@ class MiddlewareEnd extends ObservabilityEvent
 {
     public function __construct(
         public WorkflowMiddleware $middleware,
-        public string $phase = 'before'
+        public string $phase = 'before',
+        public NodeOutcome $outcome = NodeOutcome::Completed,
     ) {
     }
 
@@ -22,6 +23,6 @@ class MiddlewareEnd extends ObservabilityEvent
 
     public function toArray(): array
     {
-        return ['class' => $this->middleware::class];
+        return ['class' => $this->middleware::class, 'outcome' => $this->outcome->value];
     }
 }

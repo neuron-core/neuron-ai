@@ -16,6 +16,7 @@ use NeuronAI\Providers\Ollama\Ollama;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
+use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\StreamInterface;
 
@@ -130,7 +131,7 @@ class OllamaStreamTest extends TestCase
                 ['function' => ['name' => 'lookup', 'arguments' => ['q' => 'rome']]],
                 ['function' => ['name' => 'lookup', 'arguments' => ['q' => 'oslo']]],
             ]]),
-            self::line(['content' => 'never read'], true),
+            self::line([], true),
         ]));
 
         [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Weather?')));
@@ -155,5 +156,47 @@ class OllamaStreamTest extends TestCase
         $this->expectException(ProviderException::class);
         $this->expectExceptionMessage('The model is asking for a non-existing tool: rm.');
         iterator_to_array($stream);
+    }
+
+    public function test_a_zero_token_is_kept(): void
+    {
+        $provider = $this->provider(self::ndjson([
+            self::line(['content' => '1']),
+            self::line(['content' => '0']),
+            self::line([], true),
+        ]));
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Ten?')));
+
+        $this->assertSame(['1', '0'], $this->contentsOf(TextChunk::class, $chunks));
+        $this->assertSame('10', $message->getContent());
+    }
+
+    public function test_an_error_line_mid_stream_raises_a_provider_exception(): void
+    {
+        $provider = $this->provider(self::ndjson([
+            self::line(['content' => 'par']),
+            ['error' => 'an error was encountered while running the model: unexpected EOF'],
+        ]));
+
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('Ollama stream error: an error was encountered while running the model: unexpected EOF');
+
+        $this->consumeStream($provider->stream(new UserMessage('Hi')));
+    }
+
+    public function test_tool_calls_keep_the_usage_of_the_final_line_and_calls_from_later_lines(): void
+    {
+        $provider = $this->provider(self::ndjson([
+            self::line(['tool_calls' => [['function' => ['name' => 'lookup', 'arguments' => ['q' => 'rome']]]]]),
+            self::line(['tool_calls' => [['function' => ['name' => 'lookup', 'arguments' => ['q' => 'oslo']]]]]),
+            ['model' => 'llama3.2', 'message' => ['role' => 'assistant', 'content' => ''], 'done' => true, 'prompt_eval_count' => 12, 'eval_count' => 5],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Weather?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame([['q' => 'rome'], ['q' => 'oslo']], array_map(fn (ToolCall $call): array => $call->getInputs(), $message->getToolCalls()));
+        $this->assertSame([12, 5], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
     }
 }

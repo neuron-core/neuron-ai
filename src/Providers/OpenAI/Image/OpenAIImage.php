@@ -8,7 +8,6 @@ use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Stream\Chunks\ImageChunk;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -26,6 +25,8 @@ use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
+use function implode;
+use function array_filter;
 use function rtrim;
 use function end;
 use function is_string;
@@ -71,6 +72,15 @@ class OpenAIImage implements AIProviderInterface
     }
 
     /**
+     * The image prompt: the message text, then the system prompt. Built as a
+     * string so the caller's message, which the chat history holds, stays untouched.
+     */
+    protected function prompt(Message $message): string
+    {
+        return implode(' ', array_filter([$message->getContent(), $this->system], static fn (?string $text): bool => $text !== null && $text !== ''));
+    }
+
+    /**
      * https://developers.openai.com/api/reference/resources/images/methods/generate
      *
      * @throws HttpException
@@ -79,13 +89,9 @@ class OpenAIImage implements AIProviderInterface
     {
         $message = end($messages);
 
-        if ($this->system ?? false) {
-            $message->addContent(new TextContent($this->system));
-        }
-
         $body = [
             'model' => $this->model,
-            'prompt' => $message->getContent(),
+            'prompt' => $this->prompt($message),
             'output_format' => $this->output_format,
             ...$this->parameters,
         ];
@@ -133,14 +139,10 @@ class OpenAIImage implements AIProviderInterface
     {
         $message = end($messages);
 
-        if ($this->system ?? false) {
-            $message->addContent(new TextContent($this->system));
-        }
-
         $body = [
             'stream' => true,
             'model' => $this->model,
-            'prompt' => $message->getContent(),
+            'prompt' => $this->prompt($message),
             'output_format' => $this->output_format,
             ...$this->parameters,
         ];

@@ -46,6 +46,11 @@ framework: `->source` (the emitting component), `->execution` (the run identity)
 and `->branchId` (the parallel branch, or null). `->name()` returns the string
 name ('inference-start') and `->toArray()` the event's own data.
 
+Every node and middleware start is followed by its end, whatever the outcome:
+`WorkflowNodeEnd` and `MiddlewareEnd` carry `->outcome`, a `NodeOutcome`
+(`Completed`, `Suspended` or `Failed`), so a span can be closed and marked as
+soon as its node ends.
+
 ### Subscribing Listeners
 
 Listeners are class-keyed with instanceof matching — subscribe to a specific

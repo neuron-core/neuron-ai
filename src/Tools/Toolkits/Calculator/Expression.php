@@ -35,6 +35,7 @@ use function rad2deg;
 use function round;
 use function sin;
 use function sinh;
+use function sprintf;
 use function sqrt;
 use function strlen;
 use function tan;
@@ -62,6 +63,11 @@ use const PREG_UNMATCHED_AS_NULL;
 class Expression
 {
     protected const TOKEN_PATTERN = '/\s*(?:(?<number>(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)|(?<name>[a-zA-Z_]\w*)|(?<operator>\*\*|[-+*\/%^(),])|(?<invalid>\S))/Au';
+
+    /**
+     * Tokenizing and recursive parsing grow with the input; past this, an uncatchable memory fatal is near.
+     */
+    protected const MAX_LENGTH = 10_000;
 
     protected const CONSTANTS = ['pi' => M_PI, 'e' => M_E];
 
@@ -93,6 +99,10 @@ class Expression
      */
     public static function evaluate(string $source): int|float
     {
+        if (strlen($source) > self::MAX_LENGTH) {
+            throw new ExpressionException(sprintf('Expression exceeds %d characters', self::MAX_LENGTH));
+        }
+
         $expression = new self($source);
         $expression->tokenize();
 

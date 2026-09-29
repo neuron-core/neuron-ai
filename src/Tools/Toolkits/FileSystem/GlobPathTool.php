@@ -9,18 +9,24 @@ use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 use function array_filter;
-use function is_dir;
-use function is_string;
-use function natsort;
-use function str_replace;
-use function str_starts_with;
+use function array_pop;
+use function array_search;
+use function array_slice;
 use function array_unique;
 use function array_values;
 use function count;
+use function explode;
 use function glob;
+use function implode;
+use function is_dir;
+use function is_string;
+use function natsort;
+use function realpath;
 use function scandir;
+use function str_replace;
 
 use const DIRECTORY_SEPARATOR;
+use const GLOB_ONLYDIR;
 
 class GlobPathTool extends FileSystemTool
 {
@@ -54,15 +60,10 @@ class GlobPathTool extends FileSystemTool
             return ToolOutput::error("Directory '{$directory}' does not exist.");
         }
 
-        $useRecursive = str_starts_with($pattern, '**/');
-        if ($useRecursive) {
-            $pattern = str_replace('**/', '', $pattern);
-        }
-
         // A pattern can spell `..` as `[.][.]` and the walk follows symlinked
         // directories, so the scope is enforced on the matches themselves.
         $matches = array_filter(
-            $this->globRecursive($root, $pattern, $useRecursive),
+            array_unique($this->globstar($root, explode('/', $pattern))),
             fn (string $match): bool => is_string($this->resolve($match))
         );
 
@@ -82,40 +83,65 @@ class GlobPathTool extends FileSystemTool
         return $output;
     }
 
-    private function globRecursive(string $directory, string $pattern, bool $recursive): array
+    /**
+     * Matches the pattern segments with glob(), where a `**` segment stands
+     * for the directory reached so far and every directory below it.
+     *
+     * @param string[] $segments
+     * @return string[]
+     */
+    protected function globstar(string $directory, array $segments): array
     {
-        $separator = DIRECTORY_SEPARATOR;
+        $globstar = array_search('**', $segments, true);
+        if ($globstar === false) {
+            return glob($directory . DIRECTORY_SEPARATOR . implode('/', $segments)) ?: [];
+        }
 
-        $files = [];
+        $before = array_slice($segments, 0, $globstar);
+        $after = array_slice($segments, $globstar + 1) ?: ['*'];
 
-        if ($recursive) {
-            $items = scandir($directory);
-            if ($items === false) {
-                return [];
+        $bases = $before === []
+            ? [$directory]
+            : (glob($directory . DIRECTORY_SEPARATOR . implode('/', $before), GLOB_ONLYDIR) ?: []);
+
+        $matches = [];
+        foreach ($bases as $base) {
+            foreach ($this->tree($base) as $subdirectory) {
+                $matches = [...$matches, ...$this->globstar($subdirectory, $after)];
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * The directory and every directory below it, following symlinks but
+     * walking each real directory once, so a link back to an ancestor ends.
+     *
+     * @return string[]
+     */
+    protected function tree(string $root): array
+    {
+        $tree = [];
+        $walked = [];
+        $pending = [$root];
+
+        while (($directory = array_pop($pending)) !== null) {
+            $real = realpath($directory);
+            if ($real === false || isset($walked[$real])) {
+                continue;
             }
 
-            foreach ($items as $item) {
-                if ($item === '.') {
-                    continue;
-                }
-                if ($item === '..') {
-                    continue;
-                }
-                $path = $directory . $separator . $item;
+            $walked[$real] = true;
+            $tree[] = $directory;
 
-                if (is_dir($path)) {
-                    $files = [...$files, ...$this->globRecursive($path, $pattern, true)];
+            foreach (scandir($directory) ?: [] as $item) {
+                if ($item !== '.' && $item !== '..' && is_dir($directory . DIRECTORY_SEPARATOR . $item)) {
+                    $pending[] = $directory . DIRECTORY_SEPARATOR . $item;
                 }
             }
         }
 
-        $globPattern = $directory . $separator . $pattern;
-        $results = glob($globPattern);
-
-        if ($results !== false) {
-            $files = [...$files, ...$results];
-        }
-
-        return array_unique($files);
+        return $tree;
     }
 }

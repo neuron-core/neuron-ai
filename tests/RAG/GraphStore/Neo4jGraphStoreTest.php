@@ -41,6 +41,10 @@ class Neo4jGraphStoreTest extends TestCase
     protected function tearDown(): void
     {
         $this->cleanupTestData();
+        // PHPUnit keeps finished test cases alive, and the client's connections sit in a reference cycle:
+        // left open, every later forked test inherits them and its exit fails sending Bolt GOODBYE
+        unset($this->store);
+        gc_collect_cycles();
     }
 
     protected function cleanupTestData(): void

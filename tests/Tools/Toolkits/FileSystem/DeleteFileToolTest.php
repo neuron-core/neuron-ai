@@ -10,6 +10,7 @@ use NeuronAI\Tools\Toolkits\FileSystem\DeleteFileTool;
 use PHPUnit\Framework\TestCase;
 
 use function file_put_contents;
+use function is_link;
 use function mkdir;
 
 class DeleteFileToolTest extends TestCase
@@ -111,6 +112,33 @@ class DeleteFileToolTest extends TestCase
 
         $this->assertToolError("Access denied: 'link.txt' is outside the working scope '{$this->tempDir}/scope'.", $result);
         $this->assertFileExists($this->tempDir . '/precious.txt');
+    }
+
+    public function test_a_symlink_inside_the_scope_is_deleted_instead_of_its_target(): void
+    {
+        file_put_contents($this->tempDir . '/notes.txt', 'keep');
+        $this->symlinkOrSkip($this->tempDir . '/notes.txt', $this->tempDir . '/alias.txt');
+
+        $result = (new DeleteFileTool($this->tempDir))('alias.txt');
+
+        $this->assertSame('success', $result['status']);
+        $this->assertFalse(is_link($this->tempDir . '/alias.txt'));
+        $this->assertFileExists($this->tempDir . '/notes.txt');
+    }
+
+    public function test_a_file_reached_through_a_directory_link_leaving_the_scope_survives(): void
+    {
+        mkdir($this->tempDir . '/scope');
+        mkdir($this->tempDir . '/outside');
+        file_put_contents($this->tempDir . '/scope/notes.txt', 'keep');
+        $this->symlinkOrSkip($this->tempDir . '/scope/notes.txt', $this->tempDir . '/outside/alias.txt');
+        $this->symlinkOrSkip($this->tempDir . '/outside', $this->tempDir . '/scope/door');
+
+        $result = (new DeleteFileTool($this->tempDir . '/scope'))('door/alias.txt');
+
+        $this->assertToolError("Access denied: 'door' is outside the working scope '{$this->tempDir}/scope'.", $result);
+        $this->assertTrue(is_link($this->tempDir . '/outside/alias.txt'));
+        $this->assertFileExists($this->tempDir . '/scope/notes.txt');
     }
 
     public function test_tool_schema(): void

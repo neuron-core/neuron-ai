@@ -8,7 +8,6 @@ use Generator;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -23,6 +22,8 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 
+use function implode;
+use function array_filter;
 use function rtrim;
 use function end;
 
@@ -66,19 +67,24 @@ class ZAIImage implements AIProviderInterface
     }
 
     /**
+     * The image prompt: the message text, then the system prompt. Built as a
+     * string so the caller's message, which the chat history holds, stays untouched.
+     */
+    protected function prompt(Message $message): string
+    {
+        return implode(' ', array_filter([$message->getContent(), $this->system], static fn (?string $text): bool => $text !== null && $text !== ''));
+    }
+
+    /**
      * @throws HttpException
      */
     public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
 
-        if ($this->system ?? false) {
-            $message->addContent(new TextContent($this->system));
-        }
-
         $body = [
             'model' => $this->model,
-            'prompt' => $message->getContent(),
+            'prompt' => $this->prompt($message),
             ...$this->parameters,
         ];
 

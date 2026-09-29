@@ -66,13 +66,20 @@ class IsWeekendToolTest extends TestCase
         $this->assertSame('Saturday', json_decode(($this->tool)($timestamp, 'America/Los_Angeles'), true)['day_of_week']);
     }
 
-    public function test_a_date_string_is_read_as_utc_and_converted_to_the_requested_timezone(): void
+    public function test_a_date_string_is_read_in_the_requested_timezone(): void
     {
-        // Friday 23:00 UTC is already Saturday 08:00 in Tokyo
-        $utc = json_decode(($this->tool)('2023-06-16 23:00:00', 'UTC'), true);
+        // Friday 23:00 is Friday in Tokyo too
         $tokyo = json_decode(($this->tool)('2023-06-16 23:00:00', 'Asia/Tokyo'), true);
 
-        $this->assertFalse($utc['is_weekend']);
+        $this->assertFalse($tokyo['is_weekend']);
+        $this->assertSame('Friday', $tokyo['day_of_week']);
+    }
+
+    public function test_an_explicit_offset_is_converted_to_the_requested_timezone(): void
+    {
+        // Friday 23:00 UTC is already Saturday 08:00 in Tokyo
+        $tokyo = json_decode(($this->tool)('2023-06-16T23:00:00+00:00', 'Asia/Tokyo'), true);
+
         $this->assertTrue($tokyo['is_weekend']);
         $this->assertSame('Saturday', $tokyo['day_of_week']);
     }

@@ -22,9 +22,7 @@ class GetWeekdayToolTest extends TestCase
 
     protected function setUp(): void
     {
-        // Date strings are parsed in PHP's default timezone, so pin it to keep these cases deterministic
         $this->defaultTimezone = date_default_timezone_get();
-        date_default_timezone_set('UTC');
         $this->tool = new GetWeekdayTool();
     }
 
@@ -83,12 +81,22 @@ class GetWeekdayToolTest extends TestCase
         $this->assertSame('Thursday', $result);
     }
 
-    public function test_get_weekday_with_timezone(): void
+    public function test_a_date_string_is_read_in_the_requested_timezone(): void
     {
-        // Wednesday 23:00 UTC becomes Thursday 08:00 JST
-        $result = ($this->tool)('2023-06-14 23:00:00', null, 'Asia/Tokyo');
+        $this->assertSame('Wednesday', ($this->tool)('2023-06-14 23:00:00', null, 'Asia/Tokyo'));
+    }
 
-        $this->assertSame('Thursday', $result);
+    public function test_an_explicit_offset_is_converted_to_the_requested_timezone(): void
+    {
+        // Wednesday 23:00 UTC is Thursday 08:00 in Tokyo
+        $this->assertSame('Thursday', ($this->tool)('2023-06-14T23:00:00+00:00', null, 'Asia/Tokyo'));
+    }
+
+    public function test_the_server_default_timezone_does_not_change_the_answer(): void
+    {
+        date_default_timezone_set('America/New_York');
+
+        $this->assertSame('Monday', ($this->tool)('2024-01-15 23:00:00', null, 'UTC'));
     }
 
     public function test_get_weekday_with_date_time(): void
@@ -100,14 +108,10 @@ class GetWeekdayToolTest extends TestCase
 
     public function test_get_weekday_across_timezones(): void
     {
-        // Same timestamp in different timezones
-        $utc = ($this->tool)('2023-06-15 02:00:00', null, 'UTC');
-        $pacific = ($this->tool)('2023-06-15 02:00:00', null, 'America/Los_Angeles');
-        $sydney = ($this->tool)('2023-06-15 02:00:00', null, 'Australia/Sydney');
-
-        $this->assertSame('Thursday', $utc);
-        $this->assertSame('Wednesday', $pacific);
-        $this->assertSame('Thursday', $sydney);
+        // The same wall-clock time names the same day in every zone
+        $this->assertSame('Thursday', ($this->tool)('2023-06-15 02:00:00', null, 'UTC'));
+        $this->assertSame('Thursday', ($this->tool)('2023-06-15 02:00:00', null, 'America/Los_Angeles'));
+        $this->assertSame('Thursday', ($this->tool)('2023-06-15 02:00:00', null, 'Australia/Sydney'));
     }
 
     public function test_get_weekday_timezone_conversion(): void

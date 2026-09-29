@@ -50,13 +50,11 @@ class GetWeekdayTool extends Tool
         try {
             $tz = new DateTimeZone($timezone);
 
-            if (is_numeric($date)) {
-                $dateTime = (new DateTime())->setTimestamp((int) $date)->setTimezone($tz);
-            } else {
-                // First create the DateTime object, then convert to the target timezone
-                $dateTime = new DateTime($date);
-                $dateTime->setTimezone($tz);
-            }
+            // A date string without an offset is read in the requested zone; one with an offset is converted to it
+            $dateTime = is_numeric($date)
+                ? (new DateTime())->setTimestamp((int) $date)
+                : new DateTime($date, $tz);
+            $dateTime->setTimezone($tz);
 
             return match ($format) {
                 'name' => $dateTime->format('l'),

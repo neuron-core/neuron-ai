@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\Gemini;
 
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
 
 use function array_key_exists;
-use function end;
+use function array_key_last;
 use function is_array;
 use function json_encode;
 use function in_array;
@@ -54,10 +55,13 @@ trait HandleStructured
             // Gemini does not support structured output in combination with tools.
             // So we try to work with a JSON mode in case the agent has some tools defined.
             if (!empty($this->tools) && in_array($this->model, $this->unsupportedModels)) {
-                $last_message = end($messages);
-                if ($last_message instanceof Message && $last_message->getRole() === MessageRole::USER->value) {
-                    $last_message->setContents(
-                        $last_message->getContent() . ' Respond using this JSON schema: ' . json_encode($response_format)
+                $lastIndex = array_key_last($messages);
+                $last = $messages[$lastIndex] ?? null;
+                if ($last instanceof Message && $last->getRole() === MessageRole::USER->value) {
+                    // A copy: the caller's message belongs to the chat history. A separate
+                    // block keeps the images and files the user attached
+                    $messages[$lastIndex] = (clone $last)->addContent(
+                        new TextContent('Respond using this JSON schema: ' . json_encode($response_format))
                     );
                 }
             } else {

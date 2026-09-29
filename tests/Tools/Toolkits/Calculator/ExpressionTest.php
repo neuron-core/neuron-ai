@@ -9,6 +9,8 @@ use NeuronAI\Tools\Toolkits\Calculator\ExpressionException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function str_repeat;
+
 use const M_PI_2;
 use const M_PI;
 
@@ -173,5 +175,19 @@ class ExpressionTest extends TestCase
         $this->expectException(ExpressionException::class);
 
         Expression::evaluate("1 + \xB1");
+    }
+
+    public function test_an_oversized_expression_is_refused_before_tokenizing(): void
+    {
+        $this->expectException(ExpressionException::class);
+        $this->expectExceptionMessage('Expression exceeds 10000 characters');
+
+        Expression::evaluate(str_repeat('1+', 5_000) . '1');
+    }
+
+    public function test_the_longest_accepted_expressions_evaluate(): void
+    {
+        $this->assertSame(5_000, Expression::evaluate(str_repeat('1+', 4_999) . '1'));
+        $this->assertSame(1, Expression::evaluate(str_repeat('(', 4_999) . '1' . str_repeat(')', 4_999)));
     }
 }

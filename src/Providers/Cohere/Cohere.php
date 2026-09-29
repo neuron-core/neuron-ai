@@ -12,9 +12,9 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Providers\ProviderResponse;
 
+use function array_key_last;
 use function rtrim;
 use function array_replace_recursive;
-use function end;
 use function is_array;
 
 /**
@@ -67,9 +67,10 @@ class Cohere extends OpenAI
                 ],
             ]);
 
+            // The instruction goes on a copy: the caller's message belongs to the chat history
             $messages = is_array($messages) ? $messages : [$messages];
-            $message = end($messages);
-            $message->addContent(new TextContent('Generate a JSON'));
+            $lastIndex = array_key_last($messages);
+            $messages[$lastIndex] = (clone $messages[$lastIndex])->addContent(new TextContent('Generate a JSON'));
 
             return $this->chat(...$messages);
         } finally {

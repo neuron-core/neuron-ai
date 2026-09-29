@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -41,6 +42,7 @@ class MistralMessageMapperTest extends TestCase
             'uploaded document id' => [new FileContent('file-123', SourceType::ID, 'application/pdf'), ['type' => 'file', 'file_id' => 'file-123']],
             'base64 document is unsupported' => [new FileContent('JVBERi0=', SourceType::BASE64, 'application/pdf'), null],
             'audio' => [new AudioContent('SUQz', SourceType::BASE64, 'audio/mpeg'), ['type' => 'input_audio', 'input_audio' => 'SUQz']],
+            'reasoning is a list of thinking chunks' => [new ReasoningContent('Let me think'), ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Let me think']]]],
             'video is unsupported' => [new VideoContent('https://x.test/v.mp4', SourceType::URL, 'video/mp4'), null],
         ];
     }

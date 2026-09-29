@@ -77,6 +77,13 @@ class IsLeapYearToolTest extends TestCase
         $this->assertSame('{"year":2000,"is_leap_year":true,"days_in_year":366,"february_days":29}', $this->tool->getResult());
     }
 
+    public function test_a_fractional_year_is_an_input_error_for_the_model(): void
+    {
+        $this->tool->setInputs(['year' => 2024.5])->execute();
+
+        $this->assertSame('Parameter "year" must be of type integer, float given.', (string) $this->tool->getResult());
+    }
+
     public function test_tool_properties(): void
     {
         $this->assertSame('is_leap_year', $this->tool->getName());

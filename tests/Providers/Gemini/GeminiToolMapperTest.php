@@ -8,8 +8,10 @@ use NeuronAI\Providers\Gemini\ToolMapper;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ProviderTool;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_keys;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -41,6 +43,27 @@ class GeminiToolMapperTest extends TestCase
             '{"functionDeclarations":[{"name":"lookup","description":"Look something up","parameters":{"type":"object","properties":{},"required":[]}}]}',
             json_encode($mapped, JSON_THROW_ON_ERROR),
         );
+    }
+
+    /**
+     * @return iterable<string, array{array<array-key, ToolStub|ProviderTool>}>
+     */
+    public static function toolsNotKeyedFromZero(): iterable
+    {
+        yield 'provider tool first' => [[new ProviderTool('google_search'), new ToolStub('lookup'), new ToolStub('search')]];
+        yield 'keyed by name' => [['lookup' => new ToolStub('lookup'), 'search' => new ToolStub('search')]];
+    }
+
+    /**
+     * @param array<array-key, ToolStub|ProviderTool> $tools
+     */
+    #[DataProvider('toolsNotKeyedFromZero')]
+    public function test_function_declarations_are_a_list_whatever_the_tool_keys(array $tools): void
+    {
+        $mapped = (new ToolMapper())->map($tools);
+
+        $this->assertStringStartsWith('{"functionDeclarations":[{"name":"lookup"', json_encode($mapped, JSON_THROW_ON_ERROR));
+        $this->assertSame([0, 1], array_keys($mapped['functionDeclarations']));
     }
 
     public function test_tool_parameters_extend_the_declaration(): void

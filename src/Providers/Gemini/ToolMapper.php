@@ -27,7 +27,8 @@ class ToolMapper implements ToolMapperInterface
 
         // Gemini does not support functions and provider tool at the same time
         if ($functionTools !== []) {
-            $mapping['functionDeclarations'] = array_map($this->mapTool(...), $functionTools);
+            // array_filter() keeps the keys: re-index so JSON gets a list, not an object
+            $mapping['functionDeclarations'] = array_values(array_map($this->mapTool(...), $functionTools));
         } else {
             foreach ($providerTools as $tool) {
                 $mapping[] = $this->mapProviderTool($tool);

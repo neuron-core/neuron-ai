@@ -18,12 +18,14 @@ use NeuronAI\Workflow\Graph;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\Interrupt\ResumeType;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
+use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Observability\BranchEnd;
 use NeuronAI\Workflow\Observability\BranchStart;
 use NeuronAI\Workflow\Observability\MiddlewareEnd;
 use NeuronAI\Workflow\Observability\MiddlewareStart;
+use NeuronAI\Workflow\Observability\NodeOutcome;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\Observability\WorkflowError;
 use NeuronAI\Workflow\Observability\WorkflowInterrupted;
@@ -392,12 +394,12 @@ final class Segment
         $middleware = $this->graph->middlewareFor($node);
 
         $this->report(new WorkflowNodeStart($node::class, $state), $node, $branchId);
+        $outcome = NodeOutcome::Failed;
 
+        // Every start gets its end, so a listener pairing them into spans never leaves one open.
         try {
             foreach ($middleware as $m) {
-                $this->report(new MiddlewareStart($m, $event, 'before'), $node, $branchId);
-                $m->before($node, $event, $state, $resources);
-                $this->report(new MiddlewareEnd($m, 'before'), $node, $branchId);
+                $this->runMiddlewarePhase($m, 'before', $event, $node, $branchId, fn () => $m->before($node, $event, $state, $resources));
             }
 
             $result = $node->run($event, $state, $resources);
@@ -409,15 +411,38 @@ final class Segment
             }
 
             foreach ($middleware as $m) {
-                $this->report(new MiddlewareStart($m, $result, 'after'), $node, $branchId);
-                $m->after($node, $result, $state, $resources);
-                $this->report(new MiddlewareEnd($m, 'after'), $node, $branchId);
+                $this->runMiddlewarePhase($m, 'after', $result, $node, $branchId, fn () => $m->after($node, $result, $state, $resources));
             }
 
-            $this->report(new WorkflowNodeEnd($node::class, $state), $node, $branchId);
+            $outcome = NodeOutcome::Completed;
             return $result;
         } catch (WorkflowInterrupt $interrupt) {
+            $outcome = NodeOutcome::Suspended;
             return InterruptEvent::fromRequest($interrupt->getRequest(), $interrupt->wait);
+        } finally {
+            $this->report(new WorkflowNodeEnd($node::class, $state, $outcome), $node, $branchId);
+        }
+    }
+
+    /**
+     * @param Closure(): mixed $call
+     */
+    protected function runMiddlewarePhase(
+        WorkflowMiddleware $middleware,
+        string $phase,
+        Event $event,
+        NodeInterface $node,
+        ?string $branchId,
+        Closure $call,
+    ): void {
+        $this->report(new MiddlewareStart($middleware, $event, $phase), $node, $branchId);
+        $outcome = NodeOutcome::Failed;
+
+        try {
+            $call();
+            $outcome = NodeOutcome::Completed;
+        } finally {
+            $this->report(new MiddlewareEnd($middleware, $phase, $outcome), $node, $branchId);
         }
     }
 

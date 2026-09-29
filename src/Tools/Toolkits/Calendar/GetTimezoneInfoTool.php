@@ -11,11 +11,8 @@ use NeuronAI\Tools\ToolProperty;
 use DateTime;
 use Exception;
 
-use function abs;
-use function floor;
 use function is_numeric;
 use function json_encode;
-use function sprintf;
 use function str_contains;
 
 class GetTimezoneInfoTool extends Tool
@@ -55,8 +52,6 @@ class GetTimezoneInfoTool extends Tool
             }
 
             $offset = $tz->getOffset($date);
-            $offsetHours = $offset / 3600;
-            $offsetFormatted = sprintf('%+03d:%02d', floor($offsetHours), abs($offset % 3600) / 60);
 
             $transitions = $tz->getTransitions($date->getTimestamp(), $date->getTimestamp() + (365 * 24 * 3600));
             $isDst = !empty($transitions) && $transitions[0]['isdst'];
@@ -66,8 +61,8 @@ class GetTimezoneInfoTool extends Tool
             return json_encode([
                 'timezone' => $timezone,
                 'offset_seconds' => $offset,
-                'offset_hours' => $offsetHours,
-                'offset_formatted' => $offsetFormatted,
+                'offset_hours' => $offset / 3600,
+                'offset_formatted' => $date->format('P'),
                 'is_dst' => $isDst,
                 'abbreviation' => $date->format('T'),
                 'location' => ($location !== false && !str_contains($location['country_code'], '?')) ? [

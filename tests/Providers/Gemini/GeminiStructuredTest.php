@@ -145,7 +145,7 @@ class GeminiStructuredTest extends TestCase
         $body = $this->sentBody();
         $this->assertSame(['temperature' => 0], $body['generationConfig']);
         $this->assertSame(
-            [['text' => 'Who? Respond using this JSON schema: '.json_encode($schema)]],
+            [['text' => 'Who?'], ['text' => 'Respond using this JSON schema: '.json_encode($schema)]],
             $body['contents'][0]['parts'],
         );
     }

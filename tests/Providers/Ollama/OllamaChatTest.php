@@ -219,4 +219,32 @@ class OllamaChatTest extends TestCase
             json_encode((new MessageMapper())->map([$message]), JSON_THROW_ON_ERROR),
         );
     }
+
+    public function test_the_thinking_of_reasoning_models_is_kept(): void
+    {
+        $message = $this->provider('{"message":{"role":"assistant","content":"42","thinking":"Let me compute"},"done":true}')
+            ->chat(new UserMessage('Answer?'))->message();
+
+        $this->assertSame('42', $message->getContent());
+        $this->assertSame('Let me compute', $message->getReasoning()?->content);
+    }
+
+    public function test_the_thinking_that_precedes_a_tool_call_is_kept(): void
+    {
+        $message = $this->provider('{"message":{"role":"assistant","content":"","thinking":"I need the tool","tool_calls":[{"function":{"name":"lookup","arguments":{"q":"x"}}}]},"done":true}')
+            ->chat(new UserMessage('Answer?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('I need the tool', $message->getReasoning()?->content);
+        $this->assertNull($message->getContent());
+    }
+
+    public function test_empty_thinking_adds_no_reasoning(): void
+    {
+        $message = $this->provider('{"message":{"role":"assistant","content":"42","thinking":""},"done":true}')
+            ->chat(new UserMessage('Answer?'))->message();
+
+        $this->assertSame('42', $message->getContent());
+        $this->assertNull($message->getReasoning());
+    }
 }

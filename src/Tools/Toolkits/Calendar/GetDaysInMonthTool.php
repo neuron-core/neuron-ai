@@ -30,13 +30,13 @@ class GetDaysInMonthTool extends Tool
         return [
             ToolProperty::make(
                 name: 'month',
-                type: PropertyType::NUMBER,
+                type: PropertyType::INTEGER,
                 description: 'Month number (1-12)',
                 required: true,
             ),
             ToolProperty::make(
                 name: 'year',
-                type: PropertyType::NUMBER,
+                type: PropertyType::INTEGER,
                 description: 'Year (4-digit year)',
                 required: true,
             ),
