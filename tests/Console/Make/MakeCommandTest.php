@@ -19,6 +19,8 @@ use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
+use function array_diff;
+use function array_values;
 use function chdir;
 use function dirname;
 use function escapeshellarg;
@@ -33,6 +35,7 @@ use function ob_get_clean;
 use function ob_start;
 use function realpath;
 use function rmdir;
+use function scandir;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -262,8 +265,117 @@ class MakeCommandTest extends TestCase
         $this->assertStringContainsString("\nnamespace App;\n", (string) file_get_contents($file));
     }
 
+    public function test_a_prefix_mapped_to_several_directories_writes_to_the_first(): void
+    {
+        $this->writeComposerAutoload(['App\\' => ['src/', 'lib/']]);
+
+        [$exitCode, $output] = $this->make('make:agent', 'App\\Agents\\MyAgent');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("Success: Created Agent: {$this->workDir}/src/Agents/MyAgent.php" . PHP_EOL, $output);
+    }
+
+    public function test_a_bare_name_uses_a_prefix_mapped_to_several_directories(): void
+    {
+        $this->writeComposerAutoload(['App\\' => ['app/', 'src/']]);
+
+        [$exitCode] = $this->make('make:tool', 'MyTool');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . '/app/MyTool.php');
+    }
+
+    public function test_available_namespaces_list_every_directory_of_a_prefix(): void
+    {
+        $this->writeComposerAutoload(['App\\' => ['src/', 'lib/']]);
+
+        [, $output] = $this->make('make:agent', 'Other\\MyAgent');
+
+        $this->assertStringContainsString('  App\\ -> src/, lib/' . PHP_EOL, $output);
+        $this->assertStringNotContainsString('Array', $output);
+    }
+
+    public function test_a_prefix_mapped_to_no_directory_is_ignored(): void
+    {
+        $this->writeComposerAutoload(['App\\' => [], 'Lib\\' => 'lib/']);
+
+        [$exitCode] = $this->make('make:tool', 'MyTool');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString("\nnamespace Lib;\n", (string) file_get_contents($this->workDir . '/lib/MyTool.php'));
+    }
+
+    public function test_the_most_specific_prefix_wins_whatever_the_declaration_order(): void
+    {
+        $this->writeComposerAutoload(['App\\' => 'src/', 'App\\Tests\\' => 'tests/']);
+
+        [$exitCode] = $this->make('make:agent', 'App\\Tests\\MyAgent');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . '/tests/MyAgent.php');
+        $this->assertDirectoryDoesNotExist($this->workDir . '/src');
+    }
+
+    public function test_the_default_namespace_is_still_the_first_declared_prefix(): void
+    {
+        $this->writeComposerAutoload(['App\\' => 'src/', 'App\\Tests\\' => 'tests/']);
+
+        [$exitCode] = $this->make('make:tool', 'MyTool');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . '/src/MyTool.php');
+    }
+
     /**
-     * @param array<string, string> $psr4
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidClassNames(): iterable
+    {
+        yield 'namespace traversal' => ['App\\..\\..\\Escaped', '".." is not a valid PHP identifier.'];
+        yield 'slash traversal' => ['../../Escaped', '"../../Escaped" is not a valid PHP identifier.'];
+        yield 'leading digit' => ['App\\Agents\\123Agent', '"123Agent" is not a valid PHP identifier.'];
+        yield 'leading backslash' => ['\\App\\MyAgent', '"" is not a valid PHP identifier.'];
+        yield 'trailing backslash' => ['App\\Agents\\', '"" is not a valid PHP identifier.'];
+        yield 'keyword' => ['App\\Agents\\Class', '"Class" is a reserved word.'];
+        yield 'keyword in lower case' => ['App\\Agents\\match', '"match" is a reserved word.'];
+        yield 'reserved type name' => ['App\\Agents\\Mixed', '"Mixed" is a reserved word.'];
+        yield 'code' => ['App\\Agents\\Foo{}echo(1);class Bar', '"Foo{}echo(1);class Bar" is not a valid PHP identifier.'];
+    }
+
+    #[DataProvider('invalidClassNames')]
+    public function test_an_invalid_class_name_is_rejected_without_writing_anything(string $name, string $reason): void
+    {
+        [$exitCode, $output] = $this->make('make:agent', $name);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertSame('', $output);
+        $this->assertSame("Error: Invalid class name '{$name}': {$reason}" . PHP_EOL, $this->errors());
+        $this->assertSame(['composer.json'], array_values(array_diff((array) scandir($this->workDir), ['.', '..'])));
+        $this->assertFileDoesNotExist(dirname($this->workDir) . '/Escaped.php');
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unusualValidClassNames(): iterable
+    {
+        yield 'keyword as a namespace segment' => ['App\\Function\\MyAgent', '/src/Function/MyAgent.php'];
+        yield 'soft keyword as the class' => ['App\\Agents\\Enum', '/src/Agents/Enum.php'];
+        yield 'non-ASCII letters' => ['App\\Agents\\Café', '/src/Agents/Café.php'];
+        yield 'underscore start' => ['App\\_Internal', '/src/_Internal.php'];
+    }
+
+    #[DataProvider('unusualValidClassNames')]
+    public function test_unusual_but_valid_class_names_are_accepted(string $name, string $path): void
+    {
+        [$exitCode] = $this->make('make:agent', $name);
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . $path);
+    }
+
+    /**
+     * @param array<string, string|list<string>> $psr4
      */
     protected function writeComposerAutoload(array $psr4): void
     {
