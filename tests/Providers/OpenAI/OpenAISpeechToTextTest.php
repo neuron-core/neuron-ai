@@ -14,8 +14,10 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\OpenAI\Audio\OpenAISpeechToText;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function base64_encode;
 use function file_put_contents;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -149,5 +151,49 @@ class OpenAISpeechToTextTest extends TestCase
         $this->consumeStream($provider->stream($this->audioMessage()));
 
         $this->assertMatchesRegularExpression('/name="temperature"\r\n(?:[^\r\n]+\r\n)*\r\n0.2\r\n/', $this->sentBody());
+    }
+
+    public function test_base64_audio_is_uploaded_decoded_and_named_after_its_format(): void
+    {
+        $message = (new UserMessage('Transcribe'))->addContent(new AudioContent(base64_encode('RIFF-fake-wav'), SourceType::BASE64, 'audio/wav'));
+
+        $this->makeProvider('{"text":"Hi"}')->chat($message);
+
+        $request = $this->sentRequests[0]['request'];
+        $this->assertStringStartsWith('multipart/form-data', $request->getHeaderLine('Content-Type'));
+        $this->assertMatchesRegularExpression('/name="file"; filename="audio\.wav"\r\n(?:[^\r\n]+\r\n)*\r\nRIFF-fake-wav\r\n/', $this->sentBody());
+    }
+
+    public function test_base64_audio_is_uploaded_when_streaming(): void
+    {
+        $message = (new UserMessage('Transcribe'))->addContent(new AudioContent(base64_encode('ID3-fake-mp3'), SourceType::BASE64, 'audio/mpeg'));
+
+        $this->consumeStream($this->makeProvider(self::sseBody([['type' => 'transcript.text.done', 'text' => 'ok']]))->stream($message));
+
+        $this->assertMatchesRegularExpression('/name="file"; filename="audio\.mp3"\r\n(?:[^\r\n]+\r\n)*\r\nID3-fake-mp3\r\n/', $this->sentBody());
+    }
+
+    /**
+     * @return iterable<string, array{AudioContent, string}>
+     */
+    public static function unusableAudio(): iterable
+    {
+        yield 'base64 without a media type' => [new AudioContent(base64_encode('RIFF'), SourceType::BASE64), 'Base64 audio needs a media type'];
+        yield 'invalid base64' => [new AudioContent('not base64!', SourceType::BASE64, 'audio/wav'), 'The audio is not valid base64'];
+        yield 'provider file id' => [new AudioContent('file-123', SourceType::ID, 'audio/wav'), 'Audio must be a file path or base64'];
+        yield 'unreadable path' => [new AudioContent('/no/such/recording.wav', SourceType::URL, 'audio/wav'), 'Cannot open the audio file: /no/such/recording.wav'];
+    }
+
+    #[DataProvider('unusableAudio')]
+    public function test_unusable_audio_is_refused_before_any_request(AudioContent $audio, string $reason): void
+    {
+        try {
+            $this->makeProvider('{"text":"Hi"}')->chat(new UserMessage($audio));
+            $this->fail('The audio must be refused.');
+        } catch (ProviderException $exception) {
+            $this->assertStringContainsString($reason, $exception->getMessage());
+        }
+
+        $this->assertSame([], $this->sentRequests);
     }
 }

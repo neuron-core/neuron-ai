@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools\Toolkits\Tavily;
 
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\Tavily\TavilyExtractTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +17,7 @@ use function json_encode;
 class TavilyExtractToolTest extends TestCase
 {
     use RecordsHttpRequests;
+    use ToolErrorAssertions;
 
     public function test_posts_the_url_as_a_single_item_list(): void
     {
@@ -40,6 +41,26 @@ class TavilyExtractToolTest extends TestCase
         $this->assertSame(['url' => 'https://example.com', 'raw_content' => '# Page', 'images' => []], $tool('https://example.com'));
     }
 
+    public function test_a_url_tavily_could_not_extract_is_an_error_for_the_model(): void
+    {
+        $tool = new TavilyExtractTool('tavily-key', $this->recordingClient(new Response(200, [], json_encode([
+            'results' => [],
+            'failed_results' => [['url' => 'https://example.com/missing', 'error' => 'Failed to fetch url']],
+        ]))));
+
+        $this->assertToolError(
+            "Tavily could not extract 'https://example.com/missing': Failed to fetch url.",
+            $tool('https://example.com/missing')
+        );
+    }
+
+    public function test_no_result_without_a_reason_is_an_error_for_the_model(): void
+    {
+        $tool = new TavilyExtractTool('tavily-key', $this->recordingClient(new Response(200, [], json_encode(['results' => []]))));
+
+        $this->assertToolError("Tavily could not extract 'https://example.com': no content returned.", $tool('https://example.com'));
+    }
+
     public function test_options_are_merged_but_cannot_override_the_url(): void
     {
         $tool = (new TavilyExtractTool('tavily-key', $this->recordingClient($this->extractResponse())))
@@ -59,6 +80,8 @@ class TavilyExtractToolTest extends TestCase
             'empty' => [''],
             'plain text' => ['example page'],
             'missing scheme' => ['example.com'],
+            'local file' => ['file:///etc/passwd'],
+            'ftp' => ['ftp://example.com/file'],
         ];
     }
 
@@ -67,12 +90,7 @@ class TavilyExtractToolTest extends TestCase
     {
         $tool = new TavilyExtractTool('tavily-key', $this->recordingClient());
 
-        try {
-            $tool($url);
-            $this->fail("Expected a ToolException for '{$url}'.");
-        } catch (ToolException $exception) {
-            $this->assertSame('Invalid URL.', $exception->getMessage());
-        }
+        $this->assertToolError('Invalid URL: an absolute http or https URL is required.', $tool($url));
 
         $this->assertSame([], $this->sentRequests);
     }

@@ -15,6 +15,7 @@ use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use PHPUnit\Framework\TestCase;
 
+use function base64_decode;
 use function base64_encode;
 use function json_decode;
 
@@ -87,7 +88,7 @@ class OpenAITextToSpeechTest extends TestCase
         [$chunks, $message] = $this->consumeStream($this->provider($body)->stream(new UserMessage('Hi')));
 
         $this->assertSame(['QUJD', 'REVG'], $this->contentsOf(AudioChunk::class, $chunks));
-        $this->assertSame('QUJDREVG', $message->getAudio()->content);
+        $this->assertSame(base64_encode('ABCDEF'), $message->getAudio()->content);
         $this->assertSame(4, $message->getUsage()->inputTokens);
         $this->assertSame(30, $message->getUsage()->outputTokens);
         $this->assertTrue($this->sentBody()['stream']);
@@ -99,5 +100,19 @@ class OpenAITextToSpeechTest extends TestCase
         $this->expectExceptionMessage('Structured output is not supported');
 
         $this->provider('')->structured(new UserMessage('Hi'), 'Person', []);
+    }
+
+    public function test_deltas_not_aligned_to_three_bytes_decode_to_the_whole_audio(): void
+    {
+        // Each delta is base64 on its own: joined, their padding would land mid-string
+        $body = self::sseBody([
+            ['type' => 'speech.audio.delta', 'audio' => base64_encode('A')],
+            ['type' => 'speech.audio.delta', 'audio' => base64_encode('BC')],
+            ['type' => 'speech.audio.done', 'usage' => ['input_tokens' => 1, 'output_tokens' => 1]],
+        ]);
+
+        [, $message] = $this->consumeStream($this->provider($body)->stream(new UserMessage('Hi')));
+
+        $this->assertSame('ABC', base64_decode($message->getAudio()->content, true));
     }
 }

@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Tavily;
 
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
 use function array_merge;
 use function filter_var;
+use function preg_match;
 
 use const FILTER_VALIDATE_URL;
 
@@ -49,10 +50,10 @@ class TavilyExtractTool extends Tool
         ];
     }
 
-    public function __invoke(string $url): array
+    public function __invoke(string $url): array|ToolOutput
     {
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new ToolException('Invalid URL.');
+        if (preg_match('~^https?://~i', $url) !== 1 || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return ToolOutput::error('Invalid URL: an absolute http or https URL is required.');
         }
 
         $result = $this->post('extract', array_merge(
@@ -62,7 +63,10 @@ class TavilyExtractTool extends Tool
 
         $result = $result->json();
 
-        return $result['results'][0];
+        // An unreachable page is reported under failed_results: a routine outcome the model can work around
+        return $result['results'][0] ?? ToolOutput::error(
+            "Tavily could not extract '{$url}': " . ($result['failed_results'][0]['error'] ?? 'no content returned') . '.'
+        );
     }
 
     public function withOptions(array $options): self

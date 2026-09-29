@@ -142,9 +142,13 @@ trait HandleStream
         }
     }
 
+    /**
+     * Any finish reason ends a turn that collected tool calls: a forced
+     * tool_choice answers "stop", not "tool_calls".
+     */
     protected function finishForToolCall(array $choice): bool
     {
-        return isset($choice['finish_reason']) && $choice['finish_reason'] === 'tool_calls';
+        return isset($choice['finish_reason']) && $this->streamState->hasToolCalls();
     }
 
     /**

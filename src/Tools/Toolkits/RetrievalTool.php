@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace NeuronAI\Tools\Toolkits;
 
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+
+use function array_map;
 
 class RetrievalTool extends Tool
 {
@@ -33,8 +36,18 @@ class RetrievalTool extends Tool
         ];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     public function __invoke(string $query): array
     {
-        return $this->retrieval->retrieve(new UserMessage($query));
+        // Embeddings are useless to the model and would be resent with the history on every turn
+        return array_map(fn (Document $document): array => [
+            'content' => $document->getContent(),
+            'sourceType' => $document->getSourceType(),
+            'sourceName' => $document->getSourceName(),
+            'score' => $document->getScore(),
+            'metadata' => $document->getMetadata(),
+        ], $this->retrieval->retrieve(new UserMessage($query)));
     }
 }

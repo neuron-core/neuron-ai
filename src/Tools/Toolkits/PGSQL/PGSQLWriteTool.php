@@ -14,7 +14,11 @@ use NeuronAI\Tools\ToolProperty;
 use PDO;
 use ReflectionException;
 
+use function json_encode;
 use function str_starts_with;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * @method static static make(PDO $pdo)
@@ -40,7 +44,7 @@ class PGSQLWriteTool extends Tool
             new ToolProperty(
                 'query',
                 PropertyType::STRING,
-                'The parameterized SQL write query with named placeholders (e.g., "INSERT INTO users (name, email) VALUES (:name, :email)" or "UPDATE users SET name = :name WHERE id = :id"). Use named parameters (:parameter_name) for all dynamic values.',
+                'The parameterized SQL write query with named placeholders (e.g., "INSERT INTO users (name, email) VALUES (:name, :email)" or "UPDATE users SET name = :name WHERE id = :id"). Use named parameters (:parameter_name) for all dynamic values. Add a RETURNING clause (e.g., "RETURNING id") to get generated keys or changed rows back.',
                 true
             ),
             new ArrayProperty(
@@ -79,17 +83,13 @@ class PGSQLWriteTool extends Tool
             return "Error executing query: " . ($errorInfo[2] ?? 'Unknown database error');
         }
 
-        // Get the number of affected rows for feedback
-        $rowCount = $statement->rowCount();
+        // No lastInsertId(): PostgreSQL's LASTVAL() is session-wide, so it can name another table's row
+        $output = "Query executed successfully. {$statement->rowCount()} row(s) affected.";
 
-        // For INSERT operations, also return the last insert ID if available
-        if (str_starts_with($query, 'INSERT')) {
-            $lastInsertId = $this->pdo->lastInsertId();
-            if ($lastInsertId > 0) {
-                return "Query executed successfully. {$rowCount} row(s) affected. Last insert ID: {$lastInsertId}";
-            }
+        if ($statement->columnCount() > 0) {
+            $output .= ' Returned rows: ' . json_encode($statement->fetchAll(PDO::FETCH_ASSOC), JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         }
 
-        return "Query executed successfully. {$rowCount} row(s) affected.";
+        return $output;
     }
 }

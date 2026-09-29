@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Jina;
 
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
 use function filter_var;
+use function preg_match;
 
 use const FILTER_VALIDATE_URL;
 
@@ -43,10 +44,10 @@ class JinaUrlReader extends Tool
         ];
     }
 
-    public function __invoke(string $url): string
+    public function __invoke(string $url): string|ToolOutput
     {
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new ToolException('Invalid URL.');
+        if (preg_match('~^https?://~i', $url) !== 1 || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return ToolOutput::error('Invalid URL: an absolute http or https URL is required.');
         }
 
         $response = $this->httpClient->request(HttpRequest::post('https://r.jina.ai/', [

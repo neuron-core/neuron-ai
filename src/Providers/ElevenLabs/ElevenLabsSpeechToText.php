@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\ElevenLabs;
 
 use Generator;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -19,13 +18,14 @@ use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
+use NeuronAI\Providers\UploadsAudioFile;
 
 use function end;
-use function fopen;
 
 class ElevenLabsSpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
+    use UploadsAudioFile;
 
     protected string $baseUri = 'https://api.elevenlabs.io/v1/speech-to-text';
 
@@ -68,14 +68,10 @@ class ElevenLabsSpeechToText implements AIProviderInterface
      */
     public function chat(Message ...$messages): ProviderResponse
     {
-        $audio = end($messages)->getAudio();
-
-        if ($audio->sourceType !== SourceType::URL) {
-            throw new ProviderException("ElevenLabs Speech to Text uploads the audio as a file: pass its path as SourceType::URL content, not {$audio->sourceType->value}.");
-        }
+        $file = $this->audioFilePart(end($messages)->getAudio());
 
         $body = [
-            'file' => fopen($audio->getContent(), 'r'),
+            'file' => $file,
             'model_id' => $this->model,
             ...$this->parameters,
         ];

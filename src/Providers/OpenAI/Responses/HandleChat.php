@@ -68,11 +68,20 @@ trait HandleChat
             $result['usage']['output_tokens_details']['reasoning_tokens'] ?? 0,
         );
 
+        // The same output parsing for both: text, reasoning and citations can accompany tool calls
+        $answer = $this->createAssistantMessage($result);
+
         if ($toolCalls !== []) {
-            $message = $this->createToolCallMessage($toolCalls)->setUsage($usage);
+            $message = $this->createToolCallMessage($toolCalls, $answer->getContentBlocks());
+
+            if ($answer->getMetadata('citations') !== null) {
+                $message->addMetadata('citations', $answer->getMetadata('citations'));
+            }
         } else {
-            $message = $this->createAssistantMessage($result)->setUsage($usage);
+            $message = $answer;
         }
+
+        $message->setUsage($usage);
 
         if (isset($result['status'])) {
             $message->setStopReason($result['status']);

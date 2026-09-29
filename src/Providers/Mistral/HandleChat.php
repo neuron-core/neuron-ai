@@ -73,7 +73,8 @@ trait HandleChat
         $choice = $result['choices'][0];
         $blocks = $this->extractContent($choice['message']['content'] ?? null);
 
-        if ($choice['finish_reason'] === 'tool_calls') {
+        // The calls decide, not the finish reason: a forced tool_choice answers "stop"
+        if (!empty($choice['message']['tool_calls'])) {
             $response = $this->createToolCallMessage($choice['message']['tool_calls'], $blocks);
         } else {
             $response = new AssistantMessage($blocks);

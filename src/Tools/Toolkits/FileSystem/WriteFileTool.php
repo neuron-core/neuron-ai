@@ -48,8 +48,13 @@ class WriteFileTool extends FileSystemTool
             return $path;
         }
 
+        if (is_dir($path)) {
+            return ToolOutput::error("'{$file_path}' is a directory, not a file.");
+        }
+
+        // Failures are reported through return values: silence the warnings that frameworks turn into exceptions
         $dir = dirname($path);
-        if (!is_dir($dir) && !mkdir($dir, 0o755, true) && !is_dir($dir)) {
+        if (!is_dir($dir) && !@mkdir($dir, 0o755, true) && !is_dir($dir)) {
             return ToolOutput::error("Directory '{$dir}' could not be created.");
         }
 
@@ -57,7 +62,7 @@ class WriteFileTool extends FileSystemTool
             return ToolOutput::error("Directory '{$dir}' is not writable.");
         }
 
-        $result = file_put_contents($path, $content);
+        $result = @file_put_contents($path, $content);
 
         if ($result === false) {
             return ToolOutput::error("Failed to write file '{$file_path}'.");

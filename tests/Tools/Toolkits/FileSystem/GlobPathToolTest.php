@@ -106,11 +106,68 @@ class GlobPathToolTest extends TestCase
         $this->touch('root.txt', 'root.php', 'level1/l1.txt', 'level1/level2/l2.txt', 'level1/level2/l2.php');
 
         $this->assertSame(
-            "Found 3 match(es) for pattern '*.txt' in directory '{$this->tempDir}':\n\n"
+            "Found 3 match(es) for pattern '**/*.txt' in directory '{$this->tempDir}':\n\n"
             . "  - level1/l1.txt\n"
             . "  - level1/level2/l2.txt\n"
             . "  - root.txt\n",
             ($this->tool)($this->tempDir, '**/*.txt')
+        );
+    }
+
+    public function test_globstar_after_a_prefix_walks_every_level_below_it(): void
+    {
+        mkdir($this->tempDir . '/src/a/b', 0o755, true);
+        $this->touch('top.php', 'src/x.php', 'src/a/y.php', 'src/a/b/z.php');
+
+        $this->assertSame(
+            "Found 3 match(es) for pattern 'src/**/*.php' in directory '{$this->tempDir}':\n\n"
+            . "  - src/a/b/z.php\n"
+            . "  - src/a/y.php\n"
+            . "  - src/x.php\n",
+            ($this->tool)($this->tempDir, 'src/**/*.php')
+        );
+    }
+
+    public function test_every_globstar_in_a_pattern_walks_every_level(): void
+    {
+        mkdir($this->tempDir . '/x/a/y/b', 0o755, true);
+        mkdir($this->tempDir . '/x/other');
+        $this->touch('x/other/skip.php', 'x/a/one.php', 'x/a/y/two.php', 'x/a/y/b/three.php');
+
+        $this->assertSame(
+            "Found 3 match(es) for pattern '**/a/**/*.php' in directory '{$this->tempDir}':\n\n"
+            . "  - x/a/one.php\n"
+            . "  - x/a/y/b/three.php\n"
+            . "  - x/a/y/two.php\n",
+            ($this->tool)($this->tempDir, '**/a/**/*.php')
+        );
+    }
+
+    public function test_a_trailing_globstar_matches_everything_below(): void
+    {
+        mkdir($this->tempDir . '/src/a', 0o755, true);
+        $this->touch('top.txt', 'src/x.txt', 'src/a/y.txt');
+
+        $this->assertSame(
+            "Found 3 match(es) for pattern 'src/**' in directory '{$this->tempDir}':\n\n"
+            . "  - src/a\n"
+            . "  - src/a/y.txt\n"
+            . "  - src/x.txt\n",
+            ($this->tool)($this->tempDir, 'src/**')
+        );
+    }
+
+    public function test_symlinks_back_to_an_ancestor_are_walked_once(): void
+    {
+        mkdir($this->tempDir . '/sub');
+        $this->touch('notes.txt');
+        $this->symlinkOrSkip($this->tempDir, $this->tempDir . '/sub/loop');
+        $this->symlinkOrSkip($this->tempDir, $this->tempDir . '/sub/again');
+
+        $this->assertSame(
+            "Found 1 match(es) for pattern '**/notes.txt' in directory '{$this->tempDir}':\n\n"
+            . "  - notes.txt\n",
+            ($this->tool)($this->tempDir, '**/notes.txt')
         );
     }
 

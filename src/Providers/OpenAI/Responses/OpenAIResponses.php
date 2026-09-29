@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\OpenAI\Responses;
 
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
@@ -110,6 +112,14 @@ class OpenAIResponses implements AIProviderInterface
     }
 
     /**
+     * A generated image, or a streamed preview of it: base64 in the requested format.
+     */
+    protected function createImageContent(string $base64, ?string $format): ImageContent
+    {
+        return new ImageContent($base64, SourceType::BASE64, 'image/' . ($format ?? 'png'));
+    }
+
+    /**
      * @param array<string, mixed> $body
      */
     protected function attachSystemPrompt(array &$body, SystemMessage $system): void
@@ -175,14 +185,20 @@ class OpenAIResponses implements AIProviderInterface
         $blocks = [];
         $citations = [];
         foreach ($response['output'] as $block) {
+            // A message holds several parts; a refusal stays readable as text
             if ($block['type'] === 'message') {
-                $content = $block['content'][0];
-
-                $blocks[] = new TextContent($content['text']);
-
-                if (isset($content['annotations'])) {
-                    $citations = array_merge($citations, $this->extractCitations($content['annotations']));
+                foreach ($block['content'] ?? [] as $part) {
+                    if (($part['type'] ?? null) === 'refusal') {
+                        $blocks[] = new TextContent($part['refusal'] ?? '');
+                    } elseif (isset($part['text'])) {
+                        $blocks[] = new TextContent($part['text']);
+                        $citations = array_merge($citations, $this->extractCitations($part['annotations'] ?? []));
+                    }
                 }
+            }
+
+            if ($block['type'] === 'image_generation_call' && isset($block['result'])) {
+                $blocks[] = $this->createImageContent($block['result'], $block['output_format'] ?? null);
             }
 
             if ($block['type'] === 'reasoning' && !empty($block['summary'])) {

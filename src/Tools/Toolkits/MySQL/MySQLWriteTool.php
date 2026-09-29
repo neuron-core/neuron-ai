@@ -14,7 +14,11 @@ use NeuronAI\Tools\ToolProperty;
 use PDO;
 use ReflectionException;
 
+use function json_encode;
 use function str_starts_with;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * @method static static make(PDO $pdo)
@@ -78,17 +82,18 @@ class MySQLWriteTool extends Tool
             return "Error executing query: " . ($errorInfo[2] ?? 'Unknown database error');
         }
 
-        // Get the number of affected rows for feedback
-        $rowCount = $statement->rowCount();
+        $output = "Query executed successfully. {$statement->rowCount()} row(s) affected.";
 
-        // For INSERT operations, also return the last insert ID if available
-        if (str_starts_with($query, 'INSERT')) {
-            $lastInsertId = $this->pdo->lastInsertId();
-            if ($lastInsertId > 0) {
-                return "Query executed successfully. {$rowCount} row(s) affected. Last insert ID: {$lastInsertId}";
-            }
+        // Tracked per statement: 0 unless this one generated an AUTO_INCREMENT value, the first one of a multi-row insert
+        $generatedId = $this->pdo->lastInsertId();
+        if ($generatedId > 0) {
+            $output .= " First generated ID: {$generatedId}.";
         }
 
-        return "Query executed successfully. {$rowCount} row(s) affected.";
+        if ($statement->columnCount() > 0) {
+            $output .= ' Returned rows: ' . json_encode($statement->fetchAll(PDO::FETCH_ASSOC), JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        }
+
+        return $output;
     }
 }

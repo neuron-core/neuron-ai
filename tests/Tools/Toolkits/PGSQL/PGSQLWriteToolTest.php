@@ -8,7 +8,6 @@ use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
 use NeuronAI\Tests\Tools\Toolkits\PGSQL\Stub\PostgresSandbox;
 use NeuronAI\Tools\Toolkits\PGSQL\PGSQLWriteTool;
 use PDO;
-use PDOStatement;
 use PHPUnit\Framework\TestCase;
 
 class PGSQLWriteToolTest extends TestCase
@@ -60,17 +59,38 @@ class PGSQLWriteToolTest extends TestCase
         $this->assertSame('Error executing query: UNIQUE constraint failed: users.name', $result);
     }
 
-    public function test_insert_into_a_serial_table_reports_the_new_id_on_postgres(): void
+    public function test_an_insert_reports_no_id_that_lastval_could_take_from_another_table_on_postgres(): void
+    {
+        $pdo = $this->postgres();
+        $pdo->exec("INSERT INTO users (name) VALUES ('Grace')");
+        $pdo->exec('CREATE TABLE tags (label text)');
+
+        $this->assertSame(
+            'Query executed successfully. 1 row(s) affected.',
+            (new PGSQLWriteTool($pdo))('INSERT INTO tags (label) VALUES (:label)', [['name' => 'label', 'value' => 'php']])
+        );
+    }
+
+    public function test_an_insert_into_a_table_without_sequence_succeeds_in_a_fresh_session_on_postgres(): void
+    {
+        $pdo = $this->postgres();
+        $pdo->exec('CREATE TABLE tags (label text)');
+
+        $this->assertSame(
+            'Query executed successfully. 1 row(s) affected.',
+            (new PGSQLWriteTool($pdo))("INSERT INTO tags (label) VALUES ('php')")
+        );
+    }
+
+    public function test_returning_rows_are_reported_on_postgres(): void
     {
         $pdo = $this->postgres();
 
         $result = (new PGSQLWriteTool($pdo))(
-            'INSERT INTO users (name) VALUES (:name)',
-            [['name' => 'name', 'value' => 'Ada']]
+            "insert into users (name) values ('Ada'), ('Grace') returning id, name",
         );
 
-        $this->assertSame('Query executed successfully. 1 row(s) affected. Last insert ID: 1', $result);
-        $this->assertSame(['Ada'], $this->names($pdo));
+        $this->assertSame('Query executed successfully. 2 row(s) affected. Returned rows: [{"id":1,"name":"Ada"},{"id":2,"name":"Grace"}]', $result);
     }
 
     public function test_parameter_values_are_bound_as_data_on_postgres(): void
@@ -81,21 +101,6 @@ class PGSQLWriteToolTest extends TestCase
         (new PGSQLWriteTool($pdo))('INSERT INTO users (name) VALUES (:name)', [['name' => 'name', 'value' => $payload]]);
 
         $this->assertSame([$payload], $this->names($pdo));
-    }
-
-    public function test_insert_without_a_generated_key_reports_no_insert_id(): void
-    {
-        $statement = $this->createMock(PDOStatement::class);
-        $statement->method('execute')->willReturn(true);
-        $statement->method('rowCount')->willReturn(1);
-        $pdo = $this->createMock(PDO::class);
-        $pdo->method('prepare')->willReturn($statement);
-        $pdo->expects($this->once())->method('lastInsertId')->willReturn('0');
-
-        $this->assertSame(
-            'Query executed successfully. 1 row(s) affected.',
-            (new PGSQLWriteTool($pdo))("INSERT INTO tags (label) VALUES ('php')")
-        );
     }
 
     public function test_tool_schema(): void

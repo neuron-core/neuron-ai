@@ -123,8 +123,8 @@ These classes implement the same interface, so custom nodes hold them like an LL
 |-------|-----------------|-----------------------|
 | `NeuronAI\Providers\OpenAI\Audio\OpenAITextToSpeech` | text to base64 `AudioContent` | `voice` |
 | `NeuronAI\Providers\ElevenLabs\ElevenLabsTextToSpeech` | text to base64 `AudioContent` | `voiceId` |
-| `NeuronAI\Providers\OpenAI\Audio\OpenAISpeechToText` | `AudioContent` holding a readable file path, to text | `language` (default `en`) |
-| `NeuronAI\Providers\ElevenLabs\ElevenLabsSpeechToText` | `AudioContent` holding a readable file path, to text | none |
+| `NeuronAI\Providers\OpenAI\Audio\OpenAISpeechToText` | `AudioContent` holding a readable file path, or base64 with a media type, to text | `language` (default `en`) |
+| `NeuronAI\Providers\ElevenLabs\ElevenLabsSpeechToText` | `AudioContent` holding a readable file path, or base64 with a media type, to text | none |
 | `NeuronAI\Providers\ZAI\Audio\ZAITranscription` | base64 `AudioContent`, or a URL source opened as a stream, to text | none |
 | `NeuronAI\Providers\OpenAI\Image\OpenAIImage` | prompt to base64 `ImageContent` | `output_format` (`png`, `jpeg`, `webp`) |
 | `NeuronAI\Providers\ZAI\Image\ZAIImage` | prompt to URL `ImageContent` | none |

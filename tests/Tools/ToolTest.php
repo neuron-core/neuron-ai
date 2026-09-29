@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Tools;
 
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\StructuredOutput\Stub\Color;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tests\Tools\Stub\StrictApprovalTool;
@@ -51,6 +52,19 @@ class ToolTest extends TestCase
         $this->assertEquals(null, $tool->getCallId());
         $tool->setCallId('test');
         $this->assertEquals('test', $tool->getCallId());
+    }
+
+    public function test_reading_the_result_of_a_tool_that_never_ran_is_a_tool_exception(): void
+    {
+        $tool = new class () extends Tool {
+            protected string $name = 'pending';
+        };
+
+        $this->assertFalse($tool->hasResult());
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool pending has no result: it was never executed.');
+
+        $tool->getResult();
     }
 
     public function test_inputs_are_cast_to_the_declared_types(): void

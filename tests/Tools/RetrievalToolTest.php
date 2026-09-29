@@ -52,6 +52,27 @@ class RetrievalToolTest extends TestCase
         $this->assertSame(0.9, $result[0]['score']);
     }
 
+    public function test_the_embedding_is_left_out_of_the_result(): void
+    {
+        $document = (new Document('Refunds are accepted within 30 days.'))
+            ->setSourceType('file')
+            ->setSourceName('faq.md')
+            ->setScore(0.9)
+            ->addMetadata('section', 'billing');
+        $document->setEmbedding([0.1, 0.2, 0.3]);
+        $tool = (new RetrievalTool(new RecordingRetrieval([$document])))->setInputs(['query' => 'refund']);
+
+        $tool->execute();
+
+        $this->assertSame([[
+            'content' => 'Refunds are accepted within 30 days.',
+            'sourceType' => 'file',
+            'sourceName' => 'faq.md',
+            'score' => 0.9,
+            'metadata' => ['section' => 'billing'],
+        ]], json_decode((string) $tool->getResult(), true));
+    }
+
     public function test_no_documents_is_an_empty_list(): void
     {
         $tool = (new RetrievalTool(new RecordingRetrieval()))->setInputs(['query' => 'unknown']);

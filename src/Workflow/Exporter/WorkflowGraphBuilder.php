@@ -14,6 +14,7 @@ use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionUnionType;
 
+use function get_debug_type;
 use function is_a;
 use function sha1;
 use function is_string;
@@ -148,7 +149,15 @@ final class WorkflowGraphBuilder
         $this->graph->addEdge(new WorkflowGraphEdge($this->nodeId($node), $splitId));
 
         foreach ($transition->branches as $branch => $event) {
-            if (!is_string($event) || !is_a($event, Event::class, true)) {
+            if (!is_string($branch) || $branch === '') {
+                throw new InvalidArgumentException('Parallel branches must use non-empty string names.');
+            }
+            if (!is_string($event)) {
+                throw new InvalidArgumentException(
+                    "Parallel branch '{$branch}' must be an event class name, " . get_debug_type($event) . ' given.'
+                );
+            }
+            if (!is_a($event, Event::class, true)) {
                 throw new InvalidArgumentException($event . ' must implement ' . Event::class);
             }
 

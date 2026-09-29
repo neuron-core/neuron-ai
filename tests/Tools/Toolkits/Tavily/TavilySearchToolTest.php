@@ -18,7 +18,7 @@ class TavilySearchToolTest extends TestCase
 {
     use RecordsHttpRequests;
 
-    public function test_posts_the_query_with_default_filters_and_options(): void
+    public function test_posts_the_query_with_only_the_default_topic_and_options(): void
     {
         $tool = new TavilySearchTool('tavily-key', httpClient: $this->recordingClient($this->searchResponse()));
 
@@ -31,8 +31,6 @@ class TavilySearchToolTest extends TestCase
         $this->assertSame('application/json', $request->getHeaderLine('Accept'));
         $this->assertSame([
             'topic' => 'general',
-            'time_range' => 'day',
-            'days' => 7,
             'search_depth' => 'basic',
             'chunks_per_source' => 3,
             'max_results' => 3,

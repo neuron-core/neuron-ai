@@ -86,6 +86,20 @@ class WorkflowRunStoreTest extends TestCase
         $this->assertNull($store->loadStep('missing-step'));
     }
 
+    public function test_a_missing_deferred_step_record_is_refused_by_name(): void
+    {
+        $store = new WorkflowRunStore(new InMemoryPersistence(), new PhpSerializer(), 'workflow-1');
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running),
+            new Ignition('run-1', new StartEvent()),
+        );
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage("Missing deferred step record 'run-1/missing-step' for workflow ID 'workflow-1'.");
+
+        $store->loadDeferredStep('missing-step');
+    }
+
     public function test_load_step_rejects_a_present_record_with_the_wrong_type(): void
     {
         $persistence = new InMemoryPersistence();

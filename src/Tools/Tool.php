@@ -8,6 +8,7 @@ use Closure;
 use NeuronAI\Exceptions\InvalidToolInput;
 use NeuronAI\Exceptions\MissingCallbackParameter;
 use NeuronAI\Exceptions\ToolCallableNotSet;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\StaticConstructor;
 use ReflectionException;
 use ReflectionMethod;
@@ -236,8 +237,15 @@ abstract class Tool implements ToolInterface
         return $this->result !== null;
     }
 
+    /**
+     * @throws ToolException When the tool has no result — check hasResult() first.
+     */
     public function getResult(): string|ToolOutput
     {
+        if ($this->result === null) {
+            throw new ToolException("Tool {$this->name} has no result: it was never executed.");
+        }
+
         return $this->result;
     }
 

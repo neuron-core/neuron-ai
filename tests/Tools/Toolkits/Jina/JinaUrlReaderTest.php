@@ -6,8 +6,8 @@ namespace NeuronAI\Tests\Tools\Toolkits\Jina;
 
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Exceptions\HttpException;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\Jina\JinaUrlReader;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +17,7 @@ use function json_decode;
 class JinaUrlReaderTest extends TestCase
 {
     use RecordsHttpRequests;
+    use ToolErrorAssertions;
 
     public function test_posts_the_url_as_json_asking_for_markdown(): void
     {
@@ -56,6 +57,8 @@ class JinaUrlReaderTest extends TestCase
             'missing scheme' => ['example.com/page'],
             'scheme only' => ['https://'],
             'whitespace in host' => ['https://exa mple.com'],
+            'local file' => ['file:///etc/passwd'],
+            'ftp' => ['ftp://example.com/file'],
         ];
     }
 
@@ -64,12 +67,7 @@ class JinaUrlReaderTest extends TestCase
     {
         $tool = new JinaUrlReader('jina-key', $this->recordingClient());
 
-        try {
-            $tool($url);
-            $this->fail("Expected a ToolException for '{$url}'.");
-        } catch (ToolException $exception) {
-            $this->assertSame('Invalid URL.', $exception->getMessage());
-        }
+        $this->assertToolError('Invalid URL: an absolute http or https URL is required.', $tool($url));
 
         $this->assertSame([], $this->sentRequests);
     }

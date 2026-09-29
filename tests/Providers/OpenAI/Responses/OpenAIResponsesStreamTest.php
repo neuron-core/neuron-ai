@@ -22,6 +22,7 @@ use NeuronAI\Tests\Providers\Stub\StreamingHttpClient;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
+use NeuronAI\Chat\Messages\Stream\Chunks\ImageChunk;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
@@ -200,5 +201,39 @@ class OpenAIResponsesStreamTest extends TestCase
         $this->assertSame([str_repeat('a', 10000)], $this->contentsOf(TextChunk::class, $chunks));
         $this->assertSame(0, $stream->readCalls);
         $this->assertLessThan(20, $stream->readLineCalls);
+    }
+
+    public function test_partial_images_are_streamed_and_the_final_image_is_kept(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'response.image_generation_call.generating', 'item_id' => 'ig_1'],
+            ['type' => 'response.image_generation_call.partial_image', 'item_id' => 'ig_1', 'partial_image_index' => 0, 'partial_image_b64' => 'UEFSVDE='],
+            ['type' => 'response.image_generation_call.partial_image', 'item_id' => 'ig_1', 'partial_image_index' => 1, 'partial_image_b64' => 'UEFSVDI='],
+            ['type' => 'response.completed', 'response' => ['output' => [['type' => 'image_generation_call', 'id' => 'ig_1', 'status' => 'completed', 'result' => 'RklOQUw=']]]],
+        ]));
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Draw a fox')));
+
+        // Each partial image is a complete preview of its own
+        $this->assertSame(['UEFSVDE=', 'UEFSVDI='], $this->contentsOf(ImageChunk::class, $chunks));
+        $this->assertSame('RklOQUw=', $message->getImage()?->content);
+        $this->assertCount(1, $message->getContentBlocks());
+    }
+
+    public function test_a_tool_call_turn_carries_the_final_image_not_a_concatenation(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'response.image_generation_call.generating', 'item_id' => 'ig_1'],
+            ['type' => 'response.image_generation_call.partial_image', 'item_id' => 'ig_1', 'partial_image_index' => 0, 'partial_image_b64' => 'UEFSVDE='],
+            ['type' => 'response.output_item.done', 'item' => ['type' => 'image_generation_call', 'id' => 'ig_1', 'status' => 'completed', 'result' => 'RklOQUw=']],
+            self::functionCallAdded('fc_1', 'call_1', 'weather'),
+            ['type' => 'response.function_call_arguments.done', 'item_id' => 'fc_1', 'arguments' => '{}'],
+            ['type' => 'response.completed', 'response' => ['output' => []]],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Draw a fox, then check the weather')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('RklOQUw=', $message->getImage()?->content);
     }
 }

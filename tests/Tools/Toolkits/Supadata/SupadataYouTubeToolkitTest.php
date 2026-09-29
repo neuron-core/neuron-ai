@@ -54,6 +54,23 @@ class SupadataYouTubeToolkitTest extends TestCase
         $this->assertSame('Transcript', (string) $transcript->getResult());
     }
 
+    public function test_inputs_are_encoded_as_single_query_values(): void
+    {
+        $client = $this->recordingClient(
+            new Response(200, [], json_encode(['content' => 'Transcript'])),
+            new Response(200, [], json_encode(['title' => 'Video'])),
+        );
+        [$metadata, $transcript] = SupadataYouTubeToolkit::make('supadata-key', httpClient: $client)->tools();
+
+        $transcript->setInputs(['video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42#comments'])->execute();
+        $metadata->setInputs(['video' => 'abc&lang=fr'])->execute();
+
+        $this->assertSame([
+            'GET https://api.supadata.ai/v1/youtube/transcript?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D42%23comments&text=true',
+            'GET https://api.supadata.ai/v1/youtube/video?id=abc%26lang%3Dfr',
+        ], $this->sentTargets());
+    }
+
     public function test_the_toolkit_exposes_each_tool_with_its_required_input(): void
     {
         $tools = SupadataYouTubeToolkit::make('supadata-key', $this->recordingClient())->tools();

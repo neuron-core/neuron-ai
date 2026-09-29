@@ -113,4 +113,4 @@ An input stage follows the complementary pattern:
 2. Return the transcribing node alongside `parent::entryNodes()`. Its `__invoke()` accepts the application event and returns the original `AgentStartEvent` with transcribed `UserMessage` content and preserved options.
 3. Memoize the speech call, preserve caller messages rather than mutating them, and leave `AgentStartNode` to initialize `AgentState::$request` and reset tool-run counters. Clear per-turn output artifacts in this entry node if required.
 
-An arbitrary Workflow start event without the `AgentStartEvent` contract is not interchangeable here. Also respect the speech provider's audio input contract: the current OpenAI transcription implementation opens the audio content as a file path; a base64 audio block cannot simply be passed as that path.
+An arbitrary Workflow start event without the `AgentStartEvent` contract is not interchangeable here. Also respect the speech provider's audio input contract: the OpenAI and ElevenLabs transcription providers take a file path, or base64 audio with a media type (such as `audio/wav`) from which the upload is named.

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools\Toolkits\Tavily;
 
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
+use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\Tavily\TavilyCrawlTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +17,7 @@ use function json_encode;
 class TavilyCrawlToolTest extends TestCase
 {
     use RecordsHttpRequests;
+    use ToolErrorAssertions;
 
     public function test_crawls_without_images_or_external_links_by_default(): void
     {
@@ -56,6 +57,8 @@ class TavilyCrawlToolTest extends TestCase
             'empty' => [''],
             'plain text' => ['not a url'],
             'missing scheme' => ['example.com'],
+            'local file' => ['file:///etc/passwd'],
+            'ftp' => ['ftp://example.com/file'],
             'scheme only' => ['https://'],
         ];
     }
@@ -65,12 +68,7 @@ class TavilyCrawlToolTest extends TestCase
     {
         $tool = new TavilyCrawlTool('tavily-key', $this->recordingClient());
 
-        try {
-            $tool($url);
-            $this->fail("Expected a ToolException for '{$url}'.");
-        } catch (ToolException $exception) {
-            $this->assertSame('Invalid URL.', $exception->getMessage());
-        }
+        $this->assertToolError('Invalid URL: an absolute http or https URL is required.', $tool($url));
 
         $this->assertSame([], $this->sentRequests);
     }

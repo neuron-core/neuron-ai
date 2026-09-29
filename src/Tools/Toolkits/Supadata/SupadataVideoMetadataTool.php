@@ -41,7 +41,7 @@ class SupadataVideoMetadataTool extends Tool
 
     public function __invoke(string $video): array
     {
-        $response = $this->get('youtube/video?id=' . $video);
+        $response = $this->get('youtube/video', ['id' => $video]);
 
         return $response->json();
     }

@@ -57,7 +57,8 @@ trait HandleChat
      */
     protected function processChatResult(array $result): AssistantMessage
     {
-        if ($result['choices'][0]['finish_reason'] === 'tool_calls') {
+        // The calls decide, not the finish reason: a forced tool_choice answers "stop"
+        if (!empty($result['choices'][0]['message']['tool_calls'])) {
             $block = isset($result['choices'][0]['message']['content'])
                 ? new TextContent($result['choices'][0]['message']['content'])
                 : null;

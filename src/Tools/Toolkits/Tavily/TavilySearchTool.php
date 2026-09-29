@@ -10,6 +10,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\Tool;
 
+use function array_filter;
 use function array_map;
 use function array_merge;
 use function implode;
@@ -88,12 +89,14 @@ class TavilySearchTool extends Tool
         ?string $time_range = null,
         ?int $days = null,
     ): array {
-        $topic ??= 'general';
-        $time_range ??= 'day';
-        $days ??= 7;
+        // Only the filters the model chose: a default range would silently narrow every search
+        $filters = array_filter(
+            ['topic' => $topic ?? 'general', 'time_range' => $time_range, 'days' => $days],
+            fn (string|int|null $filter): bool => $filter !== null
+        );
 
         $result = $this->post('search', array_merge(
-            ['topic' => $topic, 'time_range' => $time_range, 'days' => $days],
+            $filters,
             $this->options,
             ['query' => $search_query]
         ));

@@ -17,6 +17,7 @@ use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function base64_decode;
 use function count;
 use function implode;
@@ -68,16 +69,17 @@ class ElevenLabsTextToSpeechTest extends TestCase
         $this->assertSame(self::AUDIO, base64_decode($audio->content, true));
     }
 
-    public function test_stream_yields_raw_audio_chunks_and_returns_the_whole_audio(): void
+    public function test_stream_yields_base64_audio_chunks_and_returns_the_whole_audio(): void
     {
         $body = str_repeat(self::AUDIO, 200);
         $provider = $this->provider(new Response(200, body: $body));
 
         [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
 
+        // Each chunk is the base64 of its own bytes, so it survives a JSON wire format
         $contents = $this->contentsOf(AudioChunk::class, $chunks);
         $this->assertGreaterThan(1, count($contents));
-        $this->assertSame($body, implode('', $contents));
+        $this->assertSame($body, implode('', array_map(static fn (string $chunk): string => (string) base64_decode($chunk, true), $contents)));
         $this->assertSame($body, base64_decode($message->getAudio()->content, true));
         foreach ($chunks as $chunk) {
             $this->assertSame($message->getId(), $chunk->messageId);

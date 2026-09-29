@@ -449,7 +449,7 @@ final class Segment
     protected function settleInterrupt(WorkflowControl $control): WorkflowControl
     {
         $nextStepId = $control->pendingSteps[0] ?? null;
-        $next = $nextStepId === null ? null : $this->store->loadStep($nextStepId)->getEvent();
+        $next = $nextStepId === null ? null : $this->store->loadDeferredStep($nextStepId)->getEvent();
         return $control->removeInterrupt($next instanceof InterruptEvent
             ? new ActiveInterrupt($next->request, stepId: $nextStepId)
             : null);

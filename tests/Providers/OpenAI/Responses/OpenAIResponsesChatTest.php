@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Providers\OpenAI\Responses;
 
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -197,5 +198,62 @@ class OpenAIResponsesChatTest extends TestCase
         $provider->chat(new UserMessage('Hi'));
 
         $this->assertSame(['verbosity' => 'low'], $this->sentBody(2)['text']);
+    }
+
+    public function test_the_text_reasoning_and_citations_accompanying_function_calls_are_kept(): void
+    {
+        $message = $this->provider('{"status":"completed","output":['
+            .'{"type":"reasoning","id":"rs_1","summary":[{"type":"summary_text","text":"Need the weather tool."}]},'
+            .'{"type":"message","content":[{"type":"output_text","text":"Let me check the weather.","annotations":[{"type":"url_citation","url":"https://example.com","title":"Weather","start_index":0,"end_index":5}]}]},'
+            .'{"type":"function_call","id":"fc_1","call_id":"call_1","name":"weather","arguments":"{}"}]}')
+            ->chat(new UserMessage('Weather?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('call_1', $message->getToolCalls()[0]->getCallId());
+        $blocks = $message->getContentBlocks();
+        $this->assertCount(2, $blocks);
+        $this->assertInstanceOf(ReasoningContent::class, $blocks[0]);
+        $this->assertSame('Need the weather tool.', $blocks[0]->content);
+        $this->assertSame('Let me check the weather.', $message->getContent());
+        $this->assertSame('https://example.com', $message->getMetadata('citations')[0]->source);
+    }
+
+    public function test_a_refusal_is_kept_as_readable_text(): void
+    {
+        $message = $this->provider('{"status":"completed","output":[{"type":"message","content":[{"type":"refusal","refusal":"I cannot help with that."}]}]}')
+            ->chat(new UserMessage('Something forbidden'))->message();
+
+        $this->assertSame('I cannot help with that.', $message->getContent());
+    }
+
+    public function test_every_text_part_of_a_message_is_kept_with_its_citations(): void
+    {
+        $message = $this->provider('{"status":"completed","output":[{"type":"message","content":['
+            .'{"type":"output_text","text":"First.","annotations":[]},'
+            .'{"type":"output_text","text":"Second.","annotations":[{"type":"url_citation","url":"https://example.com/2","start_index":0,"end_index":7}]}]}]}')
+            ->chat(new UserMessage('Hi'))->message();
+
+        $this->assertCount(2, $message->getContentBlocks());
+        $this->assertSame('First. Second.', $message->getContent());
+        $this->assertSame('https://example.com/2', $message->getMetadata('citations')[0]->source);
+    }
+
+    public function test_a_generated_image_is_kept_with_its_format(): void
+    {
+        $message = $this->provider('{"status":"completed","output":[{"type":"image_generation_call","id":"ig_1","status":"completed","output_format":"jpeg","result":"RklOQUw="}]}')
+            ->chat(new UserMessage('Draw a fox'))->message();
+
+        $image = $message->getImage();
+        $this->assertInstanceOf(ImageContent::class, $image);
+        $this->assertSame('RklOQUw=', $image->content);
+        $this->assertSame('image/jpeg', $image->mediaType);
+    }
+
+    public function test_a_generated_image_without_a_format_is_png(): void
+    {
+        $message = $this->provider('{"status":"completed","output":[{"type":"image_generation_call","id":"ig_1","status":"completed","result":"RklOQUw="}]}')
+            ->chat(new UserMessage('Draw a fox'))->message();
+
+        $this->assertSame('image/png', $message->getImage()?->mediaType);
     }
 }

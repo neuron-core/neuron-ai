@@ -182,6 +182,19 @@ final class WorkflowRunStore
     }
 
     /**
+     * The step of an interruption control still queues: its record must
+     * exist, so a missing one is lost data, not a step yet to run.
+     *
+     * @throws PersistenceException
+     */
+    public function loadDeferredStep(string $stepId): StepResult
+    {
+        return $this->loadStep($stepId) ?? throw new PersistenceException(
+            "Missing deferred step record '{$this->recordKey($stepId)}' for workflow ID '{$this->workflowId}'."
+        );
+    }
+
+    /**
      * @throws PersistenceException
      */
     public function loadCheckpoint(): ?WorkflowState

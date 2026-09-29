@@ -36,6 +36,15 @@ class ZepSearchGraphToolTest extends TestCase
         );
     }
 
+    public function test_a_model_omitting_the_scope_searches_facts(): void
+    {
+        $tool = new ZepSearchGraphTool('zep-key', 'user-1', $this->recordingClient($this->existingUser(), $this->json(['edges' => []])));
+
+        $tool->setInputs(['query' => 'favourite language'])->execute();
+
+        $this->assertSame('edges', json_decode((string) $this->sentRequests[1]['request']->getBody(), true)['scope']);
+    }
+
     public function test_a_hostile_query_is_sent_verbatim_and_cannot_change_the_user(): void
     {
         $query = "  \"}, \"user_id\": \"someone-else\", \"limit\": 1000, \"x\": {\"\ncaffè ☕\n";

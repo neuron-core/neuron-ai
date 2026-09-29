@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use Generator;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\Stream\Chunks\ImageChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
@@ -115,11 +114,21 @@ trait HandleStream
                     /*
                      * Image
                      */
-                case 'response.image_generation_call.generating':
-                    $this->streamState->addContentBlock($event['item_id'], new ImageContent('', SourceType::BASE64));
-                    break;
+                    // Each partial image is a complete preview: it replaces the previous one
                 case 'response.image_generation_call.partial_image':
-                    $this->streamState->updateContentBlock($event['item_id'], $event['partial_image_b64']);
+                    $this->streamState->addContentBlock(
+                        $event['item_id'],
+                        $this->createImageContent($event['partial_image_b64'], $event['output_format'] ?? null)
+                    );
+                    yield new ImageChunk($this->streamState->messageId(), $event['partial_image_b64']);
+                    break;
+                case 'response.output_item.done':
+                    if ($event['item']['type'] === 'image_generation_call' && isset($event['item']['result'])) {
+                        $this->streamState->addContentBlock(
+                            $event['item']['id'],
+                            $this->createImageContent($event['item']['result'], $event['item']['output_format'] ?? null)
+                        );
+                    }
                     break;
 
                     /*

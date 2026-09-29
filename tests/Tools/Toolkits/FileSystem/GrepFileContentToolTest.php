@@ -82,6 +82,18 @@ class GrepFileContentToolTest extends TestCase
         $this->assertStringContainsString('Match 1 (line 2): def', ($this->tool)($this->tempFile, '/def/'));
     }
 
+    public function test_multibyte_characters_before_a_match_do_not_shift_its_line(): void
+    {
+        file_put_contents($this->tempFile, "éééééé\n日本語\nfoo\nbar");
+
+        $this->assertSame(
+            "Found 2 match(es) for pattern '/foo|bar/' in file '{$this->tempFile}':\n\n"
+            . "  Match 1 (line 3): foo\n"
+            . "  Match 2 (line 4): bar\n",
+            ($this->tool)($this->tempFile, '/foo|bar/')
+        );
+    }
+
     public function test_match_spanning_lines_is_reported_on_its_first_line(): void
     {
         file_put_contents($this->tempFile, "one\nstart\nend\n");

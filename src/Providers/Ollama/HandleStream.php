@@ -16,6 +16,8 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\Providers\ProviderResponse;
 
+use function json_encode;
+use function is_string;
 use function rtrim;
 use function array_unshift;
 use function json_decode;
@@ -57,40 +59,44 @@ trait HandleStream
         );
 
         $this->streamState = new StreamState();
+        $toolCalls = [];
 
+        // Every line is read whole: tool calls may span lines, and the usage
+        // arrives on the final done line, after them
         while (! $stream->eof()) {
             if (!$line = $this->parseNextJson($stream)) {
                 continue;
-            }
-
-            // Process tool calls
-            if (isset($line['message']['tool_calls'])) {
-                $message = $this->createToolCallMessage(
-                    $line['message']['tool_calls'],
-                    $this->streamState->getContentBlocks()
-                )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
-                return new ProviderResponse(message: $message);
             }
 
             $thinking = $line['message']['thinking'] ?? '';
             if ($thinking !== '') {
                 $this->streamState->reasoning .= $thinking;
                 yield new ReasoningChunk($this->streamState->messageId(), $thinking);
-                continue;
             }
 
-            // Process regular content
-            if ($content = $line['message']['content'] ?? null) {
+            // A token can be "0": compare, never test truthiness
+            $content = $line['message']['content'] ?? '';
+            if ($content !== '') {
                 $this->streamState->text .= $content;
                 yield new TextChunk($this->streamState->messageId(), $content);
-                continue;
             }
 
-            // The last chunk will contain the usage information
-            if ($line['done'] === true) {
+            foreach ($line['message']['tool_calls'] ?? [] as $toolCall) {
+                $toolCalls[] = $toolCall;
+            }
+
+            if (($line['done'] ?? false) === true) {
                 $this->streamState->addInputTokens($line['prompt_eval_count'] ?? 0);
                 $this->streamState->addOutputTokens($line['eval_count'] ?? 0);
             }
+        }
+
+        if ($toolCalls !== []) {
+            $message = $this->createToolCallMessage($toolCalls, $this->streamState->getContentBlocks())
+                ->setId($this->streamState->messageId())
+                ->setUsage($this->streamState->getUsage());
+
+            return new ProviderResponse(message: $message);
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
@@ -108,6 +114,11 @@ trait HandleStream
         }
 
         $json = json_decode($line, true);
+
+        // Ollama reports a failure mid-generation as an error line
+        if (isset($json['error'])) {
+            throw new ProviderException('Ollama stream error: ' . (is_string($json['error']) ? $json['error'] : json_encode($json['error'])));
+        }
 
         if (! isset($json['message']) || $json['message']['role'] !== 'assistant') {
             return null;

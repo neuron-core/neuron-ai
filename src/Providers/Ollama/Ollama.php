@@ -70,7 +70,7 @@ class Ollama implements AIProviderInterface
     }
 
     /**
-     * @param array<string, mixed> $toolCalls
+     * @param array<int, array<string, mixed>> $toolCalls
      * @throws ProviderException
      */
     protected function createToolCallMessage(array $toolCalls, array|string|null $content = null): ToolCallMessage
@@ -83,7 +83,7 @@ class Ollama implements AIProviderInterface
             $tools[] = $this->newToolCall(
                 $item['function']['name'],
                 uniqid($item['function']['name'].'_'.$index.'_'),
-                $item['function']['arguments'],
+                $this->decodeToolArguments($item['function']['name'], $item['function']['arguments'] ?? null),
             );
         }
 

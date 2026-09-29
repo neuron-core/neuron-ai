@@ -68,7 +68,7 @@ class ArrayProperty implements ToolPropertyInterface
             $schema['minItems'] = $this->minItems;
         }
 
-        if ($this->maxItems !== null && $this->maxItems !== 0) {
+        if ($this->maxItems !== null) {
             $schema['maxItems'] = $this->maxItems;
         }
 

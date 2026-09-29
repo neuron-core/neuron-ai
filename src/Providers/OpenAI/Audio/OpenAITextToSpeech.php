@@ -26,6 +26,7 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
 use function rtrim;
+use function base64_decode;
 use function base64_encode;
 use function end;
 
@@ -128,7 +129,7 @@ class OpenAITextToSpeech implements AIProviderInterface
             )
         );
 
-        $content = '';
+        $audio = '';
         $usage = new Usage(0, 0);
         $msgId = UniqueIdGenerator::generateId('msg_');
 
@@ -138,8 +139,10 @@ class OpenAITextToSpeech implements AIProviderInterface
             }
 
             // Delta
+            // Each delta is base64 on its own: joining the strings would put padding
+            // mid-string, so the bytes are joined and encoded once at the end
             if ($line['type'] === 'speech.audio.delta') {
-                $content .= $line['audio'];
+                $audio .= base64_decode($line['audio']);
 
                 yield new AudioChunk($msgId, $line['audio']);
             }
@@ -152,7 +155,7 @@ class OpenAITextToSpeech implements AIProviderInterface
         }
 
         $message = new AssistantMessage(
-            new AudioContent($content, SourceType::BASE64)
+            new AudioContent(base64_encode($audio), SourceType::BASE64)
         );
         $message->setId($msgId)->setUsage($usage);
         return new ProviderResponse(message: $message);

@@ -93,6 +93,14 @@ class ArrayPropertyTest extends TestCase
         $this->assertArrayNotHasKey('maxItems', $schema);
     }
 
+    public function test_max_items_zero_is_kept_as_a_bound(): void
+    {
+        $schema = (new ArrayProperty(name: 'tags', minItems: 0, maxItems: 0))->getJsonSchema();
+
+        $this->assertArrayNotHasKey('minItems', $schema);
+        $this->assertSame(0, $schema['maxItems']);
+    }
+
     public function test_min_items_cannot_be_negative(): void
     {
         $this->expectException(ArrayPropertyException::class);

@@ -41,7 +41,7 @@ class SupadataYoutubePlaylistTool extends Tool
 
     public function __invoke(string $playlist): array
     {
-        $response = $this->get('youtube/playlist?id='.$playlist);
+        $response = $this->get('youtube/playlist', ['id' => $playlist]);
 
         return $response->json();
     }

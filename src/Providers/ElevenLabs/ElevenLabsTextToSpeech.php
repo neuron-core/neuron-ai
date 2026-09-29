@@ -127,7 +127,7 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
 
         while (! $response->eof()) {
             $chunk = $response->read(1024);
-            yield new AudioChunk($msgId, $chunk);
+            yield new AudioChunk($msgId, base64_encode($chunk));
             $audio .= $chunk;
         }
 

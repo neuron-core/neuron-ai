@@ -21,15 +21,16 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Providers\ToolMapperInterface;
+use NeuronAI\Providers\UploadsAudioFile;
 use NeuronAI\UniqueIdGenerator;
 
 use function rtrim;
 use function end;
-use function fopen;
 
 class OpenAISpeechToText implements AIProviderInterface
 {
     use HasHttpClient;
+    use UploadsAudioFile;
 
     /**
      * The main URL of the provider API.
@@ -76,9 +77,10 @@ class OpenAISpeechToText implements AIProviderInterface
     public function chat(Message ...$messages): ProviderResponse
     {
         $message = end($messages);
+        $file = $this->audioFilePart($message->getAudio());
 
         $body = [
-            'file' => fopen($message->getAudio()->getContent(), 'r'),
+            'file' => $file,
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
@@ -118,10 +120,11 @@ class OpenAISpeechToText implements AIProviderInterface
     public function stream(Message ...$messages): Generator
     {
         $message = end($messages);
+        $file = $this->audioFilePart($message->getAudio());
 
         $body = [
             'stream' => true,
-            'file' => fopen($message->getAudio()->getContent(), 'r'),
+            'file' => $file,
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',

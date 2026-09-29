@@ -76,15 +76,24 @@ class ElevenLabsSpeechToTextTest extends TestCase
         $this->assertStringContainsString("\r\n\r\nscribe_v1\r\n", (string) $request->getBody());
     }
 
-    public function test_audio_that_is_not_a_file_path_is_refused_before_any_request(): void
+    public function test_base64_audio_is_uploaded_decoded_and_named_after_its_format(): void
+    {
+        $this->provider(new Response(200, body: '{"text":"ok"}'))
+            ->chat(new UserMessage(new AudioContent(base64_encode(self::AUDIO), SourceType::BASE64, 'audio/wav')));
+
+        $this->assertStringContainsString('name="file"; filename="audio.wav"', (string) $this->sentRequests[0]['request']->getBody());
+        $this->assertStringContainsString("\r\n\r\n".self::AUDIO."\r\n", (string) $this->sentRequests[0]['request']->getBody());
+    }
+
+    public function test_a_provider_file_id_is_refused_before_any_request(): void
     {
         $provider = $this->provider(new Response(200, body: '{"text":"ok"}'));
 
         try {
-            $provider->chat(new UserMessage(new AudioContent(base64_encode(self::AUDIO), SourceType::BASE64, 'audio/wav')));
-            $this->fail('Base64 audio must be refused.');
+            $provider->chat(new UserMessage(new AudioContent('file-123', SourceType::ID, 'audio/wav')));
+            $this->fail('A provider file id must be refused.');
         } catch (ProviderException $exception) {
-            $this->assertStringContainsString('SourceType::URL', $exception->getMessage());
+            $this->assertStringContainsString('Audio must be a file path or base64', $exception->getMessage());
         }
 
         $this->assertSame([], $this->sentRequests);

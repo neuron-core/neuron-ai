@@ -41,7 +41,7 @@ class SupadataYoutubeChannelTool extends Tool
 
     public function __invoke(string $channel): array
     {
-        $response = $this->get('youtube/channel?id='.$channel);
+        $response = $this->get('youtube/channel', ['id' => $channel]);
 
         return $response->json();
     }

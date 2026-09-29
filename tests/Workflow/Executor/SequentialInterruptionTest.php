@@ -16,6 +16,7 @@ use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Executor\Stub\ConcurrentWaitNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
@@ -26,6 +27,7 @@ use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -82,6 +84,27 @@ class SequentialInterruptionTest extends TestCase
         $this->assertFalse($last->isInterrupted());
         $this->assertSame(['value' => 'A'], $last->get('results')['a']);
         $this->assertSame(['value' => 'B'], $last->get('results')['b']);
+    }
+
+    public function test_a_lost_deferred_step_record_fails_the_resume_by_name(): void
+    {
+        $persistence = new class () extends InMemoryPersistence {
+            public ?string $lost = null;
+
+            public function get(string $partition, string $key): ?string
+            {
+                return $key === $this->lost ? null : parent::get($partition, $key);
+            }
+        };
+        $trace = (object) ['events' => []];
+        $this->workflow($persistence, $trace)->run();
+        $control = (new PhpSerializer())->unserialize((string) $persistence->get('sequential-interruptions', '__control'));
+        $persistence->lost = "{$control->runId}/{$control->pendingSteps[0]}";
+
+        $this->expectException(PersistenceException::class);
+        $this->expectExceptionMessage("Missing deferred step record '{$persistence->lost}' for workflow ID 'sequential-interruptions'.");
+
+        $this->workflow($persistence, $trace)->run(ExecutionRequest::resume(['value' => 'A']));
     }
 
     public function test_an_existing_deferred_request_precedes_a_new_request_from_the_resumed_node(): void
