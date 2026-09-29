@@ -84,7 +84,7 @@ class ConsumerIsolationTest extends TestCase
         $sent = [];
         $stack = HandlerStack::create(new MockHandler([
             new Response(200, [], '{"choices":[{"finish_reason":"stop","message":{"content":"Hi"}}]}'),
-            new Response(200, [], "data: [DONE]\n\n"),
+            new Response(200, [], "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"),
         ]));
         $stack->push(Middleware::history($sent));
         $client = (new GuzzleHttpClient(handler: $stack))->withBaseUri('https://unused.example');

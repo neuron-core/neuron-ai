@@ -143,14 +143,14 @@ class GeminiStreamTest extends TestCase
         $this->assertSame('MAX_TOKENS', $message->stopReason());
     }
 
-    public function test_stream_without_finish_reason_leaves_stop_reason_unset(): void
+    public function test_a_stream_ending_without_finish_reason_was_cut(): void
     {
         $provider = $this->provider([self::candidate([['text' => 'x']])]);
 
-        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('The stream ended before the answer was complete.');
 
-        $this->assertInstanceOf(AssistantMessage::class, $message);
-        $this->assertNull($message->stopReason());
+        $this->consumeStream($provider->stream(new UserMessage('Hi')));
     }
 
     public function test_usage_requires_both_prompt_and_candidate_counts(): void
@@ -391,7 +391,7 @@ class GeminiStreamTest extends TestCase
     public function test_a_usage_only_element_without_candidates_is_accepted(): void
     {
         $provider = $this->provider([
-            self::candidate([['text' => 'a']]),
+            self::candidate([['text' => 'a']], 'STOP'),
             ['usageMetadata' => ['promptTokenCount' => 1, 'candidatesTokenCount' => 2]],
         ]);
 

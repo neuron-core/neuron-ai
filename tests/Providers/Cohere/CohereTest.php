@@ -180,6 +180,7 @@ class CohereTest extends TestCase
     {
         $provider = $this->provider(self::sseBody([
             ['type' => 'content-delta', 'index' => 0, 'delta' => ['message' => ['content' => ['text' => 'Hi']]]],
+            ['type' => 'message-end', 'delta' => ['finish_reason' => 'COMPLETE']],
         ]));
 
         $this->consumeStream($provider->stream(new UserMessage('Hello')));
@@ -200,6 +201,7 @@ class CohereTest extends TestCase
             ['type' => 'tool-call-delta', 'index' => 0, 'delta' => ['message' => ['tool_calls' => ['function' => ['arguments' => '{"q":']]]]],
             ['type' => 'tool-call-delta', 'index' => 0, 'delta' => ['message' => ['tool_calls' => ['function' => ['arguments' => '"rome"}']]]]],
             ['type' => 'tool-call-end', 'index' => 0],
+            ['type' => 'message-end', 'delta' => ['finish_reason' => 'TOOL_CALL']],
         ]));
 
         [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Where?')));
@@ -262,6 +264,7 @@ class CohereTest extends TestCase
             ['type' => 'tool-plan-delta', 'delta' => ['message' => ['tool_plan' => 'I will look it up']]],
             ['type' => 'tool-call-start', 'index' => 0, 'delta' => ['message' => ['tool_calls' => ['id' => 'lookup_1', 'type' => 'function', 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]]]],
             ['type' => 'tool-call-end', 'index' => 0],
+            ['type' => 'message-end', 'delta' => ['finish_reason' => 'TOOL_CALL']],
         ]));
 
         [, $message] = $this->consumeStream($provider->stream(new UserMessage('Where?')));
@@ -276,6 +279,7 @@ class CohereTest extends TestCase
         $provider = $this->provider(self::sseBody([
             ['type' => 'tool-call-start', 'index' => 0, 'delta' => ['message' => ['tool_calls' => ['id' => 'x', 'type' => 'function', 'function' => ['name' => 'drop_db', 'arguments' => '{}']]]]],
             ['type' => 'tool-call-end', 'index' => 0],
+            ['type' => 'message-end', 'delta' => ['finish_reason' => 'TOOL_CALL']],
         ]));
 
         $stream = $provider->stream(new UserMessage('Hi'));

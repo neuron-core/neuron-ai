@@ -18,6 +18,10 @@ Every chunk of a streamed response carries the ID of the message the stream retu
 
 Call IDs are per-call identity too: approval decisions, durable memos, frontend tool results and stream protocols are keyed on them. An API that omits them gets a locally-unique ID from the provider: Gemini when a call has none, Ollama always. The mappers never send those IDs back to the API.
 
+## A stream is an answer only once it closes
+
+Every stream loop requires the vendor's closing event (Anthropic's `message_delta` stop reason, the Chat Completions `finish_reason`, `response.completed` or `response.incomplete`, Gemini's `finishReason`, Cohere's `message-end`, Ollama's `done` line, Bedrock's `messageStop`). A stream that ends without it goes through `HandleEarlyStreamEnd::earlyEndResponse()`: stopped on purpose through `StoppableHttpClient`, it becomes an answer made of the text streamed so far, stop reason `stopped`; otherwise the connection was cut and a `ProviderException` fails the call, because a half answer would be memoized and replayed as a complete one. Guzzle reads a cut chunked body as a normal end, so the adapters cannot catch it for us. A custom provider's stream loop follows the same rule. `ProviderStreamContractTest` pins both outcomes for every provider.
+
 ## Multimodal and failed tool results
 
 A tool result is `string|ToolOutput`. Mappers detect multimodality on the **value** (`$tool->getResult() instanceof ToolOutput`), never on the tool type, and map the blocks natively where the API accepts them (Anthropic, Bedrock, Gemini, OpenAI Chat and Responses, Mistral) by reusing the mapper's existing block mapping; block types an API does not support fall out through the same null-filtering, and text-only APIs (Ollama) fall back to `ToolOutput::getText()`. An error output (`ToolOutput::error()`) sets the vendor's native error flag where one exists (`is_error` on Anthropic, `status: "error"` on Bedrock); elsewhere the feedback text itself carries the semantics.

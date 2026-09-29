@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
@@ -22,6 +23,8 @@ use function json_encode;
 
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -76,6 +79,11 @@ trait HandleStream
             }
         }
 
+        // message_delta carries the stop reason: without it the stream ended early
+        if ($this->streamState->stopReason() === null) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+        }
+
         // Build the final message
         $message = $this->streamState->hasToolCalls()
             ? $this->createToolCallMessage($this->streamState->getToolCalls(), $this->streamState->getContentBlocks())
@@ -87,9 +95,7 @@ trait HandleStream
             ->addMetadata('cacheWriteTokens', $this->streamState->getCacheWriteTokens())
             ->addMetadata('cacheReadTokens', $this->streamState->getCacheReadTokens());
 
-        if ($this->streamState->stopReason() !== null) {
-            $message->setStopReason($this->streamState->stopReason());
-        }
+        $message->setStopReason($this->streamState->stopReason());
 
         return new ProviderResponse(message: $message);
     }

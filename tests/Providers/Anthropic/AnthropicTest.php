@@ -615,7 +615,7 @@ class AnthropicTest extends TestCase
         $streamBody .= "event: content_block_stop\n";
         $streamBody .= "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n";
         $streamBody .= "event: message_delta\n";
-        $streamBody .= "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\n";
 
         $mockHandler = new MockHandler([
             new Response(status: 200, body: $streamBody),
@@ -669,7 +669,7 @@ class AnthropicTest extends TestCase
         $streamBody .= "event: content_block_stop\n";
         $streamBody .= "data: {\"type\":\"content_block_stop\",\"index\":1}\n\n";
         $streamBody .= "event: message_delta\n";
-        $streamBody .= "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":8}}\n\n";
+        $streamBody .= "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":8}}\n\n";
 
         $mockHandler = new MockHandler([
             new Response(status: 200, body: $streamBody),

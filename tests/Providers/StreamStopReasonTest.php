@@ -8,6 +8,7 @@ use Generator;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\AWS\BedrockRuntime;
 use NeuronAI\Providers\Cohere\Cohere;
@@ -101,7 +102,11 @@ class StreamStopReasonTest extends TestCase
         $provider = new Anthropic('key', 'model', httpClient: $this->recordingClient(new Response(200, body: $finished), new Response(200, body: $interrupted)));
 
         $this->assertSame('end_turn', $this->stopReasonOf($provider->stream(new UserMessage('First'))));
-        $this->assertNull($this->stopReasonOf($provider->stream(new UserMessage('Second'))));
+
+        // Inheriting end_turn would let the cut stream pass for a complete answer
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('The stream ended before the answer was complete.');
+        $this->stopReasonOf($provider->stream(new UserMessage('Second')));
     }
 
     public function test_openai_reports_the_finish_reason(): void

@@ -24,6 +24,7 @@ class AlibabaReasoningStreamTest extends TestCase
         foreach ($fragments as $fragment) {
             $events[] = ['id' => 'msg-test', 'choices' => [['index' => 0, 'delta' => ['reasoning_content' => $fragment, 'content' => 'Ignored']]]];
         }
+        $events[] = ['id' => 'msg-test', 'choices' => [['index' => 0, 'delta' => [], 'finish_reason' => 'stop']]];
         $provider = new DashScopeOpenAI('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
         $this->assertCount(count($expected), $chunks);
@@ -39,7 +40,7 @@ class AlibabaReasoningStreamTest extends TestCase
     {
         $events = [
             ['choices' => [['index' => 0, 'delta' => ['reasoning_content' => null, 'content' => 'Answer']]]],
-            ['choices' => [['index' => 0, 'delta' => ['content' => '!']]]],
+            ['choices' => [['index' => 0, 'delta' => ['content' => '!'], 'finish_reason' => 'stop']]],
         ];
         $provider = new DashScopeOpenAI('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), []);

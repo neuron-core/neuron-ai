@@ -23,17 +23,29 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
+use NeuronAI\HttpClient\StoppableHttpClient;
+use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Workflow\WorkflowStatus;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
 
 use function array_map;
+use function implode;
 use function iterator_to_array;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 class AgentTest extends TestCase
 {
@@ -148,6 +160,65 @@ class AgentTest extends TestCase
         // response is persisted: history stays at its pre-turn state, so the
         // next attempt doesn't break role alternation with a dangling message.
         $this->assertSame([], $agent->getChatHistory()->getMessages());
+    }
+
+    public function test_a_stopped_stream_completes_the_turn_with_the_text_streamed_so_far(): void
+    {
+        $stopped = false;
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider(new Anthropic('key', 'model', httpClient: new StoppableHttpClient(
+            $this->anthropicStream(['Hel', 'lo'], finished: true),
+            function () use (&$stopped): bool {
+                return $stopped;
+            },
+        )));
+
+        $stream = $agent->stream(new UserMessage('Hi'));
+        foreach ($stream as $chunk) {
+            $stopped = true; // the user clicks "Stop" after the first words
+        }
+
+        $this->assertSame(WorkflowStatus::Completed, $stream->getReturn()->getStatus());
+        [$question, $answer] = $agent->getChatHistory()->getMessages();
+        $this->assertSame('Hi', $question->getContent());
+        $this->assertInstanceOf(AssistantMessage::class, $answer);
+        $this->assertSame('Hel', $answer->getContent());
+        $this->assertSame(StoppableHttpClient::STOP_REASON, $answer->stopReason());
+    }
+
+    public function test_a_cut_stream_fails_the_turn_without_writing_history(): void
+    {
+        $agent = Agent::make()->setThreadId('thread_1')
+            ->setAiProvider(new Anthropic('key', 'model', httpClient: $this->anthropicStream(['Your refund of $1'], finished: false)));
+
+        try {
+            iterator_to_array($agent->stream(new UserMessage('Was my refund approved?')));
+            $this->fail('A cut stream must not pass for a complete answer.');
+        } catch (ProviderException $e) {
+            $this->assertSame('The stream ended before the answer was complete.', $e->getMessage());
+        }
+
+        $this->assertSame(WorkflowStatus::Failed, $agent->inspect()?->status);
+        $this->assertSame([], $agent->getChatHistory()->getMessages());
+    }
+
+    /**
+     * @param string[] $texts
+     */
+    protected function anthropicStream(array $texts, bool $finished): GuzzleHttpClient
+    {
+        $events = [
+            ['type' => 'message_start', 'message' => ['id' => 'msg_vendor', 'usage' => ['input_tokens' => 1, 'output_tokens' => 0]]],
+            ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
+        ];
+        foreach ($texts as $text) {
+            $events[] = ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => $text]];
+        }
+        if ($finished) {
+            $events[] = ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => 2]];
+        }
+        $body = implode('', array_map(static fn (array $event): string => 'data: ' . json_encode($event, JSON_THROW_ON_ERROR) . "\n\n", $events));
+
+        return new GuzzleHttpClient(handler: HandlerStack::create(new MockHandler([new Response(200, body: $body)])));
     }
 
     public function test_structured_output(): void

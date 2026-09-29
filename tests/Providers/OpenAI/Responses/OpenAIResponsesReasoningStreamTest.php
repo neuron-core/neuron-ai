@@ -31,12 +31,10 @@ class OpenAIResponsesReasoningStreamTest extends TestCase
             $events[] = ['type' => 'response.function_call_arguments.delta', 'item_id' => 'fc-test', 'delta' => '{"query":"test"}'];
             $events[] = ['type' => 'response.function_call_arguments.done', 'item_id' => 'fc-test', 'arguments' => '{"query":"test"}'];
         }
-        if ($completion !== 'eof') {
-            $events[] = ['type' => 'response.completed', 'response' => [
-                'output' => [['type' => 'reasoning', 'id' => 'rs-test', 'summary' => [['type' => 'summary_text', 'text' => implode('', $fragments)]]]],
-                'usage' => ['input_tokens' => 3, 'output_tokens' => 4],
-            ]];
-        }
+        $events[] = ['type' => 'response.completed', 'response' => [
+            'output' => [['type' => 'reasoning', 'id' => 'rs-test', 'summary' => [['type' => 'summary_text', 'text' => implode('', $fragments)]]]],
+            'usage' => ['input_tokens' => 3, 'output_tokens' => 4],
+        ]];
         $provider = new OpenAIResponses('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         $provider->setTools([new ToolStub('lookup')]);
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
@@ -52,17 +50,15 @@ class OpenAIResponsesReasoningStreamTest extends TestCase
         } elseif ($completion === 'assistant') {
             $this->assertSame('rs-test', $message->getReasoning()->id);
         }
-        if ($completion !== 'eof') {
-            $this->assertSame(3, $message->getUsage()->inputTokens);
-            $this->assertSame(4, $message->getUsage()->outputTokens);
-        }
+        $this->assertSame(3, $message->getUsage()->inputTokens);
+        $this->assertSame(4, $message->getUsage()->outputTokens);
     }
 
     public static function reasoning_completions(): array
     {
         $cases = [];
         foreach (self::reasoning_sequences() as $name => $sequence) {
-            foreach (['assistant', 'tools', 'eof'] as $completion) {
+            foreach (['assistant', 'tools'] as $completion) {
                 $cases[$name.' '.$completion] = [...$sequence, $completion];
             }
         }
@@ -73,7 +69,10 @@ class OpenAIResponsesReasoningStreamTest extends TestCase
     public function test_part_added_emits_its_initial_text(array $fragments, array $expected): void
     {
         foreach ($fragments as $fragment) {
-            $events = [['type' => 'response.reasoning_summary_part.added', 'item_id' => 'rs-test', 'part' => ['text' => $fragment]]];
+            $events = [
+                ['type' => 'response.reasoning_summary_part.added', 'item_id' => 'rs-test', 'part' => ['text' => $fragment]],
+                ['type' => 'response.completed', 'response' => ['output' => [['type' => 'reasoning', 'id' => 'rs-test', 'summary' => [['type' => 'summary_text', 'text' => $fragment]]]]]],
+            ];
             $provider = new OpenAIResponses('test', 'model', httpClient: $this->streamClient($this->sse($events)));
             $provider->setTools([new ToolStub('lookup')]);
             [, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $fragment === '' ? [] : [$fragment]);
@@ -86,6 +85,7 @@ class OpenAIResponsesReasoningStreamTest extends TestCase
         $events = [
             ['type' => 'response.reasoning_summary_part.added', 'item_id' => 'rs-test', 'part' => []],
             ['type' => 'response.reasoning_summary_text.delta', 'item_id' => 'rs-test'],
+            ['type' => 'response.completed', 'response' => ['output' => [['type' => 'reasoning', 'id' => 'rs-test', 'summary' => [['type' => 'summary_text', 'text' => '']]]]]],
         ];
         $provider = new OpenAIResponses('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         $provider->setTools([new ToolStub('lookup')]);

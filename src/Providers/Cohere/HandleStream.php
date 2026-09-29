@@ -84,6 +84,11 @@ trait HandleStream
             }
         }
 
+        // message-end carries the finish reason: without it the stream ended early
+        if ($stopReason === null) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+        }
+
         // Built once the stream ends: parallel calls each close with their own tool-call-end
         $blocks = $this->streamState->getContentBlocks();
 
@@ -96,9 +101,7 @@ trait HandleStream
 
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
-        if ($stopReason !== null) {
-            $message->setStopReason($stopReason);
-        }
+        $message->setStopReason($stopReason);
 
         return new ProviderResponse(message: $message);
     }

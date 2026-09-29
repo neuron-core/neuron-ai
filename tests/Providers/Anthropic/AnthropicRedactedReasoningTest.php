@@ -18,6 +18,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function in_array;
+use function array_column;
 use function array_splice;
 use function implode;
 use function iterator_to_array;
@@ -123,6 +125,8 @@ class AnthropicRedactedReasoningTest extends TestCase
             }
             $events[] = ['type' => 'content_block_stop', 'index' => $index];
         }
+        $toolUse = in_array('tool_use', array_column($contents, 'type'), true);
+        $events[] = ['type' => 'message_delta', 'delta' => ['stop_reason' => $toolUse ? 'tool_use' : 'end_turn'], 'usage' => ['output_tokens' => 1]];
         $events[] = ['type' => 'message_stop'];
 
         return implode('', array_map(fn (array $event): string => 'data: '.json_encode($event, JSON_THROW_ON_ERROR)."\n\n", $events));

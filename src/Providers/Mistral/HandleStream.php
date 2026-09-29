@@ -21,6 +21,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\OpenAI\StreamState;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
@@ -33,6 +34,8 @@ use function array_merge;
 
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -149,6 +152,11 @@ trait HandleStream
             }
         }
 
+        // The last choice carries the finish reason: without it the stream ended early
+        if ($lastFinishReason === null) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+        }
+
         // Built once the stream ends: the tool_calls finish reason may arrive in a later chunk than the calls
         $blocks = $this->streamState->getContentBlocks();
 
@@ -157,9 +165,7 @@ trait HandleStream
             : new AssistantMessage($blocks);
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
-        if ($lastFinishReason !== null) {
-            $message->setStopReason($lastFinishReason);
-        }
+        $message->setStopReason($lastFinishReason);
 
         return new ProviderResponse(message: $message);
     }

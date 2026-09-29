@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 use NeuronAI\Tools\ToolInterface;
@@ -25,6 +26,8 @@ use function rtrim;
 
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -150,12 +153,15 @@ trait HandleStream
             }
         }
 
+        // The last candidate carries the finish reason: without it the stream ended early
+        if ($lastFinishReason === null) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+        }
+
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
-        if ($lastFinishReason !== null) {
-            $message->setStopReason($lastFinishReason);
-        }
+        $message->setStopReason($lastFinishReason);
 
         if (isset($citations)) {
             $message->addMetadata('citations', $citations);

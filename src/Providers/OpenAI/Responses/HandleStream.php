@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Providers\OpenAI\Responses;
 
 use Generator;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
@@ -17,6 +16,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
@@ -28,6 +28,8 @@ use function rtrim;
  */
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -167,9 +169,8 @@ trait HandleStream
             }
         }
 
-        // If we reach here without a response.completed event, return an assistant message
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
-        return new ProviderResponse(message: $message->setId($this->streamState->messageId()));
+        // Neither response.completed nor response.incomplete arrived: the stream ended early
+        return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
     }
 
     /**

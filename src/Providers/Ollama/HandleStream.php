@@ -14,6 +14,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 
 use function json_encode;
@@ -24,6 +25,8 @@ use function json_decode;
 
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -61,6 +64,7 @@ trait HandleStream
         $this->streamState = new StreamState();
         $toolCalls = [];
         $stopReason = null;
+        $done = false;
 
         // Every line is read whole: tool calls may span lines, and the usage
         // arrives on the final done line, after them
@@ -90,7 +94,13 @@ trait HandleStream
                 $this->streamState->addInputTokens($line['prompt_eval_count'] ?? 0);
                 $this->streamState->addOutputTokens($line['eval_count'] ?? 0);
                 $stopReason = $line['done_reason'] ?? null;
+                $done = true;
             }
+        }
+
+        // The done line ends the stream, even from servers that send no done_reason
+        if (!$done) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
         }
 
         $message = $toolCalls !== []

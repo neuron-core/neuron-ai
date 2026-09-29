@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\Providers\HandleEarlyStreamEnd;
 use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\SSEParser;
 
@@ -23,6 +24,8 @@ use function json_encode;
 
 trait HandleStream
 {
+    use HandleEarlyStreamEnd;
+
     protected StreamState $streamState;
 
     /**
@@ -123,6 +126,11 @@ trait HandleStream
 
             // Process provider-specific delta content and yield custom chunks
             yield from $this->processContentDelta($choice);
+        }
+
+        // The last choice carries the finish reason: without it the stream ended early
+        if ($this->streamState->stopReason() === null) {
+            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());

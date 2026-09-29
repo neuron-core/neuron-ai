@@ -113,7 +113,7 @@ class AnthropicVertexCredentialsTest extends TestCase
 
     public function test_a_valid_access_token_is_reused_across_requests(): void
     {
-        $provider = $this->provider(new Response(200, body: self::ANSWER), new Response(200, body: 'data: {"type":"message_stop"}' . "\n\n"));
+        $provider = $this->provider(new Response(200, body: self::ANSWER), new Response(200, body: 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}' . "\n\n" . 'data: {"type":"message_stop"}' . "\n\n"));
         $provider->chat(new UserMessage('Hi'));
         iterator_to_array($provider->stream(new UserMessage('Hi again')));
 

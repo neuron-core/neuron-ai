@@ -146,6 +146,7 @@ class ToolArgumentStreamingTest extends TestCase
         $streamBody .= 'data: {"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"{\"city\":"}}}}}' . "\n\n";
         $streamBody .= 'data: {"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"\"Rome\"}"}}}}}' . "\n\n";
         $streamBody .= 'data: {"type":"tool-call-end","index":0}' . "\n\n";
+        $streamBody .= 'data: {"type":"message-end","delta":{"finish_reason":"TOOL_CALL"}}' . "\n\n";
 
         $provider = (new Cohere('', 'command-r'))
             ->setTools([new ToolStub('tool', description: 'description')])

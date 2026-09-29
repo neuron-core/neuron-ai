@@ -115,6 +115,29 @@ $provider->setHttpClient(new GuzzleHttpClient(handler: $handlerStack));
 
 `NeuronAI\HttpClient\Amp\AmpHttpClient` (amphp/http-client) is the async adapter. Streaming stays incremental with every client.
 
+## Stopping a streamed answer
+
+A "stop generating" button stops the provider's stream from the application. Wrap the client in `StoppableHttpClient` with a predicate the provider asks before every event it reads; the "stop" endpoint only raises a flag the predicate reads, in any store both processes share:
+
+```php
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\StoppableHttpClient;
+
+protected function provider(): AIProviderInterface
+{
+    return new Anthropic(
+        key: $this->apiKey,
+        model: 'claude-sonnet-4-6',
+        // Laravel's cache here; any shared store works (Symfony Cache, Redis, a database row)
+        httpClient: new StoppableHttpClient(new CurlHttpClient(), fn (): bool => Cache::pull("stop:{$this->getThreadId()}", false)),
+    );
+}
+```
+
+Keep the predicate cheap: it runs once per streamed event. Stopping closes the connection, so the vendor stops generating, and the turn completes normally: the answer keeps the text streamed so far, its stop reason is `StoppableHttpClient::STOP_REASON` (`'stopped'`), and the reasoning and tool calls it left incomplete are dropped. A stop before the first word fails the turn with a `ProviderException`, since there is no answer to keep. Bedrock streams through the AWS SDK and cannot be stopped this way.
+
+Any other early end is a cut connection (a proxy, a load balancer, the vendor's edge): every stream must end with the vendor's closing event, so a cut raises a `ProviderException` instead of saving half an answer, and the failed run can be retried.
+
 ## Speech and image providers
 
 These classes implement the same interface, so custom nodes hold them like an LLM provider (see [workflow-extension.md](workflow-extension.md)). Only `chat()` applies: the last message is the input, the reply carries the media, and `structured()` throws.

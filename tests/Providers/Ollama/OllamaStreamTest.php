@@ -149,6 +149,7 @@ class OllamaStreamTest extends TestCase
     {
         $provider = $this->provider(self::ndjson([
             self::line(['tool_calls' => [['function' => ['name' => 'rm', 'arguments' => ['path' => '/']]]]]),
+            self::line([], done: true),
         ]));
 
         $stream = $provider->stream(new UserMessage('Go'));

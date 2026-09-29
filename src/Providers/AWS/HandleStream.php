@@ -134,6 +134,11 @@ trait HandleStream
             }
         }
 
+        // messageStop carries the stop reason: without it the stream ended early
+        if ($stopReason === null) {
+            throw new ProviderException('The stream ended before the answer was complete.');
+        }
+
         // Build final message. Tool calls are built only for a tool_use stop:
         // a call cut off by max_tokens has incomplete arguments and is dropped
         if ($stopReason === 'tool_use' && $toolContents !== []) {
@@ -151,9 +156,7 @@ trait HandleStream
         }
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
-        if ($stopReason !== null) {
-            $message->setStopReason($stopReason);
-        }
+        $message->setStopReason($stopReason);
 
         return new ProviderResponse(message: $message);
     }

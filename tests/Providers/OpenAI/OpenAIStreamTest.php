@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Providers\OpenAI;
 
 use GuzzleHttp\Psr7\Response;
-use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
-use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -162,16 +160,15 @@ class OpenAIStreamTest extends TestCase
         $this->assertSame([20, 9, 16, 5], [$usage->inputTokens, $usage->outputTokens, $usage->cachedInputTokens, $usage->reasoningTokens]);
     }
 
-    public function test_stream_ending_without_finish_reason_returns_the_collected_text(): void
+    public function test_a_stream_ending_without_finish_reason_was_cut(): void
     {
         $body = self::sseBody([self::chunk(['content' => 'Hel']), self::chunk(['content' => 'lo'])]);
         $provider = new OpenAI('sk-test', 'gpt-test', httpClient: $this->recordingClient(new Response(200, body: $body)));
 
-        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('The stream ended before the answer was complete.');
 
-        $this->assertSame(['Hel', 'lo'], $this->contentsOf(TextChunk::class, $chunks));
-        $this->assertInstanceOf(AssistantMessage::class, $message);
-        $this->assertSame('Hello', $message->getContent());
+        $this->consumeStream($provider->stream(new UserMessage('Hi')));
     }
 
     public function test_text_and_tool_arguments_containing_done_are_kept(): void

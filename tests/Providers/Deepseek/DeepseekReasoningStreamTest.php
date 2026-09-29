@@ -77,7 +77,7 @@ class DeepseekReasoningStreamTest extends TestCase
     {
         $events = [
             ['choices' => [['index' => 0, 'delta' => ['reasoning_content' => null, 'content' => 'Answer']]]],
-            ['choices' => [['index' => 0, 'delta' => ['content' => '!']]]],
+            ['choices' => [['index' => 0, 'delta' => ['content' => '!'], 'finish_reason' => 'stop']]],
         ];
         $provider = new Deepseek('test', 'model', httpClient: $this->streamClient($this->sse($events)));
         $provider->setTools([new ToolStub('lookup')]);

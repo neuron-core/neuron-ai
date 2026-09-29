@@ -159,6 +159,7 @@ class AnthropicStreamTest extends TestCase
             $events[] = ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'input_json_delta', 'partial_json' => $fragment]];
         }
         $events[] = ['type' => 'content_block_stop', 'index' => 0];
+        $events[] = ['type' => 'message_delta', 'delta' => ['stop_reason' => 'tool_use'], 'usage' => ['output_tokens' => 1]];
         $provider = $this->provider(self::sseBody($events))->setTools([new ToolStub('counter')]);
 
         [, $message] = $this->consumeStream($provider->stream(new UserMessage('Count')));
@@ -189,6 +190,7 @@ class AnthropicStreamTest extends TestCase
         $events = [
             ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'tool_use', 'id' => 'toolu_a', 'name' => 'rm_rf', 'input' => []]],
             ['type' => 'content_block_stop', 'index' => 0],
+            ['type' => 'message_delta', 'delta' => ['stop_reason' => 'tool_use'], 'usage' => ['output_tokens' => 1]],
         ];
         $provider = $this->provider(self::sseBody($events))->setTools([new ToolStub('now')]);
 
