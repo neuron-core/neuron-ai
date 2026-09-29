@@ -308,6 +308,14 @@ class ClassifierTest extends TestCase
         self::assertEqualsWithDelta(1.0, array_sum($below->probabilities), 1e-12);
     }
 
+    public function test_integer_probabilities_become_floats(): void
+    {
+        // A one-hot answer, as providers and fakes often send it
+        $distribution = new ProbabilityDistribution(['yes' => 1, 'no' => 0]);
+
+        $this->assertSame(['yes' => 1.0, 'no' => 0.0], $distribution->probabilities);
+    }
+
     public function test_distribution_keeps_the_outcome_keys_in_response_order(): void
     {
         $distribution = new ProbabilityDistribution(['b' => 0.25, 'a' => 0.75]);

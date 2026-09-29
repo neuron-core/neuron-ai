@@ -65,6 +65,19 @@ class RunInFlightExceptionTest extends TestCase
         );
     }
 
+    public function test_a_suspended_run_without_an_interrupt_still_explains_itself(): void
+    {
+        // Only a corrupted or hand-written control record pairs Suspended with no interrupt
+        $exception = new RunInFlightException('thread-1', 'run-a', WorkflowStatus::Suspended, 2);
+
+        $this->assertSame(
+            self::PREFIX . ' is suspended, waiting on an interrupt missing from its control record. '
+            . 'Deliver the awaited input with run(ExecutionRequest::resume($payload)), or evaluate due deadlines '
+            . 'with run(ExecutionRequest::resume()), before igniting again.',
+            $exception->getMessage()
+        );
+    }
+
     public function test_a_retained_completion_points_to_acknowledge(): void
     {
         $exception = new RunInFlightException('thread-1', 'run-a', WorkflowStatus::Completed, 2);

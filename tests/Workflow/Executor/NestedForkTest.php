@@ -29,8 +29,8 @@ use function array_column;
 use function array_filter;
 
 /**
- * A branch may fork again: the text branch opens an inner fork whose single
- * leaf branch runs the summary node.
+ * A branch may fork again: the text branch writes to its state, then opens an
+ * inner fork whose single leaf branch runs the summary node.
  */
 class NestedForkTest extends TestCase
 {
@@ -41,7 +41,7 @@ class NestedForkTest extends TestCase
     protected function setUp(): void
     {
         $this->persistence = new InMemoryPersistence();
-        $this->trace = (object) ['events' => []];
+        $this->trace = (object) ['events' => [], 'leafSaw' => []];
     }
 
     protected function workflow(bool $leafWaits, bool $imageWaits, bool $async): Workflow
@@ -55,6 +55,7 @@ class NestedForkTest extends TestCase
             {
                 $this->trace->events[] = 'text';
                 delay(0.005);
+                $state->set('parent_branch', 'text');
 
                 return new ThreeBranchParallelEvent(['leaf' => new SummaryProcessEvent()]);
             }
@@ -67,6 +68,7 @@ class NestedForkTest extends TestCase
             public function __invoke(SummaryProcessEvent $event, WorkflowState $state): StopEvent
             {
                 $this->trace->events[] = 'leaf';
+                $this->trace->leafSaw[] = $state->get('parent_branch');
 
                 return new StopEvent($this->waits ? $this->awaitEvent('leaf') : 'leaf');
             }
@@ -114,6 +116,17 @@ class NestedForkTest extends TestCase
             $completed->get('analysis'),
         );
         $this->assertEqualsCanonicalizing(['text', 'leaf', 'leaf', 'image'], $this->trace->events);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function test_a_nested_branch_starts_from_its_parent_branch_state(bool $async): void
+    {
+        $this->workflow(leafWaits: true, imageWaits: false, async: $async)->run();
+        $this->workflow(leafWaits: true, imageWaits: false, async: $async)->run(ExecutionRequest::resume(['answer' => 42]));
+
+        // The leaf runs before its interruption and again when resumed.
+        $this->assertSame(['text', 'text'], $this->trace->leafSaw);
     }
 
     public function test_a_sibling_interruption_stops_a_branch_before_it_opens_its_nested_fork(): void

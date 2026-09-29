@@ -71,8 +71,13 @@ class RunInFlightException extends WorkflowException
             . 'being superseded. Retry the ignition.';
     }
 
-    protected function describeInterrupt(InterruptRequest $request): string
+    protected function describeInterrupt(?InterruptRequest $request): string
     {
+        // The engine never writes one, but a corrupted record must still yield this exception
+        if (!$request instanceof InterruptRequest) {
+            return 'an interrupt missing from its control record';
+        }
+
         $description = "#{$request->getId()} {$request->type()->value}";
 
         if ($request instanceof WaitForEventRequest) {

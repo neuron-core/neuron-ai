@@ -36,7 +36,8 @@ class ProbabilityDistribution
             }
         }
 
-        $total = array_sum($probabilities);
+        // All-integer input would otherwise divide to integers
+        $total = (float) array_sum($probabilities);
 
         if (abs($total - 1.0) > self::SUM_TOLERANCE) {
             throw new InvalidArgumentException('Probabilities must sum to one.');

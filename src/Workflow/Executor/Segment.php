@@ -60,6 +60,14 @@ final class Segment
 
     protected SegmentOutput $output;
 
+    /**
+     * The state each running fork was reached with, by fork step ID: its
+     * branches start from a copy. $this->state follows only the top-level path.
+     *
+     * @var array<string, WorkflowState>
+     */
+    protected array $forkStates = [];
+
     public function __construct(
         protected WorkflowRunStore $store,
         protected ExecutionContext $context,
@@ -113,7 +121,7 @@ final class Segment
         try {
             $terminal = yield from $this->traverse(
                 $fork->branches[$branchId],
-                clone $this->state,
+                clone $this->forkStates[$forkStepId],
                 $branchId,
                 $forkStepId . "\0" . $branchId,
             );
@@ -252,7 +260,7 @@ final class Segment
                 if ($this->shouldPause()) {
                     return new BranchPausedEvent();
                 }
-                $event = yield from $this->fork($event, $stepId);
+                $event = yield from $this->fork($event, $stepId, $state);
             }
 
             if ($event instanceof StopEvent || $event instanceof InterruptEvent || $event instanceof BranchPausedEvent) {
@@ -269,13 +277,17 @@ final class Segment
      * @return Generator<int, object, mixed, ParallelEvent|BranchPausedEvent>
      * @throws Throwable
      */
-    protected function fork(ParallelEvent $fork, string $stepId): Generator
+    protected function fork(ParallelEvent $fork, string $stepId, WorkflowState $state): Generator
     {
+        $this->forkStates[$stepId] = $state;
+
         // Branches deferred while another routed an accepted reply run again
         // once no interruption is current.
         do {
             $paused = yield from $this->branches->run($this, $fork, $stepId);
         } while ($paused && !$this->pauseRequested && !$this->store->control()->interrupt instanceof ActiveInterrupt);
+
+        unset($this->forkStates[$stepId]);
 
         return $paused || $this->shouldPause() ? new BranchPausedEvent() : $fork;
     }
