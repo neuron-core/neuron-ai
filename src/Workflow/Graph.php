@@ -31,6 +31,7 @@ final class Graph
      */
     public function __construct(
         Event $start,
+        WorkflowState $state,
         public readonly WorkflowResources $resources,
         array $nodes,
         protected array $middleware = [],
@@ -38,7 +39,7 @@ final class Graph
     ) {
         $signature = new NodeSignature();
         foreach ($nodes as $node) {
-            $eventClass = $signature->eventClass($node, $resources);
+            $eventClass = $signature->eventClass($node, $state, $resources);
             if (isset($this->nodes[$eventClass])) {
                 throw new WorkflowException("Node for event {$eventClass} already exists");
             }

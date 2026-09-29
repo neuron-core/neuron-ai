@@ -218,5 +218,5 @@ resources, never from definition settings that may change while the segment runs
 
 
 `export()` builds the graph for the definition's start event without admission,
-output factories or transport delivery. It builds the segment's resources like an
-execution does, so resource construction must stay free of business effects.
+output factories or transport delivery. It builds the segment's state and resources
+like an execution does, so their construction must stay free of business effects.

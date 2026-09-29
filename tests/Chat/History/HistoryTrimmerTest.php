@@ -103,6 +103,23 @@ class HistoryTrimmerTest extends TestCase
         $this->assertSame(30, $usage->outputTokens);
     }
 
+    public function test_a_rebased_checkpoint_keeps_its_cache_and_reasoning_counts(): void
+    {
+        $messages = [
+            new UserMessage('q1'),
+            (new AssistantMessage('a1'))->setUsage(new Usage(100, 50)),
+            new UserMessage('q2'),
+            (new AssistantMessage('a2'))->setUsage(new Usage(300, 50, 200, 20)),
+        ];
+
+        $trimmed = (new HistoryTrimmer())->trim($messages, 300);
+
+        $this->assertSame(
+            ['input_tokens' => 150, 'output_tokens' => 50, 'cached_input_tokens' => 200, 'reasoning_tokens' => 20],
+            $trimmed[1]->getUsage()?->jsonSerialize()
+        );
+    }
+
     public function test_a_rebased_checkpoint_never_reports_negative_input_tokens(): void
     {
         // Providers that bill cached input apart (e.g. Anthropic) report input
@@ -143,17 +160,7 @@ class HistoryTrimmerTest extends TestCase
 
     public function test_a_tool_call_and_its_result_are_never_split(): void
     {
-        $call = new ToolCall('lookup', 'call-1', ['q' => 'x']);
-        $messages = [
-            new UserMessage('first'),
-            (new AssistantMessage('ok'))->setUsage(new Usage(10, 5)),
-            new UserMessage('second'),
-            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(60, 10)),
-            new ToolResultMessage([(clone $call)->setResult('found')]),
-            (new AssistantMessage('found it'))->setUsage(new Usage(100, 20)),
-            new UserMessage('third'),
-            (new AssistantMessage('done'))->setUsage(new Usage(150, 20)),
-        ];
+        $messages = $this->toolRoundConversation();
 
         // The first checkpoint past the overflow is the tool call: the cut would land on its result.
         $trimmed = (new HistoryTrimmer())->trim($messages, 150);
@@ -161,7 +168,72 @@ class HistoryTrimmerTest extends TestCase
         $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
     }
 
-    public function test_a_cut_inside_a_tool_chain_moves_forward_when_the_next_user_turn_is_closer(): void
+    public function test_a_cut_moved_back_to_its_turn_counts_only_the_dropped_messages(): void
+    {
+        $messages = $this->toolRoundConversation();
+        $trimmer = new HistoryTrimmer();
+
+        $trimmed = $trimmer->trim($messages, 150);
+
+        // Only the first turn (15 tokens) is dropped, not the kept tool call's 70.
+        $this->assertSame(155, $trimmer->getTotalTokens());
+        $this->assertSame(45, $trimmed[1]->getUsage()?->inputTokens);
+        $this->assertSame(135, $trimmed[5]->getUsage()?->inputTokens);
+    }
+
+    /**
+     * @return array<string, array{int, string, int}>
+     */
+    public static function overflowTolerance(): array
+    {
+        return [
+            'one percent over keeps the turn' => [99, 'second', 101],
+            'exactly five percent over keeps the turn' => [103, 'second', 105],
+            'beyond five percent cuts at the next turn' => [104, 'third', 20],
+        ];
+    }
+
+    #[DataProvider('overflowTolerance')]
+    public function test_a_turn_is_kept_while_the_overflow_stays_within_five_percent(int $lastInput, string $firstKept, int $total): void
+    {
+        $call = new ToolCall('lookup', 'call-1');
+        $messages = [
+            new UserMessage('first'),
+            (new AssistantMessage('one'))->setUsage(new Usage(2, 1)),
+            new UserMessage('second'),
+            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(12, 1)),
+            new ToolResultMessage([(clone $call)->setResult('found')]),
+            (new AssistantMessage('two'))->setUsage(new Usage(88, 1)),
+            new UserMessage('third'),
+            (new AssistantMessage('three'))->setUsage(new Usage($lastInput, 5)),
+        ];
+        $trimmer = new HistoryTrimmer();
+
+        // The smallest cut lands on the tool result: keeping the second turn costs 3 tokens less than everything.
+        $trimmed = $trimmer->trim($messages, 100);
+
+        $this->assertSame($firstKept, $trimmed[0]->getContent());
+        $this->assertSame($total, $trimmer->getTotalTokens());
+    }
+
+    public function test_without_usage_a_turn_overflowing_the_tolerance_is_dropped_and_the_total_follows(): void
+    {
+        // Each user message is estimated at 12 tokens, each assistant message at 13: 75 in total.
+        $messages = [
+            new UserMessage('Hello'), new AssistantMessage('Hello'),
+            new UserMessage('Hello'), new AssistantMessage('Hello'),
+            new UserMessage('Hello'), new AssistantMessage('Hello'),
+        ];
+        $trimmer = new HistoryTrimmer();
+
+        // The last three messages (38 tokens) fit, but keeping their whole turn would be 50, 25% over.
+        $trimmed = $trimmer->trim($messages, 40);
+
+        $this->assertSame($this->ids(array_slice($messages, 4)), $this->ids($trimmed));
+        $this->assertSame(25, $trimmer->getTotalTokens());
+    }
+
+    public function test_a_cut_inside_a_tool_chain_moves_forward_when_keeping_the_turn_overflows(): void
     {
         $calls = [new ToolCall('a', 'call-1'), new ToolCall('b', 'call-2'), new ToolCall('c', 'call-3')];
         $messages = [
@@ -178,7 +250,7 @@ class HistoryTrimmerTest extends TestCase
         ];
         $trimmer = new HistoryTrimmer();
 
-        // The cut lands on the third tool result: the next user turn is 2 messages away, the first 6.
+        // The cut lands on the third tool result: keeping the whole first turn would be 320 tokens, 60% over.
         $trimmed = $trimmer->trim($messages, 200);
 
         $this->assertSame($this->ids(array_slice($messages, 8)), $this->ids($trimmed));
@@ -310,6 +382,25 @@ class HistoryTrimmerTest extends TestCase
         $this->expectExceptionMessage('position 2: a UserMessage cannot directly follow a ToolCallMessage');
 
         (new HistoryTrimmer())->trim($messages, 150);
+    }
+
+    /**
+     * @return Message[]
+     */
+    protected function toolRoundConversation(): array
+    {
+        $call = new ToolCall('lookup', 'call-1', ['q' => 'x']);
+
+        return [
+            new UserMessage('first'),
+            (new AssistantMessage('ok'))->setUsage(new Usage(10, 5)),
+            new UserMessage('second'),
+            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(60, 10)),
+            new ToolResultMessage([(clone $call)->setResult('found')]),
+            (new AssistantMessage('found it'))->setUsage(new Usage(100, 20)),
+            new UserMessage('third'),
+            (new AssistantMessage('done'))->setUsage(new Usage(150, 20)),
+        ];
     }
 
     /**

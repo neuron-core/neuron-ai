@@ -34,10 +34,10 @@ class NodeSignature
      * The event class this node handles (the key in the event→node map).
      *
      * @return class-string<Event>
-     * @throws WorkflowException when the __invoke signature is invalid, or
-     *                            the segment's resources are not the type it declares.
+     * @throws WorkflowException when the __invoke signature is invalid, or the
+     *                            segment's state or resources are not the types it declares.
      */
-    public function eventClass(NodeInterface $node, WorkflowResources $resources): string
+    public function eventClass(NodeInterface $node, WorkflowState $state, WorkflowResources $resources): string
     {
         try {
             $reflection = new ReflectionClass($node);
@@ -55,10 +55,7 @@ class NodeSignature
 
             $eventClass = $this->resolveEventClass($node, $parameters[0]->getType());
 
-            $secondParamType = $parameters[1]->getType();
-            if (!($secondParamType instanceof ReflectionNamedType) || !is_a($secondParamType->getName(), WorkflowState::class, true)) {
-                throw $this->invalid($node, 'Second parameter of __invoke method must be ' . WorkflowState::class);
-            }
+            $this->validateState($node, $parameters[1]->getType(), $state);
 
             if (isset($parameters[2])) {
                 $this->validateResources($node, $parameters[2]->getType(), $resources);
@@ -113,6 +110,24 @@ class NodeSignature
 
         /** @var class-string<Event> */
         return $type->getName();
+    }
+
+    /**
+     * The graph is built with the segment's state, so a node that needs a state
+     * the workflow does not provide fails here instead of mid-run.
+     *
+     * @throws WorkflowException
+     */
+    protected function validateState(NodeInterface $node, ?ReflectionType $type, WorkflowState $state): void
+    {
+        if (!($type instanceof ReflectionNamedType) || !is_a($type->getName(), WorkflowState::class, true)) {
+            throw $this->invalid($node, 'Second parameter of __invoke method must be ' . WorkflowState::class);
+        }
+
+        $needed = $type->getName();
+        if (!$state instanceof $needed) {
+            throw $this->invalid($node, "__invoke method needs {$needed}, but the workflow provides " . $state::class);
+        }
     }
 
     /**

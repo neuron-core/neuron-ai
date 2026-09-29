@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Stub\CustomState;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
@@ -13,11 +14,13 @@ use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Tests\Workflow\Stub\RecordingEventDispatcher;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
+use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Executor\AsyncBranchRunner;
 use NeuronAI\Workflow\Exporter\ExporterInterface;
 use NeuronAI\Workflow\Exporter\WorkflowGraph;
 use NeuronAI\Workflow\Exporter\WorkflowGraphVertex;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
+use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -216,5 +219,22 @@ class WorkflowConfigurationTest extends TestCase
         $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
 
         $workflow->export();
+    }
+
+    public function test_export_checks_the_nodes_against_the_state_the_workflow_builds(): void
+    {
+        $node = new class () extends Node {
+            public function __invoke(StartEvent $event, CustomState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+
+        self::assertNotEmpty(Workflow::make('order', state: new CustomState())->addNode($node)->export());
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('__invoke method needs ' . CustomState::class . ', but the workflow provides ' . WorkflowState::class);
+
+        Workflow::make('order')->addNode($node)->export();
     }
 }

@@ -17,8 +17,9 @@ final class ExecutionTestFactory
     public static function graph(Workflow $definition): Graph
     {
         $definition->setWorkflowId($definition->getWorkflowId() ?? 'test');
+        $state = (new ReflectionMethod($definition, 'newState'))->invoke($definition);
 
-        return (new ReflectionMethod($definition, 'graph'))->invoke($definition, $definition->getStartEvent());
+        return (new ReflectionMethod($definition, 'graph'))->invoke($definition, $definition->getStartEvent(), $state);
     }
 
     /** The resources an agent builds for a segment. */

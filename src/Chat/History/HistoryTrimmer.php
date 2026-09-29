@@ -28,6 +28,12 @@ use function min;
  */
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
+    /**
+     * How far over the window a trim may keep a whole turn rather than cut at the
+     * next user message: the window should sit at least this far below the model's limit.
+     */
+    protected const OVERFLOW_TOLERANCE = 0.05;
+
     protected int $totalTokens = 0;
 
     /** @var array<int, array{index: int, tokens: int}> */
@@ -103,7 +109,9 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 $normalizedInputTokens = max(0, $usage->inputTokens - $trimmedTokens);
                 $message->setUsage(new Usage(
                     $normalizedInputTokens,
-                    $usage->outputTokens
+                    $usage->outputTokens,
+                    $usage->cachedInputTokens,
+                    $usage->reasoningTokens,
                 ));
             }
         }
@@ -175,93 +183,114 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      */
     protected function findTrimPoint(array $messages, array $checkpoints, int $contextWindow): array
     {
+        $trimIndex = $this->findTrimIndex($messages, $checkpoints, $contextWindow);
+
+        return $this->adjustTrimIndex($messages, $checkpoints, $trimIndex, $contextWindow);
+    }
+
+    /**
+     * The smallest cut that fits the window, wherever it lands.
+     *
+     * @param Message[] $messages
+     * @param array<int, array{index: int, tokens: int}> $checkpoints
+     */
+    protected function findTrimIndex(array $messages, array $checkpoints, int $contextWindow): int
+    {
         if ($checkpoints === []) {
-            $index = $this->findTrimIndexByEstimation($messages, $contextWindow);
-            return $this->adjustTrimIndex($messages, $index, 0);
+            return $this->findTrimIndexByEstimation($messages, $contextWindow);
         }
 
         $threshold = $this->totalTokens - $contextWindow;
 
         foreach ($checkpoints as $checkpoint) {
             if ($checkpoint['tokens'] >= $threshold) {
-                return $this->adjustTrimIndex(
-                    $messages,
-                    $checkpoint['index'] + 1,
-                    $checkpoint['tokens']
-                );
+                return $checkpoint['index'] + 1;
             }
         }
 
         // Tail overflow: trim at the last checkpoint
-        $lastCheckpoint = end($checkpoints);
-        return $this->adjustTrimIndex(
-            $messages,
-            $lastCheckpoint['index'] + 1,
-            (int)$lastCheckpoint['tokens']
-        );
+        return end($checkpoints)['index'] + 1;
     }
 
     /**
-     * A valid chat history must start with a user message: search outward from
-     * the initial trim index in both directions simultaneously, preferring the
-     * closest UserMessage (backward on tie).
+     * A valid chat history must start with a user message. A cut landing inside
+     * a turn moves back to that turn's user message, keeping the whole turn, when
+     * the kept history stays within the overflow tolerance; otherwise it moves
+     * forward to the next user message. The latest turn is kept however large.
      *
      * @param Message[] $messages
+     * @param array<int, array{index: int, tokens: int}> $checkpoints
      * @return array{index: int, tokens: int}
      */
-    protected function adjustTrimIndex(array $messages, int $trimIndex, int $tokens): array
+    protected function adjustTrimIndex(array $messages, array $checkpoints, int $trimIndex, int $contextWindow): array
     {
-        $count = count($messages);
+        $trimIndex = max(0, min($trimIndex, count($messages) - 1));
 
-        if ($count === 0) {
-            return ['index' => 0, 'tokens' => 0];
+        if ($this->isUserMessage($messages[$trimIndex])) {
+            return $this->cutAt($messages, $checkpoints, $trimIndex);
         }
 
-        $trimIndex = max(0, min($trimIndex, $count - 1));
+        $backward = $this->nearestUserMessage($messages, $trimIndex - 1, -1);
+        $forward = $this->nearestUserMessage($messages, $trimIndex + 1, 1);
 
-        $backwardTokens = $tokens;
-        $forwardTokens = $tokens;
+        if ($backward !== null) {
+            $cut = $this->cutAt($messages, $checkpoints, $backward);
 
-        $maxOffset = max($trimIndex, $count - 1 - $trimIndex);
-
-        for ($i = 0; $i <= $maxOffset; $i++) {
-            $backwardIndex = $trimIndex - $i;
-            if ($backwardIndex >= 0) {
-                $backwardTokens = $this->updateTokensFromMessage($messages[$backwardIndex], $backwardTokens);
-
-                if ($this->isUserMessage($messages[$backwardIndex])) {
-                    return ['index' => $backwardIndex, 'tokens' => $backwardTokens];
-                }
-            }
-
-            $forwardIndex = $trimIndex + $i;
-            if ($i > 0 && $forwardIndex < $count) {
-                $forwardTokens = $this->updateTokensFromMessage($messages[$forwardIndex], $forwardTokens);
-
-                if ($this->isUserMessage($messages[$forwardIndex])) {
-                    return ['index' => $forwardIndex, 'tokens' => $forwardTokens];
-                }
+            if ($forward === null || $this->totalTokens - $cut['tokens'] <= $contextWindow * (1 + self::OVERFLOW_TOLERANCE)) {
+                return $cut;
             }
         }
 
-        // No UserMessage found: trim nothing
-        return ['index' => 0, 'tokens' => 0];
+        // No user message at all: trim nothing
+        return $forward === null ? ['index' => 0, 'tokens' => 0] : $this->cutAt($messages, $checkpoints, $forward);
+    }
+
+    /**
+     * @param Message[] $messages
+     */
+    protected function nearestUserMessage(array $messages, int $from, int $step): ?int
+    {
+        for ($index = $from; $index >= 0 && $index < count($messages); $index += $step) {
+            if ($this->isUserMessage($messages[$index])) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The cut before a message, with the tokens of everything it drops: the last
+     * checkpoint before it, plus the estimate of the messages that follow that checkpoint.
+     *
+     * @param Message[] $messages
+     * @param array<int, array{index: int, tokens: int}> $checkpoints
+     * @return array{index: int, tokens: int}
+     */
+    protected function cutAt(array $messages, array $checkpoints, int $index): array
+    {
+        $tokens = 0;
+        $estimateFrom = 0;
+
+        foreach ($checkpoints as $checkpoint) {
+            if ($checkpoint['index'] >= $index) {
+                break;
+            }
+
+            $tokens = $checkpoint['tokens'];
+            $estimateFrom = $checkpoint['index'] + 1;
+        }
+
+        for ($i = $estimateFrom; $i < $index; $i++) {
+            $tokens += $this->tokenCounter->count($messages[$i]);
+        }
+
+        return ['index' => $index, 'tokens' => $tokens];
     }
 
     protected function isUserMessage(Message $message): bool
     {
         return $message::class === UserMessage::class;
-    }
-
-    protected function updateTokensFromMessage(Message $message, int $tokens): int
-    {
-        $usage = $message->getUsage();
-
-        if ($usage instanceof Usage) {
-            return $usage->inputTokens + $usage->outputTokens;
-        }
-
-        return $tokens;
     }
 
     /**

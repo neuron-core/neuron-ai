@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Interrupt;
 
 use DateTimeImmutable;
-use Exception;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
@@ -38,25 +37,6 @@ class WaitForEventRequestTest extends TestCase
         $this->assertSame($expiresAt, $request->getExpiresAt());
     }
 
-    public function test_json_round_trip_without_deadline(): void
-    {
-        $original = new WaitForEventRequest('user.signup');
-        $restored = WaitForEventRequest::fromArray($original->jsonSerialize());
-
-        $this->assertSame($original->getEventName(), $restored->getEventName());
-        $this->assertNull($restored->getExpiresAt());
-        $this->assertSame($original->type(), $restored->type());
-    }
-
-    public function test_json_round_trip_with_deadline(): void
-    {
-        $original = new WaitForEventRequest('order.paid', new DateTimeImmutable('2026-12-31T23:59:59+00:00'));
-        $restored = WaitForEventRequest::fromArray($original->jsonSerialize());
-
-        $this->assertSame($original->getEventName(), $restored->getEventName());
-        $this->assertSame($original->getExpiresAt()->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
-    }
-
     public function test_bound_request_owns_the_complete_portable_envelope(): void
     {
         $request = (new WaitForEventRequest('order.paid'))->withId(7);
@@ -68,9 +48,6 @@ class WaitForEventRequestTest extends TestCase
             'eventName' => 'order.paid',
             'expiresAt' => null,
         ], $request->jsonSerialize());
-
-        $restored = WaitForEventRequest::fromArray($request->jsonSerialize());
-        $this->assertSame(7, $restored->getId());
     }
 
     public function test_message_names_the_event_and_its_deadline(): void
@@ -155,20 +132,5 @@ class WaitForEventRequestTest extends TestCase
         $this->expectExceptionMessage("Resume input 'timer' is incompatible with interrupt 6 of type 'wait_for_event'.");
 
         $request->validate(ResumeInput::timer($request));
-    }
-
-    public function test_from_array_rejects_a_non_positive_interrupt_id(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('An interrupt ID must be a positive integer.');
-
-        WaitForEventRequest::fromArray(['interruptId' => -3, 'eventName' => 'order.paid']);
-    }
-
-    public function test_from_array_rejects_an_unparseable_deadline(): void
-    {
-        $this->expectException(Exception::class);
-
-        WaitForEventRequest::fromArray(['eventName' => 'order.paid', 'expiresAt' => 'not a date']);
     }
 }

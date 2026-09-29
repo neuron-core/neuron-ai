@@ -344,14 +344,15 @@ class Workflow implements WorkflowInterface
 
     /**
      * The graph of one segment: fresh nodes and middleware, and the resources
-     * they share, checked against the run's start event.
+     * they share, checked against the run's start event and state.
      *
      * @throws WorkflowException
      */
-    final protected function graph(Event $start): Graph
+    final protected function graph(Event $start, WorkflowState $state): Graph
     {
         return new Graph(
             $start,
+            $state,
             $this->resolveResources(),
             array_merge($this->nodes(), array_map(static fn (NodeInterface|Closure $node): NodeInterface => $node instanceof Closure ? $node() : clone $node, $this->nodes)),
             $this->getMiddleware(),

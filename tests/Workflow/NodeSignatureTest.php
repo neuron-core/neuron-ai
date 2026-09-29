@@ -45,7 +45,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowResources()));
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources()));
     }
 
     public function test_resolves_intersection_to_its_event_member(): void
@@ -57,7 +57,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(PrioritizedTestEvent::class, $this->signature->eventClass($node, new WorkflowResources()));
+        $this->assertSame(PrioritizedTestEvent::class, $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources()));
     }
 
     public function test_intersection_node_routes_inside_a_workflow(): void
@@ -94,7 +94,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Intersection type must contain exactly one type that implements ' . Event::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_union_event_type(): void
@@ -108,7 +108,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Nodes can handle only one event type.');
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_missing_invoke(): void
@@ -118,7 +118,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Missing __invoke method');
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_wrong_parameter_count(): void
@@ -132,7 +132,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('__invoke method must have 2 or 3 parameters');
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_accepts_the_resources_the_workflow_provides(): void
@@ -144,7 +144,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new ProvidedResources()));
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowState(), new ProvidedResources()));
     }
 
     public function test_rejects_resources_the_workflow_does_not_provide(): void
@@ -158,7 +158,42 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('__invoke method needs ' . ProvidedResources::class . ', but the workflow provides ' . WorkflowResources::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
+    }
+
+    public function test_accepts_a_state_that_is_an_instance_of_the_declared_type(): void
+    {
+        $generic = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+        $custom = new class () extends Node {
+            public function __invoke(StartEvent $event, CustomState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+        $subclass = new class () extends CustomState {
+        };
+
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($generic, new CustomState(), new WorkflowResources()));
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($custom, $subclass, new WorkflowResources()));
+    }
+
+    public function test_rejects_a_state_the_workflow_does_not_provide(): void
+    {
+        $node = new class () extends Node {
+            public function __invoke(StartEvent $event, CustomState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('__invoke method needs ' . CustomState::class . ', but the workflow provides ' . WorkflowState::class);
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_a_third_parameter_that_is_not_resources(): void
@@ -172,7 +207,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Third parameter of __invoke method must be ' . WorkflowResources::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_non_event_first_parameter(): void
@@ -186,7 +221,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('First parameter of __invoke method must be a type that implements ' . Event::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_non_state_second_parameter(): void
@@ -200,7 +235,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Second parameter of __invoke method must be ' . WorkflowState::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_rejects_invalid_return_type(): void
@@ -214,7 +249,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('__invoke method must return a type that implements ' . Event::class);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_accepts_generator_and_union_return_types(): void
@@ -235,7 +270,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowResources()));
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources()));
     }
 
     public function test_failure_names_the_node_class_and_the_reason(): void
@@ -249,7 +284,7 @@ class NodeSignatureTest extends TestCase
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Failed to validate ' . $node::class . ': __invoke method must have 2 or 3 parameters');
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     /** @return iterable<string, array{Node, string}> */
@@ -334,7 +369,7 @@ class NodeSignatureTest extends TestCase
     {
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Failed to validate ' . $node::class . ': ' . $reason);
-        $this->signature->eventClass($node, new WorkflowResources());
+        $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources());
     }
 
     public function test_accepts_a_state_subclass_and_resources_subclass_the_workflow_provides(): void
@@ -346,7 +381,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(FirstEvent::class, $this->signature->eventClass($node, new ProvidedResources()));
+        $this->assertSame(FirstEvent::class, $this->signature->eventClass($node, new CustomState(), new ProvidedResources()));
     }
 
     public function test_a_nullable_event_parameter_routes_its_event_class(): void
@@ -358,7 +393,7 @@ class NodeSignatureTest extends TestCase
             }
         };
 
-        $this->assertSame(FirstEvent::class, $this->signature->eventClass($node, new WorkflowResources()));
+        $this->assertSame(FirstEvent::class, $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources()));
     }
 
     public function test_resources_are_checked_against_the_instance_the_workflow_provides(): void
@@ -372,6 +407,6 @@ class NodeSignatureTest extends TestCase
         $subclass = new class () extends ProvidedResources {
         };
 
-        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, $subclass));
+        $this->assertSame(StartEvent::class, $this->signature->eventClass($node, new WorkflowState(), $subclass));
     }
 }

@@ -333,10 +333,6 @@ class SuspendTypesTest extends TestCase
         // The deadline survives PHP serialization with the request.
         $restored = unserialize(serialize($request));
         $this->assertSame($expiresAt->getTimestamp(), $restored->getExpiresAt()->getTimestamp());
-
-        // And the jsonSerialize/fromArray round-trip (JSON-based transport).
-        $fromArray = WaitForEventRequest::fromArray($request->jsonSerialize());
-        $this->assertSame($expiresAt->getTimestamp(), $fromArray->getExpiresAt()->getTimestamp());
     }
 
     public function test_approval_request_inherits_deadline(): void

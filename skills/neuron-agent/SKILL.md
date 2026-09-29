@@ -310,6 +310,8 @@ protected function contextWindow(): int
 $agent->setContextWindow(190_000);
 ```
 
+Keep the window at least 5% below the model's limit, as 190,000 is for a 200,000-token model: rather than drop a whole turn, such as a long tool chain, the history may keep up to 5% more than the window.
+
 `getChatHistory()->getMessages()` returns the model context. To render a whole conversation, read its transcript from the store; message IDs are stable, so they serve as UI keys and page cursors:
 
 ```php
@@ -328,8 +330,8 @@ See [conversation memory](references/conversation-memory.md) for complete retrie
 ### Message Stores
 - `InMemoryMessageStore` - Default, process memory
 - `FileMessageStore` - One JSON file per thread, named with the thread ID's letter case: on macOS and Windows, IDs that differ only by case share a file
-- `SQLMessageStore` - Database-backed (PDO)
-- `EloquentMessageStore` - Laravel Eloquent integration
+- `SQLMessageStore` - Database-backed (PDO). On MySQL and MariaDB, declare `thread_id` and `message_id` as `VARBINARY` (the class docblock shows the table): the default collations ignore case and accents, so `user-Alice` and `user-alice` would share a thread
+- `EloquentMessageStore` - Laravel Eloquent integration. On MySQL and MariaDB, create the ID columns with `$table->binary('thread_id', 255)` and `$table->binary('message_id', 64)` for the same reason; keep `string()` on PostgreSQL and SQLite
 
 ## Content Blocks (Multi-modal)
 

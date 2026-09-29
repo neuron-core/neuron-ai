@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Tests\Chat\History\Stub\RecordingStreamWrapper;
+use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -88,6 +89,22 @@ class ChatHistoryTest extends TestCase
         }
 
         $this->assertSame($messages, $history->getMessages());
+    }
+
+    public function test_the_stored_answer_keeps_its_cache_and_reasoning_counts_after_a_trim(): void
+    {
+        $store = new SqliteMessageStore();
+        $history = new ChatHistory($store, 'thread', 300);
+        $history->addMessage(new UserMessage('q1'));
+        $history->addMessage((new AssistantMessage('a1'))->setUsage(new Usage(100, 50)));
+        $history->addMessage(new UserMessage('q2'));
+
+        $history->addMessage((new AssistantMessage('a2'))->setUsage(new Usage(300, 50, 200, 20)));
+
+        $this->assertCount(2, $store->loadActive('thread'));
+        $stored = $store->loadAll('thread')[3]->getUsage();
+        $this->assertSame(200, $stored?->cachedInputTokens);
+        $this->assertSame(20, $stored?->reasoningTokens);
     }
 
     public function test_the_only_user_turn_is_kept_even_over_the_window(): void

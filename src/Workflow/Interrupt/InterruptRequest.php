@@ -7,8 +7,6 @@ namespace NeuronAI\Workflow\Interrupt;
 use JsonSerializable;
 use NeuronAI\Exceptions\WorkflowException;
 
-use function array_merge;
-
 /**
  * The canonical portable description of an active workflow interruption.
  *
@@ -62,7 +60,12 @@ abstract class InterruptRequest implements JsonSerializable
     /** @return array<string, mixed> */
     abstract protected function coordinationData(): array;
 
-    /** @return array<string, mixed> */
+    /**
+     * Extra fields for the envelope. A key the envelope already has (the ID,
+     * the type or a coordination field) keeps its own value.
+     *
+     * @return array<string, mixed>
+     */
     protected function metadata(): array
     {
         return [];
@@ -73,13 +76,11 @@ abstract class InterruptRequest implements JsonSerializable
      */
     final public function jsonSerialize(): array
     {
-        return array_merge(
-            [
-                'interruptId' => $this->id,
-                'type' => $this->type()->value,
-            ],
-            $this->coordinationData(),
-            $this->metadata(),
-        );
+        // The first value of each key wins: platforms route by the ID, the type
+        // and the coordination fields, so metadata must not replace them.
+        return [
+            'interruptId' => $this->id,
+            'type' => $this->type()->value,
+        ] + $this->coordinationData() + $this->metadata();
     }
 }

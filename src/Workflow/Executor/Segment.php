@@ -88,7 +88,7 @@ final class Segment
      * Everything the definition decides is resolved before the segment
      * starts; the graph and the output are built inside it, after admission.
      *
-     * @param Closure(Event): Graph $graph
+     * @param Closure(Event, WorkflowState): Graph $graph
      * @param Closure(): ?StreamAdapterInterface $adapter
      * @param Closure(): ?StreamingChannelInterface $channel
      * @return Generator<int, object, mixed, WorkflowState>
@@ -156,7 +156,7 @@ final class Segment
      * is persisted before any error frame, and the terminal frames follow the
      * committed suspension or completion.
      *
-     * @param Closure(Event): Graph $graph
+     * @param Closure(Event, WorkflowState): Graph $graph
      * @param Closure(): ?StreamAdapterInterface $adapter
      * @param Closure(): ?StreamingChannelInterface $channel
      * @return Generator<int, object, mixed, WorkflowState>
@@ -167,7 +167,7 @@ final class Segment
         $start = $this->context->startEvent();
 
         try {
-            $this->graph = $graph($start);
+            $this->graph = $graph($start, $this->state);
             $this->output = new SegmentOutput($adapter(), $channel(), $this->events, $this->context->workflowId);
 
             yield from $this->output->start();

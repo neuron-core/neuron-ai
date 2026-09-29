@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Interrupt;
 
+use DateTimeImmutable;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -51,6 +53,39 @@ class InterruptRequestTest extends TestCase
     public static function nonPositiveIds(): array
     {
         return ['zero' => [0], 'negative' => [-1], 'minimum' => [PHP_INT_MIN]];
+    }
+
+    public function test_metadata_cannot_replace_the_envelope_keys(): void
+    {
+        $request = (new class ('refund.approved') extends WaitForEventRequest {
+            protected function metadata(): array
+            {
+                return ['interruptId' => 999, 'type' => 'refund', 'eventName' => 'refund', 'expiresAt' => 'never', 'amount' => 120];
+            }
+        })->withId(3);
+
+        $this->assertSame([
+            'interruptId' => 3,
+            'type' => 'wait_for_event',
+            'eventName' => 'refund.approved',
+            'expiresAt' => null,
+            'amount' => 120,
+        ], $request->jsonSerialize());
+    }
+
+    public function test_coordination_data_cannot_replace_the_identity(): void
+    {
+        $request = (new class (new DateTimeImmutable('2030-01-01T00:00:00+00:00')) extends SleepUntilRequest {
+            protected function coordinationData(): array
+            {
+                return ['interruptId' => 999, 'type' => 'refund', ...parent::coordinationData()];
+            }
+        })->withId(3);
+
+        $this->assertSame(
+            ['interruptId' => 3, 'type' => 'sleep_until', 'wakeAt' => '2030-01-01T00:00:00+00:00'],
+            $request->jsonSerialize(),
+        );
     }
 
     public function test_the_control_flow_signal_carries_the_request_and_its_message(): void

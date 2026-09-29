@@ -13,7 +13,7 @@ class HtmlReader implements ReaderInterface
     /**
      * Return the Markdown version of a web page content.
      */
-    public static function getText(string $filePath, array $options = []): string
+    public function read(string $filePath): string
     {
         $html = new Html2Text(file_get_contents($filePath));
 

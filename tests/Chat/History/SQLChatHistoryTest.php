@@ -40,8 +40,8 @@ class SQLChatHistoryTest extends TestCase
         $this->pdo->exec('DROP TABLE IF EXISTS chat_messages');
         $this->pdo->exec("CREATE TABLE chat_messages (
           id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-          thread_id VARCHAR(255) NOT NULL,
-          message_id VARCHAR(64) NOT NULL,
+          thread_id VARBINARY(255) NOT NULL,
+          message_id VARBINARY(64) NOT NULL,
           role VARCHAR(32) NOT NULL,
           content LONGTEXT NULL,
           meta LONGTEXT NULL,

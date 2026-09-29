@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use Exception;
 use NeuronAI\Exceptions\WorkflowException;
 
 use function time;
@@ -64,21 +63,5 @@ class SleepUntilRequest extends InterruptRequest
         return [
             'wakeAt' => $this->wakeAt->format(DateTimeInterface::ATOM),
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     *
-     * @throws Exception
-     */
-    public static function fromArray(array $data): self
-    {
-        $request = new self(
-            new DateTimeImmutable((string) ($data['wakeAt'] ?? 'now')),
-        );
-
-        return isset($data['interruptId'])
-            ? $request->withId((int) $data['interruptId'])
-            : $request;
     }
 }

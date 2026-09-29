@@ -34,7 +34,7 @@ class HtmlReaderTest extends TestCase
 
         $this->assertSame(
             "CITTÀ\n\nFish & chips at the menu [https://example.test/menu]\n\n\t* One",
-            trim(HtmlReader::getText($path))
+            trim((new HtmlReader())->read($path))
         );
     }
 
@@ -45,7 +45,7 @@ class HtmlReaderTest extends TestCase
             . '<body><p>Visible</p><script>var injected = true;</script></body></html>'
         );
 
-        $this->assertSame('Visible', trim(HtmlReader::getText($path)));
+        $this->assertSame('Visible', trim((new HtmlReader())->read($path)));
     }
 
     public function test_file_data_loader_can_read_html_through_the_reader(): void

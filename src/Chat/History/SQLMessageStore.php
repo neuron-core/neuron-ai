@@ -27,10 +27,15 @@ use const JSON_THROW_ON_ERROR;
  * their rows, marked by archived_at. The auto-increment id orders the thread;
  * message_id is the message identity.
  *
+ * Thread and message IDs must compare exactly. On MySQL and MariaDB declare them
+ * VARBINARY: the default collations ignore case and accents (MariaDB's also trailing
+ * spaces), so user-Alice and user-alice would read and clear each other's messages.
+ * PostgreSQL and SQLite compare VARCHAR and TEXT exactly.
+ *
  * CREATE TABLE chat_messages (
  * id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- * thread_id VARCHAR(255) NOT NULL,
- * message_id VARCHAR(64) NOT NULL,
+ * thread_id VARBINARY(255) NOT NULL,
+ * message_id VARBINARY(64) NOT NULL,
  * role VARCHAR(32) NOT NULL,
  * content LONGTEXT NULL,
  * meta LONGTEXT NULL,

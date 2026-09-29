@@ -36,6 +36,7 @@ use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_diff_key;
 use function array_map;
 use function array_slice;
 use function glob;
@@ -86,7 +87,8 @@ class MessageStoreContractTest extends TestCase
             'file' => [fn (string $directory): MessageStoreInterface => new FileMessageStore($directory)],
             'sql' => [fn (string $directory): MessageStoreInterface => new SqliteMessageStore()],
             'eloquent' => [fn (string $directory): MessageStoreInterface => self::eloquentStore()],
-            'mysql' => [fn (string $directory): MessageStoreInterface => self::mysqlStore()],
+            'mysql' => [fn (string $directory): MessageStoreInterface => self::mysqlStore(3306)],
+            'mariadb' => [fn (string $directory): MessageStoreInterface => self::mysqlStore(3307)],
             'pgsql' => [fn (string $directory): MessageStoreInterface => self::$postgresStores[] = PostgresMessageStore::open()],
         ];
     }
@@ -102,19 +104,22 @@ class MessageStoreContractTest extends TestCase
         return new EloquentMessageStore(ChatMessage::class);
     }
 
-    protected static function mysqlStore(): SQLMessageStore
+    /**
+     * The table documented on SQLMessageStore for MySQL and MariaDB.
+     */
+    protected static function mysqlStore(int $port): SQLMessageStore
     {
         try {
-            $pdo = new PDO('mysql:host=127.0.0.1;dbname=neuron-ai', 'root', '');
+            $pdo = new PDO("mysql:host=127.0.0.1;port={$port};dbname=neuron-ai", 'root', '');
         } catch (PDOException) {
-            self::markTestSkipped('MySQL not available on port 3306.');
+            self::markTestSkipped("MySQL not available on port {$port}.");
         }
 
         $pdo->exec('DROP TABLE IF EXISTS chat_messages');
         $pdo->exec('CREATE TABLE chat_messages (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            thread_id VARCHAR(255) NOT NULL,
-            message_id VARCHAR(64) NOT NULL,
+            thread_id VARBINARY(255) NOT NULL,
+            message_id VARBINARY(64) NOT NULL,
             role VARCHAR(32) NOT NULL,
             content LONGTEXT NULL,
             meta LONGTEXT NULL,
@@ -512,6 +517,34 @@ class MessageStoreContractTest extends TestCase
         $store->clear('_');
         $this->assertCount(1, $store->loadAll('a b'));
         $this->assertCount(1, $store->loadAll("'; DROP TABLE chat_messages; --"));
+    }
+
+    /**
+     * @return array<string, array{0: callable(string): MessageStoreInterface}>
+     */
+    public static function databaseStores(): array
+    {
+        return array_diff_key(self::stores(), ['in-memory' => true, 'file' => true]);
+    }
+
+    #[DataProvider('databaseStores')]
+    public function test_thread_ids_differing_only_by_case_accents_or_trailing_spaces_are_distinct(callable $make): void
+    {
+        $store = $make($this->directory);
+        $threads = ['user-Alice', 'user-alice', 'USER-ALICE', 'user-Alicé', 'user-Alice '];
+
+        $messages = [];
+        foreach ($threads as $thread) {
+            $messages[$thread] = new UserMessage("In thread {$thread}");
+            $store->append($thread, $messages[$thread]);
+        }
+
+        foreach ($threads as $thread) {
+            $this->assertSame([$messages[$thread]->getId()], $this->ids($store->loadActive($thread)), "Thread '{$thread}'");
+        }
+
+        $store->clear('user-alice');
+        $this->assertCount(1, $store->loadActive('user-Alice'));
     }
 
     #[DataProvider('stores')]

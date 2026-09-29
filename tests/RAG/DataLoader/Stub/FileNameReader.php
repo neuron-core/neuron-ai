@@ -13,8 +13,12 @@ use function basename;
  */
 class FileNameReader implements ReaderInterface
 {
-    public static function getText(string $filePath, array $options = []): string
+    public function __construct(protected string $label = 'FileNameReader')
     {
-        return 'read by FileNameReader: ' . basename($filePath);
+    }
+
+    public function read(string $filePath): string
+    {
+        return "read by {$this->label}: " . basename($filePath);
     }
 }

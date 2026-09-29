@@ -105,6 +105,41 @@ class WorkflowValidationTest extends TestCase
         $this->assertEquals('custom property', $state->custom);
     }
 
+    public function test_a_node_needing_a_state_the_workflow_does_not_provide_fails_the_run_before_any_node_executes(): void
+    {
+        $first = new class () extends Node {
+            public bool $executed = false;
+
+            public function __invoke(StartEvent $event, WorkflowState $state): FirstEvent
+            {
+                $this->executed = true;
+                return new FirstEvent();
+            }
+        };
+        $needsCustomState = new class () extends Node {
+            public function __invoke(FirstEvent $event, CustomState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+        $workflow = Workflow::make('missing-state')->setPersistence(new InMemoryPersistence())
+            ->addNodes([fn (): Node => $first, $needsCustomState]);
+
+        try {
+            $workflow->run();
+            $this->fail('The graph must refuse a node whose state is not provided.');
+        } catch (WorkflowException $e) {
+            $this->assertSame(
+                'Failed to validate ' . $needsCustomState::class . ': __invoke method needs ' . CustomState::class
+                . ', but the workflow provides ' . WorkflowState::class,
+                $e->getMessage(),
+            );
+        }
+
+        $this->assertFalse($first->executed);
+        $this->assertSame(WorkflowStatus::Failed, $workflow->inspect()?->status);
+    }
+
     #[DataProvider('invalidLeaseTimeoutProvider')]
     public function test_explicit_lease_timeout_must_be_positive(int $seconds): void
     {

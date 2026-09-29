@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\Workflow\Interrupt;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use Exception;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Interrupt\InterruptType;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
@@ -34,16 +33,6 @@ class SleepUntilRequestTest extends TestCase
         $this->assertSame('Sleeping until 2026-12-31T23:59:59+00:00', $request->getMessage());
     }
 
-    public function test_json_round_trip_preserves_timestamp(): void
-    {
-        $wakeAt = new DateTimeImmutable('2026-07-20T15:30:00+00:00');
-        $original = new SleepUntilRequest($wakeAt);
-        $restored = SleepUntilRequest::fromArray($original->jsonSerialize());
-
-        $this->assertEquals($original->getWakeAt(), $restored->getWakeAt());
-        $this->assertSame($original->type(), $restored->type());
-    }
-
     public function test_bound_request_owns_the_complete_portable_envelope(): void
     {
         $request = (new SleepUntilRequest(new DateTimeImmutable('2026-07-20T15:30:00+02:00')))->withId(9);
@@ -53,10 +42,6 @@ class SleepUntilRequestTest extends TestCase
             'type' => 'sleep_until',
             'wakeAt' => '2026-07-20T15:30:00+02:00',
         ], $request->jsonSerialize());
-
-        $restored = SleepUntilRequest::fromArray($request->jsonSerialize());
-        $this->assertSame(9, $restored->getId());
-        $this->assertSame($request->jsonSerialize(), $restored->jsonSerialize());
     }
 
     public function test_a_due_timer_resumes_the_sleep(): void
@@ -114,20 +99,5 @@ class SleepUntilRequestTest extends TestCase
         $this->expectExceptionMessage("Resume input 'expired' is incompatible with interrupt 4 of type 'sleep_until'.");
 
         $request->validate(ResumeInput::expired((new WaitForEventRequest('late', new DateTimeImmutable('@1')))->withId(4)));
-    }
-
-    public function test_from_array_rejects_a_non_positive_interrupt_id(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('An interrupt ID must be a positive integer.');
-
-        SleepUntilRequest::fromArray(['interruptId' => 0, 'wakeAt' => '2026-07-20T15:30:00+00:00']);
-    }
-
-    public function test_from_array_rejects_an_unparseable_wake_time(): void
-    {
-        $this->expectException(Exception::class);
-
-        SleepUntilRequest::fromArray(['wakeAt' => 'not a date']);
     }
 }

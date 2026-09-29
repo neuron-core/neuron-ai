@@ -16,13 +16,13 @@ This is a breaking change to two areas:
 
 ## 1. Create the new table
 
-MySQL:
+MySQL and MariaDB:
 
 ```sql
 CREATE TABLE chat_messages (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    thread_id VARCHAR(255) NOT NULL,
-    message_id VARCHAR(64) NOT NULL,
+    thread_id VARBINARY(255) NOT NULL,
+    message_id VARBINARY(64) NOT NULL,
     role VARCHAR(32) NOT NULL,
     content LONGTEXT NULL,
     meta LONGTEXT NULL,
@@ -32,6 +32,14 @@ CREATE TABLE chat_messages (
     INDEX idx_thread_id (thread_id),
     UNIQUE INDEX idx_thread_message (thread_id, message_id)
 );
+```
+
+The ID columns are `VARBINARY` because thread and message IDs must compare exactly. The default MySQL and MariaDB
+collations ignore case and accents, so `user-Alice` and `user-alice` would read and clear each other's messages. A table
+already created with `VARCHAR` ID columns converts in place, keeping its rows:
+
+```sql
+ALTER TABLE chat_messages MODIFY thread_id VARBINARY(255) NOT NULL, MODIFY message_id VARBINARY(64) NOT NULL;
 ```
 
 PostgreSQL:

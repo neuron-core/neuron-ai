@@ -7,9 +7,7 @@ namespace NeuronAI\RAG\DataLoader;
 use NeuronAI\Exceptions\DataReaderException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
-use Exception;
 
-use function array_key_exists;
 use function array_map;
 use function array_merge;
 use function array_reduce;
@@ -194,28 +192,12 @@ class PdfReader implements ReaderInterface
     }
 
     /**
-     * @throws Exception
+     * Reads on a copy, so a reader shared by many files keeps none of them.
+     *
+     * @throws DataReaderException
      */
-    public static function getText(
-        string $filePath,
-        array $options = []
-    ): string {
-        /** @phpstan-ignore new.static */
-        $instance = new static();
-        $instance->setPdf($filePath);
-
-        if (array_key_exists('binPath', $options)) {
-            $instance->setBinPath($options['binPath']);
-        }
-
-        if (array_key_exists('options', $options)) {
-            $instance->setOptions($options['options']);
-        }
-
-        if (array_key_exists('timeout', $options)) {
-            $instance->setTimeout($options['timeout']);
-        }
-
-        return $instance->text();
+    public function read(string $filePath): string
+    {
+        return (clone $this)->setPdf($filePath)->text();
     }
 }

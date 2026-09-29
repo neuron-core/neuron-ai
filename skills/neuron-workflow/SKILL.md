@@ -205,7 +205,8 @@ final class OrderWorkflow extends Workflow
 $state = OrderWorkflow::make()->run(); // inferred as OrderState
 ```
 
-`Agent` uses the same contract by specializing `Workflow<AgentState>`.
+`Agent` uses the same contract by specializing `Workflow<AgentState>`. A node asking for
+a state class the workflow does not provide fails when the graph is built.
 
 ## Workflow Resources
 

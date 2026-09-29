@@ -19,6 +19,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Graph;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowResources;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -30,7 +31,7 @@ class GraphTest extends TestCase
         $two = new NodeTwo();
         $three = new NodeThree();
 
-        $graph = new Graph(new StartEvent(), new WorkflowResources(), [$three, $one, $two]);
+        $graph = new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [$three, $one, $two]);
 
         $this->assertSame([
             SecondEvent::class => $three,
@@ -45,7 +46,7 @@ class GraphTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Node for event ' . StartEvent::class . ' already exists');
 
-        new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne(), new ExposedNode()]);
+        new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne(), new ExposedNode()]);
     }
 
     public function test_the_start_event_must_have_a_node(): void
@@ -53,12 +54,12 @@ class GraphTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle ' . FirstEvent::class);
 
-        new Graph(new FirstEvent(), new WorkflowResources(), [new NodeOne(), new NodeThree()]);
+        new Graph(new FirstEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne(), new NodeThree()]);
     }
 
     public function test_an_event_without_a_node_is_reported_by_class(): void
     {
-        $graph = new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne()]);
+        $graph = new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne()]);
 
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No node found that handle event: ' . ThirdEvent::class);
@@ -68,7 +69,7 @@ class GraphTest extends TestCase
 
     public function test_routing_is_by_exact_class_not_by_subclass(): void
     {
-        $graph = new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne(), new NodeTwo()]);
+        $graph = new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne(), new NodeTwo()]);
         $subclassEvent = new class () extends FirstEvent {
         };
 
@@ -82,7 +83,7 @@ class GraphTest extends TestCase
     {
         $resources = new WorkflowResources();
 
-        $graph = new Graph(new StartEvent(), $resources, [new NodeOne()]);
+        $graph = new Graph(new StartEvent(), new WorkflowState(), $resources, [new NodeOne()]);
 
         $this->assertSame($resources, $graph->resources);
     }
@@ -97,7 +98,7 @@ class GraphTest extends TestCase
         $child = new class () extends NodeOne {
         };
 
-        $graph = new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne()], [
+        $graph = new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne()], [
             NodeInterface::class => [$forInterface],
             NodeOne::class => [$forParent],
             NodeTwo::class => [$forSibling],
@@ -126,12 +127,12 @@ class GraphTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("Middleware is registered for '{$key}', which is not a node class.");
 
-        new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne()], [$key => [FakeMiddleware::make()]]);
+        new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne()], [$key => [FakeMiddleware::make()]]);
     }
 
     public function test_a_node_without_middleware_gets_none(): void
     {
-        $graph = new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne()]);
+        $graph = new Graph(new StartEvent(), new WorkflowState(), new WorkflowResources(), [new NodeOne()]);
 
         $this->assertSame([], $graph->middlewareFor(new NodeOne()));
     }

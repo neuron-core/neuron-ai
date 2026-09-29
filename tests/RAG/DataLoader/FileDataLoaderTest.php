@@ -9,6 +9,7 @@ use NeuronAI\RAG\DataLoader\FileDataLoader;
 use NeuronAI\RAG\DataLoader\TextFileReader;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
+use NeuronAI\Tests\RAG\DataLoader\Stub\FailingReader;
 use NeuronAI\Tests\RAG\DataLoader\Stub\FileNameReader;
 use NeuronAI\Tests\Support\FileSystemSandbox;
 use PHPUnit\Framework\TestCase;
@@ -63,7 +64,7 @@ class FileDataLoaderTest extends TestCase
         $content = "Città – naïve 日本語 🚀\r\n\ttabbed\0binary";
         $path = $this->write('unicode.txt', $content);
 
-        $this->assertSame($content, TextFileReader::getText($path));
+        $this->assertSame($content, (new TextFileReader())->read($path));
         $this->assertSame($content, FileDataLoader::for($path)->getDocuments()[0]->getContent());
     }
 
@@ -128,6 +129,18 @@ class FileDataLoaderTest extends TestCase
         $this->assertSame('read by FileNameReader: guide.md', $documents[0]->getContent());
     }
 
+    public function test_the_registered_reader_instance_reads_the_files(): void
+    {
+        $path = $this->write('docs/guide.md', '# ignored');
+        $reader = new FileNameReader('the configured reader');
+
+        $alone = FileDataLoader::for($path)->addReader('md', $reader)->getDocuments();
+        $withDirectory = FileDataLoader::for($this->sandbox . '/docs')->addReader('md', $reader)->getDocuments();
+
+        $this->assertSame(['read by the configured reader: guide.md'], $this->sortedContents($alone));
+        $this->assertSame(['read by the configured reader: guide.md'], $this->sortedContents($withDirectory));
+    }
+
     public function test_one_reader_can_be_registered_for_several_extensions(): void
     {
         $this->write('page.html', '<p>ignored</p>');
@@ -174,6 +187,91 @@ class FileDataLoaderTest extends TestCase
             ->getDocuments();
 
         $this->assertSame('markdown source', $documents[0]->getContent());
+    }
+
+    public function test_a_reader_failure_on_a_single_file_reaches_the_caller(): void
+    {
+        $path = $this->write('broken.pdf', 'not really a pdf');
+
+        $this->expectException(DataReaderException::class);
+        $this->expectExceptionMessage('extraction failed');
+
+        FileDataLoader::for($path, ['pdf' => new FailingReader()])->getDocuments();
+    }
+
+    public function test_a_reader_failure_inside_a_directory_reaches_the_caller(): void
+    {
+        $this->write('broken.pdf', 'not really a pdf');
+
+        $this->expectException(DataReaderException::class);
+        $this->expectExceptionMessage('extraction failed');
+
+        FileDataLoader::for($this->sandbox, ['pdf' => new FailingReader()])->getDocuments();
+    }
+
+    public function test_a_symlink_back_to_an_ancestor_does_not_load_its_files_again(): void
+    {
+        $this->write('docs/guide.txt', 'Only once');
+        $this->symlinkOrSkip($this->sandbox, $this->sandbox . '/docs/loop');
+
+        $this->assertSame(['Only once'], $this->sortedContents(FileDataLoader::for($this->sandbox)->getDocuments()));
+    }
+
+    public function test_symlinks_met_while_walking_a_directory_are_not_followed(): void
+    {
+        $this->write('docs/guide.txt', 'Guide');
+        $this->write('outside/secret.txt', 'Outside secret');
+        $this->symlinkOrSkip($this->sandbox . '/outside/secret.txt', $this->sandbox . '/docs/escape.txt');
+        $this->symlinkOrSkip($this->sandbox . '/outside', $this->sandbox . '/docs/escape');
+        $this->symlinkOrSkip($this->sandbox . '/missing.txt', $this->sandbox . '/docs/broken.txt');
+
+        $this->assertSame(['Guide'], $this->sortedContents(FileDataLoader::for($this->sandbox . '/docs')->getDocuments()));
+    }
+
+    public function test_a_symlink_given_as_the_loader_path_is_followed(): void
+    {
+        $this->write('releases/v1/guide.txt', 'Guide');
+        $this->symlinkOrSkip($this->sandbox . '/releases/v1', $this->sandbox . '/current');
+
+        $this->assertSame(['Guide'], $this->sortedContents(FileDataLoader::for($this->sandbox . '/current')->getDocuments()));
+    }
+
+    public function test_hidden_files_and_directories_are_skipped_while_walking(): void
+    {
+        $this->write('.env', 'OPENAI_API_KEY=sk-secret');
+        $this->write('.git/config', '[remote "origin"] url = https://token@example.test');
+        $this->write('guide.txt', 'Guide');
+
+        $this->assertSame(['Guide'], $this->sortedContents(FileDataLoader::for($this->sandbox)->getDocuments()));
+    }
+
+    public function test_a_hidden_path_given_to_the_loader_is_loaded(): void
+    {
+        $notes = $this->write('.notes', 'Notes');
+        $this->write('.docs/guide.txt', 'Guide');
+
+        $this->assertSame(['Notes'], $this->sortedContents(FileDataLoader::for($notes)->getDocuments()));
+        $this->assertSame(['Guide'], $this->sortedContents(FileDataLoader::for($this->sandbox . '/.docs')->getDocuments()));
+    }
+
+    public function test_files_loaded_from_a_directory_are_named_after_their_path(): void
+    {
+        $this->write('tenant-a/readme.txt', 'A');
+        $this->write('tenant-b/readme.txt', 'B');
+
+        $names = array_map(static fn (Document $document): string => $document->getSourceName(), FileDataLoader::for($this->sandbox)->getDocuments());
+        sort($names);
+
+        $this->assertSame([$this->sandbox . '/tenant-a/readme.txt', $this->sandbox . '/tenant-b/readme.txt'], $names);
+    }
+
+    public function test_a_file_has_the_same_source_name_alone_or_with_its_directory(): void
+    {
+        $path = $this->write('guide.txt', 'Guide');
+
+        $this->assertSame($path, FileDataLoader::for($path)->getDocuments()[0]->getSourceName());
+        $this->assertSame($path, FileDataLoader::for($this->sandbox)->getDocuments()[0]->getSourceName());
+        $this->assertSame($path, FileDataLoader::for($this->sandbox . '/')->getDocuments()[0]->getSourceName());
     }
 
     protected function write(string $relativePath, string $content): string

@@ -62,7 +62,7 @@ class ParseFileTool extends FileSystemTool
     private function parsePdf(string $file_path): string|ToolOutput
     {
         try {
-            $content = PdfReader::getText($file_path);
+            $content = (new PdfReader())->read($file_path);
             $length = mb_strlen($content);
             return $content . "\n\n[PDF parsed successfully: {$length} characters]";
         } catch (Exception $e) {
@@ -73,7 +73,7 @@ class ParseFileTool extends FileSystemTool
     private function parseHtml(string $file_path): string|ToolOutput
     {
         try {
-            $content = HtmlReader::getText($file_path);
+            $content = (new HtmlReader())->read($file_path);
             $length = mb_strlen($content);
             return $content . "\n\n[HTML parsed successfully: {$length} characters]";
         } catch (Exception $e) {

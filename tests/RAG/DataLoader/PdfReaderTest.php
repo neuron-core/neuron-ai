@@ -6,7 +6,6 @@ namespace NeuronAI\Tests\RAG\DataLoader;
 
 use NeuronAI\Exceptions\DataReaderException;
 use NeuronAI\RAG\DataLoader\PdfReader;
-use NeuronAI\Tests\RAG\DataLoader\Stub\EchoPdfReader;
 use NeuronAI\Tests\RAG\DataLoader\Stub\PdfReaderWithoutSystemBinaries;
 use NeuronAI\Tests\Support\FileSystemSandbox;
 use PHPUnit\Framework\TestCase;
@@ -63,14 +62,6 @@ class PdfReaderTest extends TestCase
         $this->expectExceptionMessage('The provided path is not executable.');
 
         new PdfReader($this->sandbox . '/pdftotext');
-    }
-
-    public function test_static_get_text_validates_the_bin_path_option(): void
-    {
-        $this->expectException(DataReaderException::class);
-        $this->expectExceptionMessage('The provided path is not executable.');
-
-        PdfReader::getText($this->pdf, ['binPath' => $this->sandbox . '/missing/pdftotext']);
     }
 
     public function test_pdf_must_be_readable(): void
@@ -164,31 +155,20 @@ class PdfReaderTest extends TestCase
         $reader->setTimeout(-1)->text();
     }
 
-    public function test_static_get_text_applies_the_timeout_option(): void
+    public function test_read_applies_the_configured_timeout(): void
     {
+        $reader = (new PdfReader($this->fakeBinary('pdftotext', self::ARGUMENTS_ECHO)))->setTimeout(-1);
+
         $this->expectException(InvalidArgumentException::class);
 
-        PdfReader::getText($this->pdf, ['binPath' => $this->fakeBinary('pdftotext', self::ARGUMENTS_ECHO), 'timeout' => -1]);
+        $reader->read($this->pdf);
     }
 
-    public function test_static_get_text_builds_the_reader_it_is_called_on(): void
+    public function test_read_extracts_with_the_configured_bin_path_and_options(): void
     {
-        if (!is_executable('/bin/echo')) {
-            $this->markTestSkipped('/bin/echo is not available on this platform.');
-        }
+        $reader = (new PdfReader($this->fakeBinary('pdftotext', self::ARGUMENTS_ECHO)))->setOptions(['layout']);
 
-        $this->assertSame("{$this->pdf} -", EchoPdfReader::getText($this->pdf));
-    }
-
-    public function test_static_get_text_applies_bin_path_and_options(): void
-    {
-        $text = PdfReader::getText($this->pdf, [
-            'binPath' => $this->fakeBinary('pdftotext', self::ARGUMENTS_ECHO),
-            'options' => ['layout'],
-            'timeout' => 5,
-        ]);
-
-        $this->assertSame("<-layout>\n<{$this->pdf}>\n<->", $text);
+        $this->assertSame("<-layout>\n<{$this->pdf}>\n<->", $reader->read($this->pdf));
     }
 
     public function test_missing_pdftotext_binary_is_reported(): void
@@ -228,18 +208,18 @@ class PdfReaderTest extends TestCase
         (new PdfReaderWithoutSystemBinaries($binPath))->getPageCount($this->pdf);
     }
 
-    public function test_get_text_extracts_the_real_pdf(): void
+    public function test_read_extracts_the_real_pdf(): void
     {
         $this->skipIfPdfToTextNotFound();
 
-        $this->assertSame($this->expectedText(), $this->normalizeLineEndings(PdfReader::getText(__DIR__ . '/test.pdf') . PHP_EOL));
+        $this->assertSame($this->expectedText(), $this->normalizeLineEndings((new PdfReader())->read(__DIR__ . '/test.pdf') . PHP_EOL));
     }
 
-    public function test_get_text_extracts_the_real_pdf_with_an_image(): void
+    public function test_read_extracts_the_real_pdf_with_an_image(): void
     {
         $this->skipIfPdfToTextNotFound();
 
-        $this->assertSame($this->expectedText(), $this->normalizeLineEndings(PdfReader::getText(__DIR__ . '/test-with-image.pdf') . PHP_EOL));
+        $this->assertSame($this->expectedText(), $this->normalizeLineEndings((new PdfReader())->read(__DIR__ . '/test-with-image.pdf') . PHP_EOL));
     }
 
     public function test_get_page_count_of_the_real_pdf(): void

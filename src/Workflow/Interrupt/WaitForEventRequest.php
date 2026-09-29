@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Interrupt;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use Exception;
 use NeuronAI\Exceptions\WorkflowException;
 
 use function time;
@@ -87,26 +86,5 @@ class WaitForEventRequest extends InterruptRequest
             'eventName' => $this->eventName,
             'expiresAt' => $this->expiresAt?->format(DateTimeInterface::ATOM),
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     *
-     * @throws Exception
-     */
-    public static function fromArray(array $data): self
-    {
-        $expiresAt = isset($data['expiresAt'])
-            ? new DateTimeImmutable((string) $data['expiresAt'])
-            : null;
-
-        $request = new self(
-            (string) ($data['eventName'] ?? ''),
-            $expiresAt,
-        );
-
-        return isset($data['interruptId'])
-            ? $request->withId((int) $data['interruptId'])
-            : $request;
     }
 }

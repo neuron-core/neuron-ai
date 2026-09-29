@@ -199,7 +199,7 @@ trait HandleComponents
     public function export(): string
     {
         $start = $this->getStartEvent();
-        return $this->exporter->export((new WorkflowGraphBuilder())->build($start::class, $this->graph($start)->nodes()));
+        return $this->exporter->export((new WorkflowGraphBuilder())->build($start::class, $this->graph($start, $this->newState())->nodes()));
     }
 
     public function setExporter(ExporterInterface $exporter): static
