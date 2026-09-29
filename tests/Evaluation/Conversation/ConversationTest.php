@@ -84,6 +84,22 @@ class ConversationTest extends TestCase
         $provider->assertCallCount(2);
     }
 
+    public function test_runs_on_a_reused_agent_never_share_a_conversation(): void
+    {
+        $provider = new FakeAIProvider(
+            new AssistantMessage('Refund issued for order 1'),
+            new AssistantMessage('Refund issued for order 2'),
+        );
+        // One agent built once in setUp() and reused for every dataset item.
+        $agent = $this->makeAgent($provider);
+
+        Conversation::make($agent)->withTurns(['Refund order 1'])->run();
+        $second = Conversation::make($agent)->withTurns(['Refund order 2'])->run();
+
+        $this->assertSame("User: Refund order 2\nAssistant: Refund issued for order 2", $second->toTranscript());
+        $this->assertNull($agent->getThreadId());
+    }
+
     public function test_scripted_user_messages_are_delivered_with_their_attachments(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('A cat.'));
@@ -319,6 +335,7 @@ class ConversationTest extends TestCase
         $suspended->markAsSuspended(null);
 
         $agent = $this->createMock(AgentInterface::class);
+        $agent->method('for')->willReturnSelf();
         $agent->method('chat')->willReturn($suspended);
         $agent->expects($this->never())->method('run');
         $policyCalls = 0;
@@ -372,7 +389,8 @@ class ConversationTest extends TestCase
         $completed->clearInterrupt();
 
         $agent = $this->createMock(AgentInterface::class);
-        $agent->method('getThreadId')->willReturn(null);
+        $agent->method('for')->willReturnSelf();
+        $agent->method('getChatHistory')->willReturn(new ChatHistory(new InMemoryMessageStore(), 'thread'));
         $agent->method('chat')->willReturn($suspended);
         // Mirrors Workflow::submitInputs(): the translator, when given, shapes the resume payload
         $agent->method('submitInputs')->willReturnCallback(
@@ -441,6 +459,7 @@ class ConversationTest extends TestCase
         $responses = [];
 
         $agent = $this->createMock(AgentInterface::class);
+        $agent->method('for')->willReturnSelf();
         $agent->method('getChatHistory')->willReturn($history);
         $agent->expects($this->once())->method('chat')->willReturn($first);
         $agent->method('submitInputs')->willReturnCallback(

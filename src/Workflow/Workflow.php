@@ -117,6 +117,21 @@ class Workflow implements WorkflowInterface
         return $this->workflowId ?? $declared;
     }
 
+    /**
+     * A copy bound to $workflowId; the receiver is never modified. The copy
+     * shares the collaborators the definition holds, set or already resolved,
+     * and runs its own hooks for the rest.
+     *
+     * @throws WorkflowException when the workflow declares another workflow ID
+     */
+    public function for(string $workflowId): static
+    {
+        $copy = clone $this;
+        $copy->workflowId = null;
+
+        return $copy->setWorkflowId($workflowId);
+    }
+
     /** Bind the instance address; a bound instance cannot change its address. */
     public function setWorkflowId(string $workflowId): static
     {

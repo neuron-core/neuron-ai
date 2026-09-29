@@ -117,6 +117,65 @@ class WorkflowIdentityTest extends TestCase
         self::assertSame('workflow_1', $workflow->run()->getWorkflowId());
     }
 
+    public function test_for_returns_a_bound_copy_and_leaves_the_receiver_untouched(): void
+    {
+        $definition = Workflow::make()->setPersistence(new InMemoryPersistence())
+            ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
+
+        $first = $definition->for('workflow_1');
+        $second = $definition->for('workflow_2');
+
+        self::assertNotSame($definition, $first);
+        self::assertNull($definition->getWorkflowId());
+        self::assertTrue($first->run()->isInterrupted());
+        self::assertTrue($second->run()->isInterrupted());
+        self::assertNotSame($first->inspect()?->runId, $second->inspect()?->runId);
+
+        // A later copy continues the run another copy started.
+        $state = $definition->for('workflow_1')->run(ExecutionRequest::resume([]));
+        self::assertSame(WorkflowStatus::Completed, $state->getStatus());
+        self::assertSame('workflow_1', $state->getWorkflowId());
+
+        // A bound receiver stays bound; its copy takes the new ID.
+        self::assertSame('workflow_3', $first->for('workflow_3')->getWorkflowId());
+        self::assertSame('workflow_1', $first->getWorkflowId());
+    }
+
+    public function test_a_declared_workflow_id_accepts_only_copies_for_itself(): void
+    {
+        $keyed = KeyedWorkflow::make()->withDeclaredWorkflowId('workflow_1');
+
+        self::assertSame('workflow_1', $keyed->for('workflow_1')->getWorkflowId());
+
+        $this->expectException(WorkflowException::class);
+        $keyed->for('workflow_2');
+    }
+
+    public function test_copies_share_what_the_definition_holds_and_build_the_rest_themselves(): void
+    {
+        $definition = KeyedWorkflow::make();
+
+        // The default persistence comes from a hook, so each copy builds its own.
+        $definition->for('workflow_1')->run();
+        self::assertNull($definition->for('workflow_1')->inspect());
+
+        // A store set on the definition is shared by every copy.
+        $definition->setPersistence(new InMemoryPersistence());
+        $definition->for('workflow_1')->run();
+        self::assertSame(WorkflowStatus::Suspended, $definition->for('workflow_1')->inspect()?->status);
+    }
+
+    public function test_configuring_a_copy_leaves_the_definition_untouched(): void
+    {
+        $definition = KeyedWorkflow::make()->setPersistence(new InMemoryPersistence());
+        $copy = $definition->for('workflow_1')->setPersistence(new InMemoryPersistence());
+
+        $copy->run();
+
+        self::assertSame(WorkflowStatus::Suspended, $copy->inspect()?->status);
+        self::assertNull($definition->for('workflow_1')->inspect());
+    }
+
     public function test_the_run_is_admitted_under_the_bound_workflow_id_before_resources_are_built(): void
     {
         $workflow = Workflow::make()->addNode(new MemoizingNode());

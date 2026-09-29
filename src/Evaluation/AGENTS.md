@@ -43,7 +43,7 @@ class RefundEvaluator extends BaseEvaluator
 }
 ```
 
-Neither agent needs a thread ID: `Conversation` and the agent judges bind an unbound agent to a generated scratch thread, as `UserSimulator` does for itself.
+Neither agent needs a thread ID: `Conversation` runs each conversation, and an agent judge each judgment, on a copy of the agent bound to a fresh thread (`for()`). The agents an evaluator passes are never modified, so one agent can serve every dataset item without carrying one item's conversation into the next.
 
 ### Assertions and scores
 
@@ -60,7 +60,7 @@ Every `assert()` records a `Score` (`label`, `value`, `passed`). The label defau
 - `withApprovals(callable)` plays the human whenever the agent suspends, receiving the interrupt request and the trajectory so far. It is invoked for every suspension with the generic `InterruptRequest`, so type the callable against `ApprovalRequest` only when tool approval is the sole way the agent pauses. Fail-loud by design: a suspension with no policy throws `EvaluationException`, and an `ApprovalRequest` payload must cover every pending action id, otherwise the runner would re-suspend and loop.
 - `withUser(UserSimulator, maxTurns)` replaces scripted turns with a goal-driven simulated user (mutually exclusive with `withTurns()`). `maxTurns` is required; hitting it ends the conversation *normally*, and whether that is a failure is the assertions' judgment.
 
-`UserSimulator` is an `Agent` subclass with a persona and a goal that declares its own stop. Each step is stateless (persona + goal + transcript, own history flushed per call), and it never answers suspensions: the user and the approver are different humans, so approvals stay with the policy.
+`UserSimulator` is an `Agent` subclass with a persona and a goal that declares its own stop. Each step is stateless (persona + goal + transcript, run on a fresh copy of the simulator), and it never answers suspensions: the user and the approver are different humans, so approvals stay with the policy.
 
 Trajectory assertions: `ToolWasCalled` (optional argument constraint: subset array or predicate), `ToolWasNotCalled`, `TrajectoryMatches` (names only, with `Mode::Strict` / `Unordered` / `Subset` / `Superset`), `ToolWasApproved`, `ToolWasRejected`. There are deliberately no final-answer assertions: the string assertions and judges apply to `$trajectory->finalAnswer()`, and every judge accepts `string|Trajectory` (`TaskCompletionJudge` is the conversation-level one: goal + full trajectory).
 

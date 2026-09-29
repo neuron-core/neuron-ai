@@ -47,6 +47,9 @@ class Conversation
 
     protected ?Closure $approvals = null;
 
+    /** The agent under test, bound to this run's own thread: a copy, so runs never share a conversation. */
+    protected AgentInterface $dialogue;
+
     public function __construct(protected AgentInterface $agent)
     {
     }
@@ -114,6 +117,8 @@ class Conversation
             );
         }
 
+        $this->dialogue = $this->agent->for(UniqueIdGenerator::generateId('eval_'));
+
         foreach ($this->turns as $turn) {
             $this->deliver(is_string($turn) ? new UserMessage($turn) : $turn);
         }
@@ -129,6 +134,7 @@ class Conversation
     {
         /** @var UserSimulator $user */
         $user = $this->user;
+        $this->dialogue = $this->agent->for(UniqueIdGenerator::generateId('eval_'));
 
         for ($turn = 0; $turn < $this->maxTurns; $turn++) {
             $message = $user->nextTurn($this->soFar());
@@ -143,14 +149,9 @@ class Conversation
         return $this->soFar();
     }
 
-    /**
-     * Before its first turn the agent may have no conversation yet.
-     */
     protected function soFar(): Trajectory
     {
-        return $this->agent->getThreadId() === null
-            ? Trajectory::fromMessages([])
-            : Trajectory::fromChatHistory($this->agent->getChatHistory());
+        return Trajectory::fromChatHistory($this->dialogue->getChatHistory());
     }
 
     /**
@@ -159,11 +160,7 @@ class Conversation
      */
     protected function deliver(UserMessage $message): void
     {
-        if ($this->agent->getThreadId() === null) {
-            $this->agent->setThreadId(UniqueIdGenerator::generateId('eval_'));
-        }
-
-        $state = $this->agent->chat($message);
+        $state = $this->dialogue->chat($message);
 
         $this->resolveInterrupts($state);
     }
@@ -220,7 +217,7 @@ class Conversation
         };
 
         try {
-            $continuation = $this->agent->submitInputs($payload, $translator);
+            $continuation = $this->dialogue->submitInputs($payload, $translator);
         } catch (InputTranslationException $exception) {
             throw new EvaluationException('The approval policy returned an invalid resume payload: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
         }

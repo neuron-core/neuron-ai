@@ -64,6 +64,12 @@ interface WorkflowInterface
     public function getWorkflowId(): ?string;
 
     /**
+     * A copy bound to $workflowId; the receiver is never modified, so one
+     * definition can serve every workflow ID.
+     */
+    public function for(string $workflowId): static;
+
+    /**
      * Register a PSR-14 listener for a specific event class.
      *
      * @param class-string $eventClass

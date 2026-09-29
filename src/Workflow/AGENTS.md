@@ -173,7 +173,11 @@ address reads `getWorkflowId()`.
 
 `getWorkflowId()` returns the instance address, or null before binding.
 `setWorkflowId()` binds an unbound instance and accepts the same ID again, but
-rejects a different ID. The optional constructor ID and the `workflowId()`
+rejects a different ID. `for($workflowId)` returns a copy bound to that ID and
+never modifies the receiver, so one definition serves every workflow ID; a
+declared `workflowId()` accepts only copies for itself. The copy shares the
+collaborators the definition holds, set or already resolved, and runs its own
+hooks for the rest. The optional constructor ID and the `workflowId()`
 declaration hook remain supported. The framework never makes up an address:
 executing an unbound Workflow throws `WorkflowException` naming `setWorkflowId()`,
 and `events()` throws when called, before returning its generator. Later runs share the workflow ID and have

@@ -184,12 +184,13 @@ class UserSimulatorTest extends TestCase
         $simulator->nextTurn($this->emptyTrajectory());
         $simulator->nextTurn($this->emptyTrajectory());
 
-        // The simulator's own history is flushed per step: every request
+        // Every step runs on a fresh copy of the simulator: every request
         // carries exactly one user message (the self-contained prompt).
         $this->assertCount(2, $provider->getRecorded());
         foreach ($provider->getRecorded() as $record) {
             $this->assertCount(1, $record->messages);
         }
+        $this->assertNull($simulator->getThreadId());
     }
 
     public function test_the_transcript_cannot_close_its_data_block(): void

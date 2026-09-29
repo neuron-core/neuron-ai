@@ -50,16 +50,10 @@ class AgentJudge extends AbstractAssertion
 
         $prompt = $this->buildPrompt($actual);
 
-        // A judgment is a private exchange: an unbound judge gets a scratch
-        // thread, and a shared one must not carry earlier judgments into this one.
-        if ($this->judge->getThreadId() === null) {
-            $this->judge->setThreadId(UniqueIdGenerator::generateId('judge_'));
-        } else {
-            $this->judge->resetConversation();
-        }
-
+        // Every judgment runs on a copy of its own: earlier judgments never reach
+        // it, and the judge an evaluator shares across items is never modified.
         /** @var JudgeScoreOutput $result */
-        $result = $this->judge->structured(
+        $result = $this->judge->for(UniqueIdGenerator::generateId('judge_'))->structured(
             new UserMessage($prompt),
             JudgeScoreOutput::class
         );

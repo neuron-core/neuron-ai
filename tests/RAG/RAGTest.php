@@ -179,6 +179,19 @@ class RAGTest extends TestCase
         $vectorStore->assertHasDocumentWithContent('Second document');
     }
 
+    public function test_copies_retrieve_what_the_definition_ingested(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Paris.'));
+        $definition = RAG::make()->setAiProvider($provider)->setEmbeddingsProvider(new FakeEmbeddingsProvider());
+
+        // Ingestion resolves the default in-memory store on the definition, so every copy shares it.
+        $definition->addDocuments([new Document('France is a country in Europe. Its capital is Paris.')]);
+        $definition->for('thread_1')->chat(new UserMessage('What is the capital of France?'));
+
+        $this->assertStringContainsString('Its capital is Paris.', (string) $provider->getRecorded()[0]->systemPrompt?->getContent());
+        $this->assertNull($definition->getThreadId());
+    }
+
     public function test_add_documents_validates_schema_before_embedding(): void
     {
         $embeddings = new FakeEmbeddingsProvider();

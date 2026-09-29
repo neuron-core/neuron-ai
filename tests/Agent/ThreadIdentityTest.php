@@ -102,6 +102,31 @@ class ThreadIdentityTest extends TestCase
         self::assertCount(2, $messages->loadActive('thread_1'));
     }
 
+    /**
+     * A container shares one Agent: every request binds its own copy, so the
+     * shared definition never carries one user's conversation into the next.
+     */
+    public function test_one_shared_agent_serves_every_thread_through_bound_copies(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Hi Alice'), new AssistantMessage('Hi Bob'), new AssistantMessage('You are Alice'));
+        $messages = new InMemoryMessageStore();
+        $shared = Agent::make()->setAiProvider($provider)
+            ->setPersistence(new InMemoryPersistence())
+            ->setMessageStore($messages);
+
+        $alice = $shared->for('alice')->chat(new UserMessage('I am Alice, my card ends 4242'));
+        $bob = $shared->for('bob')->chat(new UserMessage('What did the last user say?'));
+        $shared->for('alice')->chat(new UserMessage('Who am I?'));
+
+        self::assertNull($shared->getThreadId());
+        self::assertSame('alice', $alice->getWorkflowId());
+        self::assertSame('bob', $bob->getWorkflowId());
+        self::assertCount(1, $provider->getRecorded()[1]->messages);
+        self::assertCount(3, $provider->getRecorded()[2]->messages);
+        self::assertCount(2, $messages->loadActive('bob'));
+        self::assertCount(4, $messages->loadActive('alice'));
+    }
+
     public function test_turns_reuse_the_configured_identity_and_history(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Hi Alice'), new AssistantMessage('Alice'));

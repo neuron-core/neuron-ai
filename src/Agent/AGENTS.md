@@ -66,8 +66,10 @@ class SupportAgent extends Agent
     }
 }
 
-$agent = $container->get(SupportAgent::class)->setThreadId($threadId);
+$agent = $container->get(SupportAgent::class)->for($threadId);
 ```
+
+`for($threadId)` returns a copy bound to the thread and never modifies the agent it is called on, so a container may share one instance for the life of a worker. Configure the shared agent when it is built: a setter called on it later changes it for every caller. Per-request settings, such as a stream adapter built from the request, go on the copy. A copy shares what the agent holds, collaborators set with setters, and runs its own hooks, so a store built in a hook is built per request and the in-memory defaults belong to one copy: a shared agent needs durable stores set on it.
 
 A tool instance is a prototype: `ToolNode` clones it for every call and it never enters persisted state, so it can hold injected services.
 
@@ -246,7 +248,7 @@ SupportAgent::make(workflowId: $ticket->workflowId)
 
 Agent inherits Workflow's constructor directly, accepting optional `workflowId`
 and initial state. Without an explicit identity it remains unbound. Framework applications resolve
-Agents through their container, then call `setThreadId($threadId)`; `make()` remains
+Agents through their container, then call `for($threadId)`; `make()` remains
 an independent direct-construction helper. Subclasses injecting application
 services still call `parent::__construct()`.
 
@@ -255,7 +257,7 @@ The framework never makes up a thread: executing, inspecting, answering or reset
 an unbound Agent throws `AgentException` naming `setThreadId()`. Executions reuse the bound
 identity with separate run IDs. Repeating the same identity is allowed; setters
 cannot switch a bound instance to another conversation.
-Use a fresh Agent for another conversation.
+Serve another conversation with another copy, `for($threadId)`, or a fresh Agent.
 Execution requests and per-operation methods do not accept address overrides.
 
 Histories are opened for the Agent's identity, and message stores carry none, so

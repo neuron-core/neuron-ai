@@ -300,6 +300,8 @@ $state = $agent->chat(new UserMessage($input));
 
 A store names the thread on every call and keeps no conversation state, so one instance can serve the whole application: bind it once in the container, or return it from the `messageStore()` hook. `getThreadId(): ?string` reads the resolved conversation identity. The framework never makes one up: executing, inspecting or answering an Agent without one, or reading its chat history, throws an `AgentException` naming `setThreadId()`.
 
+An Agent shared by a container (a singleton, a worker-lifetime service) serves each request through a bound copy: `$agent->for($threadId)->chat(...)`. `for()` never modifies the shared agent, so configure that one when it is built and put per-request settings on the copy. Hooks run once per copy, so give a shared agent durable stores with setters: in-memory defaults belong to one copy.
+
 Size the conversation sent to the model to the provider's model with the `contextWindow()` hook (50,000 tokens by default), or with `setContextWindow()` when the Agent is configured from outside:
 
 ```php

@@ -53,7 +53,7 @@ class UserSimulator extends Agent
      * when the simulator decides to stop (goal satisfied or giving up).
      *
      * Each step is stateless: the prompt is self-contained (persona + goal +
-     * transcript), so the simulator's own chat history is flushed every call.
+     * transcript), so every step runs on a fresh copy of the simulator.
      *
      * @throws EvaluationException
      * @throws Throwable
@@ -64,15 +64,9 @@ class UserSimulator extends Agent
             throw new EvaluationException('The user simulator has no goal. Configure one with withGoal().');
         }
 
-        // Before the first step the simulator has no conversation yet.
-        if ($this->getThreadId() === null) {
-            $this->setThreadId(UniqueIdGenerator::generateId('sim_'));
-        } else {
-            $this->resetConversation();
-        }
-
         /** @var SimulatorOutput $output */
-        $output = $this->structured(new UserMessage($this->buildPrompt($soFar)), SimulatorOutput::class);
+        $output = $this->for(UniqueIdGenerator::generateId('sim_'))
+            ->structured(new UserMessage($this->buildPrompt($soFar)), SimulatorOutput::class);
 
         if ($output->stop || $output->message === null || $output->message === '') {
             return null;
