@@ -22,6 +22,11 @@ class CalculateAgeToolTest extends TestCase
         $this->tool = new CalculateAgeTool();
     }
 
+    public function test_a_birthdate_after_the_reference_date_is_an_error(): void
+    {
+        $this->assertSame('Error: The birthdate is after the reference date.', ($this->tool)('2030-01-01', '2024-01-01', 'all'));
+    }
+
     public function test_calculate_age_in_years(): void
     {
         $result = ($this->tool)('1990-01-01', '2023-01-01');

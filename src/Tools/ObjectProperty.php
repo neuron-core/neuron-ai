@@ -288,6 +288,10 @@ class ObjectProperty implements ToolPropertyInterface
             $name = $property->getName();
 
             if (!array_key_exists($name, $input)) {
+                if ($property->isRequired()) {
+                    throw new InvalidToolInput("field \"{$name}\" is required");
+                }
+
                 continue;
             }
 

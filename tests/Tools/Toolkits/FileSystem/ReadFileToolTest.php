@@ -74,12 +74,14 @@ class ReadFileToolTest extends TestCase
         );
     }
 
-    public function test_binary_content_is_returned_byte_for_byte(): void
+    public function test_a_file_that_is_not_utf8_is_an_error(): void
     {
-        $binary = "\x00\x01\xFF\xFE binary \x00";
-        file_put_contents($this->tempDir . '/file.bin', $binary);
+        file_put_contents($this->tempDir . '/file.bin', "\x00\x01\xFF\xFE binary \x00");
 
-        $this->assertStringStartsWith($binary . "\n\n[File read successfully: ", ($this->tool)($this->tempDir . '/file.bin'));
+        $this->assertToolError(
+            "'{$this->tempDir}/file.bin' is not a UTF-8 text file. Use parse_file for PDF or HTML documents.",
+            ($this->tool)($this->tempDir . '/file.bin')
+        );
     }
 
     public function test_unreadable_file_is_reported(): void

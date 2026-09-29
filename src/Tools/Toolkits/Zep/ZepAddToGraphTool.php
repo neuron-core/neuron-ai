@@ -37,13 +37,13 @@ class ZepAddToGraphTool extends Tool
             new ToolProperty(
                 'data',
                 PropertyType::STRING,
-                'The search term to find relevant facts or nodes',
+                'The information to store in the knowledge graph',
                 true
             ),
             new ToolProperty(
                 'type',
                 PropertyType::STRING,
-                'The scope of the search to perform. Can be "facts" or "nodes"',
+                'The format of the data. Can be "text", "json" or "message"',
                 true,
                 ['text', 'json', 'message']
             ),

@@ -24,8 +24,6 @@ trait HandleStream
 {
     protected StreamState $streamState;
 
-    protected ?string $stopReason = null;
-
     /**
      * Stream response from the LLM.
      *
@@ -79,28 +77,18 @@ trait HandleStream
         }
 
         // Build the final message
-        if ($this->streamState->hasToolCalls()) {
-            $message = $this->createToolCallMessage(
-                $this->streamState->getToolCalls(),
-                $this->streamState->getContentBlocks()
-            )->setId($this->streamState->messageId())
-             ->setMetadata($this->streamState->getMetadata())
-             ->setUsage($this->streamState->getUsage())
-             ->addMetadata('cacheWriteTokens', $this->streamState->getCacheWriteTokens())
-             ->addMetadata('cacheReadTokens', $this->streamState->getCacheReadTokens());
+        $message = $this->streamState->hasToolCalls()
+            ? $this->createToolCallMessage($this->streamState->getToolCalls(), $this->streamState->getContentBlocks())
+            : new AssistantMessage($this->streamState->getContentBlocks());
 
-            return new ProviderResponse(message: $message);
-        }
-
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())
             ->setMetadata($this->streamState->getMetadata())
             ->setUsage($this->streamState->getUsage())
             ->addMetadata('cacheWriteTokens', $this->streamState->getCacheWriteTokens())
             ->addMetadata('cacheReadTokens', $this->streamState->getCacheReadTokens());
 
-        if ($this->stopReason !== null) {
-            $message->setStopReason($this->stopReason);
+        if ($this->streamState->stopReason() !== null) {
+            $message->setStopReason($this->streamState->stopReason());
         }
 
         return new ProviderResponse(message: $message);
@@ -128,8 +116,13 @@ trait HandleStream
 
     protected function handleMessageDelta(array $event): void
     {
-        $this->streamState->addOutputTokens($event['usage']['output_tokens'] ?? 0);
-        $this->stopReason = $event['delta']['stop_reason'] ?? null;
+        // Cumulative: it supersedes the count message_start reported
+        if (isset($event['usage']['output_tokens'])) {
+            $this->streamState->getUsage()->outputTokens = $event['usage']['output_tokens'];
+        }
+        if (isset($event['delta']['stop_reason'])) {
+            $this->streamState->setStopReason($event['delta']['stop_reason']);
+        }
     }
 
     protected function handleBlockStart(array $event): void

@@ -150,6 +150,16 @@ class GrepFileContentToolTest extends TestCase
         );
     }
 
+    public function test_a_file_that_is_not_utf8_is_an_error(): void
+    {
+        file_put_contents($this->tempFile, "caf\xE9 latin-1");
+
+        $this->assertToolError(
+            "'{$this->tempFile}' is not a UTF-8 text file. Use parse_file for PDF or HTML documents.",
+            ($this->tool)($this->tempFile, '/caf/')
+        );
+    }
+
     public function test_grep_invalid_regex(): void
     {
         file_put_contents($this->tempFile, 'Test content');

@@ -40,7 +40,6 @@ class MySQLSchemaTool extends Tool
             'tables' => $this->getTables(),
             'relationships' => $this->getRelationships(),
             'indexes' => $this->getIndexes(),
-            'constraints' => $this->getConstraints(),
         ]);
     }
 
@@ -302,31 +301,6 @@ class MySQLSchemaTool extends Tool
         }
 
         return array_values($indexes);
-    }
-
-    protected function getConstraints(): array
-    {
-        $whereClause = "WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_TYPE IN ('UNIQUE')";
-        $params = [];
-
-        // Add table filtering if specific tables are requested
-        if ($this->tables !== null && $this->tables !== []) {
-            $placeholders = str_repeat('?,', count($this->tables) - 1) . '?';
-            $whereClause .= " AND TABLE_NAME IN ($placeholders)";
-            $params = $this->tables;
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT
-                CONSTRAINT_NAME,
-                TABLE_NAME,
-                CONSTRAINT_TYPE
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-            $whereClause
-        ");
-
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     protected function addCommonPatterns(string &$output, array $tables): void

@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Tools\Toolkits\Calendar;
 use NeuronAI\Tools\Toolkits\Calendar\GetDaysInMonthTool;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -112,6 +113,13 @@ class GetDaysInMonthToolTest extends TestCase
         $this->tool->setInputs(['month' => 2.5, 'year' => 2024])->execute();
 
         $this->assertSame('Parameter "month" must be of type integer, float given.', (string) $this->tool->getResult());
+    }
+
+    #[TestWith([0])]
+    #[TestWith([-1])]
+    public function test_a_year_before_1_is_an_error(int $year): void
+    {
+        $this->assertSame('Error: Year must be greater than 0', ($this->tool)(2, $year));
     }
 
     public function test_tool_properties(): void

@@ -80,10 +80,13 @@ class SESTool extends Tool
         string  $body,
         ?array  $cc = null,
         ?array  $bcc = null,
-        ?string $reply_to = null,
     ): array {
         try {
-            $this->validateRecipients($to);
+            if ($to === []) {
+                throw new ToolException('At least one recipient is required in "to".');
+            }
+
+            $this->validateRecipients([...$to, ...$cc ?? [], ...$bcc ?? []]);
 
             $result = $this->sesClient->sendEmail([
                 'Source' => $this->fromEmail,
@@ -109,12 +112,12 @@ class SESTool extends Tool
     }
 
     /**
-     * @param array<string> $to
+     * @param array<string> $recipients
      * @throws ToolException
      */
-    protected function validateRecipients(array $to): void
+    protected function validateRecipients(array $recipients): void
     {
-        foreach ($to as $recipient) {
+        foreach ($recipients as $recipient) {
             if (filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
                 throw new ToolException('Invalid email address: ' . $recipient . '.');
             }

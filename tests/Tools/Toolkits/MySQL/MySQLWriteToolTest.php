@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\MySQL;
 
+use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
 use NeuronAI\Tests\Tools\Toolkits\MySQL\Stub\MySQLSandbox;
 use NeuronAI\Tools\Toolkits\MySQL\MySQLWriteTool;
 use PDO;
@@ -13,6 +14,8 @@ use PHPUnit\Framework\TestCase;
 
 class MySQLWriteToolTest extends TestCase
 {
+    use PhpWarningsAsExceptions;
+
     protected PDO $pdo;
 
     protected ?MySQLSandbox $sandbox = null;
@@ -45,6 +48,14 @@ class MySQLWriteToolTest extends TestCase
         $this->assertSame(
             'Query executed successfully. 0 row(s) affected.',
             (new MySQLWriteTool($this->pdo))('DELETE FROM users WHERE id = 42')
+        );
+    }
+
+    public function test_null_parameters_bind_nothing(): void
+    {
+        $this->assertSame(
+            'Query executed successfully. 0 row(s) affected.',
+            $this->withWarningsAsExceptions(fn (): string => (new MySQLWriteTool($this->pdo))('DELETE FROM users WHERE id = 42', null))
         );
     }
 

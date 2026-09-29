@@ -10,12 +10,14 @@ use Exception;
 
 use function array_map;
 use function count;
-use function explode;
 use function implode;
 use function in_array;
-use function preg_match;
+use function json_decode;
+use function ltrim;
 use function str_contains;
 use function strtolower;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * @method static static make(PDO $pdo, ?array $tables = null)
@@ -41,7 +43,6 @@ class PGSQLSchemaTool extends Tool
             'tables' => $this->getTables(),
             'relationships' => $this->getRelationships(),
             'indexes' => $this->getIndexes(),
-            'constraints' => $this->getConstraints(),
         ]);
     }
 
@@ -91,12 +92,14 @@ class PGSQLSchemaTool extends Tool
                 SELECT ku.table_name, ku.column_name
                 FROM information_schema.table_constraints tc
                 JOIN information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
+                    AND tc.constraint_schema = ku.constraint_schema
                 WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = current_schema()
             ) pk ON pk.table_name = c.table_name AND pk.column_name = c.column_name
             LEFT JOIN (
                 SELECT ku.table_name, ku.column_name
                 FROM information_schema.table_constraints tc
                 JOIN information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
+                    AND tc.constraint_schema = ku.constraint_schema
                 WHERE tc.constraint_type = 'UNIQUE' AND tc.table_schema = current_schema()
             ) uk ON uk.table_name = c.table_name AND uk.column_name = c.column_name
             LEFT JOIN (
@@ -174,7 +177,7 @@ class PGSQLSchemaTool extends Tool
             $stmt = $this->pdo->prepare("
                 SELECT n_tup_ins - n_tup_del as estimate
                 FROM pg_stat_user_tables
-                WHERE relname = ?
+                WHERE schemaname = current_schema() AND relname = ?
             ");
             $stmt->execute([$tableName]);
             $result = $stmt->fetchColumn();
@@ -186,6 +189,11 @@ class PGSQLSchemaTool extends Tool
 
     private function formatPostgreSQLType(array $row): string
     {
+        // udt_name spells an array of text as _text
+        if ($row['data_type'] === 'ARRAY') {
+            return ltrim((string) $row['udt_name'], '_') . '[]';
+        }
+
         $type = $row['udt_name'] ?? $row['data_type'];
 
         // Handle specific PostgreSQL types
@@ -256,7 +264,7 @@ class PGSQLSchemaTool extends Tool
 
     protected function getIndexes(): array
     {
-        $whereClause = "WHERE schemaname = current_schema() AND indexname NOT LIKE '%_pkey'";
+        $whereClause = "WHERE n.nspname = current_schema() AND NOT i.indisprimary";
         $params = [];
 
         if ($this->tables !== null && $this->tables !== []) {
@@ -265,49 +273,36 @@ class PGSQLSchemaTool extends Tool
                 $placeholders[] = '?';
                 $params[] = $table;
             }
-            $whereClause .= " AND tablename = ANY(ARRAY[" . implode(',', $placeholders) . "])";
+            $whereClause .= " AND t.relname = ANY(ARRAY[" . implode(',', $placeholders) . "])";
         }
 
+        // pg_get_indexdef() renders each key as PostgreSQL does: a column, or an expression such as lower(title)
         $stmt = $this->pdo->prepare("
             SELECT
-                schemaname,
-                tablename,
-                indexname,
-                indexdef
-            FROM pg_indexes
+                t.relname AS tablename,
+                ic.relname AS indexname,
+                pg_get_indexdef(i.indexrelid) AS indexdef,
+                (
+                    SELECT json_agg(pg_get_indexdef(i.indexrelid, k, true) ORDER BY k)
+                    FROM generate_series(1, i.indnkeyatts) AS k
+                ) AS columns
+            FROM pg_index i
+            JOIN pg_class ic ON ic.oid = i.indexrelid
+            JOIN pg_class t ON t.oid = i.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
             $whereClause
-            ORDER BY tablename, indexname
+            ORDER BY t.relname, ic.relname
         ");
 
         $stmt->execute($params);
-        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $indexes = [];
-        foreach ($results as $row) {
-            // Parse column names from index definition
-            preg_match('/\((.*?)\)/', (string) $row['indexdef'], $matches);
-            $columnList = $matches[1] ?? '';
-            $columns = array_map(trim(...), explode(',', $columnList));
-
-            // Clean up column names (remove function calls, etc.)
-            $cleanColumns = [];
-            foreach ($columns as $col) {
-                // Extract just the column name if it's wrapped in functions
-                if (preg_match('/([a-zA-Z_]\w*)/', $col, $colMatches)) {
-                    $cleanColumns[] = $colMatches[1];
-                }
-            }
-
-            $indexes[] = [
-                'table' => $row['tablename'],
-                'name' => $row['indexname'],
-                'unique' => str_contains((string) $row['indexdef'], 'UNIQUE'),
-                'type' => $this->extractIndexType($row['indexdef']),
-                'columns' => $cleanColumns === [] ? $columns : $cleanColumns,
-            ];
-        }
-
-        return $indexes;
+        return array_map(fn (array $row): array => [
+            'table' => $row['tablename'],
+            'name' => $row['indexname'],
+            'unique' => str_contains((string) $row['indexdef'], 'UNIQUE'),
+            'type' => $this->extractIndexType($row['indexdef']),
+            'columns' => json_decode((string) $row['columns'], true, flags: JSON_THROW_ON_ERROR),
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
     protected function extractIndexType(string $indexDef): string
@@ -329,33 +324,6 @@ class PGSQLSchemaTool extends Tool
 
     }
 
-    protected function getConstraints(): array
-    {
-        $whereClause = "WHERE table_schema = current_schema() AND constraint_type IN ('UNIQUE', 'CHECK')";
-        $params = [];
-
-        if ($this->tables !== null && $this->tables !== []) {
-            $placeholders = [];
-            foreach ($this->tables as $table) {
-                $placeholders[] = '?';
-                $params[] = $table;
-            }
-            $whereClause .= " AND table_name = ANY(ARRAY[" . implode(',', $placeholders) . "])";
-        }
-
-        $stmt = $this->pdo->prepare("
-            SELECT
-                constraint_name,
-                table_name,
-                constraint_type
-            FROM information_schema.table_constraints
-            $whereClause
-        ");
-
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
     protected function formatForLLM(array $structure): string
     {
         $output = "# PostgreSQL Database Schema Analysis\n\n";
@@ -364,7 +332,7 @@ class PGSQLSchemaTool extends Tool
         // Tables overview
         $output .= "## Tables Overview\n";
         $tableCount = count($structure['tables']);
-        $filteredNote = $this->tables !== null ? " (filtered to specified tables)" : "";
+        $filteredNote = $this->tables !== null && $this->tables !== [] ? " (filtered to specified tables)" : "";
         $output .= "Analyzing {$tableCount} tables{$filteredNote}:\n";
 
         foreach ($structure['tables'] as $table) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools;
 
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ProviderTool;
 use NeuronAI\Tools\ProviderToolInterface;
@@ -65,15 +66,36 @@ class ToolRegistryTest extends TestCase
         $this->assertSame([$tool], $registry->all());
     }
 
-    public function test_remove_drops_every_tool_with_the_name_and_reindexes(): void
+    public function test_remove_drops_the_named_tool_and_reindexes(): void
     {
-        $registry = new ToolRegistry([new ToolStub('a'), new ToolStub('b'), new ProviderTool('web', 'b'), new ToolStub('c')]);
+        $registry = new ToolRegistry([new ToolStub('a'), new ProviderTool('web', 'b'), new ToolStub('c')]);
 
         $registry->remove('b');
 
         $this->assertSame(['a', 'c'], $this->names($registry));
         $this->assertSame([0, 1], array_keys($registry->all()));
         $this->assertNull($registry->find('b'));
+    }
+
+    public function test_two_tools_with_the_same_name_cannot_be_registered_together(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool names must be unique: "lookup" is registered twice.');
+
+        new ToolRegistry([new ToolStub('lookup'), new ProviderTool('web', 'lookup')]);
+    }
+
+    public function test_unnamed_provider_tools_never_clash(): void
+    {
+        $search = new ProviderTool('web_search');
+        $execution = new ProviderTool('code_execution');
+        $fetch = new ProviderTool('web_fetch');
+
+        $registry = new ToolRegistry([$search, $execution]);
+        $registry->add($fetch);
+        $registry->add($fetch);
+
+        $this->assertSame([$search, $execution, $fetch], $registry->all());
     }
 
     public function test_removing_an_unknown_name_changes_nothing(): void

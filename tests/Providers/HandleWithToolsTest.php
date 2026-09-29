@@ -19,17 +19,9 @@ class HandleWithToolsTest extends TestCase
     protected function provider(ToolInterface|ProviderToolInterface ...$tools): OpenAI
     {
         $provider = new OpenAI('key', 'model');
-        $provider->setTools($this->registry(...$tools));
+        $provider->setTools($tools);
 
         return $provider;
-    }
-
-    /**
-     * The registry holds local and provider tools alike.
-     */
-    protected function registry(ToolInterface|ProviderToolInterface ...$tools): array
-    {
-        return $tools;
     }
 
     public function test_calls_record_execution_type_from_the_registered_definition(): void

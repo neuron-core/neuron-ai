@@ -23,6 +23,10 @@ use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ProviderTool;
 use PHPUnit\Framework\Attributes\DataProvider;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
@@ -33,6 +37,7 @@ use const JSON_THROW_ON_ERROR;
 
 class ZAITest extends TestCase
 {
+    use ConsumesProviderStreams;
     use RecordsHttpRequests;
 
     protected const SECRET = 'zai-SECRET-0123456789';
@@ -200,5 +205,53 @@ class ZAITest extends TestCase
         $this->assertArrayNotHasKey('response_format', $plain);
         $this->assertSame(0.1, $plain['temperature']);
         $this->assertSame('user', $plain['messages'][0]['role']);
+    }
+
+    public function test_the_stream_keeps_reasoning_content_like_chat_does(): void
+    {
+        $provider = $this->provider(
+            'data: {"choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Think"}}]}'."\n\n"
+            .'data: {"choices":[{"index":0,"delta":{"reasoning_content":"ing"}}]}'."\n\n"
+            .'data: {"choices":[{"index":0,"delta":{"content":"Answer"},"finish_reason":"stop"}]}'."\n\n"
+            ."data: [DONE]\n\n"
+        );
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Q')));
+
+        $this->assertEquals(
+            [new ReasoningChunk($message->getId(), 'Think'), new ReasoningChunk($message->getId(), 'ing'), new TextChunk($message->getId(), 'Answer')],
+            $chunks
+        );
+        $this->assertSame('Thinking', $message->getReasoning()?->content);
+        $this->assertSame('Answer', $message->getContent());
+    }
+
+    public function test_a_streamed_tool_call_keeps_the_reasoning_before_it(): void
+    {
+        $provider = $this->provider(
+            'data: {"choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Need the tool"}}]}'."\n\n"
+            .'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}'."\n\n"
+            .'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}'."\n\n"
+            ."data: [DONE]\n\n"
+        );
+        $provider->setTools([new ToolStub('lookup')]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Q')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Need the tool', $message->getReasoning()?->content);
+    }
+
+    public function test_a_tool_call_answer_keeps_its_reasoning_in_chat(): void
+    {
+        $provider = $this->provider('{"choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","content":"Let me look.","reasoning_content":"Need the tool",'
+            .'"tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}');
+        $provider->setTools([new ToolStub('lookup')]);
+
+        $message = $provider->chat(new UserMessage('Q'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Let me look.', $message->getContent());
+        $this->assertSame('Need the tool', $message->getReasoning()?->content);
     }
 }

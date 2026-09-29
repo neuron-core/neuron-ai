@@ -60,6 +60,7 @@ trait HandleStream
 
         $this->streamState = new StreamState();
         $toolCalls = [];
+        $stopReason = null;
 
         // Every line is read whole: tool calls may span lines, and the usage
         // arrives on the final done line, after them
@@ -88,19 +89,18 @@ trait HandleStream
             if (($line['done'] ?? false) === true) {
                 $this->streamState->addInputTokens($line['prompt_eval_count'] ?? 0);
                 $this->streamState->addOutputTokens($line['eval_count'] ?? 0);
+                $stopReason = $line['done_reason'] ?? null;
             }
         }
 
-        if ($toolCalls !== []) {
-            $message = $this->createToolCallMessage($toolCalls, $this->streamState->getContentBlocks())
-                ->setId($this->streamState->messageId())
-                ->setUsage($this->streamState->getUsage());
-
-            return new ProviderResponse(message: $message);
-        }
-
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        $message = $toolCalls !== []
+            ? $this->createToolCallMessage($toolCalls, $this->streamState->getContentBlocks())
+            : new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+
+        if ($stopReason !== null) {
+            $message->setStopReason($stopReason);
+        }
 
         return new ProviderResponse(message: $message);
     }

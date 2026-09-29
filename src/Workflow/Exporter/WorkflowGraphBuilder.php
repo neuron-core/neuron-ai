@@ -14,10 +14,13 @@ use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionUnionType;
 
+use function explode;
 use function get_debug_type;
 use function is_a;
 use function sha1;
 use function is_string;
+use function strrpos;
+use function substr;
 
 final class WorkflowGraphBuilder
 {
@@ -240,6 +243,11 @@ final class WorkflowGraphBuilder
 
     protected function shortName(string $class): string
     {
-        return (new ReflectionClass($class))->getShortName();
+        // An anonymous class name goes on after a NUL byte with the path of its
+        // declaring file, whose backslashes on Windows would split it: cut first.
+        $name = explode("\0", $class, 2)[0];
+        $separator = strrpos($name, '\\');
+
+        return $separator === false ? $name : substr($name, $separator + 1);
     }
 }

@@ -13,6 +13,7 @@ use NeuronAI\Tools\ToolProperty;
 use function array_map;
 use function array_sum;
 use function count;
+use function is_finite;
 
 /**
  * Base of the tools that describe a dataset: they share the `numbers` input,
@@ -52,6 +53,14 @@ abstract class StatisticTool extends Tool
         }
 
         return $this->invalidDataset($numbers);
+    }
+
+    /**
+     * The value for the model, or the feedback when an intermediate step overflowed to INF.
+     */
+    protected function result(int|float $value): string|ToolOutput
+    {
+        return is_finite($value) ? Number::format($value) : ToolOutput::error('The computation overflows the range of a double.');
     }
 
     /**

@@ -508,6 +508,41 @@ class WorkflowMiddlewareTest extends TestCase
         ], $order);
     }
 
+    public function test_middleware_for_a_misspelled_node_class_fails_the_run_instead_of_never_running(): void
+    {
+        $guard = FakeMiddleware::make();
+        $workflow = Workflow::make('misspelled-target')
+            /** @phpstan-ignore-next-line deliberately wrong type */
+            ->addMiddleware('NeuronAI\Tests\Workflow\Stub\NodeOen', fn (): FakeMiddleware => $guard)
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
+
+        try {
+            $workflow->run();
+            $this->fail('Middleware registered for a misspelled class must not be ignored.');
+        } catch (WorkflowException $e) {
+            $this->assertSame("Middleware is registered for 'NeuronAI\Tests\Workflow\Stub\NodeOen', which is not a node class.", $e->getMessage());
+        }
+
+        $guard->assertCallCount(0);
+    }
+
+    public function test_the_middleware_hook_is_checked_before_a_graph_is_exported(): void
+    {
+        $workflow = new class () extends Workflow {
+            protected function middleware(): array
+            {
+                /** @phpstan-ignore-next-line deliberately wrong type */
+                return [FirstEvent::class => FakeMiddleware::make()];
+            }
+        };
+        $workflow->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()]);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Middleware is registered for '" . FirstEvent::class . "', which is not a node class.");
+
+        $workflow->export();
+    }
+
     /** @return iterable<string, array{string, array<mixed>}> */
     public static function invalidRegistrations(): iterable
     {

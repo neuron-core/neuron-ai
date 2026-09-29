@@ -32,6 +32,7 @@ class WriteTodosToolTest extends TestCase
             ['type' => 'string', 'description' => 'Current status of the task', 'enum' => ['pending', 'in_progress', 'completed']],
             $item['properties']['status']
         );
+        $this->assertSame(['content', 'status'], $item['required']);
         $this->assertSame(['todos'], (new WriteTodosTool())->getRequiredProperties());
     }
 
@@ -95,6 +96,31 @@ class WriteTodosToolTest extends TestCase
             'status is compared strictly' => [[['content' => 'Ship', 'status' => true]], "Error: Todo at index 0 has invalid status '1'. Must be one of: pending, in_progress, completed."],
             'first error wins' => [[['content' => 'A', 'status' => 'x'], ['content' => 'B']], "Error: Todo at index 0 has invalid status 'x'. Must be one of: pending, in_progress, completed."],
         ];
+    }
+
+    /**
+     * @return array<string, array{array<int, mixed>, string}>
+     */
+    public static function itemsRefusedWhenBound(): array
+    {
+        return [
+            'missing content' => [[['status' => 'pending']], 'Parameter "todos" element 0 field "content" is required.'],
+            'array status' => [[['content' => 'Plan', 'status' => ['pending']]], 'Parameter "todos" element 0 field "status" must be of type string, array given.'],
+            'unknown status' => [[['content' => 'Ship', 'status' => 'done']], 'Parameter "todos" element 0 field "status" must be one of "pending", "in_progress", "completed"; "done" given.'],
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $todos
+     */
+    #[DataProvider('itemsRefusedWhenBound')]
+    public function test_the_framework_refuses_items_that_break_the_schema(array $todos, string $error): void
+    {
+        $tool = (new WriteTodosTool())->setInputs(['todos' => $todos]);
+
+        $tool->execute();
+
+        $this->assertToolError($error, $tool->getResult());
     }
 
     public function test_the_framework_rejects_a_list_sent_as_a_string(): void

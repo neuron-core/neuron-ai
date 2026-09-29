@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use Countable;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\StaticConstructor;
 use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Tests\Workflow\Stub\ExposedNode;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
@@ -17,6 +19,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Graph;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowResources;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class GraphTest extends TestCase
@@ -104,6 +107,26 @@ class GraphTest extends TestCase
         $this->assertSame([$global, $forInterface, $forParent, $forChild], $graph->middlewareFor($child));
         $this->assertSame([$global, $forInterface, $forParent], $graph->middlewareFor(new NodeOne()));
         $this->assertSame([$global, $forInterface, $forSibling], $graph->middlewareFor(new NodeTwo()));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function keysThatAreNotNodes(): array
+    {
+        return [
+            'misspelled class' => ['NeuronAI\Tests\Workflow\Stub\NodeOen'],
+            'event class' => [FirstEvent::class],
+            'trait' => [StaticConstructor::class],
+            'unrelated interface' => [Countable::class],
+        ];
+    }
+
+    #[DataProvider('keysThatAreNotNodes')]
+    public function test_middleware_for_a_key_that_is_not_a_node_class_is_rejected(string $key): void
+    {
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Middleware is registered for '{$key}', which is not a node class.");
+
+        new Graph(new StartEvent(), new WorkflowResources(), [new NodeOne()], [$key => [FakeMiddleware::make()]]);
     }
 
     public function test_a_node_without_middleware_gets_none(): void

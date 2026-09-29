@@ -7,7 +7,6 @@ namespace NeuronAI\Providers\OpenAI;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
-use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Exceptions\HttpException;
@@ -59,10 +58,11 @@ trait HandleChat
     {
         // The calls decide, not the finish reason: a forced tool_choice answers "stop"
         if (!empty($result['choices'][0]['message']['tool_calls'])) {
-            $block = isset($result['choices'][0]['message']['content'])
-                ? new TextContent($result['choices'][0]['message']['content'])
-                : null;
-            $response = $this->createToolCallMessage($result['choices'][0]['message']['tool_calls'], $block);
+            // The same blocks as a plain answer, so what a subclass parses (e.g. reasoning) is kept
+            $response = $this->createToolCallMessage(
+                $result['choices'][0]['message']['tool_calls'],
+                $this->createAssistantMessage($result['choices'][0]['message'])->getContentBlocks()
+            );
         } else {
             $response = $this->createAssistantMessage($result['choices'][0]['message']);
         }

@@ -560,6 +560,20 @@ class ObjectPropertyTest extends TestCase
         $this->assertSame(Ticket::class, $property->getClass());
     }
 
+    public function test_cast_refuses_a_missing_required_field(): void
+    {
+        $property = new ObjectProperty('todo', properties: [
+            new ToolProperty('content', PropertyType::STRING, required: true),
+            new ToolProperty('note', PropertyType::STRING),
+        ]);
+
+        $this->assertSame(['content' => 'Plan'], $property->cast(['content' => 'Plan']));
+        $this->expectException(InvalidToolInput::class);
+        $this->expectExceptionMessage('field "content" is required');
+
+        $property->cast(['note' => 'later']);
+    }
+
     public function test_cast_deserializes_into_the_mapped_class(): void
     {
         $ticket = (new ObjectProperty('ticket', class: Ticket::class))->cast([

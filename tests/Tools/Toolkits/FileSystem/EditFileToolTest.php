@@ -74,13 +74,26 @@ class EditFileToolTest extends TestCase
         $this->assertSame($expected, file_get_contents($this->tempFile));
     }
 
-    public function test_every_occurrence_of_the_search_string_is_replaced(): void
+    public function test_a_search_string_appearing_more_than_once_is_refused(): void
     {
         file_put_contents($this->tempFile, "use Old;\nnew Old();\n");
 
-        (new EditFileTool())($this->tempFile, 'Old', 'New');
+        $this->assertToolError(
+            "The search string appears 2 times in '{$this->tempFile}'. Include more surrounding lines so it matches exactly once.",
+            (new EditFileTool())($this->tempFile, 'Old', 'New')
+        );
+        $this->assertSame("use Old;\nnew Old();\n", file_get_contents($this->tempFile));
+    }
 
-        $this->assertSame("use New;\nnew New();\n", file_get_contents($this->tempFile));
+    public function test_an_empty_search_string_is_refused(): void
+    {
+        file_put_contents($this->tempFile, 'content');
+
+        $this->assertToolError(
+            'The search string cannot be empty. Use write_file to replace the entire file.',
+            (new EditFileTool())($this->tempFile, '', 'prefix ')
+        );
+        $this->assertSame('content', file_get_contents($this->tempFile));
     }
 
     public function test_search_must_match_whitespace_exactly(): void

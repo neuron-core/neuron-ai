@@ -90,6 +90,10 @@ trait HandleStream
 
             $choice = $line['choices'][0];
 
+            if (isset($choice['finish_reason'])) {
+                $this->streamState->setStopReason($choice['finish_reason']);
+            }
+
             // Compile tool calls
             if (isset($choice['delta']['tool_calls'])) {
                 $this->streamState->composeToolCalls($line);
@@ -130,11 +134,16 @@ trait HandleStream
     }
 
     /**
-     * The metadata the stream hooks accumulated belongs to this stream's message only:
-     * applying it here, never in enrichMessage(), keeps it out of a later chat() answer.
+     * What this stream collected, its stop reason and the metadata its hooks accumulated,
+     * belongs to this stream's message only: applying it here, never in enrichMessage(),
+     * keeps it out of a later chat() answer.
      */
     protected function applyStreamMetadata(AssistantMessage $message): void
     {
+        if ($this->streamState->stopReason() !== null) {
+            $message->setStopReason($this->streamState->stopReason());
+        }
+
         foreach ($this->streamState->getMetadata() as $key => $value) {
             if ($message->getMetadata($key) === null) {
                 $message->addMetadata($key, $value);

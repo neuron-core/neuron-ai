@@ -9,8 +9,8 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
-use function abs;
 use function array_reduce;
+use function ltrim;
 
 class GcdTool extends IntegerTool
 {
@@ -34,6 +34,6 @@ class GcdTool extends IntegerTool
     public function __invoke(array $numbers): string|ToolOutput
     {
         return $this->invalidIntegers($numbers)
-            ?? array_reduce($numbers, fn (string $gcd, int $number): string => $this->gcd($gcd, (string) abs($number)), '0');
+            ?? array_reduce($numbers, fn (string $gcd, int $number): string => $this->gcd($gcd, ltrim((string) $number, '-')), '0');
     }
 }

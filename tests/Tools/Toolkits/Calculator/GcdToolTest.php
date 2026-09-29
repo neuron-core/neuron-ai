@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use const PHP_INT_MAX;
+use const PHP_INT_MIN;
 
 class GcdToolTest extends TestCase
 {
@@ -42,6 +43,7 @@ class GcdToolTest extends TestCase
             'duplicates' => [[9, 9, 9], '9'],
             'int max with itself' => [[PHP_INT_MAX, PHP_INT_MAX], '9223372036854775807'],
             'order does not matter' => [[18, 24, 12], '6'],
+            'int min' => [[PHP_INT_MIN, 6], '2'],
         ];
     }
 

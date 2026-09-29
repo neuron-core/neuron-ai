@@ -4,28 +4,23 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Tools\Toolkits\FileSystem;
 
-use Closure;
-use ErrorException;
 use NeuronAI\Tests\Support\FileSystemSandbox;
+use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
 use NeuronAI\Tests\Support\ToolErrorAssertions;
 use NeuronAI\Tools\Toolkits\FileSystem\WriteFileTool;
 use PHPUnit\Framework\TestCase;
 
 use function chmod;
-use function error_reporting;
 use function file_get_contents;
 use function file_put_contents;
 use function function_exists;
 use function mkdir;
 use function posix_geteuid;
-use function restore_error_handler;
-use function set_error_handler;
-
-use const E_ALL;
 
 class WriteFileToolTest extends TestCase
 {
     use FileSystemSandbox;
+    use PhpWarningsAsExceptions;
     use ToolErrorAssertions;
 
     protected string $tempDir;
@@ -169,27 +164,5 @@ class WriteFileToolTest extends TestCase
 
         $this->assertSame('write_file', $tool->getName());
         $this->assertSame(['file_path', 'content'], $tool->getRequiredProperties());
-    }
-
-    /**
-     * Frameworks such as Laravel and Symfony turn PHP warnings into exceptions, unless silenced with `@`.
-     */
-    protected function withWarningsAsExceptions(Closure $callback): mixed
-    {
-        $reporting = error_reporting(E_ALL);
-        set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
-            if ((error_reporting() & $severity) === 0) {
-                return false;
-            }
-
-            throw new ErrorException($message, 0, $severity, $file, $line);
-        });
-
-        try {
-            return $callback();
-        } finally {
-            restore_error_handler();
-            error_reporting($reporting);
-        }
     }
 }

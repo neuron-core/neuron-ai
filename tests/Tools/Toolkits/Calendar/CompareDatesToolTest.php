@@ -19,6 +19,16 @@ class CompareDatesToolTest extends TestCase
         $this->tool = new CompareDatesTool();
     }
 
+    public function test_a_precision_outside_the_enum_is_an_input_error_for_the_model(): void
+    {
+        $this->tool->setInputs(['date1' => '2023-06-12 10:00:00', 'date2' => '2023-06-14 10:00:00', 'precision' => 'week'])->execute();
+
+        $this->assertSame(
+            'Parameter "precision" must be one of "second", "minute", "hour", "day", "month", "year"; "week" given.',
+            (string) $this->tool->getResult()
+        );
+    }
+
     public function test_reports_the_full_relationship_between_two_dates(): void
     {
         $this->assertSame([

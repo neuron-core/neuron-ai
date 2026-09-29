@@ -21,21 +21,34 @@ use NeuronAI\Tests\Workflow\Stub\SecondEvent;
 use NeuronAI\Tests\Workflow\Stub\ThirdEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Exporter\ConsoleExporter;
 use NeuronAI\Workflow\Exporter\EventTransition;
 use NeuronAI\Workflow\Exporter\ExporterTransition;
+use NeuronAI\Workflow\Exporter\MermaidExporter;
 use NeuronAI\Workflow\Exporter\ParallelTransition;
 use NeuronAI\Workflow\Exporter\WorkflowGraph;
 use NeuronAI\Workflow\Exporter\WorkflowGraphBuilder;
 use NeuronAI\Workflow\Exporter\WorkflowGraphEdge;
 use NeuronAI\Workflow\Exporter\WorkflowGraphVertex;
 use NeuronAI\Workflow\Exporter\WorkflowGraphVertexType;
+use NeuronAI\Workflow\Node;
+use NeuronAI\Workflow\WorkflowState;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function array_map;
+use function bin2hex;
+use function file_put_contents;
+use function mkdir;
+use function random_bytes;
+use function rmdir;
 use function sha1;
 use function sort;
+use function sys_get_temp_dir;
+use function unlink;
+
+use const DIRECTORY_SEPARATOR;
 
 class WorkflowGraphBuilderTest extends TestCase
 {
@@ -84,6 +97,58 @@ class WorkflowGraphBuilderTest extends TestCase
             'SecondEvent -> NodeThree',
             'StartEvent -> NodeOne',
         ], $this->edges($graph));
+    }
+
+    public function test_an_anonymous_class_is_labelled_without_its_declaring_file(): void
+    {
+        $node = new class () extends Node {
+            public function __invoke(StartEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+
+        $graph = (new WorkflowGraphBuilder())->build(StartEvent::class, [StartEvent::class => $node]);
+
+        $this->assertSame(['Node@anonymous -> StopEvent', 'StartEvent -> Node@anonymous'], $this->edges($graph));
+        foreach ([new ConsoleExporter(), new MermaidExporter()] as $exporter) {
+            $output = $exporter->export($graph);
+            $this->assertStringNotContainsString("\0", $output);
+            $this->assertStringNotContainsString(__FILE__, $output);
+        }
+    }
+
+    public function test_an_anonymous_class_declared_under_a_path_with_backslashes_keeps_its_label(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $this->markTestSkipped('Windows paths already hold backslashes: the previous test covers them.');
+        }
+
+        // Windows paths separate directories with backslashes; here one directory name holds them.
+        $directory = sys_get_temp_dir() . '/neuron\\anonymous_' . bin2hex(random_bytes(4));
+        mkdir($directory);
+        $file = $directory . '/Flow.php';
+        file_put_contents($file, <<<'PHP'
+            <?php
+
+            return new class () extends \NeuronAI\Workflow\Node {
+                public function __invoke(\NeuronAI\Workflow\Events\StartEvent $event, \NeuronAI\Workflow\WorkflowState $state): \NeuronAI\Workflow\Events\StopEvent
+                {
+                    return new \NeuronAI\Workflow\Events\StopEvent();
+                }
+            };
+            PHP);
+
+        try {
+            $node = require $file;
+        } finally {
+            unlink($file);
+            rmdir($directory);
+        }
+
+        $graph = (new WorkflowGraphBuilder())->build(StartEvent::class, [StartEvent::class => $node]);
+
+        $this->assertSame(['Node@anonymous -> StopEvent', 'StartEvent -> Node@anonymous'], $this->edges($graph));
     }
 
     public function test_rebuilding_with_the_same_builder_is_deterministic_and_forgets_earlier_graphs(): void
@@ -279,6 +344,32 @@ class WorkflowGraphBuilderTest extends TestCase
         $this->expectExceptionMessage($message);
 
         (new WorkflowGraphBuilder())->build(StartEvent::class, [StartEvent::class => new DescribedNode([$transition])]);
+    }
+
+    /** @return array<string, array{array<array-key, mixed>, string}> */
+    public static function malformedBranchProvider(): array
+    {
+        return [
+            'event instance' => [
+                ['text' => new TextProcessEvent()],
+                "Parallel branch 'text' must be an event class name, " . TextProcessEvent::class . ' given.',
+            ],
+            'array' => [['text' => []], "Parallel branch 'text' must be an event class name, array given."],
+            'unnamed list' => [[TextProcessEvent::class], 'Parallel branches must use non-empty string names.'],
+            'empty name' => [['' => TextProcessEvent::class], 'Parallel branches must use non-empty string names.'],
+        ];
+    }
+
+    /** @param array<array-key, mixed> $branches */
+    #[DataProvider('malformedBranchProvider')]
+    public function test_a_malformed_parallel_branch_is_rejected(array $branches, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        (new WorkflowGraphBuilder())->build(StartEvent::class, [
+            StartEvent::class => new DescribedNode([new ParallelTransition(DocumentParallelEvent::class, $branches)]),
+        ]);
     }
 
     public function test_an_unsupported_transition_kind_is_rejected(): void

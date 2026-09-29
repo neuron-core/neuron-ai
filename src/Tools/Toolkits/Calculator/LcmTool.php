@@ -9,10 +9,10 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 
-use function abs;
 use function array_reduce;
 use function bcdiv;
 use function bcmul;
+use function ltrim;
 
 class LcmTool extends IntegerTool
 {
@@ -36,7 +36,7 @@ class LcmTool extends IntegerTool
     public function __invoke(array $numbers): string|ToolOutput
     {
         return $this->invalidIntegers($numbers)
-            ?? array_reduce($numbers, fn (string $lcm, int $number): string => $this->lcm($lcm, (string) abs($number)), '1');
+            ?? array_reduce($numbers, fn (string $lcm, int $number): string => $this->lcm($lcm, ltrim((string) $number, '-')), '1');
     }
 
     protected function lcm(string $a, string $b): string

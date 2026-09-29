@@ -59,35 +59,32 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
 
     public function test_tool_definitions_sent_to_the_model_never_carry_toolkit_keys(): void
     {
-        $client = $this->recordingClient(new Response(200, body: json_encode([
-            'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello']]],
-        ], JSON_THROW_ON_ERROR)));
-        $toolkits = $this->toolkits();
+        // One agent per toolkit: Tavily and Jina both name their search tool web_search
+        foreach ($this->toolkits() as $toolkit) {
+            $this->sentRequests = [];
+            $client = $this->recordingClient(new Response(200, body: json_encode([
+                'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello']]],
+            ], JSON_THROW_ON_ERROR)));
 
-        Agent::make()
-            ->setAiProvider(new OpenAI(self::PROVIDER_KEY, 'model', httpClient: $client))
-            ->addTool($toolkits)
-            ->chat(new UserMessage('Hi'));
+            Agent::make()
+                ->setAiProvider(new OpenAI(self::PROVIDER_KEY, 'model', httpClient: $client))
+                ->addTool($toolkit)
+                ->chat(new UserMessage('Hi'));
 
-        $request = $this->sentRequests[0]['request'];
-        $body = (string) $request->getBody();
-        $offered = array_column(array_column(json_decode($body, true, flags: JSON_THROW_ON_ERROR)['tools'], 'function'), 'name');
+            $request = $this->sentRequests[0]['request'];
+            $body = (string) $request->getBody();
+            $offered = array_column(array_column(json_decode($body, true, flags: JSON_THROW_ON_ERROR)['tools'], 'function'), 'name');
 
-        $expected = [];
-        foreach ($toolkits as $toolkit) {
-            foreach ($toolkit->tools() as $tool) {
-                $expected[] = $tool->getName();
+            $expected = array_map(static fn (ToolInterface $tool): string => $tool->getName(), $toolkit->tools());
+            $this->assertSame($expected, $offered, 'Every toolkit tool is offered to the model.');
+            $this->assertSame('Bearer '.self::PROVIDER_KEY, $request->getHeaderLine('Authorization'));
+
+            $headers = implode("\n", array_map(static fn (array $values): string => implode(', ', $values), $request->getHeaders()));
+            foreach (self::TOOLKIT_KEYS as $toolkitClass => $key) {
+                $this->assertStringNotContainsString($key, $body, "The {$toolkitClass} key reaches the AI vendor.");
+                $this->assertStringNotContainsString($key, $headers, "The {$toolkitClass} key reaches the AI vendor's headers.");
+                $this->assertStringNotContainsString($key, (string) $request->getUri());
             }
-        }
-        $this->assertSame($expected, $offered, 'Every toolkit tool is offered to the model.');
-        $this->assertStringContainsString('<TOOLS-GUIDELINES>', $body);
-        $this->assertSame('Bearer '.self::PROVIDER_KEY, $request->getHeaderLine('Authorization'));
-
-        $headers = implode("\n", array_map(static fn (array $values): string => implode(', ', $values), $request->getHeaders()));
-        foreach (self::TOOLKIT_KEYS as $toolkit => $key) {
-            $this->assertStringNotContainsString($key, $body, "The {$toolkit} key reaches the AI vendor.");
-            $this->assertStringNotContainsString($key, $headers, "The {$toolkit} key reaches the AI vendor's headers.");
-            $this->assertStringNotContainsString($key, (string) $request->getUri());
         }
     }
 

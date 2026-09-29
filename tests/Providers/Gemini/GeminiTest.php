@@ -28,7 +28,6 @@ use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\ProviderTool;
-use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -332,19 +331,10 @@ class GeminiTest extends TestCase
         $this->assertSame($expectedRequest, json_decode($request['request']->getBody()->getContents(), true));
     }
 
-    /**
-     * Untyped on purpose: AIProviderInterface::setTools() documents ToolInterface[] only,
-     * while providers accept provider tools too.
-     */
-    protected static function providerTools(ProviderToolInterface ...$tools): array
-    {
-        return $tools;
-    }
-
     public function test_provider_tools_alone_are_sent_without_function_calling_config(): void
     {
         $provider = $this->provider(self::answer([['text' => 'ok']]));
-        $provider->setTools(self::providerTools(new ProviderTool('google_search')));
+        $provider->setTools([new ProviderTool('google_search')]);
 
         $provider->chat(new UserMessage('Hi'));
 

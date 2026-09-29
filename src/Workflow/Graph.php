@@ -8,7 +8,9 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 
+use function array_keys;
 use function array_merge;
+use function is_a;
 
 /**
  * The nodes one segment runs, routed by the event each one handles, with the
@@ -45,6 +47,13 @@ final class Graph
 
         if (!isset($this->nodes[$start::class])) {
             throw new WorkflowException('No nodes found that handle ' . $start::class);
+        }
+
+        // Middleware wraps a node that is an instance of its key: any other key never runs.
+        foreach (array_keys($this->middleware) as $class) {
+            if (!is_a($class, NodeInterface::class, true)) {
+                throw new WorkflowException("Middleware is registered for '{$class}', which is not a node class.");
+            }
         }
     }
 

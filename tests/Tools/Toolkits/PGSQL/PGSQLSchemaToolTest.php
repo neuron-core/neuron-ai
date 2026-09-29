@@ -196,6 +196,41 @@ class PGSQLSchemaToolTest extends TestCase
         }
     }
 
+    public function test_keys_of_same_named_tables_in_other_schemas_are_not_mixed_in(): void
+    {
+        $other = PostgresSandbox::open();
+
+        try {
+            $other->pdo->exec('CREATE TABLE posts (id int, code text, CONSTRAINT posts_pkey PRIMARY KEY (id, code))');
+
+            $this->assertMatchesRegularExpression('/^- \*\*posts\*\*: \S+ rows, Primary Key: id$/m', (new PGSQLSchemaTool($this->pdo))());
+        } finally {
+            $other->drop();
+        }
+    }
+
+    public function test_array_columns_are_rendered_with_brackets(): void
+    {
+        $this->pdo->exec('ALTER TABLE posts ADD COLUMN tags text[]');
+
+        $output = (new PGSQLSchemaTool($this->pdo))();
+
+        $this->assertStringContainsString('`tags` text[]', $output);
+        $this->assertStringContainsString('- Table `posts` has array column `tags` (text[])', $output);
+    }
+
+    public function test_an_expression_index_names_its_expression(): void
+    {
+        $this->pdo->exec('CREATE INDEX posts_lower_title_idx ON posts (lower(title))');
+
+        $this->assertStringContainsString('- BTREE INDEX `posts_lower_title_idx` on `posts` (lower(title))', (new PGSQLSchemaTool($this->pdo))());
+    }
+
+    public function test_an_empty_table_filter_is_not_reported_as_a_filter(): void
+    {
+        $this->assertStringContainsString("Analyzing 3 tables:\n", (new PGSQLSchemaTool($this->pdo, []))());
+    }
+
     public function test_tool_takes_no_input(): void
     {
         $tool = new PGSQLSchemaTool($this->pdo);

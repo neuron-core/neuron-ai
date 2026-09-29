@@ -146,6 +146,10 @@ trait HandleStream
         }
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
 
+        if ($stopReason !== null) {
+            $message->setStopReason($stopReason);
+        }
+
         return new ProviderResponse(message: $message);
     }
 }

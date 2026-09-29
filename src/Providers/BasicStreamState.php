@@ -26,6 +26,12 @@ class BasicStreamState
      */
     protected array $metadata = [];
 
+    /**
+     * Why this stream stopped: kept per stream, so a stream that ends without
+     * one never reports the previous stream's reason.
+     */
+    protected ?string $stopReason = null;
+
     public function __construct(
         protected Usage $usage = new Usage(0, 0),
     ) {
@@ -127,5 +133,15 @@ class BasicStreamState
     public function hasMetadata(string $key): bool
     {
         return isset($this->metadata[$key]);
+    }
+
+    public function setStopReason(string $reason): void
+    {
+        $this->stopReason = $reason;
+    }
+
+    public function stopReason(): ?string
+    {
+        return $this->stopReason;
     }
 }

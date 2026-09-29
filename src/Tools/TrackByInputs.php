@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
-use function json_encode;
+use function array_map;
 use function hash;
+use function json_encode;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Trait for tools that want input-based run key tracking.
@@ -16,8 +20,17 @@ use function hash;
  */
 trait TrackByInputs
 {
+    /**
+     * Only the declared inputs, in declaration order: reordering the arguments
+     * or adding undeclared ones must not reset the tool's run budget.
+     */
     public function getRunKey(): string
     {
-        return $this->getName() . ':' . hash('sha1', json_encode($this->getInputs()));
+        $inputs = array_map(
+            fn (ToolPropertyInterface $property): mixed => $this->getInput($property->getName()),
+            $this->getProperties()
+        );
+
+        return $this->getName() . ':' . hash('sha1', json_encode($inputs, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
     }
 }

@@ -220,4 +220,20 @@ class AnthropicStreamTest extends TestCase
         $this->assertSame(20, $message->getMetadata('cacheWriteTokens'));
         $this->assertSame(30, $message->getMetadata('cacheReadTokens'));
     }
+
+    public function test_the_cumulative_output_tokens_of_message_delta_are_not_counted_twice(): void
+    {
+        // Anthropic documents the message_delta usage as cumulative, message_start's count included
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'message_start', 'message' => ['usage' => ['input_tokens' => 3, 'output_tokens' => 1]]],
+            ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
+            ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Hello there']],
+            ['type' => 'content_block_stop', 'index' => 0],
+            ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => 15]],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertSame([3, 15], [$message->getUsage()?->inputTokens, $message->getUsage()?->outputTokens]);
+    }
 }

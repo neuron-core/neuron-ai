@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools\Toolkits\Zep;
 
-use Exception;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 
+use function rawurlencode;
 use function trim;
 
 /**
@@ -47,10 +48,14 @@ trait HandleZepClient
 
     protected function createUser(): self
     {
-        // Create the user if it doesn't exist
+        // Create the user if it doesn't exist: any other failure is not an answer about the user
         try {
-            $this->get('users/'.$this->user_id);
-        } catch (Exception) {
+            $this->get('users/'.rawurlencode($this->user_id));
+        } catch (HttpException $exception) {
+            if ($exception->response?->statusCode !== 404) {
+                throw $exception;
+            }
+
             $this->post('users', ['user_id' => $this->user_id]);
         }
 

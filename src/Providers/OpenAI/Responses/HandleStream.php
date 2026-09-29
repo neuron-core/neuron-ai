@@ -134,23 +134,25 @@ trait HandleStream
                     /*
                      * Return the final message
                      */
+                    // A truncated answer (max_output_tokens, content filter) ends with
+                    // response.incomplete, which carries the same usage and output
                 case 'response.completed':
+                case 'response.incomplete':
                     $usage = $event['response']['usage'] ?? null;
                     $this->streamState->addInputTokens($usage['input_tokens'] ?? 0);
                     $this->streamState->addOutputTokens($usage['output_tokens'] ?? 0);
                     $this->streamState->addCachedInputTokens($usage['input_tokens_details']['cached_tokens'] ?? 0);
                     $this->streamState->addReasoningTokens($usage['output_tokens_details']['reasoning_tokens'] ?? 0);
 
-                    if ($this->streamState->hasToolCalls()) {
-                        $message = $this->createToolCallMessage(
-                            $this->streamState->getToolCalls(),
-                            $this->streamState->getContentBlocks(),
-                        )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
-                        return new ProviderResponse(message: $message);
+                    $message = $this->streamState->hasToolCalls()
+                        ? $this->createToolCallMessage($this->streamState->getToolCalls(), $this->streamState->getContentBlocks())
+                        : $this->createAssistantMessage($event['response']);
+                    $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+
+                    if (isset($event['response']['status'])) {
+                        $message->setStopReason($event['response']['status']);
                     }
-                    $message = $this->createAssistantMessage($event['response'])
-                        ->setId($this->streamState->messageId())
-                        ->setUsage($this->streamState->getUsage());
+
                     return new ProviderResponse(message: $message);
 
                 case 'response.failed':

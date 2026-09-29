@@ -87,8 +87,6 @@ class WriteTodosTool extends Tool
         Remember: If you only need to make a few tool calls to complete a task, and it is clear what you need to do, it is better to just do the task directly and NOT call this tool at all.
         TODO;
 
-    protected array $todos = [];
-
     protected function properties(): array
     {
         return [
@@ -104,7 +102,8 @@ class WriteTodosTool extends Tool
                         ToolProperty::make(
                             name: 'content',
                             type: PropertyType::STRING,
-                            description: 'Task description'
+                            description: 'Task description',
+                            required: true,
                         ),
                         ToolProperty::make(
                             name: 'status',

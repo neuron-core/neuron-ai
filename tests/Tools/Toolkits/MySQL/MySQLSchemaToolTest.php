@@ -113,7 +113,7 @@ class MySQLSchemaToolTest extends TestCase
     {
         (new MySQLSchemaTool($this->informationSchema(), $tables))();
 
-        $this->assertCount(4, $this->executed);
+        $this->assertCount(3, $this->executed);
         foreach ($this->executed as $query) {
             $this->assertSame([], $query['params']);
             $this->assertStringNotContainsString(' IN (?', $query['sql']);
@@ -132,9 +132,6 @@ class MySQLSchemaToolTest extends TestCase
             'AND (kcu.TABLE_NAME IN (?,?) OR kcu.REFERENCED_TABLE_NAME IN (?,?))',
             $this->lookup('KEY_COLUMN_USAGE')['sql']
         );
-
-        $this->assertSame(['users', 'posts'], $this->lookup('TABLE_CONSTRAINTS')['params']);
-        $this->assertStringContainsString('AND TABLE_NAME IN (?,?)', $this->lookup('TABLE_CONSTRAINTS')['sql']);
 
         $this->assertSame(['users', 'posts'], $this->lookup('STATISTICS')['params']);
         $this->assertStringContainsString('AND TABLE_NAME IN (?,?)', $this->lookup('STATISTICS')['sql']);
@@ -203,7 +200,6 @@ class MySQLSchemaToolTest extends TestCase
                 $this->indexColumn('posts', 'posts_user_title', 'title', 1),
                 $this->indexColumn('users', 'users_email_unique', 'email', 0),
             ],
-            'TABLE_CONSTRAINTS' => [['CONSTRAINT_NAME' => 'users_email_unique', 'TABLE_NAME' => 'users', 'CONSTRAINT_TYPE' => 'UNIQUE']],
         ];
 
         $pdo = $this->createMock(PDO::class);

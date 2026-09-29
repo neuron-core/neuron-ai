@@ -127,6 +127,30 @@ class SESToolTest extends TestCase
         $this->assertSame([], $this->sentCommands);
     }
 
+    #[DataProvider('invalidRecipients')]
+    public function test_an_invalid_cc_or_bcc_recipient_fails_without_sending(string $recipient): void
+    {
+        foreach ([[[$recipient], null], [null, [$recipient]]] as [$cc, $bcc]) {
+            $result = ($this->tool)(['ada@example.com'], 'Hi', 'Body', $cc, $bcc);
+
+            $this->assertSame('Invalid email address: '.$recipient.'.', $result['error']);
+        }
+        $this->assertSame([], $this->sentCommands);
+    }
+
+    public function test_an_empty_to_list_fails_without_sending_even_with_cc(): void
+    {
+        $result = ($this->tool)([], 'Hi', 'Body', ['grace@example.com']);
+
+        $this->assertSame([
+            'success' => false,
+            'error' => 'At least one recipient is required in "to".',
+            'error_type' => ToolException::class,
+            'status' => 'failed',
+        ], $result);
+        $this->assertSame([], $this->sentCommands);
+    }
+
     public function test_an_ses_rejection_is_reported_to_the_model_as_a_failure(): void
     {
         $this->ses->append(fn (CommandInterface $command): SesException => new SesException(

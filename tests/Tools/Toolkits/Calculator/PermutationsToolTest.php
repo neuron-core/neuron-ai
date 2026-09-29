@@ -10,6 +10,8 @@ use NeuronAI\Tools\Toolkits\Calculator\PermutationsTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MAX;
+
 class PermutationsToolTest extends TestCase
 {
     use ToolErrorAssertions;
@@ -37,6 +39,8 @@ class PermutationsToolTest extends TestCase
             [52, 5, '311875200'],
             [3000, 2, '8997000'],
             'one item out of a huge set' => [9223372036854775806, 1, '9223372036854775806'],
+            'the largest n' => [PHP_INT_MAX, 1, '9223372036854775807'],
+            'two items out of the largest n' => [PHP_INT_MAX, 2, '85070591730234615838173535747377725442'],
         ];
     }
 

@@ -50,6 +50,10 @@ class GetDaysInMonthTool extends Tool
                 throw new InvalidArgumentException('Month must be between 1 and 12');
             }
 
+            if ($year < 1) {
+                throw new InvalidArgumentException('Year must be greater than 0');
+            }
+
             $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
             $monthName = date('F', mktime(0, 0, 0, $month, 1, $year));
             $isLeapYear = ($year % 4 === 0 && $year % 100 !== 0) || ($year % 400 === 0);

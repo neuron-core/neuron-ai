@@ -11,10 +11,11 @@ use NeuronAI\Tools\ToolProperty;
 use function file_get_contents;
 use function is_file;
 use function is_readable;
-use function preg_match_all;
+use function mb_check_encoding;
 use function mb_strlen;
 use function mb_substr;
 use function preg_last_error_msg;
+use function preg_match_all;
 use function substr_count;
 
 use const PREG_OFFSET_CAPTURE;
@@ -58,6 +59,11 @@ class GrepFileContentTool extends FileSystemTool
         $content = file_get_contents($path);
         if ($content === false) {
             return ToolOutput::error("Unable to read file '{$file_path}'.");
+        }
+
+        // Invalid UTF-8 in the conversation would make the next provider request impossible to encode
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            return ToolOutput::error("'{$file_path}' is not a UTF-8 text file. Use parse_file for PDF or HTML documents.");
         }
 
         $matches = [];

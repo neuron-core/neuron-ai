@@ -51,8 +51,9 @@ class PermutationsTool extends IntegerTool
 
         $permutations = '1';
 
-        for ($factor = $n - $k + 1; $factor <= $n; $factor++) {
-            $permutations = bcmul($permutations, (string) $factor);
+        // Counting terms rather than factors: a factor stepping past PHP_INT_MAX would turn into a float
+        for ($term = 0; $term < $k; $term++) {
+            $permutations = bcmul($permutations, (string) ($n - $term));
         }
 
         return $permutations;

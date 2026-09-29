@@ -34,6 +34,6 @@ class VarianceTool extends StatisticTool
     {
         $population ??= false;
 
-        return $this->invalidSample($numbers, $population) ?? Number::format($this->variance($numbers, $population));
+        return $this->invalidSample($numbers, $population) ?? $this->result($this->variance($numbers, $population));
     }
 }

@@ -22,7 +22,7 @@ use const PATHINFO_EXTENSION;
 class ParseFileTool extends FileSystemTool
 {
     protected string $name = 'parse_file';
-    protected ?string $description = 'Parse and return the complete content of a document file. Use this after preview_file confirms the document is relevant, or when you need to find cross-references to other documents. Supported formats: PDF, HTML.';
+    protected ?string $description = 'Parse and return the complete text content of a document file. Use it instead of read_file for documents. Supported formats: PDF, HTML.';
 
     protected function properties(): array
     {

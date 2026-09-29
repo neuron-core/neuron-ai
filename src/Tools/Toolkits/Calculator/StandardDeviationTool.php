@@ -22,6 +22,6 @@ class StandardDeviationTool extends VarianceTool
     {
         $population ??= false;
 
-        return $this->invalidSample($numbers, $population) ?? Number::format(sqrt($this->variance($numbers, $population)));
+        return $this->invalidSample($numbers, $population) ?? $this->result(sqrt($this->variance($numbers, $population)));
     }
 }

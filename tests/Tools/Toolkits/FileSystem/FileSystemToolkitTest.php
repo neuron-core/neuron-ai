@@ -24,7 +24,9 @@ use function array_map;
 use function file_get_contents;
 use function file_put_contents;
 use function mkdir;
+use function preg_match_all;
 use function str_replace;
+use function sys_get_temp_dir;
 
 class FileSystemToolkitTest extends TestCase
 {
@@ -140,5 +142,21 @@ class FileSystemToolkitTest extends TestCase
     protected function toolNames(array $tools): array
     {
         return array_map(fn (ToolInterface $tool): string => $tool->getName(), $tools);
+    }
+
+    public function test_descriptions_and_guidelines_only_name_tools_the_toolkit_provides(): void
+    {
+        $toolkit = FileSystemToolkit::make(sys_get_temp_dir());
+        $tools = $toolkit->tools();
+        $names = array_map(fn (ToolInterface $tool): string => $tool->getName(), $tools);
+
+        $texts = [(string) $toolkit->guidelines(), ...array_map(fn (ToolInterface $tool): string => (string) $tool->getDescription(), $tools)];
+
+        foreach ($texts as $text) {
+            preg_match_all('/\b[a-z]+(?:_[a-z]+)+\b/', $text, $references);
+            foreach ($references[0] as $reference) {
+                $this->assertContains($reference, $names, "Unknown tool '{$reference}' named in: {$text}");
+            }
+        }
     }
 }

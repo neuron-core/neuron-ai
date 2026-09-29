@@ -9,6 +9,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 
 interface AIProviderInterface
@@ -23,7 +24,7 @@ interface AIProviderInterface
     /**
      * Set the tools to be exposed to the LLM.
      *
-     * @param ToolInterface[] $tools
+     * @param array<ToolInterface|ProviderToolInterface> $tools Local tools and vendor-hosted provider tools.
      */
     public function setTools(array $tools): AIProviderInterface;
 

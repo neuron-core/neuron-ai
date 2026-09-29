@@ -13,8 +13,8 @@ use function file_put_contents;
 use function is_file;
 use function is_readable;
 use function is_writable;
-use function str_contains;
 use function str_replace;
+use function substr_count;
 
 /**
  * Edit a file by applying a search-and-replace operation.
@@ -22,7 +22,7 @@ use function str_replace;
 class EditFileTool extends FileSystemTool
 {
     protected string $name = 'edit_file';
-    protected ?string $description = 'Edit a file by replacing an exact string or block of text with new content. The search string must match exactly (including whitespace and indentation). Use write_file if you need to replace the entire file.';
+    protected ?string $description = 'Edit a file by replacing an exact string or block of text with new content. The search string must match exactly once (including whitespace and indentation). Use write_file if you need to replace the entire file.';
 
     protected function properties(): array
     {
@@ -36,7 +36,7 @@ class EditFileTool extends FileSystemTool
             ToolProperty::make(
                 name: 'search',
                 type: PropertyType::STRING,
-                description: 'The exact text to search for in the file. Must match the file content precisely.',
+                description: 'The exact text to search for in the file. Must match the file content precisely and appear only once.',
                 required: true,
             ),
             ToolProperty::make(
@@ -50,6 +50,10 @@ class EditFileTool extends FileSystemTool
 
     public function __invoke(string $file_path, string $search, string $replace): array|ToolOutput
     {
+        if ($search === '') {
+            return ToolOutput::error('The search string cannot be empty. Use write_file to replace the entire file.');
+        }
+
         $path = $this->resolve($file_path);
         if ($path instanceof ToolOutput) {
             return $path;
@@ -68,8 +72,14 @@ class EditFileTool extends FileSystemTool
             return ToolOutput::error("Failed to read file '{$file_path}'.");
         }
 
-        if (!str_contains($current, $search)) {
+        $occurrences = substr_count($current, $search);
+
+        if ($occurrences === 0) {
             return ToolOutput::error("Search string not found in '{$file_path}'. Ensure the text matches exactly.");
+        }
+
+        if ($occurrences > 1) {
+            return ToolOutput::error("The search string appears {$occurrences} times in '{$file_path}'. Include more surrounding lines so it matches exactly once.");
         }
 
         if (!is_writable($path)) {

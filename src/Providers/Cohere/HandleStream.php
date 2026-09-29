@@ -26,6 +26,7 @@ trait HandleStream
     protected function processStream(StreamInterface $stream): Generator
     {
         $this->streamState = new StreamState();
+        $stopReason = null;
 
         while (! $stream->eof()) {
             if (!$line = SSEParser::parseNextSSEEvent($stream)) {
@@ -36,6 +37,10 @@ trait HandleStream
             if (!empty($line['delta']['usage'])) {
                 $this->streamState->addInputTokens($line['delta']['usage']['tokens']['input_tokens'] ?? 0);
                 $this->streamState->addOutputTokens($line['delta']['usage']['tokens']['output_tokens'] ?? 0);
+            }
+
+            if ($line['type'] === 'message-end' && isset($line['delta']['finish_reason'])) {
+                $stopReason = $line['delta']['finish_reason'];
             }
 
             if ($line['type'] === 'tool-plan-delta') {
@@ -90,6 +95,10 @@ trait HandleStream
         }
 
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+
+        if ($stopReason !== null) {
+            $message->setStopReason($stopReason);
+        }
 
         return new ProviderResponse(message: $message);
     }

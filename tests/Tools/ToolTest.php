@@ -720,6 +720,11 @@ class ToolTest extends TestCase
 
             protected string $name = 'read_file';
 
+            protected function properties(): array
+            {
+                return [new ToolProperty('path', PropertyType::STRING)];
+            }
+
             public function __invoke(): void
             {
             }
@@ -930,5 +935,14 @@ class ToolTest extends TestCase
 
         $this->assertSame($first, $second);
         $this->assertMatchesRegularExpression('/^delete_account:[0-9a-f]{40}$/', $first);
+    }
+
+    public function test_track_by_inputs_run_key_ignores_input_order_and_undeclared_inputs(): void
+    {
+        $key = (new StrictApprovalTool())->setInputs(['permanent' => false, 'account_id' => 7])->getRunKey();
+
+        $this->assertSame($key, (new StrictApprovalTool())->setInputs(['account_id' => 7, 'permanent' => false])->getRunKey());
+        $this->assertSame($key, (new StrictApprovalTool())->setInputs(['permanent' => false, 'account_id' => 7, 'nonce' => 'x'])->getRunKey());
+        $this->assertNotSame($key, (new StrictApprovalTool())->setInputs(['permanent' => true, 'account_id' => 7])->getRunKey());
     }
 }

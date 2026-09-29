@@ -14,6 +14,6 @@ class MeanTool extends StatisticTool
 
     public function __invoke(array $numbers): string|ToolOutput
     {
-        return $this->invalidDataset($numbers) ?? Number::format($this->mean($numbers));
+        return $this->invalidDataset($numbers) ?? $this->result($this->mean($numbers));
     }
 }

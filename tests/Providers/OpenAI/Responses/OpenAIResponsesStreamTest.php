@@ -236,4 +236,55 @@ class OpenAIResponsesStreamTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame('RklOQUw=', $message->getImage()?->content);
     }
+
+    public function test_a_truncated_stream_reports_its_usage_and_the_incomplete_status(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'response.output_item.added', 'item' => ['type' => 'message', 'id' => 'msg_1', 'content' => []]],
+            ['type' => 'response.output_text.delta', 'item_id' => 'msg_1', 'delta' => 'Partial'],
+            ['type' => 'response.incomplete', 'response' => [
+                'status' => 'incomplete',
+                'incomplete_details' => ['reason' => 'max_output_tokens'],
+                'output' => [['type' => 'message', 'id' => 'msg_1', 'content' => [['type' => 'output_text', 'text' => 'Partial']]]],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 16],
+            ]],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertSame('Partial', $message->getContent());
+        $this->assertSame([12, 16], [$message->getUsage()?->inputTokens, $message->getUsage()?->outputTokens]);
+        $this->assertSame('incomplete', $message->stopReason());
+    }
+
+    public function test_a_truncated_stream_keeps_its_complete_tool_calls(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            self::functionCallAdded('fc_1', 'call_1', 'weather'),
+            ['type' => 'response.function_call_arguments.done', 'item_id' => 'fc_1', 'arguments' => '{"q":"x"}'],
+            ['type' => 'response.incomplete', 'response' => ['status' => 'incomplete', 'output' => [], 'usage' => ['input_tokens' => 5, 'output_tokens' => 7]]],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('call_1', $message->getToolCalls()[0]->getCallId());
+        $this->assertSame(7, $message->getUsage()?->outputTokens);
+        $this->assertSame('incomplete', $message->stopReason());
+    }
+
+    public function test_a_completed_stream_reports_its_status_as_the_stop_reason(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            ['type' => 'response.output_item.added', 'item' => ['type' => 'message', 'id' => 'msg_1', 'content' => []]],
+            ['type' => 'response.output_text.delta', 'item_id' => 'msg_1', 'delta' => 'Done'],
+            ['type' => 'response.completed', 'response' => ['status' => 'completed', 'output' => [['type' => 'message', 'id' => 'msg_1', 'content' => [['type' => 'output_text', 'text' => 'Done']]]]]],
+        ]));
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertSame('completed', $message->stopReason());
+    }
 }

@@ -9,6 +9,8 @@ use NeuronAI\Tools\Toolkits\Calculator\LcmTool;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_INT_MIN;
+
 class LcmToolTest extends TestCase
 {
     use ToolErrorAssertions;
@@ -38,6 +40,7 @@ class LcmToolTest extends TestCase
             'both negative' => [[-4, -6], '12'],
             'all zeros' => [[0, 0], '0'],
             'zero in the middle' => [[4, 0, 6], '0'],
+            'int min' => [[PHP_INT_MIN, 3], '27670116110564327424'],
             'primorial of 53 beyond the int range' => [[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53], '32589158477190044730'],
         ];
     }

@@ -69,6 +69,10 @@ class CalculateAgeTool extends Tool
                     : new DateTime($reference_date, $tz);
             }
 
+            if ($birth > $reference) {
+                return 'Error: The birthdate is after the reference date.';
+            }
+
             $interval = $birth->diff($reference);
 
             return match ($unit) {

@@ -510,6 +510,14 @@ MyToolkit::make()
     }),
 ```
 
+Tool names must be unique among an agent's tools, or the run fails with a `ToolException` before the first inference. Toolkits can collide: Tavily and Jina both provide `web_search` and `url_reader`. Rename one side, or leave it out:
+
+```php
+JinaToolkit::make($key)
+    ->with(JinaWebSearch::class, fn (ToolInterface $tool): ToolInterface => $tool->setName('jina_web_search'))
+    ->with(JinaUrlReader::class, fn (ToolInterface $tool): ToolInterface => $tool->setName('jina_url_reader')),
+```
+
 ## MCP (Model Context Protocol) Integration
 
 MCP allows connecting to external tool servers. Each server tool becomes a regular Neuron tool whose result is a `ToolOutput`: text, image and audio content become content blocks, other content reaches the model as JSON text, and a result the server marks with `isError` is an error output.
@@ -682,6 +690,8 @@ ToolProperty::make(
     enum: ['date', 'relevance', 'popularity']
 )
 ```
+
+The enum is enforced when inputs are bound: a value outside it never reaches `__invoke()`, and the model receives `Parameter "sort_by" must be one of "date", "relevance", "popularity"; "rating" given.` to correct its call.
 
 ### 4. Return Structured Data
 

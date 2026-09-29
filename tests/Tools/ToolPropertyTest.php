@@ -55,6 +55,24 @@ class ToolPropertyTest extends TestCase
         ];
     }
 
+    public function test_cast_refuses_a_value_outside_the_enum(): void
+    {
+        $property = new ToolProperty('precision', PropertyType::STRING, enum: ['day', 'month']);
+
+        $this->expectException(InvalidToolInput::class);
+        $this->expectExceptionMessage('must be one of "day", "month"; "week" given');
+
+        $property->cast('week');
+    }
+
+    public function test_cast_matches_the_enum_after_converting(): void
+    {
+        $property = new ToolProperty('level', PropertyType::INTEGER, enum: [1, 2, 3]);
+
+        $this->assertSame(2, $property->cast('2'));
+        $this->assertNull($property->cast(null));
+    }
+
     public function test_json_schema_omits_absent_metadata(): void
     {
         $this->assertSame(['type' => 'integer'], (new ToolProperty('n', PropertyType::INTEGER))->getJsonSchema());
