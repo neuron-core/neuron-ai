@@ -12,6 +12,9 @@ use stdClass;
 use function is_array;
 use function json_encode;
 
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
+
 /**
  * A single tool invocation as conversation data: the call record plus its outcome
  * state, travelling in messages, stream chunks, events, and persistence. Execution
@@ -130,7 +133,7 @@ class ToolCall implements JsonSerializable
         if ($result instanceof ToolOutput) {
             $this->result = $result;
         } else {
-            $this->result = is_array($result) ? (string) json_encode($result) : (string) $result;
+            $this->result = is_array($result) ? json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) : (string) $result;
         }
 
         return $this;

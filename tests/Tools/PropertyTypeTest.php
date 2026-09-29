@@ -51,6 +51,14 @@ class PropertyTypeTest extends TestCase
         ];
     }
 
+    public function test_rejects_an_unknown_type_name(): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage("Property type 'unknown' not valid.");
+
+        PropertyType::fromSchema('unknown');
+    }
+
     public function test_json_schema_type_names_are_stable(): void
     {
         $this->assertSame(

@@ -37,7 +37,10 @@ use const JSON_THROW_ON_ERROR;
  * Stores each thread in one JSON file; archived messages stay in it, marked by
  * archived_at. A write replaces the file atomically, so a reader sees the previous
  * or the next version, never a partial one. Like FilePersistence, it suits
- * controlled single-host use: concurrent workers need a database store.
+ * controlled single-host use: concurrent workers need a database store. The
+ * file name keeps the thread ID's letter case, so on a case-insensitive
+ * filesystem (the macOS and Windows defaults) two IDs that differ only by case
+ * share one file: use IDs that differ by more than case there.
  */
 class FileMessageStore implements MessageStoreInterface
 {

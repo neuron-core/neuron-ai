@@ -227,4 +227,40 @@ class ToolPropertyFactoryTest extends TestCase
 
         $this->assertSame([false, false], [$properties[0]->isRequired(), $properties[1]->isRequired()]);
     }
+
+    public function test_numeric_property_names_are_read_as_strings(): void
+    {
+        $properties = ToolPropertyFactory::fromSchema([
+            'properties' => ['1' => ['type' => 'string']],
+            'required' => ['1'],
+        ]);
+
+        $this->assertSame(['1', true], [$properties[0]->getName(), $properties[0]->isRequired()]);
+    }
+
+    /** @param array<string, mixed> $schema */
+    #[DataProvider('malformedSchemas')]
+    public function test_rejects_keywords_of_the_wrong_type(array $schema, string $message): void
+    {
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage($message);
+
+        ToolPropertyFactory::fromSchema($schema);
+    }
+
+    public static function malformedSchemas(): array
+    {
+        return [
+            'string properties' => [['properties' => 'a'], "Keyword 'properties' of the schema must be of type array, string given."],
+            'boolean required' => [['properties' => ['a' => ['type' => 'string']], 'required' => true], "Keyword 'required' of the schema must be of type array, bool given."],
+            'string definition' => [['properties' => ['a' => 'string']], "Property 'a' must be defined by a schema object, string given."],
+            'numeric type' => [['properties' => ['a' => ['type' => 5]]], "Property 'a' must declare its type as a string, int given."],
+            'numeric type in a list' => [['properties' => ['a' => ['type' => [5, 'null']]]], "Property 'a' must declare its type as a string, int given."],
+            'numeric description' => [['properties' => ['a' => ['type' => 'string', 'description' => 5]]], "Keyword 'description' of property 'a' must be of type string, int given."],
+            'string enum' => [['properties' => ['a' => ['type' => 'string', 'enum' => 'x']]], "Keyword 'enum' of property 'a' must be of type array, string given."],
+            'boolean items' => [['properties' => ['a' => ['type' => 'array', 'items' => true]]], "Keyword 'items' of property 'a' must be of type array, bool given."],
+            'string minItems' => [['properties' => ['a' => ['type' => 'array', 'minItems' => '1']]], "Keyword 'minItems' of property 'a' must be of type int, string given."],
+            'float maxItems' => [['properties' => ['a' => ['type' => 'array', 'maxItems' => 1.5]]], "Keyword 'maxItems' of property 'a' must be of type int, float given."],
+        ];
+    }
 }

@@ -159,7 +159,11 @@ class Anthropic implements AIProviderInterface
     protected function createToolCallMessage(array $toolCalls, string|array|null $content = null): ToolCallMessage
     {
         $tools = array_map(
-            fn (array $tool): ToolCall => $this->newToolCall($tool['name'], $tool['id'], $tool['input']),
+            fn (array $tool): ToolCall => $this->newToolCall(
+                $tool['name'],
+                $tool['id'],
+                $this->decodeToolArguments($tool['name'], $tool['input'] ?? null),
+            ),
             $toolCalls
         );
 

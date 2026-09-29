@@ -131,4 +131,23 @@ class OpenAISpeechToTextTest extends TestCase
 
         $this->makeProvider('{}')->structured($this->audioMessage(), 'Person', []);
     }
+
+    public function test_configured_parameters_are_uploaded_as_form_fields(): void
+    {
+        $provider = new OpenAISpeechToText('test-key', 'whisper-1', 'it', ['temperature' => '0.2'], $this->recordingClient(new Response(200, body: '{"text":"ok"}')));
+
+        $provider->chat($this->audioMessage());
+
+        $this->assertMatchesRegularExpression('/name="temperature"\r\n(?:[^\r\n]+\r\n)*\r\n0.2\r\n/', $this->sentBody());
+    }
+
+    public function test_configured_parameters_are_uploaded_when_streaming(): void
+    {
+        $body = self::sseBody([['type' => 'transcript.text.done', 'text' => 'ok']]);
+        $provider = new OpenAISpeechToText('test-key', 'whisper-1', 'it', ['temperature' => '0.2'], $this->recordingClient(new Response(200, body: $body)));
+
+        $this->consumeStream($provider->stream($this->audioMessage()));
+
+        $this->assertMatchesRegularExpression('/name="temperature"\r\n(?:[^\r\n]+\r\n)*\r\n0.2\r\n/', $this->sentBody());
+    }
 }

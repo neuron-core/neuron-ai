@@ -11,6 +11,9 @@ namespace NeuronAI\Workflow\Persistence;
  * backends store opaque strings, so the storage format (native PHP serialize,
  * igbinary, ...) varies independently of the persistence backends. Each backend
  * owns any encoding required by its storage medium.
+ *
+ * Decoding a record instantiates the classes it names, so the store must be as
+ * trusted as the code: whoever can write to it can run code in the workers.
  */
 interface Serializer
 {

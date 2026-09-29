@@ -151,6 +151,22 @@ class AnthropicStreamTest extends TestCase
         );
     }
 
+    public function test_an_argument_fragment_of_zero_is_kept(): void
+    {
+        $events = [['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'tool_use', 'id' => 'toolu_a', 'name' => 'counter', 'input' => []]]];
+        // The vendor cuts partial_json anywhere, so a fragment can be exactly "0"
+        foreach (['{"count": 1', '0', ', "offset": ', '0', '}'] as $fragment) {
+            $events[] = ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'input_json_delta', 'partial_json' => $fragment]];
+        }
+        $events[] = ['type' => 'content_block_stop', 'index' => 0];
+        $provider = $this->provider(self::sseBody($events))->setTools([new ToolStub('counter')]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Count')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame(['count' => 10, 'offset' => 0], $message->getToolCalls()[0]->getInputs());
+    }
+
     public function test_tool_call_without_argument_deltas_has_empty_inputs(): void
     {
         $events = [

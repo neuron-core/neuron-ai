@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers;
 
+use JsonException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Tools\DeferredToolInterface;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
 
+use function json_decode;
+use function is_array;
+use function array_is_list;
 use function array_filter;
+
+use const JSON_THROW_ON_ERROR;
 
 trait HandleWithTools
 {
@@ -42,6 +48,41 @@ trait HandleWithTools
         $tool = $this->findTool($name);
 
         return new ToolCall($name, $callId, $inputs, $tool->getDescription(), $tool instanceof DeferredToolInterface);
+    }
+
+    /**
+     * The model's arguments for a tool call. Anything but a JSON object would
+     * run the tool with empty or wrong inputs, so it is refused.
+     *
+     * @param array<string, mixed>|string|null $arguments Already decoded by some vendors.
+     * @return array<string, mixed>
+     * @throws ProviderException
+     */
+    protected function decodeToolArguments(string $toolName, array|string|null $arguments): array
+    {
+        if (is_array($arguments)) {
+            return $arguments;
+        }
+
+        if ($arguments === null || $arguments === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($arguments, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new ProviderException(
+                "The model sent invalid arguments for tool \"{$toolName}\": {$exception->getMessage()}",
+                previous: $exception
+            );
+        }
+
+        // A JSON object decodes to a map (or to [] when empty), never to a scalar or a list
+        if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
+            throw new ProviderException("The model sent invalid arguments for tool \"{$toolName}\": expected a JSON object.");
+        }
+
+        return $decoded;
     }
 
     /**

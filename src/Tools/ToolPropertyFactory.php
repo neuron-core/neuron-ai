@@ -12,8 +12,10 @@ use function array_diff;
 use function array_is_list;
 use function array_values;
 use function count;
+use function get_debug_type;
 use function in_array;
 use function is_array;
+use function is_string;
 
 /**
  * Converts input schemas to the property types supported by Neuron.
@@ -32,12 +34,17 @@ class ToolPropertyFactory
         static::assertSupportedSchema($schema);
         $properties = [];
 
-        foreach ($schema['properties'] ?? [] as $name => $definition) {
-            $properties[] = static::createProperty(
-                $name,
-                $definition,
-                in_array($name, $schema['required'] ?? [], true),
-            );
+        $required = static::keyword($schema, 'required', 'array', 'the schema') ?? [];
+
+        foreach (static::keyword($schema, 'properties', 'array', 'the schema') ?? [] as $name => $definition) {
+            // PHP turns numeric JSON keys like "1" into integers
+            $name = (string) $name;
+
+            if (!is_array($definition)) {
+                throw new ToolException("Property '{$name}' must be defined by a schema object, " . get_debug_type($definition) . ' given.');
+            }
+
+            $properties[] = static::createProperty($name, $definition, in_array($name, $required, true));
         }
 
         return $properties;
@@ -62,9 +69,13 @@ class ToolPropertyFactory
             $type = $types[0];
         }
 
+        if (!is_string($type)) {
+            throw new ToolException("Property '{$name}' must declare its type as a string, " . get_debug_type($type) . ' given.');
+        }
+
         $propertyType = PropertyType::tryFrom($type)
             ?? throw new ToolException("Unsupported type '{$type}' for property '{$name}'.");
-        $description = $schema['description'] ?? null;
+        $description = static::keyword($schema, 'description', 'string', "property '{$name}'");
 
         return match ($propertyType) {
             PropertyType::OBJECT => new ObjectProperty(
@@ -79,10 +90,10 @@ class ToolPropertyFactory
                 description: $description,
                 required: $required,
                 items: isset($schema['items'])
-                    ? static::createProperty($name . '_item', $schema['items'])
+                    ? static::createProperty($name . '_item', static::keyword($schema, 'items', 'array', "property '{$name}'"))
                     : null,
-                minItems: $schema['minItems'] ?? null,
-                maxItems: $schema['maxItems'] ?? null,
+                minItems: static::keyword($schema, 'minItems', 'int', "property '{$name}'"),
+                maxItems: static::keyword($schema, 'maxItems', 'int', "property '{$name}'"),
                 nullable: $nullable,
             ),
             default => new ToolProperty(
@@ -90,10 +101,27 @@ class ToolPropertyFactory
                 type: $propertyType,
                 description: $description,
                 required: $required,
-                enum: $schema['enum'] ?? [],
+                enum: static::keyword($schema, 'enum', 'array', "property '{$name}'") ?? [],
                 nullable: $nullable,
             ),
         };
+    }
+
+    /**
+     * Reads an optional schema keyword, refusing a value of the wrong type.
+     *
+     * @param array<string, mixed> $schema
+     * @throws ToolException
+     */
+    protected static function keyword(array $schema, string $keyword, string $type, string $owner): mixed
+    {
+        $value = $schema[$keyword] ?? null;
+
+        if ($value !== null && get_debug_type($value) !== $type) {
+            throw new ToolException("Keyword '{$keyword}' of {$owner} must be of type {$type}, " . get_debug_type($value) . ' given.');
+        }
+
+        return $value;
     }
 
     /**

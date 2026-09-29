@@ -14,6 +14,7 @@ use function igbinary_unserialize;
 /**
  * Binary igbinary serialization; requires ext-igbinary. Keep the configured
  * serializer stable for in-flight runs. Transport encoding belongs to persistence.
+ * Records are unserialized with no class restriction: see Serializer on trust.
  */
 class IgbinarySerializer implements Serializer
 {

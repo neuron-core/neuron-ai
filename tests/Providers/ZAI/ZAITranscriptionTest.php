@@ -124,4 +124,24 @@ class ZAITranscriptionTest extends TestCase
 
         $this->provider(new Response(200))->structured(new UserMessage('x'), 'Transcript', []);
     }
+
+    public function test_configured_parameters_are_sent_with_the_audio(): void
+    {
+        $provider = new ZAITranscription(self::SECRET, 'glm-asr', ['hotwords' => ['Neuron']], $this->recordingClient(new Response(200, body: '{"text":"ok"}')));
+
+        $provider->chat(new UserMessage(new AudioContent('UklGRg==', SourceType::BASE64, 'audio/wav')));
+
+        $body = json_decode((string) $this->sentRequests[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(['Neuron'], $body['hotwords']);
+    }
+
+    public function test_configured_parameters_are_sent_when_streaming(): void
+    {
+        $provider = new ZAITranscription(self::SECRET, 'glm-asr', ['hotwords' => ['Neuron']], $this->recordingClient(new Response(200, body: "data: [DONE]\n\n")));
+
+        $this->consumeStream($provider->stream(new UserMessage(new AudioContent('UklGRg==', SourceType::BASE64, 'audio/wav'))));
+
+        $body = json_decode((string) $this->sentRequests[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(['Neuron'], $body['hotwords']);
+    }
 }

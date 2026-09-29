@@ -23,6 +23,7 @@ use NeuronAI\Providers\ProviderResponse;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\UniqueIdGenerator;
 
+use function rawurlencode;
 use function rtrim;
 use function base64_encode;
 use function end;
@@ -65,6 +66,14 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
     }
 
     /**
+     * The voice ID is a path segment: encoded, it cannot reach another endpoint.
+     */
+    protected function voiceUri(): string
+    {
+        return rtrim($this->baseUri, '/') . '/' . rawurlencode($this->voiceId);
+    }
+
+    /**
      * @throws HttpException
      */
     public function chat(Message ...$messages): ProviderResponse
@@ -74,11 +83,12 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         $body = [
             'model_id' => $this->model,
             'text' => $message->getContent(),
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->request(
             HttpRequest::post(
-                uri: rtrim($this->baseUri, '/') . '/' . $this->voiceId,
+                uri: $this->voiceUri(),
                 body: $body,
                 headers: $this->httpHeaders,
             )
@@ -101,11 +111,12 @@ class ElevenLabsTextToSpeech implements AIProviderInterface
         $json = [
             'model_id' => $this->model,
             'text' => $message->getContent(),
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->stream(
             HttpRequest::post(
-                uri: rtrim($this->baseUri, '/') . '/' . $this->voiceId,
+                uri: $this->voiceUri(),
                 body: $json,
                 headers: $this->httpHeaders,
             )

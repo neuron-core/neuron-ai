@@ -285,7 +285,8 @@ Configure context-aware resource factories on the definition before invoking the
 use NeuronAI\Workflow\Persistence\DatabasePersistence;use NeuronAI\Workflow\Persistence\EloquentPersistence;use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\RedisPersistence;
 
-// File system — the directory is created on the first write
+// File system — the directory is created on the first write. File names keep the
+// workflow ID's letter case: on macOS and Windows, IDs that differ only by case share a file
 $persistence = new FilePersistence('/path/to/storage');
 
 // Database via a PDO in exception mode — requires a workflow_store table
@@ -302,6 +303,13 @@ $persistence = new RedisPersistence($redis, prefix: 'neuron:workflow:');
 
 For multiple workers, use `DatabasePersistence`, `EloquentPersistence`, or
 `RedisPersistence`. File storage is for controlled single-process use.
+
+The store must be as trusted as your code: records are PHP objects decoded with
+no class restriction, so whoever can write to the store can run code in your
+workers. Credentials only the application uses close that path (a database user
+or Redis ACL user of its own, a directory only the application can write):
+recommend them to the developer as their decision, and never create users,
+change grants or edit connection settings without their approval.
 
 Inside a transaction your application opened on the same connection, the SQL
 backends join it: each operation runs in a savepoint and commits or rolls back
@@ -985,6 +993,19 @@ class LoopNode extends Node
     }
 }
 ```
+
+A loop whose exit never comes, because of a node bug or a model that keeps
+choosing the same route, runs and persists forever. Cap it with a step budget:
+
+```php
+$workflow->setMaxSteps(200);
+```
+
+The run fails with a `WorkflowException` once one of its paths, the main one or
+a parallel branch, goes past that many steps; replayed steps count, so pausing
+does not reset it. There is no budget by default, because some workflows loop
+on purpose; a subclass can return one from the `maxSteps()` hook. After raising
+the budget, a plain `run()` continues the failed run from its completed steps.
 
 ## Parallel Execution
 

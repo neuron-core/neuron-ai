@@ -43,6 +43,10 @@ class ZAITranscription implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    /**
+     * @param array<string, mixed> $parameters Extra request fields. A file upload sends them as
+     *        multipart form fields, where every value becomes a string: pass 'true', not true.
+     */
     public function __construct(
         protected string $key,
         protected string $model,
@@ -77,6 +81,7 @@ class ZAITranscription implements AIProviderInterface
 
         $body = [
             'model' => $this->model,
+            ...$this->parameters,
         ];
 
         $this->addFile($body, $message->getAudio());
@@ -118,6 +123,7 @@ class ZAITranscription implements AIProviderInterface
         $body = [
             'stream' => true,
             'model' => $this->model,
+            ...$this->parameters,
         ];
 
         $this->addFile($body, $message->getAudio());

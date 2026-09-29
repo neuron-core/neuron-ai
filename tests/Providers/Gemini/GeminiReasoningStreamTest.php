@@ -7,18 +7,17 @@ namespace NeuronAI\Tests\Providers\Gemini;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Gemini\Gemini;
+use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\ReasoningStreamAssertions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function count;
 use function implode;
-use function json_encode;
-
-use const JSON_THROW_ON_ERROR;
 
 class GeminiReasoningStreamTest extends TestCase
 {
+    use ConsumesProviderStreams;
     use ReasoningStreamAssertions;
 
     #[DataProvider('reasoning_sequences')]
@@ -32,7 +31,7 @@ class GeminiReasoningStreamTest extends TestCase
             'candidates' => [['content' => ['parts' => [['text' => 'Answer']]], 'finishReason' => 'STOP']],
             'usageMetadata' => ['promptTokenCount' => 3, 'candidatesTokenCount' => 4, 'thoughtsTokenCount' => 2],
         ];
-        $provider = new Gemini('test', 'model', httpClient: $this->streamClient(json_encode($events, JSON_THROW_ON_ERROR)));
+        $provider = new Gemini('test', 'model', httpClient: $this->streamClient(self::sseBody($events)));
         [$chunks, $message] = $this->consumeReasoningStream($provider->stream(new UserMessage('Question')), $expected);
 
         $this->assertCount(2, $message->getContentBlocks());

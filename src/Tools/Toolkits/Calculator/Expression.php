@@ -61,7 +61,7 @@ use const PREG_UNMATCHED_AS_NULL;
  */
 class Expression
 {
-    protected const TOKEN_PATTERN = '/\s*(?:(?<number>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|(?<name>[a-zA-Z_]\w*)|(?<operator>\*\*|[-+*\/%^(),])|(?<invalid>\S))/Au';
+    protected const TOKEN_PATTERN = '/\s*(?:(?<number>(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)|(?<name>[a-zA-Z_]\w*)|(?<operator>\*\*|[-+*\/%^(),])|(?<invalid>\S))/Au';
 
     protected const CONSTANTS = ['pi' => M_PI, 'e' => M_E];
 

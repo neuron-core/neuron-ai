@@ -41,6 +41,10 @@ class OpenAISpeechToText implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    /**
+     * @param array<string, mixed> $parameters Extra request fields. A file upload sends them as
+     *        multipart form fields, where every value becomes a string: pass 'true', not true.
+     */
     public function __construct(
         protected string $key,
         protected string $model,
@@ -78,6 +82,7 @@ class OpenAISpeechToText implements AIProviderInterface
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
+            ...$this->parameters,
         ];
 
         if ($message->getContent() !== null) {
@@ -120,6 +125,7 @@ class OpenAISpeechToText implements AIProviderInterface
             'model' => $this->model,
             'language' => $this->language,
             'response_format' => 'json',
+            ...$this->parameters,
         ];
 
         if ($message->getContent() !== null) {

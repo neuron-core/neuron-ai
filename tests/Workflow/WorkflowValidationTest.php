@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 class WorkflowValidationTest extends TestCase
@@ -135,6 +136,35 @@ class WorkflowValidationTest extends TestCase
         $this->expectExceptionMessage('Lease timeout must be a positive number of seconds or null.');
 
         $workflow->run();
+    }
+
+    #[TestWith([0])]
+    #[TestWith([-1])]
+    public function test_explicit_max_steps_must_be_positive(int $steps): void
+    {
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Max steps must be a positive number of steps or null.');
+
+        Workflow::make()->setMaxSteps($steps);
+    }
+
+    public function test_an_invalid_default_max_steps_is_refused_before_a_run_is_claimed(): void
+    {
+        $workflow = (new class (workflowId: 'invalid-budget') extends Workflow {
+            protected function maxSteps(): int
+            {
+                return 0;
+            }
+        })->setPersistence(new InMemoryPersistence());
+
+        try {
+            $workflow->run();
+            $this->fail('An invalid default budget must be refused.');
+        } catch (WorkflowException $e) {
+            $this->assertSame('Max steps must be a positive number of steps or null.', $e->getMessage());
+        }
+
+        $this->assertNull($workflow->inspect());
     }
 
     public function test_validation_failure_marks_the_owned_run_as_failed(): void

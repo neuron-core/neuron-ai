@@ -107,7 +107,8 @@ class Gemini implements AIProviderInterface
             $tools[] = $this->newToolCall(
                 $item['functionCall']['name'],
                 $item['functionCall']['id'] ?? uniqid($item['functionCall']['name'].'_'.$index.'_'),
-                $item['functionCall']['args'],
+                // A parameterless call has no args
+                $this->decodeToolArguments($item['functionCall']['name'], $item['functionCall']['args'] ?? null),
             );
         }
 

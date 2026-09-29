@@ -163,13 +163,13 @@ class GeminiVertexTest extends TestCase
             null,
             'my-project',
             'gemini-2.5-flash',
-            httpClient: $this->recordingClient(new Response(200, body: '['.self::ANSWER.']')),
+            httpClient: $this->recordingClient(new Response(200, body: 'data: '.self::ANSWER."\r\n\r\n")),
         );
 
         iterator_to_array($provider->stream(new UserMessage('Hi')));
 
         $this->assertSame([
-            'POST https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-2.5-flash:streamGenerateContent',
+            'POST https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
         ], $this->sentTargets());
         $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
     }

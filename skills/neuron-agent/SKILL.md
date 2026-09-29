@@ -327,7 +327,7 @@ See [conversation memory](references/conversation-memory.md) for complete retrie
 
 ### Message Stores
 - `InMemoryMessageStore` - Default, process memory
-- `FileMessageStore` - One JSON file per thread
+- `FileMessageStore` - One JSON file per thread, named with the thread ID's letter case: on macOS and Windows, IDs that differ only by case share a file
 - `SQLMessageStore` - Database-backed (PDO)
 - `EloquentMessageStore` - Laravel Eloquent integration
 

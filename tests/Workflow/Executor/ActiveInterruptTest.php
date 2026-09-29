@@ -46,6 +46,32 @@ class ActiveInterruptTest extends TestCase
         $this->assertSame($answered, $answered->withInput(ResumeInput::event($this->request, ['paid' => true, 'amount' => 10.0])));
     }
 
+    public function test_the_accepted_answer_with_its_keys_in_another_order_is_the_same_answer(): void
+    {
+        $answered = (new ActiveInterrupt($this->request, 'step-1'))->withInput(ResumeInput::event($this->request, [
+            'order' => ['id' => 5, 'items' => ['a', 'b']],
+            'payer' => (object) ['name' => 'Ada', 'vat' => 'IT1'],
+            'paid' => true,
+        ]));
+
+        $this->assertSame($answered, $answered->withInput(ResumeInput::event($this->request, [
+            'paid' => true,
+            'payer' => (object) ['vat' => 'IT1', 'name' => 'Ada'],
+            'order' => ['items' => ['a', 'b'], 'id' => 5],
+        ])));
+    }
+
+    public function test_a_list_in_another_order_is_a_different_answer(): void
+    {
+        $answered = (new ActiveInterrupt($this->request, 'step-1'))
+            ->withInput(ResumeInput::event($this->request, ['items' => ['a', 'b']]));
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Interrupt 7 already has an accepted input; its answer cannot change.');
+
+        $answered->withInput(ResumeInput::event($this->request, ['items' => ['b', 'a']]));
+    }
+
     public function test_repeating_an_accepted_expiry_is_idempotent(): void
     {
         $expired = (new ActiveInterrupt($this->request, 'step-1'))->withInput(ResumeInput::expired($this->request));

@@ -32,6 +32,9 @@ use const JSON_THROW_ON_ERROR;
 /**
  * One file per partition in the configured directory (`<partition>.store`),
  * containing a versioned JSON envelope of base64-encoded key/value strings.
+ * The file name keeps the partition's letter case, so on a case-insensitive
+ * filesystem (the macOS and Windows defaults) two workflow IDs that differ
+ * only by case share one file: use IDs that differ by more than case there.
  *
  * This backend provides restart durability for controlled single-process use.
  * File replacement is deliberately not a lock or CAS protocol for concurrent

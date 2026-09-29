@@ -35,6 +35,10 @@ trait HandleComponents
 
     protected bool $leaseTimeoutConfigured = false;
 
+    protected ?int $maxSteps = null;
+
+    protected bool $maxStepsConfigured = false;
+
     protected bool $retainCompletion = false;
 
     /** @var (Closure(): ?StreamingChannelInterface)|null */

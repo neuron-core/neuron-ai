@@ -118,4 +118,15 @@ class ElevenLabsSpeechToTextTest extends TestCase
 
         $this->provider(new Response(200))->structured($this->recording(), 'Transcript', []);
     }
+
+    public function test_configured_parameters_are_uploaded_as_form_fields(): void
+    {
+        $provider = new ElevenLabsSpeechToText(self::SECRET, 'scribe_v1', ['language_code' => 'it', 'diarize' => 'true'], $this->recordingClient(new Response(200, body: '{"text":"ok"}')));
+
+        $provider->chat($this->recording());
+
+        $body = (string) $this->sentRequests[0]['request']->getBody();
+        $this->assertMatchesRegularExpression('/name="language_code"\r\n(?:[^\r\n]+\r\n)*\r\nit\r\n/', $body);
+        $this->assertMatchesRegularExpression('/name="diarize"\r\n(?:[^\r\n]+\r\n)*\r\ntrue\r\n/', $body);
+    }
 }

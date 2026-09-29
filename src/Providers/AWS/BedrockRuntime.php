@@ -15,8 +15,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
 use function count;
-use function is_string;
-use function json_decode;
 
 class BedrockRuntime implements AIProviderInterface
 {
@@ -89,11 +87,12 @@ class BedrockRuntime implements AIProviderInterface
     protected function createTool(array $toolContent): ToolCall
     {
         $toolUse = $toolContent['toolUse'];
-        if (is_string($toolUse['input'])) {
-            $toolUse['input'] = json_decode($toolUse['input'], true);
-        }
 
-        return $this->newToolCall($toolUse['name'], $toolUse['toolUseId'], $toolUse['input'] ?? []);
+        return $this->newToolCall(
+            $toolUse['name'],
+            $toolUse['toolUseId'],
+            $this->decodeToolArguments($toolUse['name'], $toolUse['input'] ?? null),
+        );
     }
 
     public function setHttpClient(HttpClientInterface $client): AIProviderInterface

@@ -12,6 +12,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -19,42 +20,30 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
+use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ProviderTool;
 use NeuronAI\Tools\ProviderToolInterface;
 use PHPUnit\Framework\TestCase;
 
-use function array_map;
-use function implode;
 use function iterator_to_array;
 use function json_decode;
-use function json_encode;
+use function str_repeat;
+use function microtime;
 
 use const JSON_THROW_ON_ERROR;
-use const JSON_UNESCAPED_UNICODE;
 
 /**
- * streamGenerateContent (without alt=sse) answers with one JSON array whose
- * elements arrive as they are generated: "[{...}\r\n,\r\n{...}]".
+ * streamGenerateContent?alt=sse answers with one "data: {...}" line per element.
  */
 class GeminiStreamTest extends TestCase
 {
     use RecordsHttpRequests;
     use ConsumesProviderStreams;
+    use PhpWarningsAsExceptions;
 
     protected const SECRET = 'AIza-SECRET-0123456789';
-
-    /**
-     * @param array<int, array<string, mixed>> $events
-     */
-    protected static function jsonArrayBody(array $events): string
-    {
-        return "[".implode("\r\n,\r\n", array_map(
-            static fn (array $event): string => json_encode($event, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-            $events,
-        ))."]";
-    }
 
     /**
      * @param array<int, array<string, mixed>> $parts
@@ -76,7 +65,7 @@ class GeminiStreamTest extends TestCase
     protected function provider(array $events): Gemini
     {
         return new Gemini(self::SECRET, 'gemini-2.5-flash', httpClient: $this->recordingClient(
-            new Response(200, body: self::jsonArrayBody($events)),
+            new Response(200, body: self::sseBody($events, "\r\n")),
         ));
     }
 
@@ -89,7 +78,7 @@ class GeminiStreamTest extends TestCase
 
         $request = $this->sentRequests[0]['request'];
         $this->assertSame(
-            ['POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent'],
+            ['POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse'],
             $this->sentTargets(),
         );
         $this->assertSame(self::SECRET, $request->getHeaderLine('x-goog-api-key'));
@@ -386,5 +375,82 @@ class GeminiStreamTest extends TestCase
             '{"contents":[{"role":"user","parts":[{"text":"Hi"}]}],"tools":[{"google_search":{}}]}',
             (string) $this->sentRequests[0]['request']->getBody(),
         );
+    }
+
+    public function test_a_streamed_parameterless_function_call_without_args_has_empty_inputs(): void
+    {
+        $provider = $this->provider([self::candidate([['functionCall' => ['name' => 'get_time']]], 'STOP')]);
+        $provider->setTools([new ToolStub('get_time')]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Time?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame([], $message->getToolCalls()[0]->getInputs());
+    }
+
+    public function test_a_usage_only_element_without_candidates_is_accepted(): void
+    {
+        $provider = $this->provider([
+            self::candidate([['text' => 'a']]),
+            ['usageMetadata' => ['promptTokenCount' => 1, 'candidatesTokenCount' => 2]],
+        ]);
+
+        [, $message] = $this->withWarningsAsExceptions(fn (): array => $this->consumeStream($provider->stream(new UserMessage('Hi'))));
+
+        $this->assertSame('a', $message->getContent());
+        $this->assertSame([1, 2], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
+    }
+
+    public function test_a_blocked_prompt_raises_a_provider_exception_with_the_reason(): void
+    {
+        $provider = $this->provider([['promptFeedback' => ['blockReason' => 'SAFETY', 'blockReasonMessage' => 'Unsafe request']]]);
+
+        $this->expectException(ProviderException::class);
+        $this->expectExceptionMessage('Gemini blocked the prompt: SAFETY (Unsafe request)');
+
+        $this->consumeStream($provider->stream(new UserMessage('Hi')));
+    }
+
+    public function test_every_part_of_a_multi_part_element_is_kept_in_order(): void
+    {
+        $provider = $this->provider([self::candidate([
+            ['text' => 'think', 'thought' => true],
+            ['text' => 'here'],
+            ['inlineData' => ['mimeType' => 'image/png', 'data' => 'AAAA']],
+        ], 'STOP')]);
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Draw')));
+
+        $this->assertEquals(
+            [new ReasoningChunk($message->getId(), 'think'), new TextChunk($message->getId(), 'here')],
+            $chunks
+        );
+        $this->assertSame('think', $message->getReasoning()?->content);
+        $this->assertSame('here', $message->getContent());
+        $this->assertCount(3, $message->getContentBlocks());
+        $this->assertInstanceOf(ImageContent::class, $message->getContentBlocks()[2]);
+    }
+
+    public function test_a_large_inline_image_is_read_in_linear_time(): void
+    {
+        // Image models send a multi-megabyte base64 image as a single element
+        $data = str_repeat('A', 2_000_000);
+        $provider = $this->provider([self::candidate([['inlineData' => ['mimeType' => 'image/png', 'data' => $data]]], 'STOP')]);
+
+        $start = microtime(true);
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Draw')));
+
+        $this->assertLessThan(2.0, microtime(true) - $start);
+        $this->assertSame($data, $message->getImage()?->content);
+    }
+
+    public function test_braces_and_escaped_quotes_inside_strings_do_not_split_elements(): void
+    {
+        $provider = $this->provider([self::candidate([['text' => 'a } " { b']]), self::candidate([['text' => 'c\\']], 'STOP')]);
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertSame(['a } " { b', 'c\\'], $this->contentsOf(TextChunk::class, $chunks));
+        $this->assertSame('a } " { bc\\', $message->getContent());
     }
 }

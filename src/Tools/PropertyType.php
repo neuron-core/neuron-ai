@@ -26,7 +26,7 @@ enum PropertyType: string
     public static function fromSchema(array|string $schema): PropertyType
     {
         if (is_string($schema)) {
-            return PropertyType::from($schema);
+            return PropertyType::tryFrom($schema) ?? throw new ToolException("Property type '{$schema}' not valid.");
         }
 
         foreach ($schema as $type) {

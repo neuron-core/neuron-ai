@@ -187,6 +187,51 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * Fail the run once one of its paths, the main one or a parallel branch,
+     * goes past $steps node steps, so a routing cycle that never stops cannot
+     * run and persist forever. Replayed steps count, so suspending does not
+     * reset the budget. Null sets no limit; the default comes from maxSteps(),
+     * null for a plain Workflow.
+     *
+     * @throws WorkflowException
+     */
+    public function setMaxSteps(?int $steps): static
+    {
+        $this->maxSteps = $this->validateMaxSteps($steps);
+        $this->maxStepsConfigured = true;
+        return $this;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    final protected function getMaxSteps(): ?int
+    {
+        if (!$this->maxStepsConfigured) {
+            return $this->validateMaxSteps($this->maxSteps());
+        }
+
+        return $this->maxSteps;
+    }
+
+    protected function maxSteps(): ?int
+    {
+        return null;
+    }
+
+    /**
+     * @throws WorkflowException
+     */
+    protected function validateMaxSteps(?int $steps): ?int
+    {
+        if ($steps !== null && $steps < 1) {
+            throw new WorkflowException('Max steps must be a positive number of steps or null.');
+        }
+
+        return $steps;
+    }
+
+    /**
      * Opt into replayable completion for a platform-managed invocation. The
      * default remains immediate cleanup for manually driven workflows.
      */
@@ -271,6 +316,7 @@ class Workflow implements WorkflowInterface
             );
         }
         $this->setWorkflowId($workflowId ??= UniqueIdGenerator::generateId('workflow_'));
+        $maxSteps = $this->getMaxSteps();
 
         $segment = $this->getEngine()->admit(
             $workflowId,
@@ -292,6 +338,7 @@ class Workflow implements WorkflowInterface
             branches: $this->getBranchRunner(),
             dispatcher: $this->getEventDispatcher(),
             source: $this,
+            maxSteps: $maxSteps,
         );
     }
 

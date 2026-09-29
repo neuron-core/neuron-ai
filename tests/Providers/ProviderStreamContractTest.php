@@ -131,13 +131,13 @@ class ProviderStreamContractTest extends TestCase
             ['type' => 'tool-call-end', 'index' => 0],
         ]);
 
-        $geminiText = json_encode([
+        $geminiText = self::sse([
             ['candidates' => [['content' => ['parts' => [['text' => 'Answer']]], 'finishReason' => 'STOP']]],
-        ], JSON_THROW_ON_ERROR);
-        $geminiToolCall = json_encode([
+        ]);
+        $geminiToolCall = self::sse([
             ['candidates' => [['content' => ['parts' => [['text' => 'Checking']]]]]],
             ['candidates' => [['content' => ['parts' => [['functionCall' => ['name' => 'tool', 'args' => ['city' => 'Rome']]]]], 'finishReason' => 'STOP']]],
-        ], JSON_THROW_ON_ERROR);
+        ]);
 
         $ollamaText = self::ndjson([
             ['message' => ['role' => 'assistant', 'content' => 'Answer'], 'done' => false],

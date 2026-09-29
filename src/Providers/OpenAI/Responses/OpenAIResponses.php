@@ -30,7 +30,6 @@ use function array_unshift;
 use function array_values;
 use function is_array;
 use function is_string;
-use function json_decode;
 use function uniqid;
 
 class OpenAIResponses implements AIProviderInterface
@@ -211,7 +210,7 @@ class OpenAIResponses implements AIProviderInterface
             fn (array $item): ToolCall => $this->newToolCall(
                 $item['name'],
                 $item['call_id'],
-                json_decode((string) $item['arguments'], true) ?? [],
+                $this->decodeToolArguments($item['name'], $item['arguments'] ?? null),
             ),
             $toolCalls
         );

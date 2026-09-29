@@ -114,4 +114,37 @@ class ElevenLabsTextToSpeechTest extends TestCase
         iterator_to_array($provider->stream(new UserMessage('Hi')));
         $this->assertArrayNotHasKey('tools', json_decode((string) $this->sentRequests[0]['request']->getBody(), true));
     }
+
+    public function test_configured_parameters_are_sent_with_the_text(): void
+    {
+        $provider = new ElevenLabsTextToSpeech('key', 'eleven_v3', 'voice', ['voice_settings' => ['stability' => 0.5], 'seed' => 7], $this->recordingClient(new Response(200, body: 'mp3')));
+
+        $provider->chat(new UserMessage('Hi'));
+
+        $this->assertSame(
+            ['model_id' => 'eleven_v3', 'text' => 'Hi', 'voice_settings' => ['stability' => 0.5], 'seed' => 7],
+            json_decode((string) $this->sentRequests[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function test_configured_parameters_are_sent_when_streaming(): void
+    {
+        $provider = new ElevenLabsTextToSpeech('key', 'eleven_v3', 'voice', ['voice_settings' => ['stability' => 0.5]], $this->recordingClient(new Response(200, body: 'mp3')));
+
+        $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $body = json_decode((string) $this->sentRequests[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(['stability' => 0.5], $body['voice_settings']);
+    }
+
+    public function test_the_voice_id_cannot_leave_the_voice_path(): void
+    {
+        $provider = new ElevenLabsTextToSpeech('key', 'eleven_v3', '../../user?x=', httpClient: $this->recordingClient(new Response(200, body: 'mp3')));
+
+        $provider->chat(new UserMessage('Hi'));
+
+        $uri = $this->sentRequests[0]['request']->getUri();
+        $this->assertSame('/v1/text-to-speech/..%2F..%2Fuser%3Fx%3D', $uri->getPath());
+        $this->assertSame('', $uri->getQuery());
+    }
 }

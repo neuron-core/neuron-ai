@@ -722,4 +722,60 @@ class GeminiTest extends TestCase
 
         $this->assertNull($message->getMetadata('citations'));
     }
+
+    public function test_a_parameterless_function_call_without_args_has_empty_inputs(): void
+    {
+        $provider = $this->provider(self::answer([['functionCall' => ['name' => 'get_time']]]));
+        $provider->setTools([new ToolStub('get_time')]);
+
+        $message = $provider->chat(new UserMessage('Time?'))->message();
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame([], $message->getToolCalls()[0]->getInputs());
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function stopAnswersWithoutParts(): iterable
+    {
+        yield 'content without parts' => [['content' => ['role' => 'model'], 'finishReason' => 'STOP']];
+        yield 'no content' => [['finishReason' => 'STOP']];
+    }
+
+    /**
+     * @param array<string, mixed> $candidate
+     */
+    #[DataProvider('stopAnswersWithoutParts')]
+    public function test_a_stop_answer_without_parts_is_an_empty_message(array $candidate): void
+    {
+        $provider = $this->provider(['candidates' => [$candidate]]);
+
+        $message = $this->withWarningsAsExceptions(fn (): Message => $provider->chat(new UserMessage('Hi'))->message());
+
+        $this->assertSame([], $message->getContentBlocks());
+        $this->assertSame('STOP', $message->stopReason());
+    }
+
+    public function test_usage_without_a_prompt_token_count_counts_zero_input_tokens(): void
+    {
+        $provider = $this->provider(self::answer([['text' => 'a']]) + ['usageMetadata' => ['candidatesTokenCount' => 3]]);
+
+        $usage = $provider->chat(new UserMessage('Hi'))->message()->getUsage();
+
+        $this->assertSame([0, 3], [$usage?->inputTokens, $usage?->outputTokens]);
+    }
+
+    public function test_a_max_tokens_answer_without_parts_keeps_its_usage(): void
+    {
+        // Thinking models can spend the whole budget on thoughts: no parts, but the tokens were billed
+        $provider = $this->provider([
+            'candidates' => [['content' => ['role' => 'model'], 'finishReason' => 'MAX_TOKENS']],
+            'usageMetadata' => ['promptTokenCount' => 10, 'candidatesTokenCount' => 0, 'thoughtsTokenCount' => 1024],
+        ]);
+
+        $usage = $provider->chat(new UserMessage('Hi'))->message()->getUsage();
+
+        $this->assertSame([10, 1024], [$usage?->inputTokens, $usage?->reasoningTokens]);
+    }
 }

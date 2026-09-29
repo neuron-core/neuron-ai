@@ -9,7 +9,10 @@ use NeuronAI\Exceptions\PersistenceException;
 use function serialize;
 use function unserialize;
 
-/** Native PHP object serialization; transport encoding belongs to persistence. */
+/**
+ * Native PHP object serialization; transport encoding belongs to persistence.
+ * Records are unserialized with no class restriction: see Serializer on trust.
+ */
 class PhpSerializer implements Serializer
 {
     public function serialize(mixed $value): string

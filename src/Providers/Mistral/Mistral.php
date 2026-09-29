@@ -20,7 +20,6 @@ use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
 use function array_map;
-use function json_decode;
 
 class Mistral implements AIProviderInterface
 {
@@ -91,7 +90,7 @@ class Mistral implements AIProviderInterface
             fn (array $item): ToolCall => $this->newToolCall(
                 $item['function']['name'],
                 $item['id'],
-                json_decode((string) $item['function']['arguments'], true) ?? [],
+                $this->decodeToolArguments($item['function']['name'], $item['function']['arguments'] ?? null),
             ),
             $toolCalls
         );

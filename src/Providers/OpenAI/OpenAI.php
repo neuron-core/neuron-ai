@@ -22,7 +22,6 @@ use NeuronAI\Tools\ToolCall;
 use function rtrim;
 use function array_map;
 use function array_values;
-use function json_decode;
 
 class OpenAI implements AIProviderInterface
 {
@@ -105,7 +104,7 @@ class OpenAI implements AIProviderInterface
             fn (array $item): ToolCall => $this->newToolCall(
                 $item['function']['name'],
                 $item['id'],
-                json_decode((string) $item['function']['arguments'], true) ?? [],
+                $this->decodeToolArguments($item['function']['name'], $item['function']['arguments'] ?? null),
             ),
             $toolCalls
         );

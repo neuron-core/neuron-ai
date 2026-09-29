@@ -60,6 +60,9 @@ final class Segment
 
     protected SegmentOutput $output;
 
+    /** How many steps a path may take, replayed ones included; null for no limit. */
+    protected ?int $maxSteps = null;
+
     /**
      * The state each running fork was reached with, by fork step ID: its
      * branches start from a copy. $this->state follows only the top-level path.
@@ -97,9 +100,11 @@ final class Segment
         BranchRunner $branches,
         EventDispatcherInterface $dispatcher,
         object $source,
+        ?int $maxSteps = null,
     ): Generator {
         $this->events = new SegmentEventDispatcher($dispatcher, $this->context, $source);
         $this->branches = $branches;
+        $this->maxSteps = $maxSteps;
 
         try {
             return yield from $this->execute($graph, $adapter, $channel);
@@ -247,6 +252,12 @@ final class Segment
             $stepId = $this->stepId($node, $branchId, $branchPath, $index++);
             if ($this->shouldPause()) {
                 return new BranchPausedEvent();
+            }
+            if ($this->maxSteps !== null && $index > $this->maxSteps) {
+                throw new WorkflowException(
+                    "Workflow ID '{$this->context->workflowId}' exceeded its budget of {$this->maxSteps} steps"
+                    . ($branchId === null ? '.' : " in branch '{$branchId}'.")
+                );
             }
             $result = yield from $this->runNodeStep($node, $event, $state, $branchId, $stepId);
             $event = $result->getEvent();

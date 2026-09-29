@@ -34,6 +34,10 @@ class ElevenLabsSpeechToText implements AIProviderInterface
      */
     protected ?string $system = null;
 
+    /**
+     * @param array<string, mixed> $parameters Extra request fields. A file upload sends them as
+     *        multipart form fields, where every value becomes a string: pass 'true', not true.
+     */
     public function __construct(
         protected string $key,
         protected string $model,
@@ -73,6 +77,7 @@ class ElevenLabsSpeechToText implements AIProviderInterface
         $body = [
             'file' => fopen($audio->getContent(), 'r'),
             'model_id' => $this->model,
+            ...$this->parameters,
         ];
 
         $response = $this->httpClient->request(

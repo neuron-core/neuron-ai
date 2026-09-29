@@ -11,9 +11,12 @@ use NeuronAI\Providers\BasicStreamState;
 
 class StreamState extends BasicStreamState
 {
-    public function addContentBlock(string $type, ContentBlockInterface $block): void
+    /**
+     * A complete block such as an image: each one is kept, in arrival order.
+     */
+    public function addContentBlock(ContentBlockInterface $block): void
     {
-        $this->blocks[$type] = $block;
+        $this->blocks[] = $block;
     }
 
     public function updateContentBlock(string $type, string $content): void

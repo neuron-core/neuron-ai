@@ -19,7 +19,6 @@ use NeuronAI\Providers\ProviderResponse;
 
 use function array_map;
 use function base64_encode;
-use function count;
 
 trait HandleStream
 {
@@ -38,7 +37,7 @@ trait HandleStream
 
         $this->streamState = new StreamState();
 
-        $tools = [];
+        $toolContents = [];
         $toolPositions = [];
         $redactedReasoning = [];
         $stopReason = null;
@@ -106,7 +105,7 @@ trait HandleStream
                 }
 
                 if ($toolContent !== null && isset($event['contentBlockStop'])) {
-                    $tools[] = $this->createTool($toolContent);
+                    $toolContents[] = $toolContent;
                     $toolContent = null;
                 }
 
@@ -126,12 +125,14 @@ trait HandleStream
             }
 
             if ($toolContent !== null) {
-                $tools[] = $this->createTool($toolContent);
+                $toolContents[] = $toolContent;
             }
         }
 
-        // Build final message
-        if ($stopReason === 'tool_use' && count($tools) > 0) {
+        // Build final message. Tool calls are built only for a tool_use stop:
+        // a call cut off by max_tokens has incomplete arguments and is dropped
+        if ($stopReason === 'tool_use' && $toolContents !== []) {
+            $tools = array_map($this->createTool(...), $toolContents);
             $message = new ToolCallMessage($this->streamState->getContentBlocks(), $tools);
         } else {
             $message = new AssistantMessage($this->streamState->getContentBlocks());

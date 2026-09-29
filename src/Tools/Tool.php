@@ -21,6 +21,9 @@ use function json_encode;
 use function method_exists;
 use function sprintf;
 
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
+
 /**
  * @method static static make(...$arguments)
  */
@@ -243,7 +246,7 @@ abstract class Tool implements ToolInterface
         if ($result instanceof ToolOutput) {
             $this->result = $result;
         } else {
-            $this->result = is_array($result) ? json_encode($result) : (string) $result;
+            $this->result = is_array($result) ? json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR) : (string) $result;
         }
 
         return $this;

@@ -66,6 +66,15 @@ class AcceptedResumeInputTest extends TestCase
         ];
     }
 
+    public function test_a_redelivery_with_its_keys_in_another_order_recovers_with_the_accepted_answer(): void
+    {
+        $this->failAfterAcceptingInput(['paid' => true, 'amount' => 10]);
+
+        $state = $this->workflow()->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume(['amount' => 10, 'paid' => true]));
+
+        self::assertSame(['paid' => true, 'amount' => 10], $state->get('payload'));
+    }
+
     public function test_inputless_recovery_reuses_the_accepted_answer(): void
     {
         $this->failAfterAcceptingInput();
