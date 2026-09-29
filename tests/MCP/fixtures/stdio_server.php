@@ -15,6 +15,7 @@ declare(strict_types=1);
  *  - blankLines: surround each message with blank lines and end it with CRLF
  *  - batched: write the notification and the response in a single write
  *  - lingerSeconds: keep running this long after stdin closes, as a server that ignores EOF does
+ *  - strayLine: print this line to stdout before each response, as servers printing banners or logs do
  * tools/call echoes its `value` argument and reports the server's process ID, the
  * arguments it was started with after the options, NEURON_MCP_FIXTURE from its environment, and
  * the names of every environment variable it received.
@@ -31,6 +32,7 @@ $options = \json_decode($argv[1] ?? '{}', true) + [
     'blankLines' => false,
     'batched' => false,
     'lingerSeconds' => 0,
+    'strayLine' => '',
 ];
 $answered = 0;
 $received = 0;
@@ -50,6 +52,10 @@ while (($line = \fgets(\STDIN)) !== false) {
     }
 
     \fwrite(\STDERR, \str_repeat('x', $options['stderrBytes']));
+
+    if ($options['strayLine'] !== '') {
+        \fwrite(\STDOUT, $options['strayLine'] . "\n");
+    }
 
     $output = $options['notify'] || $options['batched']
         ? $frame(['jsonrpc' => '2.0', 'method' => 'notifications/message', 'params' => ['level' => 'info', 'data' => 'working']])

@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace NeuronAI\MCP;
 
-use JsonException;
-
-use function array_filter;
 use function array_merge;
 use function error_get_last;
 use function fclose;
@@ -15,9 +12,8 @@ use function fread;
 use function function_exists;
 use function fwrite;
 use function getenv;
-use function in_array;
+use function is_array;
 use function is_resource;
-use function is_string;
 use function json_decode;
 use function json_encode;
 use function proc_close;
@@ -28,16 +24,12 @@ use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
-use function strtoupper;
-use function mb_strlen;
+use function strlen;
 use function microtime;
 use function strpos;
 use function substr;
 use function trim;
 use function usleep;
-
-use const ARRAY_FILTER_USE_KEY;
-use const JSON_THROW_ON_ERROR;
 
 class StdioTransport implements McpTransportInterface
 {
@@ -50,6 +42,13 @@ class StdioTransport implements McpTransportInterface
         'APPDATA', 'HOMEDRIVE', 'HOMEPATH', 'LOCALAPPDATA', 'PROCESSOR_ARCHITECTURE', 'PROGRAMFILES',
         'SYSTEMDRIVE', 'SYSTEMROOT', 'TEMP', 'USERNAME', 'USERPROFILE',
     ];
+
+    /**
+     * How long a server gets to exit once its stdin closes, and again after SIGTERM, as in the official MCP SDKs.
+     */
+    protected const EXIT_GRACE_SECONDS = 2.0;
+
+    protected const SIGKILL = 9;
 
     /**
      * @var null|resource|false $process
@@ -88,14 +87,7 @@ class StdioTransport implements McpTransportInterface
         $args = $this->config['args'] ?? [];
         $env = $this->config['env'] ?? [];
 
-        // Windows reports names in any case, such as Path, and getenv() turns a numeric name into an int key
-        $inheritedEnv = array_filter(
-            getenv(),
-            fn (int|string $name): bool => is_string($name) && in_array(strtoupper($name), static::INHERITED_ENV, true),
-            ARRAY_FILTER_USE_KEY,
-        );
-
-        $fullEnv = array_merge($inheritedEnv, $env);
+        $fullEnv = array_merge($this->inheritedEnv(), $env);
 
         // Started directly, not through a shell: stopping the process stops the server itself,
         // and a path with spaces or shell syntax in the command is taken literally
@@ -127,6 +119,25 @@ class StdioTransport implements McpTransportInterface
     }
 
     /**
+     * @return array<string, string>
+     */
+    protected function inheritedEnv(): array
+    {
+        $inherited = [];
+
+        // getenv() finds a name in any case on Windows, where PATH is often spelled Path
+        foreach (static::INHERITED_ENV as $name) {
+            $value = getenv($name);
+
+            if ($value !== false) {
+                $inherited[$name] = $value;
+            }
+        }
+
+        return $inherited;
+    }
+
+    /**
      * @param array<string, mixed> $data
      * @throws McpException
      */
@@ -147,7 +158,7 @@ class StdioTransport implements McpTransportInterface
         }
 
         $bytesWritten = fwrite($this->pipes[0], $jsonData . "\n");
-        if ($bytesWritten === false || $bytesWritten < mb_strlen($jsonData) + 1) {
+        if ($bytesWritten === false || $bytesWritten < strlen($jsonData) + 1) {
             throw new McpException("Failed to write complete request to MCP server");
         }
 
@@ -156,7 +167,7 @@ class StdioTransport implements McpTransportInterface
 
     /**
      * @return array<string, mixed>
-     * @throws McpException|JsonException
+     * @throws McpException
      */
     public function receive(): array
     {
@@ -165,7 +176,7 @@ class StdioTransport implements McpTransportInterface
         }
 
         $startTime = microtime(true);
-        $timeout = 30.0;
+        $timeout = (float) ($this->config['timeout'] ?? 30);
 
         while (microtime(true) - $startTime < $timeout) {
             // Messages are newline-delimited: one is complete once its newline arrives.
@@ -174,8 +185,10 @@ class StdioTransport implements McpTransportInterface
                 $line = trim(substr($this->buffer, 0, $newline));
                 $this->buffer = substr($this->buffer, $newline + 1);
 
-                if ($line !== '') {
-                    return json_decode($line, true, 64, JSON_THROW_ON_ERROR);
+                // Servers print banners and logs to stdout despite the spec: like the official SDKs, skip what is not a message
+                $message = $line !== '' ? json_decode($line, true, 64) : null;
+                if (is_array($message)) {
+                    return $message;
                 }
 
                 continue;
@@ -225,18 +238,40 @@ class StdioTransport implements McpTransportInterface
                 }
             }
 
-            $status = proc_get_status($this->process);
-
-            // Graceful shutdown: SIGTERM, then give the process 500ms before closing the handle
-            if ($status['running'] && function_exists('proc_terminate')) {
+            // The MCP shutdown: the closed stdin asks the server to exit, then SIGTERM, then SIGKILL,
+            // so proc_close(), which waits for the process, cannot hang on a server that ignores both
+            if (!$this->exitsWithin(static::EXIT_GRACE_SECONDS) && function_exists('proc_terminate')) {
                 proc_terminate($this->process);
-                usleep(500000);
+
+                if (!$this->exitsWithin(static::EXIT_GRACE_SECONDS)) {
+                    proc_terminate($this->process, self::SIGKILL);
+                }
             }
 
             proc_close($this->process);
             $this->process = null;
             $this->pipes = null;
         }
+    }
+
+    /**
+     * The process state changes over time: each call asks again.
+     *
+     * @phpstan-impure
+     */
+    protected function exitsWithin(float $seconds): bool
+    {
+        $deadline = microtime(true) + $seconds;
+
+        while (proc_get_status($this->process)['running']) {
+            if (microtime(true) >= $deadline) {
+                return false;
+            }
+
+            usleep(10000);
+        }
+
+        return true;
     }
 
     public function __destruct()

@@ -12,14 +12,16 @@ use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 
-use function array_map;
 use function array_merge;
 use function array_shift;
 use function explode;
 use function filter_var;
 use function implode;
+use function is_array;
 use function json_decode;
 use function json_encode;
+use function json_last_error;
+use function json_last_error_msg;
 use function preg_match;
 use function str_replace;
 use function str_starts_with;
@@ -27,6 +29,7 @@ use function substr;
 use function trim;
 
 use const FILTER_VALIDATE_URL;
+use const JSON_ERROR_NONE;
 use const JSON_THROW_ON_ERROR;
 
 class StreamableHttpTransport implements McpTransportInterface
@@ -165,18 +168,47 @@ class StreamableHttpTransport implements McpTransportInterface
         }
 
         try {
-            try {
-                return [json_decode($body, true, 64, JSON_THROW_ON_ERROR)];
-            } catch (JsonException) {
-                // Streamable HTTP servers may answer with SSE framing instead of plain JSON
-                return array_map(
-                    fn (string $json): array => json_decode($json, true, 64, JSON_THROW_ON_ERROR),
-                    $this->parseSSEResponse($body),
-                );
-            }
-        } catch (JsonException $e) {
-            throw new McpException('Invalid JSON response: ' . $e->getMessage(), $e->getCode(), $e);
+            $message = json_decode($body, true, 64, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            // Streamable HTTP servers may answer with SSE framing instead of plain JSON
+            return $this->decodeEvents($this->parseSSEResponse($body));
         }
+
+        if (!is_array($message)) {
+            throw new McpException('Invalid JSON response: the body is not a message');
+        }
+
+        return [$message];
+    }
+
+    /**
+     * An event that is not a message is skipped, as in the official MCP SDKs: the response is
+     * refused only when none of its events is one, for the reason the last one was not.
+     *
+     * @param string[] $payloads
+     * @return array<int, array<string, mixed>>
+     * @throws McpException
+     */
+    protected function decodeEvents(array $payloads): array
+    {
+        $messages = [];
+        $reason = '';
+
+        foreach ($payloads as $payload) {
+            $message = json_decode($payload, true, 64);
+
+            if (is_array($message)) {
+                $messages[] = $message;
+            } else {
+                $reason = json_last_error() === JSON_ERROR_NONE ? 'the event is not a message' : json_last_error_msg();
+            }
+        }
+
+        if ($messages === []) {
+            throw new McpException("Invalid JSON response: {$reason}");
+        }
+
+        return $messages;
     }
 
     public function setProtocolVersion(string $version): void

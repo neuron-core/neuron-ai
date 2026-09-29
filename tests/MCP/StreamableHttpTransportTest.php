@@ -216,6 +216,17 @@ class StreamableHttpTransportTest extends TestCase
         $this->assertSame(['jsonrpc' => '2.0', 'id' => 1, 'result' => ['text' => 'a:b']], $transport->receive());
     }
 
+    public function test_sse_events_that_are_not_messages_are_skipped(): void
+    {
+        $transport = $this->transportAnswering(
+            "event: message\ndata: not json\n\n"
+            . "event: message\ndata: 42\n\n"
+            . "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"
+        );
+
+        $this->assertSame(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], $transport->receive());
+    }
+
     public function test_a_plain_json_response_nested_deeper_than_64_levels_is_refused(): void
     {
         $transport = $this->transportAnswering(str_repeat('[', 70) . str_repeat(']', 70));
@@ -250,6 +261,11 @@ class StreamableHttpTransportTest extends TestCase
         yield 'sse without data' => ["event: message\n\n", 'No JSON data found in SSE response'];
         yield 'sse with invalid json' => ["data: {\"jsonrpc\":\n\n", 'Invalid JSON response: Syntax error'];
         yield 'nesting deeper than 64 levels' => ['data: ' . str_repeat('[', 70) . str_repeat(']', 70) . "\n\n", 'Invalid JSON response: Maximum stack depth exceeded'];
+        yield 'json null' => ['null', 'Invalid JSON response: the body is not a message'];
+        yield 'json number' => ['42', 'Invalid JSON response: the body is not a message'];
+        yield 'json string' => ['"ok"', 'Invalid JSON response: the body is not a message'];
+        yield 'json boolean' => ['true', 'Invalid JSON response: the body is not a message'];
+        yield 'sse with only a scalar payload' => ["event: message\ndata: 42\n\n", 'Invalid JSON response: the event is not a message'];
     }
 
     #[DataProvider('malformedBodies')]

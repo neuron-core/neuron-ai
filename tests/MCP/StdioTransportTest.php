@@ -8,6 +8,8 @@ use NeuronAI\MCP\McpClient;
 use NeuronAI\MCP\McpException;
 use NeuronAI\MCP\McpSessionLostException;
 use NeuronAI\MCP\StdioTransport;
+use NeuronAI\Tests\MCP\Stub\ShortGraceStdioTransport;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spatie\Fork\Fork;
 use Throwable;
@@ -20,6 +22,7 @@ use function getmypid;
 use function in_array;
 use function is_file;
 use function json_encode;
+use function microtime;
 use function mkdir;
 use function putenv;
 use function rmdir;
@@ -30,6 +33,7 @@ use function unlink;
 use function usleep;
 
 use const PHP_BINARY;
+use const PHP_OS_FAMILY;
 
 class StdioTransportTest extends TestCase
 {
@@ -125,6 +129,26 @@ class StdioTransportTest extends TestCase
         $this->assertContains('NEURON_MCP_FIXTURE', $names);
     }
 
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function strayStdoutLines(): iterable
+    {
+        yield 'startup banner' => ['Weather MCP server v1.0 listening on stdio'];
+        yield 'bare version number' => ['1.0'];
+        yield 'quoted status' => ['"ready"'];
+    }
+
+    #[DataProvider('strayStdoutLines')]
+    public function test_stdout_lines_that_are_not_messages_are_skipped(string $strayLine): void
+    {
+        // The line comes before every response: the handshake's, the listing's and the call's
+        $client = new McpClient($this->server(['strayLine' => $strayLine]));
+
+        $this->assertSame('echo', $client->listTools()[0]['name']);
+        $this->assertSame('x', $this->echo($client, 'x')['text']);
+    }
+
     public function test_multibyte_payloads_round_trip(): void
     {
         $client = new McpClient($this->server());
@@ -192,7 +216,7 @@ class StdioTransportTest extends TestCase
 
     public function test_ending_the_session_stops_a_server_that_outlives_its_stdin(): void
     {
-        $client = new McpClient($this->server(['lingerSeconds' => 5]));
+        $client = new McpClient(['transport' => new ShortGraceStdioTransport($this->server(['lingerSeconds' => 5]))]);
         $server = $this->echo($client, 'hello')['server'];
         if (!is_file("/proc/{$server}/stat")) {
             $this->markTestSkipped('Reading process states requires procfs.');
@@ -205,6 +229,53 @@ class StdioTransportTest extends TestCase
             usleep(10_000);
         }
         $this->assertFalse($this->isRunning($server), 'The MCP server outlived its session');
+    }
+
+    public function test_receive_gives_up_after_the_configured_timeout(): void
+    {
+        // A server that reads its requests without ever answering
+        $transport = new StdioTransport(['command' => PHP_BINARY, 'args' => ['-r', 'while (fgets(STDIN) !== false) {}'], 'timeout' => 0.3]);
+        $transport->connect();
+        $started = microtime(true);
+
+        try {
+            $transport->receive();
+            $this->fail('Expected McpException was not thrown');
+        } catch (McpException $exception) {
+            $this->assertSame('Timeout waiting for response from MCP server', $exception->getMessage());
+            $this->assertLessThan(1.5, microtime(true) - $started);
+        } finally {
+            $transport->disconnect();
+        }
+    }
+
+    public function test_disconnect_returns_as_soon_as_the_server_exits(): void
+    {
+        // A server that exits once its stdin closes
+        $transport = new StdioTransport(['command' => PHP_BINARY, 'args' => ['-r', 'while (fgets(STDIN) !== false) {}']]);
+        $transport->connect();
+        $started = microtime(true);
+
+        $transport->disconnect();
+
+        $this->assertLessThan(0.3, microtime(true) - $started);
+    }
+
+    public function test_a_server_ignoring_sigterm_is_killed(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Signals are POSIX.');
+        }
+
+        $transport = new ShortGraceStdioTransport(['command' => '/bin/sh', 'args' => ['-c', "trap '' TERM; exec sleep 5"]]);
+        $transport->connect();
+        // The shell must have set its trap before the shutdown starts
+        usleep(100_000);
+        $started = microtime(true);
+
+        $transport->disconnect();
+
+        $this->assertLessThan(2.0, microtime(true) - $started);
     }
 
     public function test_a_command_path_containing_spaces_starts(): void
