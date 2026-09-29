@@ -28,6 +28,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -211,10 +212,10 @@ class SequentialInterruptionTest extends TestCase
      * The text branch waits for a reply; the image branch finishes its first
      * node meanwhile and still has a second one to run.
      */
-    protected function replyFirstWorkflow(InMemoryPersistence $persistence, stdClass $trace): Workflow
+    protected function replyFirstWorkflow(InMemoryPersistence $persistence, stdClass $trace, bool $answerAsResult = true): Workflow
     {
-        $waiting = new class ($trace) extends Node {
-            public function __construct(protected stdClass $trace)
+        $waiting = new class ($trace, $answerAsResult) extends Node {
+            public function __construct(protected stdClass $trace, protected bool $answerAsResult)
             {
             }
 
@@ -228,7 +229,7 @@ class SequentialInterruptionTest extends TestCase
                 delay(0.002);
                 $this->trace->events[] = 'text.answered';
 
-                return new StopEvent($answer);
+                return new StopEvent($this->answerAsResult ? $answer : null);
             }
         };
         $slow = new class ($trace) extends Node {
@@ -276,14 +277,21 @@ class SequentialInterruptionTest extends TestCase
         $this->assertSame(['text' => ['ok' => true], 'image' => 'image'], $completed->get('analysis'));
     }
 
-    public function test_a_branch_completed_by_the_reply_is_not_reentered_when_deferred_branches_run_again(): void
+    /** @return array<string, array{bool}> */
+    public static function replyResults(): array
+    {
+        return ['answer as result' => [true], 'no result' => [false]];
+    }
+
+    #[DataProvider('replyResults')]
+    public function test_a_branch_completed_by_the_reply_is_not_reentered_when_deferred_branches_run_again(bool $answerAsResult): void
     {
         $persistence = new InMemoryPersistence();
         $trace = (object) ['events' => []];
-        $this->replyFirstWorkflow($persistence, $trace)->run();
+        $this->replyFirstWorkflow($persistence, $trace, $answerAsResult)->run();
         $observer = new RecordingObserver();
 
-        $this->replyFirstWorkflow($persistence, $trace)->observe($observer)->run(ExecutionRequest::resume(['ok' => true]));
+        $this->replyFirstWorkflow($persistence, $trace, $answerAsResult)->observe($observer)->run(ExecutionRequest::resume(['ok' => true]));
 
         $branchStarts = array_column(array_filter(
             $observer->recorded,
