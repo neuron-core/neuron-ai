@@ -91,7 +91,8 @@ Beyond scenarios, the specs cover partial and out-of-order results, repeated,
 conflicting and stale submissions, a backend restart on the same database, browser
 reload (Vercel from client-side state, CopilotKit from the bridge's memory, the AG-UI
 client from the application's reload route), dynamic tool registration and client-generated schemas, fragmented
-multi-byte delivery, and errors before and after the response headers.
+multi-byte delivery, errors before and after the response headers, and a client that leaves mid-stream
+(`abandoned-stream`: the AG-UI client aborts its run, a Vercel tab is closed).
 
 ## Broadcast channel coverage
 
@@ -166,5 +167,11 @@ Pusher's service; transport-level checks also live in `tests/Workflow/Channel`.
   After headers: `RUN_ERROR` (AG-UI, the official client resolves the run and reports
   it through the subscriber) or an `error` part (Vercel); the run is recorded as failed
   and nothing is left waiting.
+- **A client that leaves mid-stream.** The endpoint's next write fails, PHP ends the
+  request, and the run is recorded as failed instead of running under its lease. The
+  thread's next message starts at once, and the half-streamed answer never reaches
+  history. Every frame is flushed through PHP's output buffer (`output_buffering` is
+  4 KB under the built-in server), or the endpoint would notice the disconnect only
+  at the next full buffer.
 - **Long multi-byte results.** Survive fragmented SSE on all three clients; the only
   change observed is `document.title` trimming surrounding whitespace.

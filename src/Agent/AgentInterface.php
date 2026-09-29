@@ -71,7 +71,7 @@ interface AgentInterface extends WorkflowInterface
     /**
      * @param Message|Message[] $messages
      */
-    public function chat(Message|array $messages = []): AgentState;
+    public function chat(Message|array $messages = [], bool $stream = false): AgentState;
 
     /**
      * @param Message|Message[] $messages

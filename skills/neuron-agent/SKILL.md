@@ -85,6 +85,8 @@ Workflow uses:
 | `submitToolResults($results)` | Stages deferred tool results keyed by call ID; finish with `run()` or `events()` |
 
 `chat()` runs eagerly and returns the final state directly (no separate `->run()` step).
+Pass `stream: true` to stream the provider's answer to a configured channel, as a queue
+worker does (see the **neuron-streaming** skill).
 Read the assistant message off it with `getMessage()`, and read an approval pause with
 `isInterrupted()` / `getInterruptRequest()` — the same surface a plain `WorkflowState`
 exposes.

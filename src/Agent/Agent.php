@@ -309,14 +309,17 @@ class Agent extends Workflow implements AgentInterface
      * A new turn starts a new run — to continue a suspended run use
      * {@see run()}. Runs eagerly to completion; the returned state
      * surfaces an approval pause via {@see WorkflowState::isInterrupted()}.
+     * With $stream the provider streams its answer, so a configured
+     * channel receives it as it arrives.
      *
      * @param Message|Message[] $messages
      * @throws Throwable
      * @throws WorkflowException
      */
-    public function chat(Message|array $messages = []): AgentState
+    public function chat(Message|array $messages = [], bool $stream = false): AgentState
     {
         $event = $this->startEvent();
+        $event->options->stream = $stream;
         $event->messages = is_array($messages) ? $messages : [$messages];
 
         return $this->run(ExecutionRequest::start($event));

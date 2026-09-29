@@ -44,7 +44,7 @@ configuration.
 
 `Agent::stream()` and `Workflow::events()` always return a lazy `Generator`.
 Iterate it for output, then read state from `getReturn()`. For eager channel delivery,
-use `run(ExecutionRequest::start(new AgentStartEvent($messages, new AgentRunOptions(stream: true))))`.
+use `chat($messages, stream: true)`.
 
 ```php
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
@@ -212,9 +212,6 @@ Implement `StreamAdapterInterface`: `start()`, `transform(object)`, `end()`, `in
 
 ## Streaming Channels: Push Delivery
 
-The examples below use `ExecutionRequest` from `NeuronAI\Workflow\Executor`,
-`AgentStartEvent` from `NeuronAI\Agent\Events`, and `AgentRunOptions` from `NeuronAI\Agent`.
-
 Pull iteration only works when the code driving the generator is also the consumer, typically an HTTP response. Often it is not:
 
 - A queue worker runs the agent and the browser is connected to a websocket or a Redis/Pusher stream.
@@ -227,9 +224,8 @@ returns state. `events($request)` and `stream($messages)` always return lazy gen
 iteration sends events to the channel and yields them to the caller. Components
 supplied through the protected hooks obey the same rules.
 
-Use an `ExecutionRequest::start()` containing `AgentStartEvent` and
-`AgentRunOptions(stream: true)` when an eager worker needs provider chunks. This
-keeps provider streaming intent separate from how the caller consumes execution.
+Call `chat($messages, stream: true)` when an eager worker needs provider chunks:
+the provider streams its answer to the channel, and `chat()` still returns state.
 
 ```php
 namespace NeuronAI\Workflow\Streaming\Channel;
@@ -275,10 +271,10 @@ $agent = MyAgent::make(workflowId: $threadId)
             ->sendNow(),
     ));
 
-$state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage($message)], new AgentRunOptions(stream: true))));
+$state = $agent->chat(new UserMessage($message), stream: true);
 ```
 
-Use `AgentRunOptions(stream: true)` for provider chunks. `chat()` uses buffered model inference; attaching an adapter and channel does not change that inference mode.
+Without `stream: true`, `chat()` uses buffered model inference; attaching an adapter and channel does not change that inference mode.
 
 For a dedicated transport extend `AbstractChannel` (see *Writing a channel* below). Declare a channel once on the class by overriding the protected `channel()` hook, the same way `streamAdapter()` declares a default adapter. Declare both: a `channel()` hook alone delivers only the lifecycle.
 
@@ -319,7 +315,7 @@ $agent = MyAgent::make(workflowId: $threadId)
     ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
     ->setChannel(fn (): RedisChannel => new RedisChannel($redis, "chat:{$threadId}"));
 
-$state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage($message)], new AgentRunOptions(stream: true))));
+$state = $agent->chat(new UserMessage($message), stream: true);
 ```
 
 Every message is a JSON envelope `{streamId, sequence, type, data}`. Unwrap it before passing the protocol event to an SSE encoder; forwarding the envelope directly is not the UI protocol. The Redis client must be connected and outside a transaction or pipeline. A publish result of zero subscribers is valid; Pub/Sub does not replay missed messages. Read [Channel wire contract and consumers](references/channels.md) when wiring subscribers, reassembly, or gap recovery.
@@ -351,7 +347,7 @@ $agent = MyAgent::make(workflowId: $threadId)
         channel: "private-encrypted-chat.{$threadId}",
     ));
 
-$state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage($message)], new AgentRunOptions(stream: true))));
+$state = $agent->chat(new UserMessage($message), stream: true);
 ```
 
 Each protocol event becomes a Pusher event named by its `type`, carrying the same `{streamId, sequence, type, data}` envelope as Redis. The three lifecycle events carry only `workflowId` in `data`; exception details and workflow state are not exposed.
@@ -390,7 +386,7 @@ $agent = Agent::make()
     ->setChannel(fn (): FakeChannel => $channel);
 $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world')))->setStreamChunkSize(5));
 
-$state = $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('Hi')], new AgentRunOptions(stream: true))));
+$state = $agent->chat(new UserMessage('Hi'), stream: true);
 
 $this->assertSame('Hello world', $state->getMessage()->getContent());
 $this->assertNotEmpty($channel->getSent());

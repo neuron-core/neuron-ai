@@ -88,6 +88,26 @@ class PushAdapterDeliveryTest extends TestCase
         $this->assertEquals($pulled, $sink);
     }
 
+    public function test_streamed_chat_delivers_the_answer_to_the_channel_and_returns_the_state(): void
+    {
+        $channel = new FakeChannel();
+        $provider = (new FakeAIProvider(new AssistantMessage('Hello world')))->setStreamChunkSize(5);
+        $agent = Agent::make()
+            ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread-1', 'run-1'))
+            ->setChannel(fn (): FakeChannel => $channel);
+        $agent->setAiProvider($provider);
+
+        $state = $agent->chat(new UserMessage('Hi'), stream: true);
+
+        $this->assertSame('Hello world', $state->getMessage()->getContent());
+        $provider->assertMethodCallCount('stream', 1);
+        $this->assertSame(
+            ['RUN_STARTED', 'TEXT_MESSAGE_START', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_CONTENT', 'TEXT_MESSAGE_END', 'RUN_FINISHED'],
+            array_map(static fn (ProtocolEvent $event): string => $event->type, $channel->getSent()),
+        );
+        $channel->assertCompleted();
+    }
+
     public function test_zero_item_run_still_emits_start_and_end_matching_pull(): void
     {
         // A zero-item stream (empty content → no TextChunks) still frames the

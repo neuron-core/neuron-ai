@@ -38,7 +38,7 @@ Every hook has a setter twin for fluent definition (`setAiProvider()`, `setInstr
 
 | Verb | Nature |
 |---|---|
-| `chat($messages)` | Eager: runs to completion and returns `AgentState` |
+| `chat($messages, $stream = false)` | Eager: runs to completion and returns `AgentState`; `stream: true` streams the provider's answer to a configured channel |
 | `stream($messages)` | Always returns a lazy `Generator`; iteration also delivers to a configured channel. `getReturn()` is the `AgentState`. |
 | `structured($messages, $class)` | Eager: returns the typed output |
 | `run()` / `events()` | Execute an explicit `ExecutionRequest`; without one, start or recover a failed execution |
