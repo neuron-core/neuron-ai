@@ -37,6 +37,16 @@ use function uniqid;
 
 class MessageMapper implements MessageMapperInterface
 {
+    protected const CONVERSE_FORMATS = [
+        'text/plain' => 'txt',
+        'text/markdown' => 'md',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'video/quicktime' => 'mov',
+    ];
+
     public function map(array $messages): array
     {
         $mapping = [];
@@ -247,20 +257,37 @@ class MessageMapper implements MessageMapperInterface
     protected function mapMediaSource(SourceType $sourceType, string $content): ?array
     {
         return match ($sourceType) {
-            SourceType::BASE64 => ['bytes' => base64_decode($content, true) ?: $content],
+            SourceType::BASE64 => ['bytes' => $this->decodeBase64($content)],
             SourceType::ID => ['s3Location' => ['uri' => $content]],
             SourceType::URL => null,
         };
     }
 
+    protected function decodeBase64(string $content): string
+    {
+        $decoded = base64_decode($content, true);
+
+        return $decoded !== false ? $decoded : $content;
+    }
+
+    /**
+     * Converse names formats from a fixed list; the MIME subtype matches it
+     * for images and most video, but not for these types.
+     */
     protected function extractFormat(?string $mediaType): ?string
     {
         if ($mediaType === null) {
             return null;
         }
 
+        $mediaType = strtolower($mediaType);
+
+        if (isset(self::CONVERSE_FORMATS[$mediaType])) {
+            return self::CONVERSE_FORMATS[$mediaType];
+        }
+
         $parts = explode('/', $mediaType);
 
-        return strtolower(end($parts));
+        return end($parts);
     }
 }

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers\AWS;
 
+use NeuronAI\Chat\Enums\MediaType;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -75,6 +77,56 @@ class BedrockMessageMapperTest extends TestCase
     public function test_missing_document_name_is_generated(): void
     {
         $this->assertMatchesRegularExpression('/^document-[0-9a-f]+$/', $this->mapDocument(null)['name']);
+    }
+
+    /**
+     * @return iterable<string, array{string|MediaType, string}>
+     */
+    public static function documentFormats(): iterable
+    {
+        yield 'plain text' => [MediaType::TXT, 'txt'];
+        yield 'markdown' => [MediaType::MARKDOWN, 'md'];
+        yield 'word' => ['application/msword', 'doc'];
+        yield 'word openxml' => [MediaType::DOCX, 'docx'];
+        yield 'excel' => ['application/vnd.ms-excel', 'xls'];
+        yield 'excel openxml' => [MediaType::XLSX, 'xlsx'];
+        yield 'pdf' => [MediaType::PDF, 'pdf'];
+        yield 'csv' => [MediaType::CSV, 'csv'];
+        yield 'html' => [MediaType::HTML, 'html'];
+        yield 'mixed case' => ['Text/Markdown', 'md'];
+    }
+
+    #[DataProvider('documentFormats')]
+    public function test_document_media_types_map_to_converse_formats(string|MediaType $mediaType, string $format): void
+    {
+        $message = new UserMessage(new FileContent(base64_encode('data'), SourceType::BASE64, $mediaType, 'doc'));
+
+        $this->assertSame($format, (new MessageMapper())->map([$message])[0]['content'][0]['document']['format']);
+    }
+
+    /**
+     * @return iterable<string, array{MediaType, string}>
+     */
+    public static function videoFormats(): iterable
+    {
+        yield 'quicktime' => [MediaType::MOV, 'mov'];
+        yield 'mp4' => [MediaType::MP4, 'mp4'];
+        yield 'webm' => [MediaType::WEBM, 'webm'];
+    }
+
+    #[DataProvider('videoFormats')]
+    public function test_video_media_types_map_to_converse_formats(MediaType $mediaType, string $format): void
+    {
+        $message = new UserMessage(new VideoContent(base64_encode('data'), SourceType::BASE64, $mediaType));
+
+        $this->assertSame($format, (new MessageMapper())->map([$message])[0]['content'][0]['video']['format']);
+    }
+
+    public function test_base64_payload_decoding_to_a_falsy_string_is_still_decoded(): void
+    {
+        $message = new UserMessage(new ImageContent(base64_encode('0'), SourceType::BASE64, MediaType::PNG));
+
+        $this->assertSame(['bytes' => '0'], (new MessageMapper())->map([$message])[0]['content'][0]['image']['source']);
     }
 
     public function test_media_type_casing_does_not_leak_into_the_format(): void

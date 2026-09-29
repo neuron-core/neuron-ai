@@ -33,12 +33,17 @@ class ToolMapper implements ToolMapperInterface
         $payload = [
             'toolSpec' => [
                 'name' => $tool->getName(),
-                'description' => $tool->getDescription(),
                 'inputSchema' => [
                     'json' => $tool->getInputSchema(),
                 ],
             ],
         ];
+
+        // Optional, but the SDK refuses a null or empty one
+        $description = $tool->getDescription();
+        if ($description !== null && $description !== '') {
+            $payload['toolSpec']['description'] = $description;
+        }
 
         if ($tool->getParameters() !== []) {
             $payload['toolSpec'] = array_merge($payload['toolSpec'], $tool->getParameters());

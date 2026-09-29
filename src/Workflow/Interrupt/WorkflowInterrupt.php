@@ -16,14 +16,15 @@ use NeuronAI\Exceptions\WorkflowException;
  *
  * This is never persisted and never reaches user code — a paused workflow is
  * surfaced to callers as an interrupted {@see \NeuronAI\Workflow\WorkflowState},
- * not as a thrown exception. It carries only the request that describes the pause; all
- * other resume context (node, state, branch) is derived by the executor from
- * its traversal context and step replay.
+ * not as a thrown exception. It carries only the request that describes the pause
+ * and the wait that raised it; all other resume context (node, state, branch)
+ * is derived by the executor from its traversal context and step replay.
  */
 class WorkflowInterrupt extends WorkflowException
 {
     public function __construct(
         protected InterruptRequest $request,
+        public readonly ?string $wait = null,
     ) {
         parent::__construct($request->getMessage());
     }

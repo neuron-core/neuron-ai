@@ -58,6 +58,8 @@ $this->sleepUntil($wakeAt);
 $payload = $this->interrupt(new MyApprovalRequest(...));
 ```
 
+A resumed node runs again from the top, and a node may wait more than once. Each answer is recorded with its step, so every wait the node already passed returns its own answer and the new one reaches the wait that asked for it. A wait is identified by its order in the node, counted apart inside each `memoize()` closure because a recorded closure is skipped. The node must therefore reach its waits in the same order every time: one that reaches a new wait before the one being answered fails with `WorkflowException` instead of losing the answer. Code between waits runs again whenever the node does, so side effects belong inside `memoize()`.
+
 A workflow exposes one current interruption through `$state->getInterruptRequest()`. Requests have positive, run-scoped IDs for correlation; callers do not address response maps by ID.
 
 - `run(ExecutionRequest::resume($payload))` answers the current interruption with one plain array. `resume([])` supplies an empty answer; `resume()` supplies no answer and handles recovery or a due deadline.

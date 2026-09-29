@@ -17,10 +17,16 @@ use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use DateTimeImmutable;
 
+use function hash;
+use function is_array;
 use function is_callable;
+use function serialize;
 
 abstract class Node implements NodeInterface
 {
+    /** Memo name prefix under which a step records the answer each of its waits received. */
+    protected const ANSWER_MEMO = '__answer.';
+
     /**
      * The inbound resume payload. Null when not resuming; a non-null array
      * (even empty) means this node is resuming and holds the delivered answer.
@@ -28,8 +34,8 @@ abstract class Node implements NodeInterface
     protected ?array $payload = null;
 
     /**
-     * True when the resume was a deadline elapsing rather than a delivered
-     * event. awaitEvent() surfaces it as a null return.
+     * True when the answer a wait just returned is a deadline elapsing rather
+     * than a delivered event. awaitEvent() surfaces it as a null return.
      */
     protected bool $timedOut = false;
 
@@ -42,6 +48,18 @@ abstract class Node implements NodeInterface
     /** The parallel branch the current step runs in, null outside branches. */
     protected ?string $branchId = null;
 
+    /** Whether the inbound answer is its wait's deadline elapsing. */
+    protected bool $answerExpired = false;
+
+    /** The wait the inbound answer is for; null gives it to the first wait the node reaches. */
+    protected ?string $answeredWait = null;
+
+    /** @var list<string> The memoize() closures running around the next wait, outermost first. */
+    protected array $waitScope = [];
+
+    /** How many waits this execution reached in the innermost of those closures, or outside them all. */
+    protected int $waitsInScope = 0;
+
     public function run(Event $event, WorkflowState $state, WorkflowResources $resources): Generator|Event
     {
         // A node that declares two parameters ignores the resources.
@@ -53,10 +71,14 @@ abstract class Node implements NodeInterface
     {
         $this->payload = $context->payload;
         $this->timedOut = $context->timedOut;
+        $this->answerExpired = $context->timedOut;
         $this->resuming = $context->resuming;
         $this->memoizer = $context->memoizer;
         $this->dispatcher = $context->dispatcher;
         $this->branchId = $context->branchId;
+        $this->answeredWait = $context->answering;
+        $this->waitScope = [];
+        $this->waitsInScope = 0;
     }
 
     protected function consumePayload(): ?array
@@ -71,6 +93,7 @@ abstract class Node implements NodeInterface
         // the same node must create a new interruption.
         $this->payload = null;
         $this->resuming = false;
+        $this->timedOut = $this->answerExpired;
 
         return $payload;
     }
@@ -90,11 +113,20 @@ abstract class Node implements NodeInterface
      */
     protected function memoize(string $name, Closure $operation): mixed
     {
-        if ($this->memoizer instanceof StepMemoizer) {
-            return $this->memoizer->memo($name, $operation);
+        if (!$this->memoizer instanceof StepMemoizer) {
+            return $operation();
         }
 
-        return $operation();
+        // A recorded closure is skipped when the node runs again, waits
+        // included, so its waits are numbered apart from the node's others.
+        [$scope, $waits] = [$this->waitScope, $this->waitsInScope];
+        $this->waitScope[] = $name;
+        $this->waitsInScope = 0;
+        try {
+            return $this->memoizer->memo($name, $operation);
+        } finally {
+            [$this->waitScope, $this->waitsInScope] = [$scope, $waits];
+        }
     }
 
     /**
@@ -127,6 +159,9 @@ abstract class Node implements NodeInterface
      * Suspend the workflow, carrying $request OUTBOUND to the caller.
      * On first pass this throws the internal suspend signal; on resume it
      * returns the inbound payload — node code after the call runs only on resume.
+     * The answer is recorded: whenever the node runs again, the same call
+     * returns it, so a node may wait more than once as long as it reaches
+     * its waits in the same order every time.
      *
      * @return array<string, mixed>|null The payload on resume; null only if a condition short-circuited.
      * @throws WorkflowException
@@ -144,17 +179,38 @@ abstract class Node implements NodeInterface
      */
     protected function interruptIf(callable|bool $condition, InterruptRequest $request): ?array
     {
-        if ($this->isResuming()) {
-            return $this->consumePayload();
+        $wait = hash('xxh128', serialize([...$this->waitScope, $this->waitsInScope++]));
+
+        if ($this->isResuming() && ($this->answeredWait === null || $this->answeredWait === $wait)) {
+            $payload = $this->consumePayload();
+            $timedOut = $this->timedOut;
+            $this->memoizer?->memo(self::ANSWER_MEMO . $wait, fn (): array => ['payload' => $payload, 'timedOut' => $timedOut]);
+
+            return $payload;
+        }
+
+        $answer = $this->memoizer?->get(self::ANSWER_MEMO . $wait);
+        if (is_array($answer)) {
+            $this->timedOut = $answer['timedOut'];
+
+            return $answer['payload'];
         }
 
         $shouldInterrupt = is_callable($condition) ? $condition() : $condition;
 
-        if ($shouldInterrupt) {
-            throw new WorkflowInterrupt($request);
+        if (!$shouldInterrupt) {
+            return null;
         }
 
-        return null;
+        // The wait the inbound answer is for would never be reached, and its answer lost.
+        if ($this->isResuming()) {
+            throw new WorkflowException(
+                'A node must reach its waits in the same order every time it runs: '
+                . 'this one reached a new wait before the one its answer is for.'
+            );
+        }
+
+        throw new WorkflowInterrupt($request, $wait);
     }
 
     /**

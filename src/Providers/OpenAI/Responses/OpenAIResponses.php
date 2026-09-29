@@ -23,6 +23,7 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
+use function in_array;
 use function array_map;
 use function array_merge;
 use function array_unshift;
@@ -181,7 +182,7 @@ class OpenAIResponses implements AIProviderInterface
                 $blocks[] = new TextContent($content['text']);
 
                 if (isset($content['annotations'])) {
-                    $citations = array_merge($citations, $this->extractCitations($content['text'], $content['annotations']));
+                    $citations = array_merge($citations, $this->extractCitations($content['annotations']));
                 }
             }
 
@@ -219,46 +220,36 @@ class OpenAIResponses implements AIProviderInterface
     }
 
     /**
-     * Extract citations from OpenAI Responses annotations.
+     * Responses annotations are flat. A file annotation marks a single
+     * position of the answer, so its span starts and ends there.
      *
      * @param array<int, array<string, mixed>> $annotations
      * @return Citation[]
      */
-    protected function extractCitations(string $text, array $annotations): array
+    protected function extractCitations(array $annotations): array
     {
         $citations = [];
 
         foreach ($annotations as $annotation) {
             $type = $annotation['type'] ?? null;
 
-            if ($type === 'file_citation') {
-                $fileCitation = $annotation['file_citation'] ?? [];
-                $citations[] = new Citation(
-                    id: $fileCitation['file_id'] ?? uniqid('openai_responses_file_'),
-                    source: $fileCitation['file_id'] ?? '',
-                    startIndex: $annotation['start_index'] ?? null,
-                    endIndex: $annotation['end_index'] ?? null,
-                    citedText: $annotation['text'] ?? null,
-                    metadata: [
-                        'type' => 'file_citation',
-                        'quote' => $fileCitation['quote'] ?? null,
-                        'provider' => 'openai_responses',
-                    ]
-                );
-            } elseif ($type === 'file_path') {
-                $filePath = $annotation['file_path'] ?? [];
-                $citations[] = new Citation(
-                    id: $filePath['file_id'] ?? uniqid('openai_responses_path_'),
-                    source: $filePath['file_id'] ?? '',
-                    startIndex: $annotation['start_index'] ?? null,
-                    endIndex: $annotation['end_index'] ?? null,
-                    citedText: $annotation['text'] ?? null,
-                    metadata: [
-                        'type' => 'file_path',
-                        'provider' => 'openai_responses',
-                    ]
-                );
+            if (!in_array($type, ['url_citation', 'file_citation', 'container_file_citation', 'file_path'], true)) {
+                continue;
             }
+
+            $metadata = ['type' => $type, 'provider' => 'openai_responses'];
+            if (isset($annotation['container_id'])) {
+                $metadata['container_id'] = $annotation['container_id'];
+            }
+
+            $citations[] = new Citation(
+                id: $annotation['file_id'] ?? uniqid('openai_responses_'),
+                source: $annotation['url'] ?? $annotation['file_id'] ?? '',
+                title: $annotation['title'] ?? $annotation['filename'] ?? null,
+                startIndex: $annotation['start_index'] ?? $annotation['index'] ?? null,
+                endIndex: $annotation['end_index'] ?? $annotation['index'] ?? null,
+                metadata: $metadata
+            );
         }
 
         return $citations;

@@ -15,7 +15,6 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Providers\ProviderResponse;
 
 use function array_unshift;
-use function is_array;
 use function uniqid;
 
 trait HandleChat
@@ -95,7 +94,7 @@ trait HandleChat
     }
 
     /**
-     * Extract citations from OpenAI's content annotations.
+     * Chat Completions annotates the message itself, with url_citation only.
      *
      * @return Citation[]
      */
@@ -103,55 +102,25 @@ trait HandleChat
     {
         $citations = [];
 
-        if (isset($message['content']) && is_array($message['content'])) {
-            foreach ($message['content'] as $contentBlock) {
-                if (isset($contentBlock['annotations']) && is_array($contentBlock['annotations'])) {
-                    foreach ($contentBlock['annotations'] as $annotation) {
-                        if ($citation = $this->processAnnotation($annotation)) {
-                            $citations[] = $citation;
-                        }
-                    }
-                }
+        foreach ($message['annotations'] ?? [] as $annotation) {
+            if (($annotation['type'] ?? null) !== 'url_citation') {
+                continue;
             }
+
+            $urlCitation = $annotation['url_citation'] ?? [];
+            $citations[] = new Citation(
+                id: uniqid('openai_url_'),
+                source: $urlCitation['url'] ?? '',
+                title: $urlCitation['title'] ?? null,
+                startIndex: $urlCitation['start_index'] ?? null,
+                endIndex: $urlCitation['end_index'] ?? null,
+                metadata: [
+                    'type' => 'url_citation',
+                    'provider' => 'openai',
+                ]
+            );
         }
 
         return $citations;
-    }
-
-    protected function processAnnotation(array $annotation): ?Citation
-    {
-        $type = $annotation['type'] ?? null;
-        if ($type === 'file_citation') {
-            $fileCitation = $annotation['file_citation'] ?? [];
-            return new Citation(
-                id: $fileCitation['file_id'] ?? uniqid('openai_file_'),
-                source: $fileCitation['file_id'] ?? '',
-                startIndex: $annotation['start_index'] ?? null,
-                endIndex: $annotation['end_index'] ?? null,
-                citedText: $annotation['text'] ?? null,
-                metadata: [
-                    'type' => 'file_citation',
-                    'quote' => $fileCitation['quote'] ?? null,
-                    'provider' => 'openai',
-                ]
-            );
-        }
-
-        if ($type === 'file_path') {
-            $filePath = $annotation['file_path'] ?? [];
-            return new Citation(
-                id: $filePath['file_id'] ?? uniqid('openai_path_'),
-                source: $filePath['file_id'] ?? '',
-                startIndex: $annotation['start_index'] ?? null,
-                endIndex: $annotation['end_index'] ?? null,
-                citedText: $annotation['text'] ?? null,
-                metadata: [
-                    'type' => 'file_path',
-                    'provider' => 'openai',
-                ]
-            );
-        }
-
-        return null;
     }
 }

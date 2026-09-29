@@ -617,6 +617,22 @@ node internally. Once that interruption is answered, execution re-enters the
 node and the verb returns the inbound payload or timeout result—never the request
 object.
 
+### Waiting more than once
+
+A resumed node runs again from the top. Each answer is recorded, so every wait
+the node already passed returns its own answer and the new one reaches the wait
+that asked for it. Write the waits in order, as if the node never paused:
+
+```php
+$manager = $this->interrupt(new ApprovalRequest('Manager approval'));
+$finance = $this->interrupt(new ApprovalRequest('Finance approval'));
+```
+
+The node must reach its waits in the same order every time it runs, as
+`memoize()` already requires: one that reaches a new wait before the one being
+answered fails with a `WorkflowException`. Code between waits runs again
+whenever the node does, so keep side effects inside `memoize()`.
+
 ### Wait for an external event — `awaitEvent()`
 
 ```php

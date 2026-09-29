@@ -63,10 +63,12 @@ class BedrockRuntime implements AIProviderInterface
         $payload = [
             'modelId' => $this->model,
             'messages' => $this->messageMapper()->map($messages),
-            'system' => [
-                ['text' => $this->system],
-            ],
         ];
+
+        // The SDK validates locally: an absent or empty text block is refused
+        if ($this->system !== null && $this->system !== '') {
+            $payload['system'] = [['text' => $this->system]];
+        }
 
         if (count($this->inferenceConfig) > 0) {
             $payload['inferenceConfig'] = $this->inferenceConfig;

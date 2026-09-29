@@ -319,6 +319,8 @@ final class Segment
             return new StepResult($stepId, new BranchPausedEvent(), $state);
         }
 
+        $answered = $resuming ? $cached?->getEvent() : null;
+
         try {
             $execution = $this->runNode($node, $event, $state, new NodeContext(
                 payload: $input?->kind === ResumeType::Event ? $input->payload : null,
@@ -327,6 +329,8 @@ final class Segment
                 dispatcher: $this->events,
                 resuming: $resuming,
                 branchId: $branchId,
+                // An interruption stored before waits had an identity has none.
+                answering: $answered instanceof InterruptEvent ? $answered->wait ?? null : null,
             ));
             // The output shapes what the node streams inside the step, so a
             // failing adapter fails the step like the node itself would.
@@ -345,7 +349,7 @@ final class Segment
         }
         if ($terminal instanceof InterruptEvent) {
             $request = $terminal->request->withId($control->nextInterruptId);
-            $terminal = InterruptEvent::fromRequest($request);
+            $terminal = InterruptEvent::fromRequest($request, $terminal->wait);
             $control = $control->addInterrupt(new ActiveInterrupt($request, stepId: $stepId));
             $this->pauseRequested = true;
             $marker = new StepResult(stepId: $stepId, event: $terminal, state: $state);
@@ -402,7 +406,7 @@ final class Segment
             $this->report(new WorkflowNodeEnd($node::class, $state), $node, $branchId);
             return $result;
         } catch (WorkflowInterrupt $interrupt) {
-            return InterruptEvent::fromRequest($interrupt->getRequest());
+            return InterruptEvent::fromRequest($interrupt->getRequest(), $interrupt->wait);
         }
     }
 

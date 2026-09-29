@@ -21,6 +21,8 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
+use function array_flip;
+use function array_diff_key;
 use function rtrim;
 use function array_map;
 use function array_values;
@@ -172,17 +174,19 @@ class Anthropic implements AIProviderInterface
                 $text = $block['text'] ?? '';
                 $textLength = mb_strlen($text);
 
-                // Check if this text block has citations metadata
+                // A citation supports its whole text block; where it points in the
+                // source (characters, pages, blocks) stays in the metadata
                 if (isset($block['citations']) && is_array($block['citations'])) {
                     foreach ($block['citations'] as $citation) {
                         $citations[] = new Citation(
-                            id: $citation['id'] ?? uniqid('anthropic_'),
-                            source: $citation['source'] ?? '',
-                            title: $citation['title'] ?? null,
-                            startIndex: ($citation['start_index'] ?? 0) + $textOffset,
-                            endIndex: ($citation['end_index'] ?? $textLength) + $textOffset,
-                            citedText: $citation['text'] ?? null,
+                            id: uniqid('anthropic_'),
+                            source: $citation['url'] ?? $citation['source'] ?? '',
+                            title: $citation['title'] ?? $citation['document_title'] ?? null,
+                            startIndex: $textOffset,
+                            endIndex: $textOffset + $textLength,
+                            citedText: $citation['cited_text'] ?? null,
                             metadata: [
+                                ...array_diff_key($citation, array_flip(['url', 'source', 'title', 'document_title', 'cited_text'])),
                                 'block_index' => $index,
                                 'provider' => 'anthropic',
                             ]

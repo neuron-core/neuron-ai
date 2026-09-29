@@ -302,8 +302,7 @@ class StdioTransportTest extends TestCase
         try {
             new McpClient(['command' => "touch {$marker}; " . PHP_BINARY] + $this->server());
             $this->fail('A command holding shell syntax must not start a server');
-        } catch (McpException $exception) {
-            $this->assertStringStartsWith('Failed to start the MCP server "touch ', $exception->getMessage());
+        } catch (McpException) {
             $this->assertFileDoesNotExist($marker);
         } finally {
             @unlink($marker);

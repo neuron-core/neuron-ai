@@ -51,7 +51,7 @@ class PendingExecutionTest extends TestCase
                 $answer = $this->awaitEvent('answer');
                 $this->trace->answers[] = $answer;
                 if (($answer['value'] ?? null) !== 'done') {
-                    $this->awaitEvent('answer');
+                    $this->trace->answers[] = $this->awaitEvent('answer');
                 }
 
                 return new StopEvent();
@@ -115,7 +115,8 @@ class PendingExecutionTest extends TestCase
         $state = $this->workflow()->submitInputs(['value' => 'done'])->run();
 
         $this->assertFalse($state->isInterrupted());
-        $this->assertSame([['value' => 'first'], ['value' => 'done']], $this->trace->answers);
+        // The node runs again from the top: its first wait returns the recorded answer.
+        $this->assertSame([['value' => 'first'], ['value' => 'first'], ['value' => 'done']], $this->trace->answers);
     }
 
     public function test_the_translator_sees_the_current_interruption_and_its_result_is_delivered(): void
