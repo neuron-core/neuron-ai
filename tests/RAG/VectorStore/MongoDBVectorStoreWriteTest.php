@@ -17,6 +17,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\MongoDBVectorStore;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use NeuronAI\Tests\RAG\VectorStore\Stub\ArrayCursor;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RejectsInvalidInputBeforeRemoteCalls;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -27,8 +28,8 @@ use function count;
 use function range;
 
 /**
- * Offline contract of the MongoDB writes; MongoDBTest covers Atlas search.
- * Search itself needs ext-mongodb cursors and is only covered there.
+ * Offline contract of the MongoDB writes and of the search request and result mapping;
+ * MongoDBTest covers Atlas search.
  */
 class MongoDBVectorStoreWriteTest extends TestCase
 {
@@ -195,6 +196,51 @@ class MongoDBVectorStoreWriteTest extends TestCase
             $this->assertSame(['$vectorSearch' => $expectedStage], $pipeline[0]);
             $this->assertSame(['typeMap' => ['root' => 'array', 'document' => 'array']], $options);
         }
+    }
+
+    public function test_search_results_keep_the_stored_id_and_metadata_types(): void
+    {
+        $store = $this->store();
+        $pipeline = [];
+        $this->collection->method('aggregate')->willReturnCallback(static function (array $sent) use (&$pipeline): ArrayCursor {
+            $pipeline = $sent;
+
+            return new ArrayCursor([[
+                '_id' => 'chunk-7',
+                'content' => 'Stored',
+                'sourceType' => 'file',
+                'sourceName' => 'a.txt',
+                'metadata' => ['year' => 2026, 'draft' => false, 'tags' => ['php', 'rag'], 'author' => ['name' => 'Ada']],
+                'score' => 0.9,
+            ]]);
+        });
+
+        $document = $store->search(new SearchRequest([0.5, 1.0]))[0];
+
+        $this->assertNotSame(0, $pipeline[1]['$project']['_id'] ?? 1, 'The stored id must not be projected away.');
+        $this->assertSame('chunk-7', $document->getId());
+        $this->assertSame(
+            ['year' => 2026, 'draft' => false, 'tags' => ['php', 'rag'], 'author' => ['name' => 'Ada']],
+            $document->getMetadata(),
+        );
+    }
+
+    public function test_search_skips_stored_metadata_keys_reserved_by_the_framework(): void
+    {
+        $store = $this->store();
+        $this->collection->method('aggregate')->willReturn(new ArrayCursor([[
+            '_id' => 'chunk-7',
+            'content' => 'Stored',
+            'sourceType' => 'file',
+            'sourceName' => 'a.txt',
+            'metadata' => ['id' => 'forged', 'tenant' => 'acme'],
+            'score' => 0.9,
+        ]]));
+
+        $document = $store->search(new SearchRequest([0.5, 1.0]))[0];
+
+        $this->assertSame('chunk-7', $document->getId());
+        $this->assertSame(['tenant' => 'acme'], $document->getMetadata());
     }
 
     public function test_vector_index_declares_the_embedding_and_every_filterable_field(): void

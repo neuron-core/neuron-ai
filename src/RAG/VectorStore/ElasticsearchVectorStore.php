@@ -53,6 +53,8 @@ class ElasticsearchVectorStore implements VectorStoreInterface
         }
 
         $properties = [
+            // Declared up front: left to dynamic mapping, some vector sizes become plain floats kNN cannot search
+            'embedding' => $this->vectorMapping(count($document->getEmbedding())),
             'content' => [
                 'type' => 'text',
             ],
@@ -87,6 +89,8 @@ class ElasticsearchVectorStore implements VectorStoreInterface
                 ],
             ],
         ]);
+
+        $this->vectorDimSet = true;
     }
 
     /**
@@ -105,6 +109,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         $this->client->index([
             'index' => $this->index,
+            'id' => (string) $document->getId(),
             'body' => [
                 'embedding' => $document->getEmbedding(),
                 'content' => $document->getContent(),
@@ -147,6 +152,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
                 $params['body'][] = [
                     'index' => [
                         '_index' => $this->index,
+                        '_id' => (string) $document->getId(),
                     ],
                 ];
                 $params['body'][] = [
@@ -236,6 +242,8 @@ class ElasticsearchVectorStore implements VectorStoreInterface
                     'k' => $topK,
                     'num_candidates' => max(50, $topK * 4),
                 ],
+                // Hits are paged apart from k: without it, Elasticsearch returns at most 10
+                'size' => $topK,
                 'sort' => [
                     '_score' => [
                         'order' => 'desc',
@@ -252,7 +260,8 @@ class ElasticsearchVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['_source']['content']);
-            $document->setSourceType($item['_source']['sourceType'])
+            $document->setId($item['_id'])
+                ->setSourceType($item['_source']['sourceType'])
                 ->setSourceName($item['_source']['sourceName'])
                 ->setScore($item['_score']);
 
@@ -265,6 +274,19 @@ class ElasticsearchVectorStore implements VectorStoreInterface
     /**
      * Map vector embeddings dimension on the fly.
      */
+    /**
+     * @return array<string, mixed>
+     */
+    protected function vectorMapping(int $dimension): array
+    {
+        return [
+            'type' => 'dense_vector',
+            'dims' => $dimension,
+            'index' => true,
+            'similarity' => 'cosine',
+        ];
+    }
+
     private function mapVectorDimension(int $dimension): void
     {
         if ($this->vectorDimSet) {
@@ -288,13 +310,7 @@ class ElasticsearchVectorStore implements VectorStoreInterface
             'index' => $this->index,
             'body' => [
                 'properties' => [
-                    'embedding' => [
-                        'type' => 'dense_vector',
-                        //'element_type' => 'float', // it's float by default
-                        'dims' => $dimension,
-                        'index' => true,
-                        'similarity' => 'cosine',
-                    ],
+                    'embedding' => $this->vectorMapping($dimension),
                 ],
             ],
         ]);

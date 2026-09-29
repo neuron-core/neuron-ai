@@ -57,8 +57,9 @@ class OpenAIEmbeddingsProvider extends AbstractEmbeddingsProvider
                 )
             )->json();
 
-            foreach ($response['data'] as $index => $item) {
-                $chunk[$index]->setEmbedding($item['embedding']);
+            // Each item names the input it embeds, whatever order the server returns them in
+            foreach ($response['data'] as $position => $item) {
+                $chunk[$item['index'] ?? $position]->setEmbedding($item['embedding']);
             }
         }
 

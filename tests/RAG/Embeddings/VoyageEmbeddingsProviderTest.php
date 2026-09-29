@@ -11,6 +11,7 @@ use NeuronAI\Tests\RAG\Stub\RecordsJsonRequests;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_keys;
 use function array_map;
 use function count;
 use function range;
@@ -19,12 +20,17 @@ class VoyageEmbeddingsProviderTest extends TestCase
 {
     use RecordsJsonRequests;
 
-    /** @param int[] $indexes */
-    protected function embeddingsResponse(array $indexes): Response
+    /**
+     * One embedding per value, indexed by its position in this request, as the API does.
+     *
+     * @param int[] $values
+     */
+    protected function embeddingsResponse(array $values): Response
     {
         return $this->jsonResponse(['data' => array_map(
-            static fn (int $index): array => ['object' => 'embedding', 'index' => $index, 'embedding' => [(float) $index]],
-            $indexes,
+            static fn (int $position, int $value): array => ['object' => 'embedding', 'index' => $position, 'embedding' => [(float) $value]],
+            array_keys($values),
+            $values,
         )]);
     }
 
@@ -91,6 +97,20 @@ class VoyageEmbeddingsProviderTest extends TestCase
         foreach ($documents as $index => $document) {
             $this->assertSame([(float) $index], $document->getEmbedding());
         }
+    }
+
+    public function test_embeddings_are_matched_to_documents_by_the_returned_index(): void
+    {
+        $documents = [new Document('First'), new Document('Second'), new Document('Third')];
+        $provider = new VoyageEmbeddingsProvider(key: 'voyage-key', model: 'voyage-3', httpClient: $this->recordingClient($this->jsonResponse(['data' => [
+            ['object' => 'embedding', 'index' => 2, 'embedding' => [3.0]],
+            ['object' => 'embedding', 'index' => 0, 'embedding' => [1.0]],
+            ['object' => 'embedding', 'index' => 1, 'embedding' => [2.0]],
+        ]])));
+
+        $provider->embedDocuments($documents);
+
+        $this->assertSame([[1.0], [2.0], [3.0]], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
     }
 
     public function test_embed_documents_without_documents_sends_nothing(): void

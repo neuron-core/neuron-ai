@@ -19,6 +19,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 
 use function rtrim;
 use function array_chunk;
+use function array_column;
 use function array_key_exists;
 use function array_map;
 use function implode;
@@ -140,7 +141,7 @@ class WeaviateVectorStore implements VectorStoreInterface
                 body: [
                     'match' => [
                         'class' => ucfirst($this->collection),
-                        'where' => (new WeaviateFilterCompiler())->compile($filters),
+                        'where' => (new WeaviateFilterCompiler($this->schema))->compile($filters),
                     ],
                 ],
                 headers: $this->httpHeaders,
@@ -153,6 +154,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function search(SearchRequest $request): iterable
     {
@@ -163,7 +165,7 @@ class WeaviateVectorStore implements VectorStoreInterface
         $vectorString = implode(', ', $request->embedding);
 
         $where = $request->filters instanceof FilterExpression
-            ? 'where: ' . (new WeaviateFilterCompiler())->compileGraphQL($request->filters)
+            ? 'where: ' . (new WeaviateFilterCompiler($this->schema))->compileGraphQL($request->filters)
             : '';
 
         $query = sprintf(
@@ -197,6 +199,11 @@ class WeaviateVectorStore implements VectorStoreInterface
                 headers: $this->httpHeaders,
             )
         )->json();
+
+        // GraphQL reports a rejected query with a 200 status, which would otherwise read as no results
+        if (($response['errors'] ?? []) !== []) {
+            throw new VectorStoreException('Weaviate rejected the search: ' . implode('; ', array_column($response['errors'], 'message')));
+        }
 
         $items = $response['data']['Get'][ucfirst($this->collection)] ?? [];
 

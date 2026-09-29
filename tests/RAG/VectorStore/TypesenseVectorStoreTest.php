@@ -308,6 +308,7 @@ class TypesenseVectorStoreTest extends TestCase
         ]]], $this->sentJson(0));
 
         $this->assertCount(1, $results);
+        $this->assertSame('doc-5', $results[0]->getId());
         $this->assertSame('Found', $results[0]->getContent());
         $this->assertSame('url', $results[0]->getSourceType());
         $this->assertEqualsWithDelta(0.8, $results[0]->getScore(), 1e-12);

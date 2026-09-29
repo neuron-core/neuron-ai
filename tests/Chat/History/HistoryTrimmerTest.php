@@ -13,12 +13,14 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Tests\Chat\History\Stub\Conversation;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
 use function array_slice;
+use function array_sum;
 use function str_repeat;
 
 use const PHP_INT_MAX;
@@ -53,19 +55,49 @@ class HistoryTrimmerTest extends TestCase
         $messages = $this->conversation();
         $trimmer = new HistoryTrimmer();
 
-        $this->assertSame($messages, $trimmer->trim($messages, 280));
-        $this->assertSame(280, $trimmer->getTotalTokens());
+        $this->assertSame($messages, $trimmer->trim($messages, 300));
+        $this->assertSame(300, $trimmer->getTotalTokens());
     }
 
-    public function test_one_token_over_the_window_drops_the_oldest_turn(): void
+    public function test_a_history_up_to_five_percent_over_the_window_keeps_its_oldest_turn(): void
     {
         $messages = $this->conversation();
         $trimmer = new HistoryTrimmer();
 
-        $trimmed = $trimmer->trim($messages, 279);
+        // Dropping the first question alone would fit, but a history cannot open with an answer
+        $this->assertSame($messages, $trimmer->trim($messages, 286));
+        $this->assertSame(300, $trimmer->getTotalTokens());
+    }
+
+    public function test_beyond_five_percent_over_the_window_the_oldest_turn_is_dropped(): void
+    {
+        $messages = $this->conversation();
+        $trimmer = new HistoryTrimmer();
+
+        $trimmed = $trimmer->trim($messages, 285);
 
         $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
-        $this->assertSame(160, $trimmer->getTotalTokens());
+        // The instructions and tools stay: 50 + the second turn's 130
+        $this->assertSame(180, $trimmer->getTotalTokens());
+    }
+
+    public function test_a_cut_is_priced_by_the_messages_it_drops_not_by_the_instructions(): void
+    {
+        // 10,000 tokens of instructions and tools ride with every request and are never dropped
+        $conversation = new Conversation(10000);
+        for ($turn = 1; $turn <= 20; $turn++) {
+            $conversation->user(1000)->answer(1000);
+        }
+        $messages = $conversation->user(11000, 'A long document')->answer(1000)->messages();
+        $trimmer = new HistoryTrimmer();
+
+        // 62,000 for a 50,000 window: six turns of messages must go, not one turn plus the instructions
+        $kept = $trimmer->trim($messages, 50000);
+
+        $this->assertCount(30, $kept);
+        $this->assertSame(50000, $trimmer->getTotalTokens());
+        $this->assertSame(50000, 10000 + array_sum(array_map(Conversation::tokens(...), $kept)));
+        $this->assertSame(49000, $kept[29]->getUsage()?->inputTokens);
     }
 
     public function test_a_cut_that_lands_exactly_on_the_window_keeps_the_next_turn(): void
@@ -73,12 +105,12 @@ class HistoryTrimmerTest extends TestCase
         $messages = $this->conversation();
         $trimmer = new HistoryTrimmer();
 
-        // Dropping the first turn (120 of 280 tokens) leaves exactly the 160-token window.
-        $trimmed = $trimmer->trim($messages, 160);
+        // Dropping the first turn (120 of 300 tokens) leaves exactly the 180-token window.
+        $trimmed = $trimmer->trim($messages, 180);
 
         $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
-        $this->assertSame(160, $trimmer->getTotalTokens());
-        $this->assertSame(130, $trimmed[1]->getUsage()?->inputTokens);
+        $this->assertSame(180, $trimmer->getTotalTokens());
+        $this->assertSame(150, $trimmed[1]->getUsage()?->inputTokens);
     }
 
     public function test_a_reused_trimmer_measures_another_conversation_of_the_same_length_afresh(): void
@@ -122,22 +154,19 @@ class HistoryTrimmerTest extends TestCase
     {
         $trimmer = new HistoryTrimmer();
 
-        $trimmed = $trimmer->trim($this->conversation(), 279);
+        $trimmed = $trimmer->trim($this->conversation(), 285);
 
+        // 270 minus the dropped turn's 120: the instructions and tools (50) stay with the second question (100)
         $usage = $trimmed[1]->getUsage();
         $this->assertInstanceOf(Usage::class, $usage);
-        $this->assertSame(130, $usage->inputTokens);
+        $this->assertSame(150, $usage->inputTokens);
         $this->assertSame(30, $usage->outputTokens);
     }
 
     public function test_a_rebased_checkpoint_keeps_its_cache_and_reasoning_counts(): void
     {
-        $messages = [
-            new UserMessage('q1'),
-            (new AssistantMessage('a1'))->setUsage(new Usage(100, 50)),
-            new UserMessage('q2'),
-            (new AssistantMessage('a2'))->setUsage(new Usage(300, 50, 200, 20)),
-        ];
+        $messages = (new Conversation(50))->user(100)->answer(50)->user(100)->messages();
+        $messages[] = (new AssistantMessage('a2'))->setUsage(new Usage(300, 50, 200, 20));
 
         $trimmed = (new HistoryTrimmer())->trim($messages, 300);
 
@@ -169,10 +198,10 @@ class HistoryTrimmerTest extends TestCase
     public function test_trimming_an_already_trimmed_history_changes_nothing(): void
     {
         $trimmer = new HistoryTrimmer();
-        $trimmed = $trimmer->trim($this->conversation(), 279);
+        $trimmed = $trimmer->trim($this->conversation(), 285);
 
-        $this->assertSame($trimmed, $trimmer->trim($trimmed, 279));
-        $this->assertSame(160, $trimmer->getTotalTokens());
+        $this->assertSame($trimmed, $trimmer->trim($trimmed, 285));
+        $this->assertSame(180, $trimmer->getTotalTokens());
     }
 
     public function test_without_usage_the_oldest_messages_are_dropped_by_estimation(): void
@@ -220,10 +249,10 @@ class HistoryTrimmerTest extends TestCase
 
         $trimmed = $trimmer->trim($messages, 150);
 
-        // Only the first turn (15 tokens) is dropped, not the kept tool call's 70.
+        // Only the first turn (30 tokens) is dropped: 185 - 30, the instructions and tools included.
         $this->assertSame(155, $trimmer->getTotalTokens());
-        $this->assertSame(45, $trimmed[1]->getUsage()?->inputTokens);
-        $this->assertSame(135, $trimmed[5]->getUsage()?->inputTokens);
+        $this->assertSame(70, $trimmed[1]->getUsage()?->inputTokens);
+        $this->assertSame(140, $trimmed[5]->getUsage()?->inputTokens);
     }
 
     /**
@@ -232,32 +261,27 @@ class HistoryTrimmerTest extends TestCase
     public static function overflowTolerance(): array
     {
         return [
-            'one percent over keeps the turn' => [99, 'second', 101],
-            'exactly five percent over keeps the turn' => [103, 'second', 105],
-            'beyond five percent cuts at the next turn' => [104, 'third', 20],
+            'one percent over keeps the turn' => [11, 'second', 101],
+            'exactly five percent over keeps the turn' => [15, 'second', 105],
+            'beyond five percent cuts at the next turn' => [16, 'third', 46],
         ];
     }
 
     #[DataProvider('overflowTolerance')]
-    public function test_a_turn_is_kept_while_the_overflow_stays_within_five_percent(int $lastInput, string $firstKept, int $total): void
+    public function test_a_turn_is_kept_while_the_overflow_stays_within_five_percent(int $lastAnswer, string $firstKept, int $total): void
     {
-        $call = new ToolCall('lookup', 'call-1');
-        $messages = [
-            new UserMessage('first'),
-            (new AssistantMessage('one'))->setUsage(new Usage(2, 1)),
-            new UserMessage('second'),
-            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(12, 1)),
-            new ToolResultMessage([(clone $call)->setResult('found')]),
-            (new AssistantMessage('two'))->setUsage(new Usage(88, 1)),
-            new UserMessage('third'),
-            (new AssistantMessage('three'))->setUsage(new Usage($lastInput, 5)),
-        ];
+        // 10 of instructions and tools, a 30-token first turn and a 60-token tool round
+        $messages = (new Conversation(10))
+            ->user(20, 'first')->answer(10)
+            ->user(20, 'second')->toolCall(10, 'call-1')->toolResult(20, 'call-1')->answer(10)
+            ->user(20, 'third')->answer($lastAnswer)
+            ->messages();
         $trimmer = new HistoryTrimmer();
 
-        // The smallest cut lands on the tool result: keeping the second turn costs 3 tokens less than everything.
+        // The smallest cut lands inside the second turn: keeping it costs only the first turn's 30 tokens.
         $trimmed = $trimmer->trim($messages, 100);
 
-        $this->assertSame($firstKept, $trimmed[0]->getContent());
+        $this->assertStringStartsWith($firstKept, (string) $trimmed[0]->getContent());
         $this->assertSame($total, $trimmer->getTotalTokens());
     }
 
@@ -280,44 +304,35 @@ class HistoryTrimmerTest extends TestCase
 
     public function test_a_cut_inside_a_tool_chain_moves_forward_when_keeping_the_turn_overflows(): void
     {
-        $calls = [new ToolCall('a', 'call-1'), new ToolCall('b', 'call-2'), new ToolCall('c', 'call-3')];
-        $messages = [
-            new UserMessage('first'),
-            (new ToolCallMessage(null, [$calls[0]]))->setUsage(new Usage(50, 10)),
-            new ToolResultMessage([(clone $calls[0])->setResult('1')]),
-            (new ToolCallMessage(null, [$calls[1]]))->setUsage(new Usage(100, 10)),
-            new ToolResultMessage([(clone $calls[1])->setResult('2')]),
-            (new ToolCallMessage(null, [$calls[2]]))->setUsage(new Usage(150, 10)),
-            new ToolResultMessage([(clone $calls[2])->setResult('3')]),
-            (new AssistantMessage('done'))->setUsage(new Usage(200, 10)),
-            new UserMessage('second'),
-            (new AssistantMessage('ok'))->setUsage(new Usage(300, 20)),
-        ];
+        $messages = (new Conversation(50))
+            ->user(20, 'first')
+            ->toolCall(10, 'call-1')->toolResult(20, 'call-1')
+            ->toolCall(10, 'call-2')->toolResult(20, 'call-2')
+            ->toolCall(10, 'call-3')->toolResult(20, 'call-3')
+            ->answer(10, 'done')
+            ->user(20, 'second')->answer(20, 'ok')
+            ->messages();
         $trimmer = new HistoryTrimmer();
 
-        // The cut lands on the third tool result: keeping the whole first turn would be 320 tokens, 60% over.
-        $trimmed = $trimmer->trim($messages, 200);
+        // The cut lands on the last answer of the first turn: keeping that turn would be 210 tokens, twice the window.
+        $trimmed = $trimmer->trim($messages, 100);
 
         $this->assertSame($this->ids(array_slice($messages, 8)), $this->ids($trimmed));
-        // 320 minus the 210 tokens reported by the last dropped message.
-        $this->assertSame(110, $trimmer->getTotalTokens());
-        $this->assertSame(90, $trimmed[1]->getUsage()?->inputTokens);
+        // 210 minus the first turn's 120 tokens of messages
+        $this->assertSame(90, $trimmer->getTotalTokens());
+        $this->assertSame(70, $trimmed[1]->getUsage()?->inputTokens);
     }
 
     public function test_the_latest_user_turn_is_kept_even_when_it_alone_exceeds_the_window(): void
     {
-        $messages = [
-            new UserMessage('Hello'),
-            (new AssistantMessage('Hi'))->setUsage(new Usage(100, 20)),
-            new UserMessage(str_repeat('a', 4000)),
-        ];
+        $messages = (new Conversation(50))->user(12, 'Hello')->answer(20, 'Hi')->user(1000, 'Read this')->messages();
         $trimmer = new HistoryTrimmer();
 
         $trimmed = $trimmer->trim($messages, 50);
 
         $this->assertSame([$messages[2]], $trimmed);
-        // 4 role chars + 38 + 4000 content chars, estimated
-        $this->assertSame(1011, $trimmer->getTotalTokens());
+        // The instructions and tools, and the 1,000-token question
+        $this->assertSame(1050, $trimmer->getTotalTokens());
     }
 
     public function test_a_history_without_a_user_message_to_start_from_is_kept_whole(): void
@@ -361,6 +376,10 @@ class HistoryTrimmerTest extends TestCase
         return [
             'starts with an assistant' => [
                 static fn (): array => [new AssistantMessage('Hi')],
+                'Invalid message sequence at position 0: expected role user, got assistant',
+            ],
+            'starts with a tool call' => [
+                static fn (): array => [new ToolCallMessage(null, [$call()]), $result()],
                 'Invalid message sequence at position 0: expected role user, got assistant',
             ],
             'starts with a tool result' => [
@@ -414,19 +433,16 @@ class HistoryTrimmerTest extends TestCase
 
     public function test_the_sequence_is_validated_after_trimming(): void
     {
-        $call = new ToolCall('lookup', 'call-1');
-        $messages = [
-            new UserMessage('Hi'),
-            (new AssistantMessage('Hello'))->setUsage(new Usage(100, 20)),
-            new UserMessage('Look it up'),
-            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(200, 20)),
-            new UserMessage('Never answered'),
-        ];
+        $messages = (new Conversation(50))
+            ->user(11, 'Hi')->answer(20, 'Hello')
+            ->user(13, 'Look it up')->toolCall(20, 'call-1')
+            ->user(14, 'Never answered')
+            ->messages();
 
         $this->expectException(ChatHistoryException::class);
         $this->expectExceptionMessage('position 2: a UserMessage cannot directly follow a ToolCallMessage');
 
-        (new HistoryTrimmer())->trim($messages, 150);
+        (new HistoryTrimmer())->trim($messages, 100);
     }
 
     /**
@@ -434,33 +450,23 @@ class HistoryTrimmerTest extends TestCase
      */
     protected function toolRoundConversation(): array
     {
-        $call = new ToolCall('lookup', 'call-1', ['q' => 'x']);
-
-        return [
-            new UserMessage('first'),
-            (new AssistantMessage('ok'))->setUsage(new Usage(10, 5)),
-            new UserMessage('second'),
-            (new ToolCallMessage(null, [$call]))->setUsage(new Usage(60, 10)),
-            new ToolResultMessage([(clone $call)->setResult('found')]),
-            (new AssistantMessage('found it'))->setUsage(new Usage(100, 20)),
-            new UserMessage('third'),
-            (new AssistantMessage('done'))->setUsage(new Usage(150, 20)),
-        ];
+        // 185 tokens: 50 of instructions and tools, a 30-token turn, a 90-token tool round and a 35-token turn
+        return (new Conversation(50))
+            ->user(20, 'first')->answer(10, 'ok')
+            ->user(20, 'second')->toolCall(10, 'call-1')->toolResult(20, 'call-1')->answer(20, 'found it')
+            ->user(20, 'third')->answer(15, 'done')
+            ->messages();
     }
 
     /**
-     * Two turns: the provider reports 120 tokens after the first, 280 after the second.
+     * 50 tokens of instructions and tools, then two turns: 100 + 20 and 100 + 30.
+     * The provider reports 150 + 20 after the first answer and 270 + 30 after the second.
      *
      * @return Message[]
      */
     protected function conversation(): array
     {
-        return [
-            new UserMessage('first'),
-            (new AssistantMessage('one'))->setUsage(new Usage(100, 20)),
-            new UserMessage('second'),
-            (new AssistantMessage('two'))->setUsage(new Usage(250, 30)),
-        ];
+        return (new Conversation(50))->user(100, 'first')->answer(20, 'one')->user(100, 'second')->answer(30, 'two')->messages();
     }
 
     /**

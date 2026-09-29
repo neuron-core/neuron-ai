@@ -53,9 +53,10 @@ class OpenSearchVectorStoreTest extends TestCase
         return new OpenSearchVectorStore(new OpenSearchClient($transport, new EndpointFactory($serializer), []), 'docs', 3, $schema);
     }
 
-    protected function document(string $content = 'Hello'): Document
+    protected function document(string $content = 'Hello', string $id = 'doc-1'): Document
     {
         return (new Document($content))
+            ->setId($id)
             ->setEmbedding([0.1, 0.2, 0.3])
             ->setSourceType('file')
             ->setSourceName('a.txt')
@@ -76,7 +77,7 @@ class OpenSearchVectorStoreTest extends TestCase
         $this->assertSame([
             'HEAD http://os.test:9200/docs',
             'PUT http://os.test:9200/docs',
-            'POST http://os.test:9200/docs/_doc',
+            'POST http://os.test:9200/docs/_doc/doc-1',
             'POST http://os.test:9200/docs/_refresh',
         ], $this->sentTargets());
 
@@ -149,7 +150,7 @@ class OpenSearchVectorStoreTest extends TestCase
         $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dimension' => 3]]]]]];
         $store = $this->store(null, new Response(200), $this->jsonResponse($mapping), $this->jsonResponse(['errors' => false]), $this->jsonResponse());
 
-        $store->addDocuments([$this->document('One'), $this->document('Two')]);
+        $store->addDocuments([$this->document('One', 'one'), $this->document('Two', 'two')]);
 
         $this->assertSame([
             'HEAD http://os.test:9200/docs',
@@ -160,7 +161,7 @@ class OpenSearchVectorStoreTest extends TestCase
 
         $lines = explode("\n", trim((string) $this->sentRequest(2)->getBody()));
         $this->assertCount(4, $lines);
-        $this->assertSame(['index' => ['_index' => 'docs']], json_decode($lines[0], true, flags: JSON_THROW_ON_ERROR));
+        $this->assertSame(['index' => ['_index' => 'docs', '_id' => 'one']], json_decode($lines[0], true, flags: JSON_THROW_ON_ERROR));
         $this->assertSame('Two', json_decode($lines[3], true, flags: JSON_THROW_ON_ERROR)['content']);
     }
 
@@ -222,10 +223,10 @@ class OpenSearchVectorStoreTest extends TestCase
             'HEAD http://os.test:9200/docs',
             'GET http://os.test:9200/docs/_mapping/field/embedding',
             'PUT http://os.test:9200/docs/_mapping',
-            'POST http://os.test:9200/docs/_doc',
+            'POST http://os.test:9200/docs/_doc/doc-1',
             'POST http://os.test:9200/docs/_refresh',
             'HEAD http://os.test:9200/docs',
-            'POST http://os.test:9200/docs/_doc',
+            'POST http://os.test:9200/docs/_doc/doc-1',
             'POST http://os.test:9200/docs/_refresh',
         ], $this->sentTargets());
     }
@@ -233,6 +234,7 @@ class OpenSearchVectorStoreTest extends TestCase
     public function test_search_puts_filters_inside_the_knn_clause_and_maps_hits(): void
     {
         $store = $this->store($this->schema(), $this->jsonResponse(['hits' => ['hits' => [[
+            '_id' => 'chunk-9',
             '_score' => 0.77,
             '_source' => [
                 'content' => 'Found',
@@ -261,9 +263,20 @@ class OpenSearchVectorStoreTest extends TestCase
         ]]], $this->sentJson(0)['query']);
 
         $this->assertCount(1, $results);
+        $this->assertSame('chunk-9', $results[0]->getId());
         $this->assertSame('Found', $results[0]->getContent());
         $this->assertSame(0.77, $results[0]->getScore());
         $this->assertSame(['tenant' => 'acme'], $results[0]->getMetadata());
+    }
+
+    public function test_search_returns_top_k_hits_from_a_wider_candidate_pool(): void
+    {
+        $store = $this->store(null, $this->jsonResponse(['hits' => ['hits' => []]]));
+
+        $store->search(new SearchRequest([0.1, 0.2, 0.3], topK: 12));
+
+        $this->assertSame(12, $this->sentJson(0)['size']);
+        $this->assertSame(50, $this->sentJson(0)['query']['knn']['embedding']['k']);
     }
 
     public function test_delete_by_query_uses_the_compiled_filter_then_refreshes(): void

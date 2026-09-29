@@ -55,6 +55,20 @@ class RetrievalNodeTest extends TestCase
         );
     }
 
+    public function test_a_duplicated_content_keeps_its_first_occurrence_data(): void
+    {
+        $retrieval = new StaticRetrieval([
+            (new Document('Paris'))->setSourceName('best.md')->setScore(0.9),
+            (new Document('Paris'))->setSourceName('copy.md')->setScore(0.4),
+        ]);
+
+        $result = (new RetrievalNode($retrieval))(new QueryPreProcessedEvent(new UserMessage('Question')), new AgentState());
+
+        $this->assertCount(1, $result->documents);
+        $this->assertSame('best.md', $result->documents[0]->getSourceName());
+        $this->assertSame(0.9, $result->documents[0]->getScore());
+    }
+
     public function test_contents_differing_only_by_whitespace_or_case_are_distinct(): void
     {
         $retrieval = new StaticRetrieval([new Document('Paris'), new Document('paris'), new Document('Paris ')]);

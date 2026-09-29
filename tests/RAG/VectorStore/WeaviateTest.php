@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\VectorStore;
 
 use NeuronAI\RAG\Document;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
 use NeuronAI\RAG\VectorStore\SearchRequest;
@@ -147,6 +149,43 @@ class WeaviateTest extends TestCase
         $results = $this->store->search(new SearchRequest([0, 0, 1]));
         $this->assertCount(1, $results);
         $this->assertEquals('file', $results[0]->getSourceType());
+    }
+
+    public function test_search_filters_by_a_list_of_values(): void
+    {
+        $documents = [];
+        foreach (['web', 'file', 'manual'] as $index => $sourceType) {
+            $document = new Document("Hello {$sourceType}!");
+            $document->setSourceType($sourceType);
+            $document->setEmbedding([1, $index, 0]);
+            $documents[] = $document;
+        }
+        $this->store->addDocuments($documents);
+
+        $results = $this->store->search(new SearchRequest([1, 0, 0], Filter::in('sourceType', ['web', 'file'])));
+
+        $this->assertCount(2, $results);
+    }
+
+    public function test_whole_number_filters_match_float_fields(): void
+    {
+        $store = new WeaviateVectorStore(
+            collection: $this->collectionName . 'prices',
+            host: 'http://127.0.0.1:' . self::SERVICE_PORT,
+            schema: DocumentSchema::of(DocumentField::float('price')->filterable()),
+        );
+        $cheap = (new Document('Cheap'))->addMetadata('price', 8.0);
+        $cheap->setEmbedding([1, 0, 0]);
+        $pricey = (new Document('Pricey'))->addMetadata('price', 12.5);
+        $pricey->setEmbedding([0, 1, 0]);
+        $store->addDocuments([$cheap, $pricey]);
+
+        try {
+            $this->assertCount(1, $store->search(new SearchRequest([1, 0, 0], Filter::gt('price', 10))));
+            $this->assertCount(1, $store->search(new SearchRequest([1, 0, 0], Filter::in('price', [8, 99]))));
+        } finally {
+            $store->destroy();
+        }
     }
 
     public function test_top_k_limits_results(): void

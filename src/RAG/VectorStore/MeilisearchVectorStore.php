@@ -21,8 +21,8 @@ use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use function rtrim;
 use function array_chunk;
 use function array_map;
+use function in_array;
 use function is_null;
-use function min;
 use function range;
 use function uniqid;
 use function usleep;
@@ -36,6 +36,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
      */
     public function __construct(
         protected string $indexUid,
@@ -57,7 +58,11 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         try {
             $this->httpClient->request(HttpRequest::get(uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}", headers: $this->httpHeaders));
-        } catch (Exception) {
+        } catch (HttpException $exception) {
+            if ($exception->response?->statusCode !== 404) {
+                throw $exception;
+            }
+
             $this->createIndex();
         }
 
@@ -138,7 +143,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
         $body = [
             'vector' => $request->embedding,
-            'limit' => min($request->topK ?? $this->topK, 20),
+            'limit' => $request->topK ?? $this->topK,
             'retrieveVectors' => true,
             'showRankingScore' => true,
             'hybrid' => [
@@ -176,6 +181,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
      */
     protected function createIndex(): void
     {
@@ -196,6 +202,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     /**
      * @throws HttpException
+     * @throws VectorStoreException
      */
     protected function configureIndex(): void
     {
@@ -233,6 +240,9 @@ class MeilisearchVectorStore implements VectorStoreInterface
         $this->waitForTask($response['taskUid']);
     }
 
+    /**
+     * @throws VectorStoreException
+     */
     protected function waitForTask(int $taskUid): void
     {
         foreach (range(1, 10) as $i) {
@@ -240,13 +250,21 @@ class MeilisearchVectorStore implements VectorStoreInterface
                 $task = $this->httpClient->request(
                     HttpRequest::get(rtrim($this->baseUri, '/') . '/tasks/' . $taskUid, headers: $this->httpHeaders)
                 )->json();
-                if ($task['status'] === 'succeeded') {
-                    return;
-                }
-                usleep(500 * 1000);
             } catch (Exception) {
                 usleep(500 * 1000);
+                continue;
             }
+
+            if ($task['status'] === 'succeeded') {
+                return;
+            }
+
+            if (in_array($task['status'], ['failed', 'canceled'], true)) {
+                $reason = isset($task['error']['message']) ? ": {$task['error']['message']}" : '.';
+                throw new VectorStoreException("Meilisearch task {$taskUid} {$task['status']}{$reason}");
+            }
+
+            usleep(500 * 1000);
         }
     }
 }

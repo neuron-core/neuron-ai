@@ -74,7 +74,7 @@ final class SegmentOutput
             yield from $this->deliver($this->adapter->end());
         }
 
-        $this->notify(fn (StreamingChannelInterface $channel) => $channel->completed($state, $this->workflowId));
+        $this->notify(fn (StreamingChannelInterface $channel) => $channel->completed(clone $state, $this->workflowId));
     }
 
     /** @return Generator<int, ProtocolEvent> */

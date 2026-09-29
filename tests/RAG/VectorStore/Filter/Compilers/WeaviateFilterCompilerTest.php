@@ -59,32 +59,32 @@ class WeaviateFilterCompilerTest extends TestCase
             'in text' => [
                 Filter::in('lang', ['en', 'it']),
                 ['path' => ['lang'], 'operator' => 'ContainsAny', 'valueTextArray' => ['en', 'it']],
-                '{path: ["lang"], operator: ContainsAny, valueTextArray: ["en", "it"]}',
+                '{path: ["lang"], operator: ContainsAny, valueText: ["en", "it"]}',
             ],
             'in int' => [
                 Filter::in('year', [1, 2]),
                 ['path' => ['year'], 'operator' => 'ContainsAny', 'valueIntArray' => [1, 2]],
-                '{path: ["year"], operator: ContainsAny, valueIntArray: [1, 2]}',
+                '{path: ["year"], operator: ContainsAny, valueInt: [1, 2]}',
             ],
             'in number' => [
                 Filter::in('price', [1.5, 2.5]),
                 ['path' => ['price'], 'operator' => 'ContainsAny', 'valueNumberArray' => [1.5, 2.5]],
-                '{path: ["price"], operator: ContainsAny, valueNumberArray: [1.5, 2.5]}',
+                '{path: ["price"], operator: ContainsAny, valueNumber: [1.5, 2.5]}',
             ],
             'in boolean' => [
                 Filter::in('draft', [true]),
                 ['path' => ['draft'], 'operator' => 'ContainsAny', 'valueBooleanArray' => [true]],
-                '{path: ["draft"], operator: ContainsAny, valueBooleanArray: [true]}',
+                '{path: ["draft"], operator: ContainsAny, valueBoolean: [true]}',
             ],
             'contains any' => [
                 Filter::containsAny('tags', ['a', 'b']),
                 ['path' => ['tags'], 'operator' => 'ContainsAny', 'valueTextArray' => ['a', 'b']],
-                '{path: ["tags"], operator: ContainsAny, valueTextArray: ["a", "b"]}',
+                '{path: ["tags"], operator: ContainsAny, valueText: ["a", "b"]}',
             ],
             'contains all' => [
                 Filter::containsAll('tags', ['a']),
                 ['path' => ['tags'], 'operator' => 'ContainsAll', 'valueTextArray' => ['a']],
-                '{path: ["tags"], operator: ContainsAll, valueTextArray: ["a"]}',
+                '{path: ["tags"], operator: ContainsAll, valueText: ["a"]}',
             ],
         ];
     }

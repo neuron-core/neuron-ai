@@ -71,6 +71,8 @@ class ChromaVectorStore implements VectorStoreInterface
                 body: [
                     'name' => $this->collection,
                     'get_or_create' => true,
+                    // Cosine, as every other store: Chroma's default l2 would put scores on another scale
+                    'metadata' => ['hnsw:space' => 'cosine'],
                 ],
                 headers: $this->httpHeaders,
             )

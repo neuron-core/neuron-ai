@@ -158,6 +158,33 @@ class OpenAIEmbeddingsProviderTest extends TestCase
         }
     }
 
+    public function test_embeddings_are_matched_to_documents_by_the_returned_index(): void
+    {
+        $documents = [new Document('First'), new Document('Second'), new Document('Third')];
+        $provider = new OpenAIEmbeddingsProvider(key: 'openai-key', model: 'model', httpClient: $this->recordingClient($this->jsonResponse(['object' => 'list', 'data' => [
+            ['object' => 'embedding', 'index' => 2, 'embedding' => [3.0]],
+            ['object' => 'embedding', 'index' => 0, 'embedding' => [1.0]],
+            ['object' => 'embedding', 'index' => 1, 'embedding' => [2.0]],
+        ]])));
+
+        $provider->embedDocuments($documents);
+
+        $this->assertSame([[1.0], [2.0], [3.0]], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
+    }
+
+    public function test_embeddings_without_an_index_are_matched_by_position(): void
+    {
+        $documents = [new Document('First'), new Document('Second')];
+        $provider = new OpenAIEmbeddingsProvider(key: 'openai-key', model: 'model', httpClient: $this->recordingClient($this->jsonResponse(['data' => [
+            ['embedding' => [1.0]],
+            ['embedding' => [2.0]],
+        ]])));
+
+        $provider->embedDocuments($documents);
+
+        $this->assertSame([[1.0], [2.0]], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
+    }
+
     public function test_embed_documents_without_documents_sends_nothing(): void
     {
         $provider = new OpenAIEmbeddingsProvider(key: 'openai-key', model: 'model', httpClient: $this->recordingClient());

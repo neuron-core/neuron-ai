@@ -50,6 +50,10 @@ class InMemoryMessageStore implements MessageStoreInterface
 
     public function archive(string $threadId, int $count): void
     {
+        if ($count <= 0) {
+            return;
+        }
+
         $this->archived[$threadId] = min(
             count($this->threads[$threadId] ?? []),
             ($this->archived[$threadId] ?? 0) + $count

@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Tests\Chat\History\Stub\Conversation;
 use NeuronAI\Tests\Chat\History\Stub\RecordingStreamWrapper;
 use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use NeuronAI\Tools\ToolCall;
@@ -217,21 +218,19 @@ class ChatHistoryTest extends TestCase
 
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
-        $history = $this->history(1000);
+        $history = $this->history(450);
 
-        // AI providers report inputTokens as cumulative context, so the last checkpoint
-        // (1000 + 150) is the total: the overflow of 150 is covered by the first checkpoint
-        // (200 + 150), so the first turn is trimmed.
-        for ($i = 1; $i <= 10; $i++) {
-            $history->addMessage($i % 2 === 0
-                ? (new AssistantMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."))->setUsage(new Usage(100 * $i, 150))
-                : new UserMessage("Message $i - Lorem ipsum dolor sit amet, consectetur adipiscing elit."));
+        // 100 tokens of instructions and tools, then five turns of 50 + 50. The fourth answer brings the
+        // request to 500, 11% over: the first turn goes, and the fifth answer makes the second one go.
+        for ($turn = 1; $turn <= 5; $turn++) {
+            $history->addMessage(new UserMessage(Conversation::text(50, "Question {$turn}")));
+            $history->addMessage((new AssistantMessage("Answer {$turn}"))->setUsage(Conversation::usage($history->getMessages(), 100, 50)));
         }
 
         $messages = $history->getMessages();
-        $this->assertCount(8, $messages);
-        $this->assertSame('Message 3 - Lorem ipsum dolor sit amet, consectetur adipiscing elit.', $messages[0]->getContent());
-        $this->assertSame(800, $history->calculateTotalUsage());
+        $this->assertCount(6, $messages);
+        $this->assertStringStartsWith('Question 3', (string) $messages[0]->getContent());
+        $this->assertSame(400, $history->calculateTotalUsage());
     }
 
     public function test_find_trim_point_progressively_exceeds_context_window(): void
@@ -239,47 +238,38 @@ class ChatHistoryTest extends TestCase
         $history = $this->history(500);
         $turns = [];
 
-        // Cumulative checkpoints: 200 and 400 fit in the window, 600 overflows it by 100.
-        foreach ([150, 350, 550] as $index => $inputTokens) {
-            $turn = [
-                new UserMessage('User message ' . ($index + 1)),
-                (new AssistantMessage('Assistant message ' . ($index + 1)))->setUsage(new Usage($inputTokens, 50)),
-            ];
-            foreach ($turn as $message) {
-                $history->addMessage($message);
-            }
-            $turns = [...$turns, ...$turn];
+        // 100 tokens of instructions and tools, then turns of 100 + 100: 300 and 500 fit, 700 overflows.
+        for ($turn = 1; $turn <= 3; $turn++) {
+            $history->addMessage($turns[] = new UserMessage(Conversation::text(100, "Question {$turn}")));
+            $history->addMessage($turns[] = (new AssistantMessage("Answer {$turn}"))->setUsage(Conversation::usage($history->getMessages(), 100, 100)));
         }
 
-        // The first checkpoint covering the overflow is the first turn (200 tokens).
+        // The overflow of 200 is exactly the first turn.
         $this->assertSame($this->ids(array_slice($turns, 2)), $this->ids($history->getMessages()));
-        $this->assertSame(400, $history->calculateTotalUsage());
+        $this->assertSame(500, $history->calculateTotalUsage());
     }
 
     public function test_find_trim_point_preserves_tool_call_result_pairs(): void
     {
-        $history = $this->history(300);
+        $history = $this->history(200);
         $search = ToolCall::make('search_tool', description: 'Search for information')->setInputs(['query' => 'test query 1'])->setCallId('call_1');
         $weather = ToolCall::make('weather_tool', description: 'Get weather info')->setInputs(['location' => 'London'])->setCallId('call_2');
 
-        $messages = [
-            new UserMessage('What is the weather?'),
-            (new ToolCallMessage(tools: [$search]))->setUsage(new Usage(50, 30)),
-            new ToolResultMessage([(clone $search)->setResult('Search result 1')]),
-            (new AssistantMessage('Based on the search...'))->setUsage(new Usage(120, 40)),
-            new UserMessage('Tell me more'),
-            (new ToolCallMessage(tools: [$weather]))->setUsage(new Usage(200, 35)),
-            new ToolResultMessage([(clone $weather)->setResult('Sunny, 25°C')]),
-            (new AssistantMessage('The weather in London...'))->setUsage(new Usage(350, 50)),
-        ];
-        foreach ($messages as $message) {
-            $history->addMessage($message);
-        }
+        // 50 tokens of instructions and tools, then two tool rounds of 110 and 125 tokens
+        $messages = [];
+        $history->addMessage($messages[] = new UserMessage(Conversation::text(20, 'What is the weather?')));
+        $history->addMessage($messages[] = (new ToolCallMessage(tools: [$search]))->setUsage(Conversation::usage($history->getMessages(), 50, 30)));
+        $history->addMessage($messages[] = new ToolResultMessage([(clone $search)->setResult(Conversation::result(20, 'call_1'))]));
+        $history->addMessage($messages[] = (new AssistantMessage('Based on the search...'))->setUsage(Conversation::usage($history->getMessages(), 50, 40)));
+        $history->addMessage($messages[] = new UserMessage(Conversation::text(20, 'Tell me more')));
+        $history->addMessage($messages[] = (new ToolCallMessage(tools: [$weather]))->setUsage(Conversation::usage($history->getMessages(), 50, 35)));
+        $history->addMessage($messages[] = new ToolResultMessage([(clone $weather)->setResult(Conversation::result(20, 'call_2'))]));
+        $history->addMessage($messages[] = (new AssistantMessage('The weather in London...'))->setUsage(Conversation::usage($history->getMessages(), 50, 50)));
 
-        // The 400 tokens overflow by 100: the first turn (160 tokens) goes as a whole,
+        // The second tool result brings the request 12% over the window: the first turn goes as a whole,
         // its tool call and result together.
         $this->assertSame($this->ids(array_slice($messages, 4)), $this->ids($history->getMessages()));
-        $this->assertSame(240, $history->calculateTotalUsage());
+        $this->assertSame(175, $history->calculateTotalUsage());
     }
 
     public function test_loading_is_deferred_to_first_use(): void

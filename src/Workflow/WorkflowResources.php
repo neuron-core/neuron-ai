@@ -28,7 +28,7 @@ class WorkflowResources
 
     public function get(string $key, mixed $default = null): mixed
     {
-        return $this->data[$key] ?? $default;
+        return array_key_exists($key, $this->data) ? $this->data[$key] : $default;
     }
 
     public function has(string $key): bool

@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\MessageDeserializer;
 
 use function array_merge;
+use function max;
 
 /**
  * Stores one row per message through the application's model, resolved with its
@@ -60,8 +61,8 @@ class EloquentMessageStore implements MessageStoreInterface
             return $this->deserialize($query->oldest($model->getKeyName())->get(self::COLUMNS));
         }
 
-        // A page is the newest rows before the cursor, returned in insertion order.
-        $query->limit($limit);
+        // A page is the newest rows before the cursor, returned in insertion order; a negative limit is an empty one.
+        $query->limit(max(0, $limit));
 
         return $this->deserialize($query->latest($model->getKeyName())->get(self::COLUMNS)->reverse());
     }

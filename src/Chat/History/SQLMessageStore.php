@@ -18,6 +18,7 @@ use function count;
 use function implode;
 use function json_decode;
 use function json_encode;
+use function max;
 use function preg_match;
 
 use const JSON_THROW_ON_ERROR;
@@ -57,7 +58,7 @@ class SQLMessageStore implements MessageStoreInterface
         protected string $table = 'chat_messages',
     ) {
         // Identifiers cannot be bound as parameters: the format check keeps the name safe to interpolate.
-        if (preg_match('/^[a-zA-Z_]\w*$/', $table) !== 1) {
+        if (preg_match('/^[a-zA-Z_]\w*$/D', $table) !== 1) {
             throw new ChatHistoryException("Invalid table name '{$table}'.");
         }
     }
@@ -82,8 +83,8 @@ class SQLMessageStore implements MessageStoreInterface
             $parameters += ['cursor_thread_id' => $threadId, 'before' => $before];
         }
 
-        // A page is the newest rows before the cursor, returned in insertion order.
-        $order = $limit === null ? 'ORDER BY id' : "ORDER BY id DESC LIMIT {$limit}";
+        // A page is the newest rows before the cursor, returned in insertion order; a negative limit is an empty one.
+        $order = $limit === null ? 'ORDER BY id' : 'ORDER BY id DESC LIMIT ' . max(0, $limit);
 
         $stmt = $this->pdo->prepare("SELECT message_id, role, content, meta FROM {$this->table} WHERE {$conditions} {$order}");
         $stmt->execute($parameters);

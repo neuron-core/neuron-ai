@@ -15,6 +15,7 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\WorkflowTestStore;
@@ -99,9 +100,20 @@ class ToolApprovalFlowTest extends TestCase
     private function node(array $registry, ?ChatHistory $history = null): ToolNode
     {
         $node = new ToolNode();
-        $this->setups[spl_object_id($node)] = [$registry, $history ?? new ChatHistory(new InMemoryMessageStore(), 'thread')];
+        $this->setups[spl_object_id($node)] = [$registry, $history ?? $this->conversation()];
 
         return $node;
+    }
+
+    /**
+     * A tool call always answers a user turn, so the history opens with one.
+     */
+    protected function conversation(): ChatHistory
+    {
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history->addMessage(new UserMessage('Use the tools'));
+
+        return $history;
     }
 
     private function history(ToolNode $node): ChatHistory
@@ -248,7 +260,7 @@ class ToolApprovalFlowTest extends TestCase
         // Deferred pair-commit: with no suspend possible the node writes nothing —
         // the call/result pair travels as the next inference's inbound messages
         // and commits only after that provider call succeeds.
-        $this->assertSame([], $this->history($node)->getMessages());
+        $this->assertCount(1, $this->history($node)->getMessages(), 'Only the opening user message');
         $this->assertSame(
             [$event->toolCallMessage, $state->request->messages[1]],
             $state->request->messages
@@ -277,7 +289,7 @@ class ToolApprovalFlowTest extends TestCase
 
         // Deferred pair-commit: the crash happened before any history write, so
         // the thread is not wedged behind a tool call with no result.
-        $this->assertSame([], $this->history($node)->getMessages());
+        $this->assertCount(1, $this->history($node)->getMessages(), 'Only the opening user message');
     }
 
     public function test_require_approval_forces_the_gate(): void
@@ -772,7 +784,7 @@ class ToolApprovalFlowTest extends TestCase
     {
         $store = $this->stepStore();
         $memoizer = WorkflowTestStore::memoizer($store, 'approval_flow_test', 'ToolNode-1');
-        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history = $this->conversation();
         $node = $this->node([$this->gatedTool('a'), $this->gatedTool('b')], $history);
         $state = new AgentState();
 
@@ -814,7 +826,7 @@ class ToolApprovalFlowTest extends TestCase
         // pre-suspend write is scoped per step, so each cycle records its own
         // ToolCallMessage (the non-gated path writes nothing here at all).
         $store = $this->stepStore();
-        $history = new ChatHistory(new InMemoryMessageStore(), 'thread');
+        $history = $this->conversation();
         $node = $this->node([$this->gatedTool('first'), $this->gatedTool('second')], $history);
         $state = new AgentState();
 

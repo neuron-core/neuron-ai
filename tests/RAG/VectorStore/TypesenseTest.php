@@ -20,6 +20,7 @@ use function bin2hex;
 use function file_get_contents;
 use function json_decode;
 use function random_bytes;
+use function uniqid;
 
 class TypesenseTest extends TestCase
 {
@@ -75,6 +76,22 @@ class TypesenseTest extends TestCase
 
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
+    }
+
+    public function test_search_results_keep_the_stored_id(): void
+    {
+        $collection = 'test_ids_' . uniqid();
+        $store = new TypesenseVectorStore($this->client, $collection, $this->vectorDimension);
+        $document = new Document('Hello World!');
+        $document->setEmbedding($this->embedding);
+
+        try {
+            $store->addDocument($document);
+
+            $this->assertSame($document->getId(), $store->search(new SearchRequest($this->embedding))[0]->getId());
+        } finally {
+            $this->client->collections[$collection]->delete();
+        }
     }
 
     public function test_add_documents(): void

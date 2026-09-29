@@ -103,6 +103,31 @@ class MariaDBTest extends TestCase
         $this->assertGreaterThanOrEqual($results[2]->getScore(), $results[1]->getScore());
     }
 
+    public function test_re_adding_a_document_updates_it_in_place(): void
+    {
+        $document = new Document('First version');
+        $document->setEmbedding([1.0, 0.0, 0.0]);
+        $this->store->addDocument($document);
+
+        $update = (new Document('Second version'))->setId($document->getId());
+        $update->setEmbedding([0.0, 1.0, 0.0]);
+        $this->store->addDocument($update);
+
+        $results = $this->store->search(new SearchRequest([0.0, 1.0, 0.0]));
+        $this->assertCount(1, $results);
+        $this->assertSame('Second version', $results[0]->getContent());
+        $this->assertEqualsWithDelta(1.0, $results[0]->getScore(), 0.0001);
+    }
+
+    public function test_scores_are_cosine_similarities(): void
+    {
+        $document = new Document('Cosine 0.6 match');
+        $document->setEmbedding([0.6, 0.8, 0.0]);
+        $this->store->addDocument($document);
+
+        $this->assertEqualsWithDelta(0.6, $this->store->search(new SearchRequest([1.0, 0.0, 0.0]))[0]->getScore(), 0.0001);
+    }
+
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');

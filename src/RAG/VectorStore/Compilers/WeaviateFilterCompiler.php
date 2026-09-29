@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\VectorStore\Compilers;
 
 use LogicException;
+use NeuronAI\RAG\Schema\DocumentFieldType;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterCombinator;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
@@ -22,10 +24,18 @@ use function is_bool;
 use function is_int;
 use function is_string;
 use function json_encode;
+use function preg_replace;
 
 class WeaviateFilterCompiler extends FilterCompiler
 {
     protected const STORE = WeaviateVectorStore::class;
+
+    protected DocumentSchema $schema;
+
+    public function __construct(?DocumentSchema $schema = null)
+    {
+        $this->schema = $schema ?? DocumentSchema::default();
+    }
 
     /**
      * Compile to a Weaviate "where" filter in REST format (batch delete).
@@ -85,13 +95,18 @@ class WeaviateFilterCompiler extends FilterCompiler
         return [
             'path' => [$condition->field],
             'operator' => $operator,
-            $this->valueKey($condition->value) => $condition->value,
+            $this->valueKey($condition->field, $condition->value) => $condition->value,
         ];
     }
 
-    protected function valueKey(mixed $value): string
+    protected function valueKey(string $field, mixed $value): string
     {
         $array = is_array($value);
+
+        // A float field is a Weaviate number, which refuses valueInt even for whole-number values
+        if ($this->schema->getField($field)?->getType() === DocumentFieldType::Float) {
+            return $array ? 'valueNumberArray' : 'valueNumber';
+        }
 
         if (is_array($value)) {
             $value = $value[0];
@@ -125,7 +140,9 @@ class WeaviateFilterCompiler extends FilterCompiler
 
             $pairs = [];
             foreach ($value as $itemKey => $item) {
-                $pairs[] = $itemKey . ': ' . $this->render($item, (string) $itemKey);
+                // GraphQL takes a list through the scalar value field (valueText), REST through valueTextArray
+                $name = preg_replace('/^(value\w+)Array$/', '$1', (string) $itemKey);
+                $pairs[] = $name . ': ' . $this->render($item, (string) $itemKey);
             }
 
             return '{' . implode(', ', $pairs) . '}';

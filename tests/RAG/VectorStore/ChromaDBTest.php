@@ -80,6 +80,15 @@ class ChromaDBTest extends TestCase
     /**
      * @throws HttpException
      */
+    public function test_scores_are_cosine_similarities(): void
+    {
+        $document = new Document('Cosine 0.6 match');
+        $document->setEmbedding([0.6, 0.8, 0.0]);
+        $this->store->addDocument($document);
+
+        $this->assertEqualsWithDelta(0.6, $this->store->search(new SearchRequest([1.0, 0.0, 0.0]))[0]->getScore(), 0.0001);
+    }
+
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');

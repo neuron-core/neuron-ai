@@ -23,10 +23,12 @@ final class ProtocolEvent implements JsonSerializable
     }
 
     /**
+     * The type is the discriminator: a 'type' key in the data is left out.
+     *
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array
     {
-        return ['type' => $this->type, ...$this->data];
+        return ['type' => $this->type] + $this->data;
     }
 }

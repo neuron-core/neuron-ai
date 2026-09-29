@@ -139,6 +139,23 @@ class MongoDBTest extends TestCase
         $this->assertEquals('value1', $results[0]->getMetadata()['key']);
     }
 
+    public function test_search_results_keep_the_stored_id_and_metadata_types(): void
+    {
+        $document = new Document('Typed metadata');
+        $document->setEmbedding([1, 0, 0]);
+        $document->setMetadata(['year' => 2026, 'draft' => false, 'tags' => ['php', 'rag'], 'author' => ['name' => 'Ada']]);
+        $this->store->addDocument($document);
+
+        $results = $this->searchUntilCount(new SearchRequest([1, 0, 0]), 1);
+
+        $this->assertCount(1, $results);
+        $this->assertSame($document->getId(), $results[0]->getId());
+        $this->assertSame(
+            ['year' => 2026, 'draft' => false, 'tags' => ['php', 'rag'], 'author' => ['name' => 'Ada']],
+            $results[0]->getMetadata(),
+        );
+    }
+
     public function test_delete_documents(): void
     {
         $document = new Document('Hello!');

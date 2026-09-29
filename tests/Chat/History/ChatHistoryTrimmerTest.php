@@ -10,8 +10,8 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Tests\Chat\History\Stub\Conversation;
 use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\TestCase;
 
@@ -25,6 +25,8 @@ use function uniqid;
 class ChatHistoryTrimmerTest extends TestCase
 {
     protected const CONTEXT_WINDOW = 200000; // 200K context window
+
+    protected const OVERHEAD = 5000; // instructions and tools, measured with every answer
 
     protected InMemoryMessageStore $store;
 
@@ -59,23 +61,13 @@ class ChatHistoryTrimmerTest extends TestCase
         while ($iterations < $maxIterations) {
             $iterations++;
 
-            // Each turn adds roughly 2000-2500 tokens
-            // We'll reach 200K around iteration 80-100
-            $turnTokens = 2000 + ($iterations % 500);
-
-            // Use actual usage as the base after trimming occurs,
-            // simulating realistic AI provider behavior where inputTokens
-            // reflects the actual context sent (not historical cumulative)
-            $currentUsage = $this->chatHistory->calculateTotalUsage();
-            $cumulativeTokens = $currentUsage + $turnTokens;
-
             // Alternate between regular pairs and tool-using sequences
             if ($iterations % 3 === 0) {
                 // Tool-using sequence: user -> tool_call -> tool_result -> assistant
-                $this->addToolSequence($iterations, $cumulativeTokens);
+                $this->addToolSequence($iterations);
             } else {
                 // Regular pair: user -> assistant
-                $this->addRegularPair($iterations, $cumulativeTokens);
+                $this->addRegularPair($iterations);
             }
 
             $totalUsage = $this->chatHistory->calculateTotalUsage();
@@ -92,12 +84,12 @@ class ChatHistoryTrimmerTest extends TestCase
             }
         }
 
-        // Verify the trimming keeps us within the context window
+        // Verify the trimming keeps us within the context window, or 5% over it to keep a whole turn
         $finalUsage = $this->chatHistory->calculateTotalUsage();
         $this->assertLessThanOrEqual(
-            self::CONTEXT_WINDOW,
+            self::CONTEXT_WINDOW * 1.05,
             $finalUsage,
-            "Final usage ($finalUsage) should be within context window (" . self::CONTEXT_WINDOW . ")"
+            "Final usage ($finalUsage) should be within 5% over the context window (" . self::CONTEXT_WINDOW . ")"
         );
 
         // Verify message sequence validity
@@ -138,7 +130,7 @@ class ChatHistoryTrimmerTest extends TestCase
         $this->added++;
     }
 
-    protected function addRegularPair(int $iteration, int $cumulativeTokens): void
+    protected function addRegularPair(int $iteration): void
     {
         // Create substantial content to simulate real usage
         $userContent = $this->generateContent($iteration, 'user');
@@ -147,13 +139,12 @@ class ChatHistoryTrimmerTest extends TestCase
         $this->add(new UserMessage($userContent));
 
         $assistant = new AssistantMessage($assistantContent);
-        // Cumulative usage: input_tokens includes all prior context
-        $outputTokens = 300 + ($iteration % 200);
-        $assistant->setUsage(new Usage($cumulativeTokens - $outputTokens, $outputTokens));
+        // The provider measures the request: instructions, tools and the history sent
+        $assistant->setUsage(Conversation::usage($this->chatHistory->getMessages(), self::OVERHEAD, 300 + ($iteration % 200)));
         $this->add($assistant);
     }
 
-    protected function addToolSequence(int $iteration, int $cumulativeTokens): void
+    protected function addToolSequence(int $iteration): void
     {
         $toolName = "tool_{$iteration}";
         $callId = "call_{$iteration}_" . uniqid();
@@ -172,8 +163,7 @@ class ChatHistoryTrimmerTest extends TestCase
 
         // Tool call
         $toolCall = new ToolCallMessage(tools: [$tool]);
-        $outputTokens1 = 100;
-        $toolCall->setUsage(new Usage($cumulativeTokens - 600 - $outputTokens1, $outputTokens1));
+        $toolCall->setUsage(Conversation::usage($this->chatHistory->getMessages(), self::OVERHEAD, 100));
         $this->add($toolCall);
 
         // Tool result
@@ -181,8 +171,7 @@ class ChatHistoryTrimmerTest extends TestCase
 
         // Assistant response - this is where the checkpoint is
         $assistant = new AssistantMessage($this->generateContent($iteration, 'assistant'));
-        $outputTokens2 = 500;
-        $assistant->setUsage(new Usage($cumulativeTokens - $outputTokens2, $outputTokens2));
+        $assistant->setUsage(Conversation::usage($this->chatHistory->getMessages(), self::OVERHEAD, 500));
         $this->add($assistant);
     }
 

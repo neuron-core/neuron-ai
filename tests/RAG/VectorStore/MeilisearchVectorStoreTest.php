@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\VectorStore;
 
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentField;
@@ -18,6 +19,7 @@ use NeuronAI\RAG\VectorStore\TypesenseVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RecordsVectorStoreRequests;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RejectsInvalidInputBeforeRemoteCalls;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -110,6 +112,52 @@ class MeilisearchVectorStoreTest extends TestCase
             'GET http://meili.test:7700/tasks/10',
         ], array_slice($this->sentTargets(), 0, 3));
         $this->assertSame(['uid' => 'docs', 'primaryKey' => 'id'], $this->sentJson(1));
+    }
+
+    public function test_a_lookup_error_other_than_a_missing_index_is_raised(): void
+    {
+        try {
+            new MeilisearchVectorStore(
+                indexUid: 'docs',
+                host: self::HOST,
+                httpClient: $this->recordingClient($this->jsonResponse(['code' => 'internal'], 500)),
+            );
+            $this->fail('A failed index lookup must not be taken for a missing index.');
+        } catch (HttpException $exception) {
+            $this->assertSame(500, $exception->response?->statusCode);
+        }
+
+        $this->assertSame(['GET http://meili.test:7700/indexes/docs'], $this->sentTargets());
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function unsuccessfulTasks(): array
+    {
+        return [
+            'failed' => [
+                ['status' => 'failed', 'error' => ['message' => 'Cannot disable the binary quantization.']],
+                'Meilisearch task 11 failed: Cannot disable the binary quantization.',
+            ],
+            'canceled' => [['status' => 'canceled', 'error' => null], 'Meilisearch task 11 canceled.'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $task
+     */
+    #[DataProvider('unsuccessfulTasks')]
+    public function test_an_unsuccessful_settings_task_is_raised(array $task, string $message): void
+    {
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage($message);
+
+        new MeilisearchVectorStore(
+            indexUid: 'docs',
+            host: self::HOST,
+            httpClient: $this->recordingClient(new Response(200), $this->jsonResponse(['taskUid' => 11]), $this->jsonResponse($task)),
+        );
     }
 
     public function test_bearer_key_is_sent_on_every_request_only_when_configured(): void
@@ -210,6 +258,13 @@ class MeilisearchVectorStoreTest extends TestCase
         $body = $this->sentJson(self::SETUP_REQUESTS);
         $this->assertSame(1, $body['limit']);
         $this->assertArrayNotHasKey('filter', $body);
+    }
+
+    public function test_search_honors_a_request_top_k_above_twenty(): void
+    {
+        $this->store(null, null, $this->jsonResponse(['hits' => []]))->search(new SearchRequest([1.0], topK: 25));
+
+        $this->assertSame(25, $this->sentJson(self::SETUP_REQUESTS)['limit']);
     }
 
     public function test_delete_posts_the_compiled_filter_expression(): void

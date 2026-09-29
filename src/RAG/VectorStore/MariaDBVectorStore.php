@@ -47,7 +47,7 @@ class MariaDBVectorStore implements VectorStoreInterface
                     sourceName VARCHAR(255),
                     metadata JSON,
                     embedding VECTOR(%d) NOT NULL,
-                    VECTOR INDEX (embedding)
+                    VECTOR INDEX (embedding) DISTANCE=cosine
                 )
                 SQL,
             $this->tableName,
@@ -88,7 +88,7 @@ class MariaDBVectorStore implements VectorStoreInterface
                     sourceType = VALUES(sourceType),
                     sourceName = VALUES(sourceName),
                     metadata = VALUES(metadata),
-                    embedding = VEC_FromText(VALUES(embedding))
+                    embedding = VALUES(embedding)
                 SQL,
             $this->tableName,
         ));
@@ -147,7 +147,7 @@ class MariaDBVectorStore implements VectorStoreInterface
         $stmt = $this->pdo->prepare(sprintf(
             <<<'SQL'
                 SELECT id, content, sourceType, sourceName, metadata,
-                       VEC_DISTANCE_EUCLIDEAN(embedding, VEC_FromText(:embedding)) AS distance
+                       VEC_DISTANCE_COSINE(embedding, VEC_FromText(:embedding)) AS distance
                 FROM %s
                 %s
                 ORDER BY distance ASC

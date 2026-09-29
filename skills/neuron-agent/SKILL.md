@@ -310,7 +310,7 @@ protected function contextWindow(): int
 $agent->setContextWindow(190_000);
 ```
 
-Keep the window at least 5% below the model's limit, as 190,000 is for a 200,000-token model: rather than drop a whole turn, such as a long tool chain, the history may keep up to 5% more than the window.
+The window covers the whole request: instructions, tool definitions and messages, as the provider's usage reports them. Keep it at least 5% below the model's limit, as 190,000 is for a 200,000-token model: rather than drop a whole turn, the history may keep up to 5% more than the window.
 
 `getChatHistory()->getMessages()` returns the model context. To render a whole conversation, read its transcript from the store; message IDs are stable, so they serve as UI keys and page cursors:
 

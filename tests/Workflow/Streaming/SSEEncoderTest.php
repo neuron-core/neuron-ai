@@ -37,6 +37,13 @@ class SSEEncoderTest extends TestCase
         $this->assertSame("data: {\"type\":\"text-delta\",\"id\":\"text_1\",\"delta\":\"Hi\"}\n\n", $frame);
     }
 
+    public function test_a_type_key_in_the_data_cannot_replace_the_event_type(): void
+    {
+        $frame = SSEEncoder::frame(new ProtocolEvent('tool-output', ['type' => 'finish', 'output' => 'result']));
+
+        $this->assertSame("data: {\"type\":\"tool-output\",\"output\":\"result\"}\n\n", $frame);
+    }
+
     public function test_frame_substitutes_invalid_utf8_instead_of_failing(): void
     {
         $frame = SSEEncoder::frame(new ProtocolEvent('text-delta', ['delta' => "caf\xE9"]));

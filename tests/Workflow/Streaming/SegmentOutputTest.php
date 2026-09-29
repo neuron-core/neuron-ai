@@ -10,6 +10,9 @@ use NeuronAI\Tests\Workflow\Channel\Stub\PreStreamNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\ChunkEvent;
 use NeuronAI\Tests\Workflow\Streaming\Stub\FramingAdapter;
 use NeuronAI\Tests\Workflow\Stub\InterruptableNode;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Tests\Workflow\Stub\NodeThree;
+use NeuronAI\Tests\Workflow\Stub\NodeTwo;
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
@@ -92,5 +95,24 @@ class SegmentOutputTest extends TestCase
         $this->assertFalse($state->has('changed_by_channel'));
         $this->assertSame($state->getWorkflowId(), $delivered[0]->getWorkflowId());
         $this->assertSame($state->getInterruptRequest()->getId(), $delivered[0]->getInterruptRequest()->getId());
+    }
+
+    public function test_the_channel_receives_a_detached_copy_of_the_completed_state(): void
+    {
+        $delivered = [];
+        $channel = new CallbackChannel(onCompleted: function (WorkflowState $state) use (&$delivered): void {
+            $state->set('changed_by_channel', true);
+            $delivered[] = $state;
+        });
+
+        $state = Workflow::make('segment-output')
+            ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
+            ->setChannel(fn (): StreamingChannelInterface => $channel)
+            ->run();
+
+        $this->assertCount(1, $delivered);
+        $this->assertNotSame($state, $delivered[0]);
+        $this->assertFalse($state->has('changed_by_channel'));
+        $this->assertSame($state->getWorkflowId(), $delivered[0]->getWorkflowId());
     }
 }

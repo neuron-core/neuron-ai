@@ -36,10 +36,11 @@ class WorkflowStateTest extends TestCase
 
     public function test_get_returns_the_default_only_for_missing_keys(): void
     {
-        $state = new WorkflowState(['zero' => 0, 'empty' => '', 'false' => false, 'list' => []]);
+        $state = new WorkflowState(['zero' => 0, 'empty' => '', 'false' => false, 'list' => [], 'nothing' => null]);
 
         $this->assertNull($state->get('missing'));
         $this->assertSame('fallback', $state->get('missing', 'fallback'));
+        $this->assertNull($state->get('nothing', 'fallback'));
         $this->assertSame(0, $state->get('zero', 'fallback'));
         $this->assertSame('', $state->get('empty', 'fallback'));
         $this->assertFalse($state->get('false', 'fallback'));

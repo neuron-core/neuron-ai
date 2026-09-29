@@ -27,7 +27,6 @@ use function class_exists;
 use function count;
 use function extension_loaded;
 use function is_array;
-use function is_subclass_of;
 use function ksort;
 use function serialize;
 use function unserialize;
@@ -104,15 +103,22 @@ class ParallelToolNode extends ToolNode
 
         $executedCalls = $rejectedCalls;
 
+        // Restore accounting even when the batch's execution results are cached.
+        // All calls reserve their slots in the parent before any child starts;
+        // a call the accounting refuses is settled here, as in sequential mode.
+        foreach ($runnable as $index => $call) {
+            try {
+                $this->checkToolRuns($call, $index, $state, $tools);
+            } catch (Throwable $e) {
+                $this->handleError($e, $call);
+                $executedCalls[$index] = $call;
+                unset($runnable[$index]);
+            }
+        }
+
         if ($runnable !== []) {
             $runnableCalls = array_values($runnable);
             $runnableKeys = array_keys($runnable);
-
-            // Restore accounting even when the batch's execution results are cached.
-            // All calls reserve their slots in the parent before any child starts.
-            foreach ($runnable as $index => $call) {
-                $this->checkToolRuns($call, $index, $state, $tools);
-            }
 
             $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls, $tools): array {
                 // Resolve parent-side, before forking.
@@ -162,16 +168,11 @@ class ParallelToolNode extends ToolNode
                 $call = $runnableCalls[$pos];
 
                 if (is_array($data) && isset($data['error']) && $data['error'] === true) {
-                    $exceptionClass = $data['exception_class'];
-                    $exception = null;
-
-                    if (class_exists($exceptionClass) && is_subclass_of($exceptionClass, Throwable::class)) {
-                        $exception = new $exceptionClass($data['exception_message'], (int) $data['exception_code']);
-                    } else {
-                        $exception = new ToolException($data['exception_message'], (int) $data['exception_code']);
-                    }
-
-                    $this->handleError($exception, $call);
+                    // The original exception lives in the child process: report what it was.
+                    $this->handleError(new ToolException(
+                        "Tool {$data['tool_name']} failed with {$data['exception_class']}: {$data['exception_message']}",
+                        (int) $data['exception_code'],
+                    ), $call);
                 } else {
                     $call->setResult($data);
                 }

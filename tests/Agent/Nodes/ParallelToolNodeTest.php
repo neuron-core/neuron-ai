@@ -8,6 +8,8 @@ use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelAnotherTool;
 use NeuronAI\Tests\Agent\Nodes\Stub\ParallelRegularTool;
+use NeuronAI\Tests\Agent\Nodes\Stub\UpstreamException;
+use NeuronAI\Tests\Agent\Nodes\Stub\UpstreamTool;
 use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
@@ -254,24 +256,90 @@ class ParallelToolNodeTest extends TestCase
             },
         );
 
-        $this->assertSame([[RuntimeException::class, 'Tool failed!', 'call_2']], $handled);
+        $message = 'Tool failing_tool failed with ' . RuntimeException::class . ': Tool failed!';
+        $this->assertSame([[ToolException::class, $message, 'call_2']], $handled);
         $this->assertSame('Results for: first', $calls[0]->getResult());
         $this->assertInstanceOf(ToolOutput::class, $calls[1]->getResult());
-        $this->assertSame('handled: Tool failed!', $calls[1]->getResult()->getText());
+        $this->assertSame('handled: ' . $message, $calls[1]->getResult()->getText());
         $this->assertSame('Results for: third', $calls[2]->getResult());
     }
 
-    public function test_a_failing_child_without_a_handler_fails_the_node_with_the_original_exception(): void
+    public function test_a_failing_child_without_a_handler_fails_the_node_naming_the_original_exception(): void
     {
         $calls = [
             ToolCall::make('search', 'call_1', ['query' => 'first']),
             ToolCall::make('failing_tool', 'call_2', ['input' => 'boom']),
         ];
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Tool failed!');
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool failing_tool failed with ' . RuntimeException::class . ': Tool failed!');
 
         $this->runParallel($calls, [new SearchTool(), new AgentFailingTool()]);
+    }
+
+    public function test_a_child_exception_with_its_own_constructor_reaches_the_error_handler(): void
+    {
+        $calls = [
+            ToolCall::make('upstream', 'call_1'),
+            ToolCall::make('search', 'call_2', ['query' => 'second']),
+        ];
+        $handled = [];
+
+        $this->runParallel(
+            $calls,
+            [new UpstreamTool(), new SearchTool()],
+            function (Throwable $error) use (&$handled): string {
+                $handled[] = [$error::class, $error->getMessage()];
+                return 'handled';
+            },
+        );
+
+        $this->assertSame(
+            [[ToolException::class, 'Tool upstream failed with ' . UpstreamException::class . ': Upstream failed with status 503']],
+            $handled,
+        );
+        $this->assertSame('handled', $calls[0]->getResult());
+        $this->assertSame('Results for: second', $calls[1]->getResult());
+    }
+
+    public function test_a_call_over_the_run_limit_is_settled_by_the_error_handler_as_in_sequential_mode(): void
+    {
+        $calls = [
+            ToolCall::make('search', 'call_1', ['query' => 'first']),
+            ToolCall::make('search', 'call_2', ['query' => 'second']),
+            ToolCall::make('search', 'call_3', ['query' => 'third']),
+        ];
+        $handled = [];
+
+        $state = $this->runParallel(
+            $calls,
+            [(new SearchTool())->setMaxRuns(2)],
+            function (Throwable $error, ToolCall $call) use (&$handled): string {
+                $handled[] = [$error::class, $call->getCallId()];
+                return 'limit reached';
+            },
+        );
+
+        $this->assertSame([[ToolRunsExceededException::class, 'call_3']], $handled);
+        $this->assertSame('Results for: first', $calls[0]->getResult());
+        $this->assertSame('Results for: second', $calls[1]->getResult());
+        $this->assertSame('limit reached', $calls[2]->getResult());
+        $this->assertSame(3, $state->getToolRuns('search'));
+    }
+
+    public function test_an_unregistered_tool_is_settled_by_the_error_handler_and_the_others_run(): void
+    {
+        $calls = [
+            ToolCall::make('search', 'call_1', ['query' => 'first']),
+            ToolCall::make('ghost', 'call_2'),
+            ToolCall::make('search', 'call_3', ['query' => 'third']),
+        ];
+
+        $this->runParallel($calls, [new SearchTool()], fn (Throwable $error): string => $error::class);
+
+        $this->assertSame('Results for: first', $calls[0]->getResult());
+        $this->assertSame(ToolException::class, $calls[1]->getResult());
+        $this->assertSame('Results for: third', $calls[2]->getResult());
     }
 
     public function test_an_unregistered_tool_fails_before_any_child_starts(): void

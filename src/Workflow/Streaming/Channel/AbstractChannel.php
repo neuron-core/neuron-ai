@@ -178,13 +178,12 @@ abstract class AbstractChannel implements StreamingChannelInterface
      */
     final protected function fragments(string $type, string $data, int $sequence): iterable
     {
+        // Encoding validates the type for the transport, so it runs whatever the event's size.
         $envelope = $this->envelope($type, $data, $sequence);
-        if ($this->eventBudget() === null || strlen($envelope) <= $this->eventBudget()) {
-            $encoded = $this->encode($type, $envelope);
-            if ($this->fits($envelope, $encoded)) {
-                yield $encoded;
-                return;
-            }
+        $encoded = $this->encode($type, $envelope);
+        if ($this->fits($envelope, $encoded)) {
+            yield $encoded;
+            return;
         }
         unset($envelope, $encoded);
 

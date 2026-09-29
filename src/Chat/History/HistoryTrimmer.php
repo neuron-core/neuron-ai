@@ -22,8 +22,11 @@ use function max;
 use function min;
 
 /**
- * Trims chat history to fit within a context window using checkpoint-based calculation.
- * Checkpoints are assistant messages with usage data.
+ * Trims chat history to fit within a context window. The window budgets the whole
+ * request, as the provider measures it: checkpoints are assistant messages with
+ * usage, whose input covers the instructions and tools sent with them. The total is
+ * the last checkpoint plus an estimate of the later messages, and a cut is priced by
+ * the messages it drops, since instructions and tools stay in the next request.
  */
 class HistoryTrimmer implements HistoryTrimmerInterface
 {
@@ -66,7 +69,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return $messages;
         }
 
-        $trimPoint = $this->findTrimPoint($messages, $checkpoints, $contextWindow);
+        $trimPoint = $this->findTrimPoint($messages, $contextWindow);
 
         if ($trimPoint['index'] > 0) {
             $trimmedTokens = $trimPoint['tokens'];
@@ -83,7 +86,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
     /**
      * After a head-trim, the remaining checkpoints still carry the provider's
-     * original cumulative token values; subtract the trimmed tokens from
+     * original cumulative token values; subtract the dropped messages' tokens from
      * inputTokens (cumulative context) — outputTokens is per-message and stays.
      *
      * @param Message[] $messages The remaining messages after trimming
@@ -156,38 +159,34 @@ class HistoryTrimmer implements HistoryTrimmerInterface
 
     /**
      * @param Message[] $messages
-     * @param array<int, array{index: int, tokens: int}> $checkpoints
      * @return array{index: int, tokens: int}
      */
-    protected function findTrimPoint(array $messages, array $checkpoints, int $contextWindow): array
+    protected function findTrimPoint(array $messages, int $contextWindow): array
     {
-        $trimIndex = $this->findTrimIndex($messages, $checkpoints, $contextWindow);
-
-        return $this->adjustTrimIndex($messages, $checkpoints, $trimIndex, $contextWindow);
+        return $this->adjustTrimIndex($messages, $this->findTrimIndex($messages, $contextWindow), $contextWindow);
     }
 
     /**
-     * The smallest cut that fits the window, wherever it lands.
+     * The smallest cut that fits the window, wherever it lands: the oldest messages
+     * whose own tokens cover the excess. The provider's usage measures the whole
+     * request, instructions and tools included, but only messages can be dropped.
      *
      * @param Message[] $messages
-     * @param array<int, array{index: int, tokens: int}> $checkpoints
      */
-    protected function findTrimIndex(array $messages, array $checkpoints, int $contextWindow): int
+    protected function findTrimIndex(array $messages, int $contextWindow): int
     {
-        if ($checkpoints === []) {
-            return $this->findTrimIndexByEstimation($messages, $contextWindow);
-        }
+        $excess = $this->totalTokens - $contextWindow;
+        $dropped = 0;
 
-        $threshold = $this->totalTokens - $contextWindow;
+        foreach ($messages as $index => $message) {
+            $dropped += $this->messageTokens($message);
 
-        foreach ($checkpoints as $checkpoint) {
-            if ($checkpoint['tokens'] >= $threshold) {
-                return $checkpoint['index'] + 1;
+            if ($dropped >= $excess) {
+                return $index + 1;
             }
         }
 
-        // Tail overflow: trim at the last checkpoint
-        return end($checkpoints)['index'] + 1;
+        return count($messages);
     }
 
     /**
@@ -197,22 +196,21 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      * forward to the next user message. The latest turn is kept however large.
      *
      * @param Message[] $messages
-     * @param array<int, array{index: int, tokens: int}> $checkpoints
      * @return array{index: int, tokens: int}
      */
-    protected function adjustTrimIndex(array $messages, array $checkpoints, int $trimIndex, int $contextWindow): array
+    protected function adjustTrimIndex(array $messages, int $trimIndex, int $contextWindow): array
     {
         $trimIndex = max(0, min($trimIndex, count($messages) - 1));
 
         if ($this->isUserMessage($messages[$trimIndex])) {
-            return $this->cutAt($messages, $checkpoints, $trimIndex);
+            return $this->cutAt($messages, $trimIndex);
         }
 
         $backward = $this->nearestUserMessage($messages, $trimIndex - 1, -1);
         $forward = $this->nearestUserMessage($messages, $trimIndex + 1, 1);
 
         if ($backward !== null) {
-            $cut = $this->cutAt($messages, $checkpoints, $backward);
+            $cut = $this->cutAt($messages, $backward);
 
             if ($forward === null || $this->totalTokens - $cut['tokens'] <= $contextWindow * (1 + self::OVERFLOW_TOLERANCE)) {
                 return $cut;
@@ -220,7 +218,7 @@ class HistoryTrimmer implements HistoryTrimmerInterface
         }
 
         // No user message at all: trim nothing
-        return $forward === null ? ['index' => 0, 'tokens' => 0] : $this->cutAt($messages, $checkpoints, $forward);
+        return $forward === null ? ['index' => 0, 'tokens' => 0] : $this->cutAt($messages, $forward);
     }
 
     /**
@@ -238,54 +236,36 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     }
 
     /**
-     * The cut before a message, with the tokens of everything it drops: the last
-     * checkpoint before it, plus the estimate of the messages that follow that checkpoint.
+     * The cut before a message, with the tokens of the messages it drops.
      *
      * @param Message[] $messages
-     * @param array<int, array{index: int, tokens: int}> $checkpoints
      * @return array{index: int, tokens: int}
      */
-    protected function cutAt(array $messages, array $checkpoints, int $index): array
+    protected function cutAt(array $messages, int $index): array
     {
         $tokens = 0;
-        $estimateFrom = 0;
 
-        foreach ($checkpoints as $checkpoint) {
-            if ($checkpoint['index'] >= $index) {
-                break;
-            }
-
-            $tokens = $checkpoint['tokens'];
-            $estimateFrom = $checkpoint['index'] + 1;
-        }
-
-        for ($i = $estimateFrom; $i < $index; $i++) {
-            $tokens += $this->tokenCounter->count($messages[$i]);
+        for ($i = 0; $i < $index; $i++) {
+            $tokens += $this->messageTokens($messages[$i]);
         }
 
         return ['index' => $index, 'tokens' => $tokens];
     }
 
+    /**
+     * A message's own tokens: exact for an answer the provider measured, whose
+     * output tokens carry no instructions or tools, estimated otherwise.
+     */
+    protected function messageTokens(Message $message): int
+    {
+        $usage = $message instanceof AssistantMessage ? $message->getUsage() : null;
+
+        return $usage instanceof Usage ? $usage->outputTokens : $this->tokenCounter->count($message);
+    }
+
     protected function isUserMessage(Message $message): bool
     {
         return $message::class === UserMessage::class;
-    }
-
-    /**
-     * @param Message[] $messages
-     */
-    protected function findTrimIndexByEstimation(array $messages, int $contextWindow): int
-    {
-        $runningTotal = 0;
-
-        for ($i = count($messages) - 1; $i >= 0; $i--) {
-            $runningTotal += $this->tokenCounter->count($messages[$i]);
-            if ($runningTotal > $contextWindow) {
-                return $i + 1;
-            }
-        }
-
-        return 0;
     }
 
     /**
@@ -344,6 +324,18 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             }
 
             if ($message instanceof ToolCallMessage) {
+                // Consecutive tool rounds are valid, but a history still opens with the user
+                if ($previousMessage === null) {
+                    throw new ChatHistoryException(
+                        sprintf(
+                            'Invalid message sequence at position %d: expected role %s, got %s',
+                            $index,
+                            MessageRole::USER->value,
+                            $role
+                        )
+                    );
+                }
+
                 if ($role !== MessageRole::ASSISTANT->value) {
                     throw new ChatHistoryException(
                         sprintf(

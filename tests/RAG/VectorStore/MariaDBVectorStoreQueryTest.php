@@ -83,7 +83,7 @@ class MariaDBVectorStoreQueryTest extends TestCase
         $this->assertSame([
             'CREATE TABLE IF NOT EXISTS rag_documents ( id UUID NOT NULL PRIMARY KEY, content TEXT, ' .
             'sourceType VARCHAR(255), sourceName VARCHAR(255), metadata JSON, ' .
-            'embedding VECTOR(768) NOT NULL, VECTOR INDEX (embedding) )',
+            'embedding VECTOR(768) NOT NULL, VECTOR INDEX (embedding) DISTANCE=cosine )',
         ], $this->sentSql);
     }
 
@@ -100,7 +100,7 @@ class MariaDBVectorStoreQueryTest extends TestCase
 
         $this->assertSame([
             'SELECT id, content, sourceType, sourceName, metadata, ' .
-            'VEC_DISTANCE_EUCLIDEAN(embedding, VEC_FromText(:embedding)) AS distance ' .
+            'VEC_DISTANCE_COSINE(embedding, VEC_FromText(:embedding)) AS distance ' .
             'FROM rag_documents ORDER BY distance ASC LIMIT 2',
         ], $this->sentSql);
         $this->assertSame([[':embedding' => '[0.5,1]']], $this->executedBindings);
@@ -118,7 +118,7 @@ class MariaDBVectorStoreQueryTest extends TestCase
 
         $this->assertSame([
             'SELECT id, content, sourceType, sourceName, metadata, ' .
-            'VEC_DISTANCE_EUCLIDEAN(embedding, VEC_FromText(:embedding)) AS distance ' .
+            'VEC_DISTANCE_COSINE(embedding, VEC_FromText(:embedding)) AS distance ' .
             "FROM rag_documents WHERE JSON_VALUE(metadata, '$.tenant') = :f0 " .
             "AND CAST(JSON_VALUE(metadata, '$.year') AS SIGNED) >= :f1 ORDER BY distance ASC LIMIT 9",
         ], $this->sentSql);
@@ -197,9 +197,11 @@ class MariaDBVectorStoreQueryTest extends TestCase
         $this->store([], $this->schema())->addDocuments([$first, $second]);
 
         $this->assertCount(1, $this->sentSql);
-        $this->assertStringStartsWith(
+        $this->assertSame(
             'INSERT INTO rag_documents (id, content, sourceType, sourceName, metadata, embedding) ' .
-            'VALUES (:id, :content, :sourceType, :sourceName, :metadata, VEC_FromText(:embedding)) ON DUPLICATE KEY UPDATE',
+            'VALUES (:id, :content, :sourceType, :sourceName, :metadata, VEC_FromText(:embedding)) ON DUPLICATE KEY UPDATE ' .
+            'content = VALUES(content), sourceType = VALUES(sourceType), sourceName = VALUES(sourceName), ' .
+            'metadata = VALUES(metadata), embedding = VALUES(embedding)',
             $this->sentSql[0],
         );
         $this->assertSame([

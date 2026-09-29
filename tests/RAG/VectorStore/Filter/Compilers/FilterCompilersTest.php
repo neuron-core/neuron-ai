@@ -6,6 +6,8 @@ namespace NeuronAI\Tests\RAG\VectorStore\Filter\Compilers;
 
 use NeuronAI\Exceptions\VectorStoreException;
 use Closure;
+use NeuronAI\RAG\Schema\DocumentField;
+use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\VectorStore\ChromaVectorStore;
 use NeuronAI\RAG\VectorStore\Compilers\ChromaFilterCompiler;
 use NeuronAI\RAG\VectorStore\Compilers\ElasticsearchFilterCompiler;
@@ -241,6 +243,27 @@ class FilterCompilersTest extends TestCase
             '{path: ["sourceType"], operator: Equal, valueText: "file"}, ' .
             '{path: ["sourceName"], operator: NotEqual, valueText: "skip.txt"}]}',
             $compiler->compileGraphQL($filters)
+        );
+    }
+
+    public function test_weaviate_compares_declared_float_fields_as_numbers_whatever_the_php_type(): void
+    {
+        $compiler = new WeaviateFilterCompiler(DocumentSchema::of(
+            DocumentField::float('price')->filterable(),
+            DocumentField::integer('year')->filterable(),
+        ));
+
+        $this->assertSame(
+            ['path' => ['price'], 'operator' => 'GreaterThan', 'valueNumber' => 10],
+            $compiler->compile(Filter::gt('price', 10)),
+        );
+        $this->assertSame(
+            ['path' => ['price'], 'operator' => 'ContainsAny', 'valueNumberArray' => [1, 2.5]],
+            $compiler->compile(Filter::in('price', [1, 2.5])),
+        );
+        $this->assertSame(
+            ['path' => ['year'], 'operator' => 'GreaterThan', 'valueInt' => 2020],
+            $compiler->compile(Filter::gt('year', 2020)),
         );
     }
 

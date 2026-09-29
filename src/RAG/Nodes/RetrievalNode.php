@@ -44,11 +44,11 @@ class RetrievalNode extends Node
 
         $documents = $this->retrieval->retrieve($query, $filters);
 
-        // Remove duplicates by content hash
+        // Remove duplicates by content hash, keeping the best-ranked occurrence
         $docs = [];
         foreach ($documents as $document) {
             $hash = md5($document->getContent());
-            $docs[$hash] = $document;
+            $docs[$hash] ??= $document;
         }
         $docs = array_values($docs);
 

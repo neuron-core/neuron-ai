@@ -286,25 +286,32 @@ X-Injected: 1"], $channel],
         }
     }
 
-    /** @return array<string, array{string}> */
+    /** @return array<string, array{string, string}> */
     public static function invalidEventNameProvider(): array
     {
-        return [
-            'empty' => [''],
-            'reserved prefix' => ['pusher:subscribe'],
-            'reserved internal prefix' => ['pusher:'],
-            'longer than 200 bytes' => [str_repeat('e', 201)],
-            'multibyte longer than 200 bytes' => [str_repeat('è', 101)],
-        ];
+        $cases = [];
+        foreach ([
+            'empty' => '',
+            'reserved prefix' => 'pusher:subscribe',
+            'reserved internal prefix' => 'pusher:',
+            'longer than 200 bytes' => str_repeat('e', 201),
+            'multibyte longer than 200 bytes' => str_repeat('è', 101),
+        ] as $name => $type) {
+            $cases[$name] = [$type, 'a'];
+            // Over the event budget, so the event is sent as fragments.
+            $cases[$name . ', fragmented'] = [$type, str_repeat('a', 20_000)];
+        }
+
+        return $cases;
     }
 
     #[DataProvider('invalidEventNameProvider')]
-    public function test_an_invalid_pusher_event_name_is_rejected_before_sending(string $type): void
+    public function test_an_invalid_pusher_event_name_is_rejected_before_sending(string $type, string $delta): void
     {
         $channel = $this->channel(batchSize: 1);
 
         try {
-            $channel->send(new ProtocolEvent($type, ['delta' => 'a']));
+            $channel->send(new ProtocolEvent($type, ['delta' => $delta]));
             $this->fail('Expected an invalid event name.');
         } catch (InvalidArgumentException $e) {
             $this->assertSame('Pusher event names must be 1–200 bytes and cannot start with pusher:.', $e->getMessage());

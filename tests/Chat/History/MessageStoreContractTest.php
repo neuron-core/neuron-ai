@@ -385,13 +385,15 @@ class MessageStoreContractTest extends TestCase
     }
 
     #[DataProvider('stores')]
-    public function test_a_limit_of_zero_yields_no_messages(callable $make): void
+    public function test_a_limit_of_zero_or_below_yields_no_messages(callable $make): void
     {
         $store = $make($this->directory);
         $messages = $this->appendConversation($store, 'thread', 3);
 
         $this->assertSame([], $store->loadAll('thread', limit: 0));
         $this->assertSame([], $store->loadAll('thread', limit: 0, before: $messages[2]->getId()));
+        $this->assertSame([], $store->loadAll('thread', limit: -1));
+        $this->assertSame([], $store->loadAll('thread', limit: -1, before: $messages[2]->getId()));
     }
 
     #[DataProvider('stores')]
@@ -406,6 +408,21 @@ class MessageStoreContractTest extends TestCase
             $this->ids(array_slice($messages, 0, 2)),
             $this->ids($store->loadAll('thread', limit: 100, before: $messages[2]->getId()))
         );
+    }
+
+    #[DataProvider('stores')]
+    public function test_archiving_a_negative_count_changes_nothing(callable $make): void
+    {
+        $store = $make($this->directory);
+        $archived = $this->appendConversation($store, 'archived', 4);
+        $store->archive('archived', 1);
+        $fresh = $this->appendConversation($store, 'fresh', 4);
+
+        $store->archive('archived', -1);
+        $store->archive('fresh', -3);
+
+        $this->assertSame($this->ids(array_slice($archived, 1)), $this->ids($store->loadActive('archived')));
+        $this->assertSame($this->ids($fresh), $this->ids($store->loadActive('fresh')));
     }
 
     #[DataProvider('stores')]

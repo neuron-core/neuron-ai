@@ -52,6 +52,7 @@ class SQLMessageStoreTest extends TestCase
             'dash' => ['chat-messages'],
             'unicode letter' => ['chàt'],
             'leading newline' => ["\nchat_messages"],
+            'trailing newline' => ["chat_messages\n"],
         ];
     }
 

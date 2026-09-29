@@ -158,7 +158,6 @@ class MongoDBVectorStore implements VectorStoreInterface
             ],
             [
                 '$project' => [
-                    '_id' => 0,
                     'content' => 1,
                     'sourceType' => 1,
                     'sourceName' => 1,
@@ -175,14 +174,15 @@ class MongoDBVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['content']);
-            $document->setSourceType($item['sourceType'])
+            $document->setId($item['_id'])
+                ->setSourceType($item['sourceType'])
                 ->setSourceName($item['sourceName'])
                 ->setScore((float) $item['score']);
 
             $metadata = (array) ($item['metadata'] ?? []);
             foreach ($metadata as $key => $value) {
                 if (!in_array($key, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
-                    $document->addMetadata($key, (string) $value);
+                    $document->addMetadata($key, $value);
                 }
             }
 

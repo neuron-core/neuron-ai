@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\VectorStore;
 
 use GuzzleHttp\Client;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\VectorStore\Filter\Filter;
 use NeuronAI\RAG\VectorStore\Filter\FilterGroup;
@@ -13,6 +14,7 @@ use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
 
 use function file_get_contents;
 use function in_array;
@@ -36,7 +38,14 @@ class MeiliSearchTest extends TestCase
         // before proceeding, otherwise the index may be auto-recreated without
         // embedder settings when documents are added.
         $client = new Client();
-        $response = $client->delete('http://localhost:7700/indexes/neuron');
+        $this->awaitTask($client, $client->delete('http://localhost:7700/indexes/neuron'));
+
+        // embedding "Hello World!"
+        $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stub/hello-world.embeddings'), true);
+    }
+
+    protected function awaitTask(Client $client, ResponseInterface $response): void
+    {
         $task = json_decode($response->getBody()->getContents(), true);
 
         if (isset($task['taskUid'])) {
@@ -49,9 +58,6 @@ class MeiliSearchTest extends TestCase
                 }
             }
         }
-
-        // embedding "Hello World!"
-        $this->embedding = json_decode(file_get_contents(__DIR__ . '/../Stub/hello-world.embeddings'), true);
     }
 
     public function test_meilisearchsearch_instance(): void
@@ -78,6 +84,39 @@ class MeiliSearchTest extends TestCase
         $this->assertNotEmpty($results);
         $this->assertEquals($document->getContent(), $results[0]->getContent());
         $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
+    }
+
+    public function test_search_returns_more_than_twenty_documents(): void
+    {
+        $store = new MeilisearchVectorStore('neuron');
+
+        $documents = [];
+        for ($i = 0; $i < 25; $i++) {
+            $document = new Document("Document {$i}");
+            $document->setEmbedding($this->embedding);
+            $documents[] = $document;
+        }
+        $store->addDocuments($documents);
+
+        // Wait for Meilisearch to index the documents
+        sleep(5);
+
+        $this->assertCount(25, $store->search(new SearchRequest($this->embedding, topK: 25)));
+    }
+
+    public function test_a_settings_task_meilisearch_fails_is_raised(): void
+    {
+        new MeilisearchVectorStore('neuron');
+        // Binary quantization cannot be turned off again, which the store's embedder settings would do
+        $client = new Client();
+        $this->awaitTask($client, $client->patch('http://localhost:7700/indexes/neuron/settings/embedders', ['json' => [
+            'default' => ['source' => 'userProvided', 'dimensions' => 1024, 'binaryQuantized' => true],
+        ]]));
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Cannot disable the binary quantization');
+
+        new MeilisearchVectorStore('neuron');
     }
 
     public function test_meilisearch_delete_documents(): void

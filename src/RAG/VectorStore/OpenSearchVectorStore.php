@@ -117,6 +117,7 @@ class OpenSearchVectorStore implements VectorStoreInterface
 
         $this->client->index([
             'index' => $this->index,
+            'id' => (string) $document->getId(),
             'body' => [
                 'embedding' => $document->getEmbedding(),
                 'content' => $document->getContent(),
@@ -158,6 +159,7 @@ class OpenSearchVectorStore implements VectorStoreInterface
             $params['body'][] = [
                 'index' => [
                     '_index' => $this->index,
+                    '_id' => (string) $document->getId(),
                 ],
             ];
             $params['body'][] = [
@@ -238,6 +240,8 @@ class OpenSearchVectorStore implements VectorStoreInterface
                         ],
                     ],
                 ],
+                // k sizes the candidate pool; without size, OpenSearch returns its default page of 10 hits
+                'size' => $topK,
                 'sort' => [
                     '_score' => [
                         'order' => 'desc',
@@ -254,7 +258,8 @@ class OpenSearchVectorStore implements VectorStoreInterface
 
         return array_map(function (array $item): Document {
             $document = new Document($item['_source']['content']);
-            $document->setSourceType($item['_source']['sourceType'])
+            $document->setId($item['_id'])
+                ->setSourceType($item['_source']['sourceType'])
                 ->setSourceName($item['_source']['sourceName'])
                 ->setScore($item['_score']);
 

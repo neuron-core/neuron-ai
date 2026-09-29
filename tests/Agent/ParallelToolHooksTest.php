@@ -8,6 +8,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Tools\Stub\FailingTool;
 use NeuronAI\Tests\Tools\Stub\TestToolA;
@@ -104,8 +105,8 @@ class ParallelToolHooksTest extends TestCase
         $agent->addTool($toolA);
         $agent->addTool($toolB);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Parallel child initialization failed');
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool tool_a failed with ' . RuntimeException::class . ': Parallel child initialization failed');
 
         $agent->chat(new UserMessage('Run tools in parallel'));
     }
@@ -177,8 +178,8 @@ class ParallelToolHooksTest extends TestCase
         try {
             $agent->chat(new UserMessage('Run tools in parallel'));
             $this->fail('The failing tool did not throw an exception.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('Tool execution failed', $exception->getMessage());
+        } catch (ToolException $exception) {
+            $this->assertSame('Tool failing_tool failed with ' . RuntimeException::class . ': Tool execution failed', $exception->getMessage());
             $this->assertSame('11', file_get_contents($marker));
         } finally {
             if (is_file($marker)) {
@@ -212,8 +213,8 @@ class ParallelToolHooksTest extends TestCase
         $agent->addTool($toolA);
         $agent->addTool($toolB);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Parallel child cleanup failed');
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool tool_a failed with ' . RuntimeException::class . ': Parallel child cleanup failed');
 
         $agent->chat(new UserMessage('Run tools in parallel'));
     }

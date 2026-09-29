@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -204,6 +205,16 @@ class TokenCounterTest extends TestCase
         $message = new ToolResultMessage([(new ToolCall('a'))->setResult(str_repeat('日', 100))]);
 
         $this->assertSame(26, (new TokenCounter())->count($message));
+    }
+
+    public function test_system_text_is_counted_like_any_text(): void
+    {
+        $counter = new TokenCounter();
+        $text = str_repeat('a', 4000);
+
+        // The block JSON differs only by its type name, "system" instead of "text"
+        $this->assertSame(1012, $counter->count(new SystemMessage($text)));
+        $this->assertSame(1011, $counter->count(new SystemMessage([new TextContent($text)])));
     }
 
     public function test_a_tool_call_counts_its_names_call_ids_and_arguments(): void

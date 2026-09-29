@@ -431,7 +431,7 @@ class WorkflowEngine
      */
     protected function store(string $workflowId): WorkflowRunStore
     {
-        if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/u', $workflowId) !== 1) {
+        if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/uD', $workflowId) !== 1) {
             throw new WorkflowException('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
         }
 

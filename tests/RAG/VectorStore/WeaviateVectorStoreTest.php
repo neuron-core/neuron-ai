@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\VectorStore;
 
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
@@ -253,12 +254,28 @@ class WeaviateVectorStoreTest extends TestCase
         $this->assertSame([], $results[1]->getMetadata());
     }
 
-    public function test_search_on_an_unknown_class_returns_no_documents(): void
+    public function test_a_search_weaviate_rejects_raises_its_errors(): void
     {
-        $results = $this->store(null, null, $this->jsonResponse(['errors' => [['message' => 'Cannot query field']]]))
-            ->search(new SearchRequest([1.0]));
+        $store = $this->store(null, null, $this->jsonResponse([
+            'data' => ['Get' => ['Articles' => null]],
+            'errors' => [['message' => 'Cannot query field "Articles"'], ['message' => 'invalid \'where\' filter']],
+        ]));
 
-        $this->assertSame([], $results);
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Weaviate rejected the search: Cannot query field "Articles"; invalid \'where\' filter');
+
+        $store->search(new SearchRequest([1.0]));
+    }
+
+    public function test_whole_number_filters_on_float_fields_compare_numbers(): void
+    {
+        $store = $this->store(null, $this->schema(), $this->jsonResponse(['data' => ['Get' => ['Articles' => []]]]), new Response(200));
+
+        $store->search(new SearchRequest([1.0], Filter::gt('price', 10)));
+        $store->delete(Filter::eq('price', 10));
+
+        $this->assertStringContainsString('where: {path: ["price"], operator: GreaterThan, valueNumber: 10}', $this->sentJson(1)['query']);
+        $this->assertSame(['path' => ['price'], 'operator' => 'Equal', 'valueNumber' => 10], $this->sentJson(2)['match']['where']);
     }
 
     public function test_delete_sends_a_batch_delete_with_the_rest_filter(): void

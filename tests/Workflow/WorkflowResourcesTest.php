@@ -26,11 +26,12 @@ class WorkflowResourcesTest extends TestCase
 {
     public function test_values_are_stored_by_key_with_a_default_for_missing_ones(): void
     {
-        $resources = new WorkflowResources(['client' => 'initial', 'zero' => 0]);
+        $resources = new WorkflowResources(['client' => 'initial', 'zero' => 0, 'nothing' => null]);
         $resources->set('client', 'replaced');
 
         $this->assertSame('replaced', $resources->get('client'));
         $this->assertSame(0, $resources->get('zero', 'fallback'));
+        $this->assertNull($resources->get('nothing', 'fallback'));
         $this->assertSame('fallback', $resources->get('missing', 'fallback'));
         $this->assertNull($resources->get('missing'));
     }

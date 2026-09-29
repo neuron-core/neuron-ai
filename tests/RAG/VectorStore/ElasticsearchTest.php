@@ -68,6 +68,48 @@ class ElasticsearchTest extends TestCase
         $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
+    public function test_a_new_index_maps_the_embedding_as_a_vector_whatever_its_size(): void
+    {
+        $store = new ElasticsearchVectorStore($this->client, 'test');
+        $document = new Document('Tiny vector');
+        $document->setEmbedding([0.1, 0.2, 0.3]);
+        $store->addDocument($document);
+
+        $this->assertCount(1, $store->search(new SearchRequest([0.1, 0.2, 0.3])));
+    }
+
+    public function test_search_returns_more_than_ten_documents(): void
+    {
+        $store = new ElasticsearchVectorStore($this->client, 'test');
+        $documents = [];
+        for ($i = 0; $i < 15; $i++) {
+            $document = new Document("Document {$i}");
+            $document->setEmbedding($this->embedding);
+            $documents[] = $document;
+        }
+        $store->addDocuments($documents);
+
+        $this->assertCount(12, $store->search(new SearchRequest($this->embedding, topK: 12)));
+    }
+
+    public function test_re_adding_a_document_replaces_it_and_results_keep_its_id(): void
+    {
+        $store = new ElasticsearchVectorStore($this->client, 'test');
+        $document = new Document('First version');
+        $document->setEmbedding($this->embedding);
+        $store->addDocument($document);
+
+        $update = (new Document('Second version'))->setId($document->getId());
+        $update->setEmbedding($this->embedding);
+        $store->addDocuments([$update]);
+
+        $results = $store->search(new SearchRequest($this->embedding));
+
+        $this->assertCount(1, $results);
+        $this->assertSame($document->getId(), $results[0]->getId());
+        $this->assertSame('Second version', $results[0]->getContent());
+    }
+
     public function test_elasticsearch_delete_documents(): void
     {
         $store = new ElasticsearchVectorStore($this->client, 'test');

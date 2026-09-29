@@ -242,6 +242,8 @@ class WorkflowEngineTest extends TestCase
         yield 'bare reserved prefix' => ['__'];
         yield 'null byte' => ["order\x00"];
         yield 'line feed' => ["order\n42"];
+        yield 'trailing line feed' => ["order-42\n"];
+        yield '255 characters and a trailing line feed' => [str_repeat('a', 255) . "\n"];
         yield 'carriage return' => ["order\r42"];
         yield 'unit separator' => ["order\x1F"];
         yield 'delete' => ["order\x7F"];

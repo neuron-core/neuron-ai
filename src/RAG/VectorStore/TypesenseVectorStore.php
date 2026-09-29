@@ -243,7 +243,8 @@ class TypesenseVectorStore implements VectorStoreInterface
         return array_map(function (array $hit): Document {
             $item = $hit['document'];
             $document = new Document($item['content']);
-            $document->setSourceType($item['sourceType'])
+            $document->setId($item['id'])
+                ->setSourceType($item['sourceType'])
                 ->setSourceName($item['sourceName'])
                 ->setScore(VectorSimilarity::similarityFromDistance($hit['vector_distance']));
 

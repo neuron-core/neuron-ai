@@ -66,9 +66,10 @@ class ElasticsearchVectorStoreTest extends TestCase
         );
     }
 
-    protected function document(string $content = 'Hello'): Document
+    protected function document(string $content = 'Hello', string $id = 'doc-1'): Document
     {
         return (new Document($content))
+            ->setId($id)
             ->setEmbedding([0.1, 0.2])
             ->setSourceType('file')
             ->setSourceName('a.txt')
@@ -95,10 +96,11 @@ class ElasticsearchVectorStoreTest extends TestCase
         $this->assertSame([
             'HEAD http://es.test:9200/docs',
             'PUT http://es.test:9200/docs',
-            'POST http://es.test:9200/docs/_doc',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
             'POST http://es.test:9200/docs/_refresh',
         ], $this->sentTargets());
         $this->assertSame(['mappings' => ['properties' => [
+            'embedding' => ['type' => 'dense_vector', 'dims' => 2, 'index' => true, 'similarity' => 'cosine'],
             'content' => ['type' => 'text'],
             'sourceType' => ['type' => 'keyword'],
             'sourceName' => ['type' => 'keyword'],
@@ -119,6 +121,24 @@ class ElasticsearchVectorStoreTest extends TestCase
         ], $this->sentJson(2));
     }
 
+    public function test_an_index_created_by_the_store_is_not_remapped_for_later_documents(): void
+    {
+        $store = $this->store(null, $this->es([], 404), $this->es(), $this->es(), $this->es(), $this->es(), $this->es(), $this->es());
+
+        $store->addDocument($this->document());
+        $store->addDocument($this->document());
+
+        $this->assertSame([
+            'HEAD http://es.test:9200/docs',
+            'PUT http://es.test:9200/docs',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
+            'POST http://es.test:9200/docs/_refresh',
+            'HEAD http://es.test:9200/docs',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
+            'POST http://es.test:9200/docs/_refresh',
+        ], $this->sentTargets());
+    }
+
     public function test_existing_index_gets_a_cosine_dense_vector_mapping_for_the_embedding_size(): void
     {
         $store = $this->store(null, $this->es(), $this->es(['docs' => ['mappings' => []]]), $this->es(), $this->es(), $this->es());
@@ -129,7 +149,7 @@ class ElasticsearchVectorStoreTest extends TestCase
             'HEAD http://es.test:9200/docs',
             'GET http://es.test:9200/docs/_mapping/field/embedding',
             'PUT http://es.test:9200/docs/_mapping',
-            'POST http://es.test:9200/docs/_doc',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
             'POST http://es.test:9200/docs/_refresh',
         ], $this->sentTargets());
         $this->assertSame(['properties' => ['embedding' => [
@@ -161,10 +181,10 @@ class ElasticsearchVectorStoreTest extends TestCase
             'HEAD http://es.test:9200/docs',
             'GET http://es.test:9200/docs/_mapping/field/embedding',
             'PUT http://es.test:9200/docs/_mapping',
-            'POST http://es.test:9200/docs/_doc',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
             'POST http://es.test:9200/docs/_refresh',
             'HEAD http://es.test:9200/docs',
-            'POST http://es.test:9200/docs/_doc',
+            'PUT http://es.test:9200/docs/_doc/doc-1',
             'POST http://es.test:9200/docs/_refresh',
         ], $this->sentTargets());
     }
@@ -184,14 +204,14 @@ class ElasticsearchVectorStoreTest extends TestCase
         $mapping = ['docs' => ['mappings' => ['embedding' => ['mapping' => ['embedding' => ['dims' => 2]]]]]];
         $store = $this->store(null, $this->es(), $this->es($mapping), $this->es(['errors' => false]), $this->es());
 
-        $store->addDocuments([$this->document('One'), $this->document('Two')]);
+        $store->addDocuments([$this->document('One', 'one'), $this->document('Two', 'two')]);
 
         $this->assertSame('POST http://es.test:9200/_bulk', $this->sentTargets()[2]);
         $lines = $this->sentNdjson(2);
         $this->assertCount(4, $lines);
-        $this->assertSame(['index' => ['_index' => 'docs']], $lines[0]);
+        $this->assertSame(['index' => ['_index' => 'docs', '_id' => 'one']], $lines[0]);
         $this->assertSame('One', $lines[1]['content']);
-        $this->assertSame(['index' => ['_index' => 'docs']], $lines[2]);
+        $this->assertSame(['index' => ['_index' => 'docs', '_id' => 'two']], $lines[2]);
         $this->assertSame('Two', $lines[3]['content']);
         $this->assertSame('POST http://es.test:9200/docs/_refresh', $this->sentTargets()[3]);
     }
@@ -235,6 +255,7 @@ class ElasticsearchVectorStoreTest extends TestCase
     public function test_search_sends_a_filtered_knn_query_and_maps_hits(): void
     {
         $store = $this->store($this->schema(), $this->es(['hits' => ['hits' => [[
+            '_id' => 'chunk-9',
             '_score' => 0.93,
             '_source' => [
                 'content' => 'Found',
@@ -266,10 +287,12 @@ class ElasticsearchVectorStoreTest extends TestCase
                     'must_not' => [['term' => ['sourceType' => 'web']]],
                 ]],
             ],
+            'size' => 20,
             'sort' => ['_score' => ['order' => 'desc']],
         ], $this->sentJson(0));
 
         $this->assertCount(1, $results);
+        $this->assertSame('chunk-9', $results[0]->getId());
         $this->assertSame('Found', $results[0]->getContent());
         $this->assertSame('url', $results[0]->getSourceType());
         $this->assertSame('https://example.test', $results[0]->getSourceName());

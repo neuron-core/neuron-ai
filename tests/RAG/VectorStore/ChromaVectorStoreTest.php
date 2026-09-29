@@ -78,7 +78,7 @@ class ChromaVectorStoreTest extends TestCase
         $this->store();
 
         $this->assertSame(['POST ' . self::COLLECTIONS], $this->sentTargets());
-        $this->assertSame(['name' => 'docs', 'get_or_create' => true], $this->sentJson(0));
+        $this->assertSame(['name' => 'docs', 'get_or_create' => true, 'metadata' => ['hnsw:space' => 'cosine']], $this->sentJson(0));
     }
 
     public function test_adds_documents_as_parallel_arrays_to_the_resolved_collection_id(): void
