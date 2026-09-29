@@ -160,10 +160,6 @@ class McpConnector
             $arguments
         );
 
-        if (array_key_exists('error', $response)) {
-            throw new McpException($response['error']['message']);
-        }
-
         if (isset($response['result']) && is_array($response['result']) && array_key_exists('content', $response['result'])) {
             return $response['result']['content'];
         }

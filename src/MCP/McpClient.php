@@ -220,6 +220,14 @@ class McpClient
             $message = $this->transport->receive();
         } while (isset($message['method']) || ($message['id'] ?? null) !== $request['id']);
 
+        // An error in place of a result is the server refusing the request
+        if (isset($message['error'])) {
+            throw new McpException(
+                (string) ($message['error']['message'] ?? "The MCP server refused {$method}"),
+                (int) ($message['error']['code'] ?? 0),
+            );
+        }
+
         return $message;
     }
 }

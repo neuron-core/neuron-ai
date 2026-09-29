@@ -20,8 +20,12 @@ use function getmypid;
 use function in_array;
 use function is_file;
 use function json_encode;
+use function mkdir;
+use function rmdir;
 use function strlen;
+use function symlink;
 use function sys_get_temp_dir;
+use function unlink;
 use function usleep;
 
 use const PHP_BINARY;
@@ -169,6 +173,55 @@ class StdioTransportTest extends TestCase
         $this->assertFalse($this->isRunning($server), 'The MCP server outlived its session');
     }
 
+    public function test_ending_the_session_stops_a_server_that_outlives_its_stdin(): void
+    {
+        $client = new McpClient($this->server(['lingerSeconds' => 5]));
+        $server = $this->echo($client, 'hello')['server'];
+        if (!is_file("/proc/{$server}/stat")) {
+            $this->markTestSkipped('Reading process states requires procfs.');
+        }
+
+        unset($client);
+
+        // The stop signal must reach the server itself, not a shell that started it
+        for ($attempt = 0; $attempt < 100 && $this->isRunning($server); $attempt++) {
+            usleep(10_000);
+        }
+        $this->assertFalse($this->isRunning($server), 'The MCP server outlived its session');
+    }
+
+    public function test_a_command_path_containing_spaces_starts(): void
+    {
+        $dir = sys_get_temp_dir() . '/neuron mcp ' . getmypid();
+        mkdir($dir);
+        symlink(PHP_BINARY, "{$dir}/php");
+
+        try {
+            $client = new McpClient(['command' => "{$dir}/php"] + $this->server());
+
+            $this->assertSame('ok', $this->echo($client, 'ok')['text']);
+        } finally {
+            unset($client);
+            unlink("{$dir}/php");
+            rmdir($dir);
+        }
+    }
+
+    public function test_shell_syntax_in_the_command_is_not_run(): void
+    {
+        $marker = sys_get_temp_dir() . '/neuron-mcp-command-injected-' . getmypid();
+
+        try {
+            new McpClient(['command' => "touch {$marker}; " . PHP_BINARY] + $this->server());
+            $this->fail('A command holding shell syntax must not start a server');
+        } catch (McpException $exception) {
+            $this->assertStringStartsWith('Failed to start the MCP server "touch ', $exception->getMessage());
+            $this->assertFileDoesNotExist($marker);
+        } finally {
+            @unlink($marker);
+        }
+    }
+
     public function test_a_transport_that_is_not_connected_refuses_to_exchange_messages(): void
     {
         $transport = new StdioTransport($this->server());
@@ -204,7 +257,8 @@ class StdioTransportTest extends TestCase
     public function test_a_command_that_cannot_run_fails_the_handshake(): void
     {
         $this->expectException(McpException::class);
-        $this->expectExceptionMessageMatches('/^(Process failed to start: |MCP server process has terminated unexpectedly\.)/');
+        // PHP reports the failure when it spawns the process, or the process ends at once
+        $this->expectExceptionMessageMatches('/^(Failed to start the MCP server "\/nonexistent\/neuron-mcp-server": |Process failed to start: |MCP server process has terminated unexpectedly\.)/');
 
         new McpClient(['command' => '/nonexistent/neuron-mcp-server']);
     }

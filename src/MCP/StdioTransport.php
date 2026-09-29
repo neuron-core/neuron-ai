@@ -7,7 +7,7 @@ namespace NeuronAI\MCP;
 use JsonException;
 
 use function array_merge;
-use function escapeshellarg;
+use function error_get_last;
 use function fclose;
 use function fflush;
 use function fread;
@@ -75,13 +75,10 @@ class StdioTransport implements McpTransportInterface
 
         $fullEnv = array_merge(getenv(), $env);
 
-        $commandLine = $command;
-        foreach ($args as $arg) {
-            $commandLine .= ' ' . escapeshellarg((string) $arg);
-        }
-
-        $this->process = proc_open(
-            $commandLine,
+        // Started directly, not through a shell: stopping the process stops the server itself,
+        // and a path with spaces or shell syntax in the command is taken literally
+        $this->process = @proc_open(
+            [$command, ...$args],
             $descriptorSpec,
             $this->pipes,
             null,
@@ -89,7 +86,7 @@ class StdioTransport implements McpTransportInterface
         );
 
         if (!is_resource($this->process)) {
-            throw new McpException("Failed to start the MCP server process");
+            throw new McpException("Failed to start the MCP server \"{$command}\": " . (error_get_last()['message'] ?? 'unknown error'));
         }
 
         stream_set_write_buffer($this->pipes[0], 0);

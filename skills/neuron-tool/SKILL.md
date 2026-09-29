@@ -526,6 +526,8 @@ $mcpTools = McpConnector::make([
 ])->tools();
 ```
 
+`command` is the program to run and `args` holds its arguments. The server starts directly, without a shell, so shell syntax is taken literally and `'command' => 'npx -y server'` fails to start. On Windows, npm shims need their extension: `'command' => 'npx.cmd'`.
+
 ### HTTP MCP Server
 
 ```php

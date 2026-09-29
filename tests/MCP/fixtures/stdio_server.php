@@ -14,6 +14,7 @@ declare(strict_types=1);
  *  - splitWrites: write each response in two parts, flushed apart
  *  - blankLines: surround each message with blank lines and end it with CRLF
  *  - batched: write the notification and the response in a single write
+ *  - lingerSeconds: keep running this long after stdin closes, as a server that ignores EOF does
  * tools/call echoes its `value` argument and reports the server's process ID, the
  * arguments it was started with after the options, and NEURON_MCP_FIXTURE from its environment.
  */
@@ -28,6 +29,7 @@ $options = \json_decode($argv[1] ?? '{}', true) + [
     'splitWrites' => false,
     'blankLines' => false,
     'batched' => false,
+    'lingerSeconds' => 0,
 ];
 $answered = 0;
 $received = 0;
@@ -95,3 +97,5 @@ while (($line = \fgets(\STDIN)) !== false) {
         exit(0);
     }
 }
+
+\sleep($options['lingerSeconds']);

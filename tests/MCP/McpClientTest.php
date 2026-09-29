@@ -14,6 +14,7 @@ use NeuronAI\MCP\McpSessionLostException;
 use NeuronAI\Testing\FakeMcpTransport;
 use NeuronAI\Tests\MCP\Stub\ScriptedHttpClient;
 use NeuronAI\Tests\MCP\Stub\SessionLosingMcpTransport;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spatie\Fork\Fork;
 use Throwable;
@@ -352,6 +353,77 @@ class McpClientTest extends TestCase
 
         // Server requests go unanswered: only the handshake and the call were sent.
         $transport->assertSendCount(3);
+    }
+
+    public function test_a_refused_initialize_throws_the_server_error_without_confirming_the_session(): void
+    {
+        $transport = new FakeMcpTransport(
+            ['jsonrpc' => '2.0', 'id' => 1, 'error' => ['code' => -32602, 'message' => 'Unsupported protocol version']],
+        );
+
+        try {
+            new McpClient(['transport' => $transport]);
+            $this->fail('A refused initialize must not produce a usable client');
+        } catch (McpException $exception) {
+            $this->assertSame('Unsupported protocol version', $exception->getMessage());
+            $this->assertSame(-32602, $exception->getCode());
+        }
+
+        // The refused session is never confirmed with notifications/initialized
+        $transport->assertSendCount(1);
+    }
+
+    /**
+     * @return iterable<string, array{array<int, array<string, mixed>>, string}>
+     */
+    public static function refusedToolListPages(): iterable
+    {
+        yield 'first page' => [
+            [['jsonrpc' => '2.0', 'id' => 2, 'error' => ['code' => -32601, 'message' => 'Method not found']]],
+            'Method not found',
+        ];
+        yield 'later page' => [
+            [
+                ['jsonrpc' => '2.0', 'id' => 2, 'result' => ['tools' => [['name' => 'search']], 'nextCursor' => 'page-2']],
+                ['jsonrpc' => '2.0', 'id' => 3, 'error' => ['code' => -32602, 'message' => 'Invalid cursor']],
+            ],
+            'Invalid cursor',
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $pages
+     */
+    #[DataProvider('refusedToolListPages')]
+    public function test_a_refused_tool_list_page_throws_the_server_error(array $pages, string $error): void
+    {
+        $client = new McpClient(['transport' => new FakeMcpTransport(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], ...$pages)]);
+
+        $this->expectException(McpException::class);
+        $this->expectExceptionMessage($error);
+
+        $client->listTools();
+    }
+
+    public function test_a_refused_tool_call_throws_the_server_error(): void
+    {
+        $client = new McpClient(['transport' => new FakeMcpTransport(
+            ['jsonrpc' => '2.0', 'id' => 1, 'result' => []],
+            ['jsonrpc' => '2.0', 'id' => 2, 'error' => ['code' => -32602, 'message' => 'Unknown tool: nope']],
+        )]);
+
+        $this->expectException(McpException::class);
+        $this->expectExceptionMessage('Unknown tool: nope');
+
+        $client->callTool('nope');
+    }
+
+    public function test_a_tool_that_reports_a_failure_is_still_a_result(): void
+    {
+        $response = ['jsonrpc' => '2.0', 'id' => 2, 'result' => ['content' => [['type' => 'text', 'text' => 'boom']], 'isError' => true]];
+        $client = new McpClient(['transport' => new FakeMcpTransport(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], $response)]);
+
+        $this->assertSame($response, $client->callTool('flaky'));
     }
 
     public function test_call_tool_drops_null_arguments_but_keeps_other_falsy_values(): void
