@@ -126,7 +126,6 @@ class MessageStoreContractTest extends TestCase
             archived_at DATETIME NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_thread_id (thread_id),
             UNIQUE INDEX idx_thread_message (thread_id, message_id)
         )');
 
@@ -140,6 +139,7 @@ class MessageStoreContractTest extends TestCase
 
         $this->assertSame([], $store->loadActive('thread'));
         $this->assertSame([], $store->loadAll('thread'));
+        $this->assertSame([], $store->loadAll('thread', limit: 2));
     }
 
     #[DataProvider('stores')]

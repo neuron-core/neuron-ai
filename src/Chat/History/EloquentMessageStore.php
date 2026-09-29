@@ -36,7 +36,7 @@ class EloquentMessageStore implements MessageStoreInterface
         $query = $this->writeQuery($model)->where('thread_id', $threadId);
         $query->whereNull('archived_at');
 
-        return $this->deserialize($query->oldest($model->getKeyName())->get(self::COLUMNS));
+        return $this->loadInKeyOrder($model, $query);
     }
 
     public function loadAll(string $threadId, ?int $limit = null, ?string $before = null): array
@@ -58,13 +58,20 @@ class EloquentMessageStore implements MessageStoreInterface
         }
 
         if ($limit === null) {
-            return $this->deserialize($query->oldest($model->getKeyName())->get(self::COLUMNS));
+            return $this->loadInKeyOrder($model, $query);
         }
 
         // A page is the newest rows before the cursor, returned in insertion order; a negative limit is an empty one.
-        $query->limit(max(0, $limit));
+        $ids = $query->latest($model->getKeyName())->limit(max(0, $limit))->pluck($model->getKeyName());
 
-        return $this->deserialize($query->latest($model->getKeyName())->get(self::COLUMNS)->reverse());
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $page = $model->newQuery();
+        $page->whereIn($model->getKeyName(), $ids);
+
+        return $this->loadInKeyOrder($model, $page);
     }
 
     public function append(string $threadId, Message $message): void
@@ -121,6 +128,21 @@ class EloquentMessageStore implements MessageStoreInterface
         $query->useWritePdo();
 
         return $query;
+    }
+
+    /**
+     * Rows are sorted by key in PHP, never by the database: MySQL resolves the thread
+     * through the unique index and then filesorts, copying the large content and meta
+     * columns into its sort buffer, which one big tool output is enough to overflow.
+     * A page sorts only the keys, then fetches its rows by key.
+     *
+     * @return Message[]
+     */
+    protected function loadInKeyOrder(Model $model, Builder $query): array
+    {
+        $key = $model->getKeyName();
+
+        return $this->deserialize($query->get([$key, ...self::COLUMNS])->sortBy($key));
     }
 
     /**

@@ -13,13 +13,13 @@ use PDO;
 use function array_fill;
 use function array_map;
 use function array_merge;
-use function array_reverse;
 use function count;
 use function implode;
 use function json_decode;
 use function json_encode;
 use function max;
 use function preg_match;
+use function usort;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -33,6 +33,11 @@ use const JSON_THROW_ON_ERROR;
  * spaces), so user-Alice and user-alice would read and clear each other's messages.
  * PostgreSQL and SQLite compare VARCHAR and TEXT exactly.
  *
+ * Rows are sorted by id in PHP, never by the database: MySQL resolves the thread
+ * through the unique index and then filesorts, copying the large content and meta
+ * columns into its sort buffer, which one big tool output is enough to overflow.
+ * A page sorts only the ids, then fetches its rows by id.
+ *
  * CREATE TABLE chat_messages (
  * id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  * thread_id VARBINARY(255) NOT NULL,
@@ -44,7 +49,6 @@ use const JSON_THROW_ON_ERROR;
  * created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
  * updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  *
- * INDEX idx_thread_id (thread_id),
  * UNIQUE INDEX idx_thread_message (thread_id, message_id)
  * );
  */
@@ -65,12 +69,10 @@ class SQLMessageStore implements MessageStoreInterface
 
     public function loadActive(string $threadId): array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT message_id, role, content, meta FROM {$this->table} WHERE thread_id = :thread_id AND archived_at IS NULL ORDER BY id"
+        return $this->loadInKeyOrder(
+            'thread_id = :thread_id AND archived_at IS NULL',
+            ['thread_id' => $threadId]
         );
-        $stmt->execute(['thread_id' => $threadId]);
-
-        return $this->deserialize($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
     public function loadAll(string $threadId, ?int $limit = null, ?string $before = null): array
@@ -83,14 +85,22 @@ class SQLMessageStore implements MessageStoreInterface
             $parameters += ['cursor_thread_id' => $threadId, 'before' => $before];
         }
 
+        if ($limit === null) {
+            return $this->loadInKeyOrder($conditions, $parameters);
+        }
+
         // A page is the newest rows before the cursor, returned in insertion order; a negative limit is an empty one.
-        $order = $limit === null ? 'ORDER BY id' : 'ORDER BY id DESC LIMIT ' . max(0, $limit);
-
-        $stmt = $this->pdo->prepare("SELECT message_id, role, content, meta FROM {$this->table} WHERE {$conditions} {$order}");
+        $stmt = $this->pdo->prepare("SELECT id FROM {$this->table} WHERE {$conditions} ORDER BY id DESC LIMIT " . max(0, $limit));
         $stmt->execute($parameters);
-        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        return $this->deserialize($limit === null ? $records : array_reverse($records));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        return $this->loadInKeyOrder("id IN ({$placeholders})", $ids);
     }
 
     /**
@@ -144,6 +154,21 @@ class SQLMessageStore implements MessageStoreInterface
     {
         $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE thread_id = :thread_id");
         $stmt->execute(['thread_id' => $threadId]);
+    }
+
+    /**
+     * @param array<int|string, mixed> $parameters
+     * @return Message[]
+     */
+    protected function loadInKeyOrder(string $conditions, array $parameters): array
+    {
+        $stmt = $this->pdo->prepare("SELECT id, message_id, role, content, meta FROM {$this->table} WHERE {$conditions}");
+        $stmt->execute($parameters);
+        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        usort($records, fn (array $a, array $b): int => $a['id'] <=> $b['id']);
+
+        return $this->deserialize($records);
     }
 
     /**
