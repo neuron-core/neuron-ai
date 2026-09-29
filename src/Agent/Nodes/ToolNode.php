@@ -42,7 +42,6 @@ use function is_string;
 use function json_encode;
 use function ksort;
 use function sprintf;
-use function uniqid;
 
 use const JSON_PRETTY_PRINT;
 
@@ -81,9 +80,11 @@ class ToolNode extends Node implements AgentNodeInterface
      */
     public function __invoke(ToolCallEvent $event, AgentState $state, AgentResources $resources): AIInferenceEvent|AwaitToolResultsEvent|Generator
     {
+        $calls = $event->toolCallMessage->getToolCalls();
+        $this->assertUniqueCallIds(array_filter($calls, fn (ToolCall $call): bool => $call->isDeferred()));
+
         $approvalGated = $this->resolveToolApprovals($event->toolCallMessage, $state, $resources);
 
-        $calls = $event->toolCallMessage->getToolCalls();
         $executed = yield from $this->executeLocalTools($calls, $event->toolCallMessage->getId(), $state, $resources->tools);
         $deferred = $this->filterDeferredCalls($calls);
 
@@ -148,6 +149,8 @@ class ToolNode extends Node implements AgentNodeInterface
             return false;
         }
 
+        $this->assertUniqueCallIds($gated);
+
         foreach ($gated as $call) {
             $call->setApprovalState(ApprovalState::Pending);
         }
@@ -176,6 +179,28 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         return true;
+    }
+
+    /**
+     * A call waiting for an approval or an external result is matched to its reply
+     * by ID: without one, or with one shared in the batch, the reply cannot reach it.
+     *
+     * @param ToolCall[] $calls
+     * @throws ToolException
+     */
+    protected function assertUniqueCallIds(array $calls): void
+    {
+        $seen = [];
+        foreach ($calls as $call) {
+            $id = $call->getCallId();
+            if ($id === null || $id === '' || isset($seen[$id])) {
+                $returned = $id === null || $id === '' ? 'none' : "'{$id}' twice";
+                throw new ToolException(
+                    "Tool call {$call->getName()} needs a unique call ID to be approved or answered, but the provider returned {$returned}."
+                );
+            }
+            $seen[$id] = true;
+        }
     }
 
     /**
@@ -331,7 +356,7 @@ class ToolNode extends Node implements AgentNodeInterface
             $inputs = $this->resolveTool($call, $tools)->getInputs();
 
             $actions[] = new Action(
-                id: $call->getCallId() ?? uniqid('tool_'),
+                id: (string) $call->getCallId(),
                 name: $call->getName(),
                 description: $inputs === []
                     ? '(no arguments)'
@@ -463,7 +488,7 @@ class ToolNode extends Node implements AgentNodeInterface
         $state->restoreToolRunCount($attempt['key'], $attempt['count']);
         $runs = $attempt['limit'];
         if ($attempt['count'] > $runs) {
-            throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($call->getInputs()));
+            throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs}");
         }
     }
 

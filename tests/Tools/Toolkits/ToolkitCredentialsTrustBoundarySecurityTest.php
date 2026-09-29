@@ -60,8 +60,7 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
     public function test_tool_definitions_sent_to_the_model_never_carry_toolkit_keys(): void
     {
         // One agent per toolkit: Tavily and Jina both name their search tool web_search
-        foreach ($this->toolkits() as $toolkit) {
-            $this->sentRequests = [];
+        foreach ($this->toolkits() as $index => $toolkit) {
             $client = $this->recordingClient(new Response(200, body: json_encode([
                 'choices' => [['index' => 0, 'finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Hello']]],
             ], JSON_THROW_ON_ERROR)));
@@ -71,7 +70,7 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
                 ->addTool($toolkit)
                 ->chat(new UserMessage('Hi'));
 
-            $request = $this->sentRequests[0]['request'];
+            $request = $this->sentRequests[$index]['request'];
             $body = (string) $request->getBody();
             $offered = array_column(array_column(json_decode($body, true, flags: JSON_THROW_ON_ERROR)['tools'], 'function'), 'name');
 

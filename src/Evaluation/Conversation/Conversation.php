@@ -217,10 +217,7 @@ class Conversation
         try {
             $continuation = $this->agent->submitInputs($payload, $translator);
         } catch (InputTranslationException $exception) {
-            throw new EvaluationException(
-                'The approval policy returned an invalid resume payload: ' . $exception->getMessage(),
-                previous: $exception
-            );
+            throw new EvaluationException('The approval policy returned an invalid resume payload: ' . $exception->getMessage(), $exception->getCode(), previous: $exception);
         }
 
         return $continuation->run();

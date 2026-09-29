@@ -249,7 +249,8 @@ class ToolRunLimitTest extends TestCase
             $agent->chat(new UserMessage('Go'));
             $this->fail('The fourth call must exceed the tool limit.');
         } catch (ToolRunsExceededException $exception) {
-            $this->assertStringStartsWith('Tool lookup has been executed too many times - 3 -', $exception->getMessage());
+            // No arguments: they may quote user data into error trackers and log lines.
+            $this->assertSame('Tool lookup has been executed too many times - 3', $exception->getMessage());
         }
 
         $this->assertSame(3, CountingTool::$executions);
@@ -289,7 +290,7 @@ class ToolRunLimitTest extends TestCase
             $this->agent([new CountingTool()], limit: 0)->chat(new UserMessage('Go'));
             $this->fail('A zero limit allows no call.');
         } catch (ToolRunsExceededException $exception) {
-            $this->assertStringStartsWith('Tool lookup has been executed too many times - 0 -', $exception->getMessage());
+            $this->assertSame('Tool lookup has been executed too many times - 0', $exception->getMessage());
         }
 
         $this->assertSame(0, CountingTool::$executions);

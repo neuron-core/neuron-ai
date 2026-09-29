@@ -227,7 +227,7 @@ class ParallelToolsTest extends TestCase
         $agent->addTool($toolB);
 
         $this->expectException(ToolRunsExceededException::class);
-        $this->expectExceptionMessage('Tool tool_a has been executed too many times - 1 - with arguments: {"input":"test A"}');
+        $this->expectExceptionMessage('Tool tool_a has been executed too many times - 1');
 
         $agent->chat(new UserMessage('Exceed tool runs'));
     }

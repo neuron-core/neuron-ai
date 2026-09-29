@@ -71,10 +71,7 @@ trait HandleWithTools
         try {
             $decoded = json_decode($arguments, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new ProviderException(
-                "The model sent invalid arguments for tool \"{$toolName}\": {$exception->getMessage()}",
-                previous: $exception
-            );
+            throw new ProviderException("The model sent invalid arguments for tool \"{$toolName}\": {$exception->getMessage()}", $exception->getCode(), previous: $exception);
         }
 
         // A JSON object decodes to a map (or to [] when empty), never to a scalar or a list

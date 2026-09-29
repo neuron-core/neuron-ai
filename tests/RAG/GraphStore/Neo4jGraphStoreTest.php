@@ -17,7 +17,7 @@ use function sort;
 use function strtoupper;
 use function gc_collect_cycles;
 
-class Neo4jGraphStoreTest extends TestCase
+final class Neo4jGraphStoreTest extends TestCase
 {
     use CheckOpenPort;
 
