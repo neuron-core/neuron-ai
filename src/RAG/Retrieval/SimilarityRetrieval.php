@@ -12,6 +12,7 @@ use NeuronAI\RAG\VectorStore\Filter\FilterScope;
 use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 
+use function array_values;
 use function is_array;
 use function iterator_to_array;
 
@@ -43,6 +44,6 @@ class SimilarityRetrieval implements RetrievalInterface
             filters: FilterScope::merge($this->filters, $filters)?->expression(),
         ));
 
-        return is_array($documents) ? $documents : iterator_to_array($documents);
+        return is_array($documents) ? array_values($documents) : iterator_to_array($documents, false);
     }
 }

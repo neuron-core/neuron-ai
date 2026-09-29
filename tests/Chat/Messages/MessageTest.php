@@ -144,6 +144,26 @@ class MessageTest extends TestCase
         $this->assertSame('second', $message->getContent());
     }
 
+    public function test_setting_a_list_of_blocks_replaces_the_previous_content(): void
+    {
+        $message = new UserMessage([new TextContent('first'), new ImageContent('https://example.com/a.png', SourceType::URL)]);
+
+        $message->setContents([new TextContent('second')]);
+
+        $this->assertCount(1, $message->getContentBlocks());
+        $this->assertSame('second', $message->getContent());
+    }
+
+    public function test_setting_an_empty_list_clears_the_content(): void
+    {
+        $message = new UserMessage('first');
+
+        $message->setContents([]);
+
+        $this->assertSame([], $message->getContentBlocks());
+        $this->assertNull($message->getContent());
+    }
+
     public function test_add_content_appends_a_block(): void
     {
         $message = new UserMessage('first');

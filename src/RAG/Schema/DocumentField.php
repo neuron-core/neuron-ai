@@ -14,7 +14,7 @@ final class DocumentField
         protected bool $required = false,
         protected bool $filterable = false,
     ) {
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $this->name)) {
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $this->name)) {
             throw new DocumentSchemaException(
                 "Document field \"{$this->name}\" must start with a letter or underscore and contain letters, numbers, or underscores only."
             );

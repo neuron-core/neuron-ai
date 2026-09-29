@@ -196,20 +196,22 @@ class AnthropicChatTest extends TestCase
         $this->assertNull($message->getMetadata('cacheReadTokens'));
     }
 
-    public function test_cache_write_sums_legacy_and_per_ttl_counters(): void
+    public function test_cache_writes_count_once_when_the_total_and_its_ttl_breakdown_are_both_reported(): void
     {
         $message = $this->provider([
             'content' => [['type' => 'text', 'text' => 'Hi']],
             'usage' => [
                 'input_tokens' => 5,
                 'output_tokens' => 1,
-                'cache_creation_input_tokens' => 4,
+                'cache_creation_input_tokens' => 5,
                 'cache_creation' => ['ephemeral_5m_input_tokens' => 3, 'ephemeral_1h_input_tokens' => 2],
             ],
         ])->chat(new UserMessage('Hi'))->message();
 
-        $this->assertSame(9, $message->getMetadata('cacheWriteTokens'));
+        $this->assertSame(5, $message->getMetadata('cacheWriteTokens'));
         $this->assertSame(0, $message->getMetadata('cacheReadTokens'));
+        // The written tokens come apart from input_tokens: the prompt is 5 + 5
+        $this->assertSame(10, $message->getUsage()->inputTokens);
     }
 
     public function test_provider_response_exposes_the_raw_body_and_headers(): void

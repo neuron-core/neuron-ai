@@ -165,7 +165,7 @@ class MariaDBVectorStoreQueryTest extends TestCase
             'content' => 'Real',
             'sourceType' => 'file',
             'sourceName' => 'a.txt',
-            'metadata' => '{"id":"forged","content":"forged","sourceType":"forged","sourceName":"forged","score":9,"embedding":[1],"tenant":"acme"}',
+            'metadata' => '{"id":"forged","content":"forged","sourceType":"forged","sourceName":"forged","score":9,"embedding":[1],"metadata":"forged","_neuron_metadata":"forged","_vectors":[1],"_rankingScore":1,"vector_distance":0.1,"tenant":"acme"}',
             'distance' => '0.5',
         ]])->search(new SearchRequest([1.0]));
 

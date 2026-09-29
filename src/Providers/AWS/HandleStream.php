@@ -51,7 +51,12 @@ trait HandleStream
             foreach ($eventParserIterator as $event) {
 
                 if (isset($event['metadata'])) {
-                    $this->streamState->addInputTokens($event['metadata']['usage']['inputTokens'] ?? 0);
+                    // Bedrock reports cache reads and writes apart from inputTokens: the whole prompt adds them back
+                    $this->streamState->addInputTokens(
+                        ($event['metadata']['usage']['inputTokens'] ?? 0)
+                        + ($event['metadata']['usage']['cacheReadInputTokens'] ?? 0)
+                        + ($event['metadata']['usage']['cacheWriteInputTokens'] ?? 0)
+                    );
                     $this->streamState->addOutputTokens($event['metadata']['usage']['outputTokens'] ?? 0);
                     $this->streamState->addCachedInputTokens(
                         $event['metadata']['usage']['cacheReadInputTokens'] ?? 0

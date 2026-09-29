@@ -10,12 +10,10 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
-use NeuronAI\RAG\Schema\DocumentSchema;
-use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
 use NeuronAI\RAG\VectorStore\SearchRequest;
-use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
+use NeuronAI\Tests\RAG\VectorStore\Stub\FixedResultsVectorStore;
 use PHPUnit\Framework\TestCase;
 
 class SimilarityRetrievalTest extends TestCase
@@ -60,40 +58,38 @@ class SimilarityRetrievalTest extends TestCase
     public function test_iterable_store_results_become_a_list(): void
     {
         $documents = [new Document('First'), new Document('Second')];
-        $store = new class ($documents) implements VectorStoreInterface {
-            /** @param Document[] $documents */
-            public function __construct(protected array $documents)
-            {
-            }
-
-            public function getSchema(): DocumentSchema
-            {
-                return DocumentSchema::default();
-            }
-
-            public function addDocument(Document $document): VectorStoreInterface
-            {
-                return $this;
-            }
-
-            public function addDocuments(array $documents): VectorStoreInterface
-            {
-                return $this;
-            }
-
-            public function delete(FilterExpression $filters): VectorStoreInterface
-            {
-                return $this;
-            }
-
-            public function search(SearchRequest $request): Generator
-            {
-                yield from $this->documents;
-            }
-        };
+        $store = new FixedResultsVectorStore(static function () use ($documents): Generator {
+            yield from $documents;
+        });
 
         $result = (new SimilarityRetrieval($store, new FakeEmbeddingsProvider()))->retrieve(new UserMessage('Question'));
 
         $this->assertSame($documents, $result);
+    }
+
+    public function test_every_page_of_a_paged_generator_is_retrieved(): void
+    {
+        $pages = [[new Document('First'), new Document('Second')], [new Document('Third')]];
+        // Each yield from restarts the keys at 0
+        $store = new FixedResultsVectorStore(static function () use ($pages): Generator {
+            foreach ($pages as $page) {
+                yield from $page;
+            }
+        });
+
+        $result = (new SimilarityRetrieval($store, new FakeEmbeddingsProvider()))->retrieve(new UserMessage('Question'));
+
+        $this->assertSame([...$pages[0], ...$pages[1]], $result);
+    }
+
+    public function test_a_keyed_result_array_becomes_a_list(): void
+    {
+        $first = new Document('First');
+        $second = new Document('Second');
+        $store = new FixedResultsVectorStore(static fn (): array => ['doc-a' => $first, 'doc-b' => $second]);
+
+        $result = (new SimilarityRetrieval($store, new FakeEmbeddingsProvider()))->retrieve(new UserMessage('Question'));
+
+        $this->assertSame([$first, $second], $result);
     }
 }

@@ -109,7 +109,7 @@ class TokenCounter
 
     protected function handleTextBlock(TextContent $block): int
     {
-        return mb_strlen(json_encode($block->toArray()));
+        return mb_strlen(json_encode($block->toArray(), JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
     }
 
     protected function handleImageBlock(ImageContent $block): int

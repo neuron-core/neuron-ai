@@ -84,13 +84,14 @@ class UsageTokenDetailsTest extends TestCase
     {
         $body = '{"model":"claude-3-7-sonnet-latest","role":"assistant",'
             .'"stop_reason":"end_turn","content":[{"type":"text","text":"hi"}],'
-            .'"usage":{"input_tokens":100,"output_tokens":20,'
+            .'"usage":{"input_tokens":60,"output_tokens":20,'
             .'"cache_read_input_tokens":40,"cache_creation_input_tokens":0}}';
 
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))->setHttpClient($this->client($body));
         $usage = $provider->chat(new UserMessage('Hi'))->message()->getUsage();
 
         $this->assertNotNull($usage);
+        // Anthropic counts the 40 cached tokens apart from the 60 uncached ones: the prompt is 100, as for the others
         $this->assertSame(100, $usage->inputTokens);
         $this->assertSame(40, $usage->cachedInputTokens);
         // Anthropic has no reasoning-token field today.

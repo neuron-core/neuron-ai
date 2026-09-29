@@ -460,6 +460,33 @@ class VercelAIAdapterTest extends TestCase
         $this->assertSame(['call_2'], array_column(array_filter($events, fn (array $event): bool => $event['type'] === 'tool-input-available'), 'toolCallId'));
     }
 
+    /** @return iterable<string, array{mixed}> */
+    public static function nonStringToolCallIds(): iterable
+    {
+        yield 'array' => [['call_2']];
+        yield 'float' => [1.5];
+        yield 'boolean' => [true];
+    }
+
+    #[DataProvider('nonStringToolCallIds')]
+    public function test_a_part_without_a_string_call_id_is_ignored(mixed $toolCallId): void
+    {
+        $adapter = new VercelAIAdapter('assistant', [
+            ['type' => 'tool-browser', 'toolCallId' => $toolCallId, 'state' => 'output-available'],
+            ['type' => 'tool-browser', 'toolCallId' => 'call_1', 'state' => 'output-available'],
+        ]);
+        // Coerced to an array key, 1.5 or true would claim call '1' as already settled.
+        $request = (new ToolResultsRequest([
+            new ToolCall('browser', 'call_1', deferred: true),
+            new ToolCall('browser', '1', deferred: true),
+            new ToolCall('browser', 'call_2', deferred: true),
+        ]))->withId(1);
+
+        $events = $this->decode($adapter->interrupt($request));
+
+        $this->assertSame(['1', 'call_2'], array_column(array_filter($events, fn (array $event): bool => $event['type'] === 'tool-input-available'), 'toolCallId'));
+    }
+
     public function test_decided_actions_repeat_their_decision_beside_the_request(): void
     {
         $request = (new ApprovalRequest('Approve', [

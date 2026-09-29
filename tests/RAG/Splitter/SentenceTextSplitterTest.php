@@ -293,6 +293,23 @@ class SentenceTextSplitterTest extends TestCase
         $this->assertSame(array_fill(0, 10, 'Alpha beta gamma delta. Alpha beta gamma delta.'), $this->contents($chunks));
     }
 
+    /** @return iterable<string, array{string, string[]}> */
+    public static function sentenceStarts(): iterable
+    {
+        yield 'a lowercase accented word continues the sentence' => ['See fig. école now.', ['See fig. école', 'now.']];
+        yield 'an uppercase accented word starts a sentence' => ['See fig. École now.', ['See fig.', 'École now.']];
+        yield 'a capital past Latin-1 starts a sentence' => ['It ends. Žena now.', ['It ends.', 'Žena now.']];
+        yield 'a Greek capital starts a sentence' => ['It ends. Ωμέγα now.', ['It ends.', 'Ωμέγα now.']];
+        yield 'a Cyrillic capital starts a sentence' => ['It ends. Москва now.', ['It ends.', 'Москва now.']];
+    }
+
+    /** @param string[] $expected */
+    #[DataProvider('sentenceStarts')]
+    public function test_a_sentence_starts_at_an_uppercase_letter_of_any_script(string $text, array $expected): void
+    {
+        $this->assertSame($expected, $this->contents((new SentenceTextSplitter(maxWords: 3))->splitDocument(new Document($text))));
+    }
+
     public function test_source_and_metadata_are_copied_to_every_chunk(): void
     {
         $doc = new Document('First sentence here. Second sentence here. Third sentence here.');

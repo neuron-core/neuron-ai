@@ -32,6 +32,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\StreamAdapterException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tools\ToolCall;
@@ -50,6 +51,7 @@ use function array_key_exists;
 use function array_map;
 use function implode;
 use function in_array;
+use function is_array;
 use function is_string;
 use function json_encode;
 use function array_values;
@@ -103,6 +105,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
      * Seed the protocol snapshot with the frontend's current conversation and state.
      * @param list<array<string, mixed>> $messages
      * @param array<string, mixed> $state
+     * @throws InputTranslationException when a seeded message or tool call is malformed.
      */
     public function __construct(
         protected string $threadId,
@@ -111,14 +114,39 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         protected array $state = [],
     ) {
         foreach ($messages as $message) {
-            $this->messages[$message['id']] = $message;
-            foreach ($message['toolCalls'] ?? [] as $call) {
-                $this->toolCallStarted[$call['id']] = true;
+            $id = $this->seedId($message, 'id', 'message');
+            if (isset($this->messages[$id])) {
+                throw new InputTranslationException("Duplicate AG-UI message '{$id}'.");
+            }
+            $this->messages[$id] = $message;
+
+            $toolCalls = $message['toolCalls'] ?? [];
+            if (!is_array($toolCalls)) {
+                throw new InputTranslationException("AG-UI message '{$id}' has toolCalls that are not a list.");
+            }
+            foreach ($toolCalls as $call) {
+                $this->toolCallStarted[$this->seedId($call, 'id', 'tool call')] = true;
             }
             if (($message['role'] ?? null) === 'tool') {
-                $this->knownResults[$message['toolCallId']] = true;
+                $this->knownResults[$this->seedId($message, 'toolCallId', 'tool message')] = true;
             }
         }
+    }
+
+    /**
+     * The seed comes from the client and snapshots send it back keyed by these
+     * identifiers, so a missing or malformed one would lose messages.
+     *
+     * @throws InputTranslationException
+     */
+    protected function seedId(mixed $entry, string $key, string $entryName): string
+    {
+        $id = is_array($entry) ? ($entry[$key] ?? null) : null;
+        if (!is_string($id) || $id === '') {
+            throw new InputTranslationException("An AG-UI {$entryName} requires a non-empty string {$key}.");
+        }
+
+        return $id;
     }
 
     /**
@@ -480,6 +508,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             return;
         }
         $this->finished = true;
+        $this->runId ??= UniqueIdGenerator::generateId('run_');
         yield new ProtocolEvent('STATE_SNAPSHOT', ['snapshot' => (object) $this->state]);
         yield new ProtocolEvent('MESSAGES_SNAPSHOT', ['messages' => array_values($this->messages)]);
         yield new ProtocolEvent('RUN_FINISHED', [
@@ -770,13 +799,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             yield $frame;
         }
 
-        $data = ['message' => $this->errorMessage($error)];
-
-        if ($error->getCode() !== 0) {
-            $data['code'] = (string) $error->getCode();
-        }
-
-        yield new ProtocolEvent('RUN_ERROR', $data);
+        yield new ProtocolEvent('RUN_ERROR', ['message' => $this->errorMessage($error)]);
     }
 
     /**
@@ -804,11 +827,10 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
             yield $event;
         }
 
-        if ($this->runId !== null) {
-            yield new ProtocolEvent('RUN_FINISHED', [
-                'threadId' => $this->threadId,
-                'runId' => $this->runId,
-            ]);
-        }
+        $this->runId ??= UniqueIdGenerator::generateId('run_');
+        yield new ProtocolEvent('RUN_FINISHED', [
+            'threadId' => $this->threadId,
+            'runId' => $this->runId,
+        ]);
     }
 }

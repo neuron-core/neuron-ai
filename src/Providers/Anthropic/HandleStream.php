@@ -96,21 +96,18 @@ trait HandleStream
 
     protected function handleMessageStart(array $message): void
     {
-        $this->streamState->addInputTokens($message['usage']['input_tokens'] ?? 0);
-        $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
-
-        // Capture cache metrics
+        // Capture cache metrics: the total of the cache writes already sums its per-TTL breakdown
         $cacheCreation = $message['usage']['cache_creation'] ?? [];
-        $this->streamState->addCacheWriteTokens(
-            ($cacheCreation['ephemeral_5m_input_tokens'] ?? 0)
-            + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0)
-            + ($message['usage']['cache_creation_input_tokens'] ?? 0)
-        );
-
+        $cacheWrite = $message['usage']['cache_creation_input_tokens']
+            ?? ($cacheCreation['ephemeral_5m_input_tokens'] ?? 0) + ($cacheCreation['ephemeral_1h_input_tokens'] ?? 0);
         $cacheRead = $message['usage']['cache_read_input_tokens'] ?? 0;
+
+        // Anthropic reports cache reads and writes apart from `input_tokens`: the whole
+        // prompt adds them back, and the cache-read count is the standard cached metric too.
+        $this->streamState->addInputTokens(($message['usage']['input_tokens'] ?? 0) + $cacheRead + $cacheWrite);
+        $this->streamState->addOutputTokens($message['usage']['output_tokens'] ?? 0);
+        $this->streamState->addCacheWriteTokens($cacheWrite);
         $this->streamState->addCacheReadTokens($cacheRead);
-        // Anthropic reports cache reads separately from `input_tokens`;
-        // surface the cache-read count as the standard cached metric too.
         $this->streamState->addCachedInputTokens($cacheRead);
     }
 

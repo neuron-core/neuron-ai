@@ -219,6 +219,8 @@ class AnthropicStreamTest extends TestCase
         $this->assertSame(30, $message->getUsage()->cachedInputTokens);
         $this->assertSame(20, $message->getMetadata('cacheWriteTokens'));
         $this->assertSame(30, $message->getMetadata('cacheReadTokens'));
+        // The cache reads and writes come apart from input_tokens: the prompt is 10 + 30 + 20
+        $this->assertSame(60, $message->getUsage()->inputTokens);
     }
 
     public function test_the_cumulative_output_tokens_of_message_delta_are_not_counted_twice(): void

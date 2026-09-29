@@ -163,7 +163,7 @@ class MariaDBFilterCompiler extends FilterCompiler
             return $field;
         }
 
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $field)) {
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $field)) {
             throw new VectorStoreException("Metadata field \"{$field}\" is not a valid identifier for a SQL filter.");
         }
 

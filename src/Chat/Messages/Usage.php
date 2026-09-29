@@ -9,15 +9,17 @@ use JsonSerializable;
 class Usage implements JsonSerializable
 {
     public function __construct(
+        /**
+         * The whole prompt, the tokens read from or written to the provider
+         * prompt cache included: providers that report them apart, such as
+         * Anthropic and Bedrock, have them added back.
+         */
         public int $inputTokens,
         public int $outputTokens,
         /**
-         * Input tokens served from the provider prompt cache, billed at a
-         * reduced rate. Whether this count is already part of `inputTokens`
-         * is provider-specific: OpenAI includes cached tokens in
-         * `input_tokens`, while Anthropic reports `cache_read_input_tokens`
-         * separately from `input_tokens`. Stays `0` for providers without a
-         * prompt cache or when no cache hit occurred.
+         * The part of `inputTokens` served from the provider prompt cache,
+         * billed at a reduced rate. Stays `0` for providers without a prompt
+         * cache or when no cache hit occurred.
          */
         public int $cachedInputTokens = 0,
         /**

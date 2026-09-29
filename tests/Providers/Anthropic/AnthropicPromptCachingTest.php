@@ -108,7 +108,8 @@ class AnthropicPromptCachingTest extends TestCase
         $response = $provider->chat(new UserMessage('Test'));
         $usage = $response->message()->getUsage();
 
-        $this->assertSame(100, $usage->inputTokens);
+        // The prompt is 100 uncached tokens, 50 written to the cache and 30 read from it
+        $this->assertSame(180, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
         $this->assertSame(50, $response->message()->getMetadata('cacheWriteTokens'));
         $this->assertSame(30, $response->message()->getMetadata('cacheReadTokens'));
@@ -133,7 +134,8 @@ class AnthropicPromptCachingTest extends TestCase
         $response = $provider->chat(new UserMessage('Test'));
         $usage = $response->message()->getUsage();
 
-        $this->assertSame(100, $usage->inputTokens);
+        // The prompt is 100 uncached tokens, 50 written to the cache and 40 read from it
+        $this->assertSame(190, $usage->inputTokens);
         $this->assertSame(20, $usage->outputTokens);
         $this->assertSame(50, $response->message()->getMetadata('cacheWriteTokens')); // 30 + 20
         $this->assertSame(40, $response->message()->getMetadata('cacheReadTokens'));
@@ -219,7 +221,8 @@ class AnthropicPromptCachingTest extends TestCase
         $message = $generator->getReturn()->message();
         $usage = $message->getUsage();
 
-        $this->assertSame(100, $usage->inputTokens);
+        // The prompt is 100 uncached tokens, 50 written to the cache and 30 read from it
+        $this->assertSame(180, $usage->inputTokens);
         $this->assertSame(5, $usage->outputTokens);
         $this->assertSame(50, $message->getMetadata('cacheWriteTokens'));
         $this->assertSame(30, $message->getMetadata('cacheReadTokens'));

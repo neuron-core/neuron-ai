@@ -104,6 +104,7 @@ class FileVectorStore implements VectorStoreInterface
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
+        (new FilterEvaluator())->assertEvaluable($filters);
 
         $this->exclusively(function () use ($filters): void {
             $this->rewriteWithout($filters);
@@ -125,6 +126,7 @@ class FileVectorStore implements VectorStoreInterface
 
         if ($filters instanceof FilterExpression) {
             $this->validateFilters($filters);
+            $evaluator->assertEvaluable($filters);
         }
 
         foreach ($this->getLine($this->getFilePath()) as $document) {

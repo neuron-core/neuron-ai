@@ -127,6 +127,24 @@ class FilterEvaluatorTest extends TestCase
         );
     }
 
+    public function test_a_raw_filter_anywhere_in_the_tree_makes_it_not_evaluable(): void
+    {
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Raw filter targets ' . MeilisearchVectorStore::class . '; it cannot be evaluated in PHP.');
+
+        $this->evaluator->assertEvaluable(FilterGroup::allOf(
+            Filter::eq('sourceType', 'file'),
+            FilterGroup::anyOf(Filter::eq('year', 2025), Filter::raw(MeilisearchVectorStore::class, "sourceType = 'file'")),
+        ));
+    }
+
+    public function test_a_portable_tree_is_evaluable(): void
+    {
+        $this->evaluator->assertEvaluable(FilterGroup::allOf(Filter::eq('sourceType', 'file'), Filter::neq('year', 2025)));
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_nested_or_groups_are_evaluated(): void
     {
         $filters = FilterGroup::allOf(

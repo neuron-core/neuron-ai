@@ -6,6 +6,7 @@ namespace NeuronAI\RAG\PostProcessor;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -14,10 +15,12 @@ use NeuronAI\RAG\Document;
 
 use function rtrim;
 use function array_map;
+use function array_values;
 
 class CohereRerankerPostProcessor implements PostProcessorInterface
 {
     use HasHttpClient;
+    use MapsRerankResults;
 
     protected string $baseUri;
 
@@ -39,9 +42,17 @@ class CohereRerankerPostProcessor implements PostProcessorInterface
 
     /**
      * @throws HttpException
+     * @throws ProviderException
      */
     public function process(Message $question, array $documents): array
     {
+        if ($documents === []) {
+            return [];
+        }
+
+        // The API names documents by their position in the list it received
+        $documents = array_values($documents);
+
         $result = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . '/rerank',
@@ -55,10 +66,6 @@ class CohereRerankerPostProcessor implements PostProcessorInterface
             )
         )->json();
 
-        return array_map(function (array $item) use ($documents): Document {
-            $document = $documents[$item['index']];
-            $document->setScore($item['relevance_score']);
-            return $document;
-        }, $result['results']);
+        return $this->rankedDocuments($documents, $result);
     }
 }

@@ -222,7 +222,7 @@ class WeaviateVectorStore implements VectorStoreInterface
             $metadata = json_decode($item['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
-                    if (!in_array($key, ['content', 'sourceType', 'sourceName', 'score', 'embedding', 'id'])) {
+                    if (!in_array($key, DocumentSchema::RESERVED_FIELDS, true)) {
                         $document->addMetadata($key, $value);
                     }
                 }

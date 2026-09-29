@@ -178,8 +178,9 @@ class HistoryTrimmerTest extends TestCase
 
     public function test_a_rebased_checkpoint_never_reports_negative_input_tokens(): void
     {
-        // Providers that bill cached input apart (e.g. Anthropic) report input
-        // tokens smaller than the context the earlier turns built up.
+        // An answer's output tokens can include reasoning the next request never
+        // carries (e.g. OpenAI reasoning models), so the dropped part can exceed
+        // the input the later answers report.
         $messages = [
             new UserMessage('first'),
             (new AssistantMessage('one'))->setUsage(new Usage(10, 500)),

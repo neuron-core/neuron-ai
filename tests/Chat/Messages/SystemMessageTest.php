@@ -31,6 +31,16 @@ class SystemMessageTest extends TestCase
         $this->assertInstanceOf(SystemContent::class, $message->getContentBlocks()[0]);
     }
 
+    public function test_setting_a_list_of_blocks_replaces_the_instructions(): void
+    {
+        $message = new SystemMessage([new SystemContent('first'), new SystemContent('second')]);
+
+        $message->setContents([new SystemContent('replaced')]);
+
+        $this->assertSame('replaced', $message->getContent());
+        $this->assertCount(1, $message->getContentBlocks());
+    }
+
     public function test_the_text_view_separates_the_blocks_with_a_blank_line(): void
     {
         $message = new SystemMessage([new SystemContent('Role'), new TextContent('Rules')]);

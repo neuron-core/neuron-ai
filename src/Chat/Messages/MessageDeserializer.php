@@ -29,7 +29,7 @@ use function is_string;
 use function json_decode;
 
 /**
- * Rebuilds a message from the array produced by Message::jsonSerialize().
+ * Rebuilds a message from the JSON-decoded form of Message::jsonSerialize(), as stores read it back.
  * Shapes stored by earlier versions still deserialize.
  */
 class MessageDeserializer
@@ -302,6 +302,7 @@ class MessageDeserializer
 
     /**
      * Earlier versions stored the metadata beside the message's own fields, not under '__meta'.
+     * Either way the identity is the '__id' field, never a metadata key.
      *
      * @param array<string, mixed> $message
      * @return array<string, mixed>
@@ -309,7 +310,7 @@ class MessageDeserializer
     protected function deserializeMetadata(array $message): array
     {
         $meta = is_array($message['__meta'] ?? null)
-            ? $message['__meta']
+            ? array_diff_key($message['__meta'], ['__id' => true])
             : array_diff_key($message, array_flip(self::STRUCTURAL_KEYS));
 
         if (isset($meta['citations']) && is_array($meta['citations'])) {

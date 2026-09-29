@@ -132,6 +132,16 @@ class AdaptiveThresholdPostProcessorTest extends TestCase
         $this->assertSame($documents, (new AdaptiveThresholdPostProcessor(0.0))->process(new UserMessage('Question'), $documents));
     }
 
+    public function test_unscored_documents_are_dropped_and_left_out_of_the_statistics(): void
+    {
+        // Scored alone: median 0.5, MAD 0.25, so a 0.5 multiplier cuts at 0.375
+        $documents = [new Document('No score'), ...$this->scored([1.0, 0.25, 0.75, 0.0, 0.5]), new Document('No score either')];
+
+        $result = (new AdaptiveThresholdPostProcessor(0.5))->process(new UserMessage('Question'), $documents);
+
+        $this->assertSame([1.0, 0.75, 0.5], $this->scores($result));
+    }
+
     public function test_result_is_a_list_of_the_same_documents_in_input_order(): void
     {
         $documents = $this->scored([0.0, 1.0, 0.25, 0.75, 0.5]);

@@ -135,6 +135,7 @@ class MariaDBFilterCompilerTest extends TestCase
             'backtick' => ['`x`'],
             'comment' => ['x--'],
             'multibyte' => ['città'],
+            'trailing newline' => ["tenant\n"],
         ];
     }
 

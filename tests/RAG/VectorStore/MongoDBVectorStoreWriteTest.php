@@ -233,7 +233,15 @@ class MongoDBVectorStoreWriteTest extends TestCase
             'content' => 'Stored',
             'sourceType' => 'file',
             'sourceName' => 'a.txt',
-            'metadata' => ['id' => 'forged', 'tenant' => 'acme'],
+            'metadata' => [
+                'id' => 'forged',
+                'metadata' => 'forged',
+                '_neuron_metadata' => 'forged',
+                '_vectors' => [1],
+                '_rankingScore' => 1,
+                'vector_distance' => 0.1,
+                'tenant' => 'acme',
+            ],
             'score' => 0.9,
         ]]));
 

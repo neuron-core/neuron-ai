@@ -32,8 +32,11 @@ trait HandleChat
         return $this->bedrockRuntimeClient
             ->converseAsync($payload)
             ->then(function (ResultInterface $result): ToolCallMessage|AssistantMessage {
+                // Bedrock reports cache reads and writes apart from inputTokens: the whole prompt adds them back
                 $usage = new Usage(
-                    $result['usage']['inputTokens'] ?? 0,
+                    ($result['usage']['inputTokens'] ?? 0)
+                        + ($result['usage']['cacheReadInputTokens'] ?? 0)
+                        + ($result['usage']['cacheWriteInputTokens'] ?? 0),
                     $result['usage']['outputTokens'] ?? 0,
                     $result['usage']['cacheReadInputTokens'] ?? 0,
                 );

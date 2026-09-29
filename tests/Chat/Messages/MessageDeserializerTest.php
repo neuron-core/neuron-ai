@@ -168,6 +168,19 @@ class MessageDeserializerTest extends TestCase
         $this->assertNull($restored->getMetadata('tools'));
     }
 
+    public function test_an_identity_nested_in_the_metadata_never_replaces_the_stored_one(): void
+    {
+        $restored = (new MessageDeserializer())->deserialize([
+            '__id' => 'msg_stored',
+            'role' => 'user',
+            'content' => [['type' => 'text', 'content' => 'Hi']],
+            '__meta' => ['__id' => 'msg_forged', 'note' => 'kept'],
+        ]);
+
+        $this->assertSame('msg_stored', $restored->getId());
+        $this->assertSame('kept', $restored->getMetadata('note'));
+    }
+
     /**
      * @return array<string, array{mixed}>
      */

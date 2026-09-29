@@ -143,9 +143,10 @@ class ProviderHistoryReplayContractTest extends TestCase
                     ['type' => 'text', 'text' => 'Let me search.'],
                     ['type' => 'tool_use', 'id' => 'toolu_1', 'name' => 'search', 'input' => ['query' => 'php']],
                 ], 'usage' => ['input_tokens' => 120, 'output_tokens' => 30]],
+                // The 64 cached tokens come apart from input_tokens: the prompt totals 200, as for the other vendors
                 ['id' => 'msg_2', 'type' => 'message', 'role' => 'assistant', 'stop_reason' => 'end_turn', 'content' => [
                     ['type' => 'text', 'text' => 'Here is the chart summary.'],
-                ], 'usage' => ['input_tokens' => 200, 'output_tokens' => 12, 'cache_read_input_tokens' => 64]],
+                ], 'usage' => ['input_tokens' => 136, 'output_tokens' => 12, 'cache_read_input_tokens' => 64]],
                 'messages',
                 [
                     ['role' => 'user', 'content' => [

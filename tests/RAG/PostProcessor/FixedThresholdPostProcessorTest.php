@@ -8,6 +8,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\PostProcessor\FixedThresholdPostProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -33,6 +34,19 @@ class FixedThresholdPostProcessorTest extends TestCase
     protected function scores(array $documents): array
     {
         return array_map(static fn (Document $document): ?float => $document->getScore(), $documents);
+    }
+
+    #[TestWith([-0.5])]
+    #[TestWith([0.0])]
+    #[TestWith([0.5])]
+    public function test_an_unscored_document_never_passes_a_threshold(float $threshold): void
+    {
+        $unscored = new Document('No score');
+        $scored = (new Document('Scored'))->setScore(0.9);
+
+        $result = (new FixedThresholdPostProcessor($threshold))->process(new UserMessage('Question'), [$unscored, $scored]);
+
+        $this->assertSame([$scored], $result);
     }
 
     /** @return iterable<string, array{float, float[], float[]}> */

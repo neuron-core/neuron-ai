@@ -33,15 +33,32 @@ class FilterEvaluator
     }
 
     /**
+     * Refuses a filter that cannot be evaluated here before any document is read: a raw
+     * fragment is found wherever it sits, not only once a document happens to reach it.
+     *
+     * @throws VectorStoreException
+     */
+    public function assertEvaluable(FilterExpression $filters): void
+    {
+        if ($filters instanceof RawFilter) {
+            throw $this->unevaluable($filters);
+        }
+
+        if ($filters instanceof FilterGroup) {
+            foreach ($filters->conditions() as $condition) {
+                $this->assertEvaluable($condition);
+            }
+        }
+    }
+
+    /**
      * @param array<string, mixed> $fields Flat field map: sourceType, sourceName, content, and metadata keys.
      * @throws VectorStoreException
      */
     public function matches(FilterExpression $filters, array $fields): bool
     {
         if ($filters instanceof RawFilter) {
-            throw new VectorStoreException(
-                "Raw filter targets {$filters->store}; it cannot be evaluated in PHP."
-            );
+            throw $this->unevaluable($filters);
         }
 
         if ($filters instanceof FilterGroup) {
@@ -141,5 +158,10 @@ class FilterEvaluator
         }
 
         return true;
+    }
+
+    protected function unevaluable(RawFilter $filter): VectorStoreException
+    {
+        return new VectorStoreException("Raw filter targets {$filter->store}; it cannot be evaluated in PHP.");
     }
 }

@@ -68,7 +68,7 @@ class BedrockStreamTest extends TestCase
             ['contentBlockStop' => ['contentBlockIndex' => 0]],
             ...self::toolBlock(1, 'lookup', 'tooluse_A', '{"que', 'ry": "php ', 'ünïcode"}'),
             ['messageStop' => ['stopReason' => 'tool_use']],
-            ['metadata' => ['usage' => ['inputTokens' => 30, 'outputTokens' => 12, 'cacheReadInputTokens' => 25]]],
+            ['metadata' => ['usage' => ['inputTokens' => 30, 'outputTokens' => 12, 'cacheReadInputTokens' => 25, 'cacheWriteInputTokens' => 5]]],
         ]);
 
         [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('Find php')));
@@ -88,7 +88,8 @@ class BedrockStreamTest extends TestCase
         [$call] = $message->getToolCalls();
         $this->assertSame(['lookup', 'tooluse_A', ['query' => 'php ünïcode']], [$call->getName(), $call->getCallId(), $call->getInputs()]);
         $this->assertSame([1], $message->getMetadata('aws_tool_positions'));
-        $this->assertSame([30, 12, 25], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens, $message->getUsage()->cachedInputTokens]);
+        // The cache reads and writes come apart from inputTokens: the prompt is 30 + 25 + 5
+        $this->assertSame([60, 12, 25], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens, $message->getUsage()->cachedInputTokens]);
     }
 
     public function test_parallel_tool_calls_keep_their_own_inputs_and_positions(): void

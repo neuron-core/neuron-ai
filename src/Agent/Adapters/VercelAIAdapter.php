@@ -27,6 +27,7 @@ use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use Throwable;
 
 use function in_array;
+use function is_string;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -71,14 +72,18 @@ class VercelAIAdapter implements CustomizableStreamAdapterInterface
     public function __construct(protected ?string $messageId = null, array $parts = [])
     {
         foreach ($parts as $part) {
-            if (isset($part['toolCallId'])) {
-                $this->toolInputStarted[$part['toolCallId']] = true;
-                if (($part['state'] ?? null) === 'input-available') {
-                    $this->dispatchedTools[$part['toolCallId']] = true;
-                }
-                if (in_array($part['state'] ?? null, ['output-available', 'output-error', 'output-denied'], true)) {
-                    $this->knownOutputs[$part['toolCallId']] = true;
-                }
+            // As the input translator does, a part without a string call ID is not tracked.
+            $callId = $part['toolCallId'] ?? null;
+            if (!is_string($callId)) {
+                continue;
+            }
+
+            $this->toolInputStarted[$callId] = true;
+            if (($part['state'] ?? null) === 'input-available') {
+                $this->dispatchedTools[$callId] = true;
+            }
+            if (in_array($part['state'] ?? null, ['output-available', 'output-error', 'output-denied'], true)) {
+                $this->knownOutputs[$callId] = true;
             }
         }
     }

@@ -64,6 +64,16 @@ class QdrantTest extends TestCase
         $this->assertEquals($document->getMetadata()['customProperty'], $results[0]->getMetadata()['customProperty']);
     }
 
+    public function test_an_integer_id_round_trips(): void
+    {
+        $document = (new Document('Row 42'))->setId(42);
+        $document->setEmbedding([1, 2, 3]);
+
+        $this->store->addDocument($document);
+
+        $this->assertSame(42, $this->store->search(new SearchRequest([1, 2, 3]))[0]->getId());
+    }
+
     /**
      * @throws GuzzleException
      */

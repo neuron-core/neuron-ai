@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Chat\History;
 
+use JsonException;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\History\TokenCounter;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -34,6 +35,8 @@ use function stream_wrapper_unregister;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
+
+use const NAN;
 
 class TokenCounterTest extends TestCase
 {
@@ -234,6 +237,19 @@ class TokenCounterTest extends TestCase
 
         // The invalid byte counts as one substituted character: 9 + 10 + 6 + 18
         $this->assertSame(11, (new TokenCounter())->count($message));
+    }
+
+    public function test_invalid_utf8_in_text_is_counted_without_failing(): void
+    {
+        // Each invalid byte counts as a replacement character, escaped like any non-ASCII text: 4 + 38 + 7 + 2 * 6 + 8
+        $this->assertSame(18, (new TokenCounter())->count(new UserMessage("binary \xFF\xFE payload")));
+    }
+
+    public function test_a_text_block_that_cannot_be_encoded_throws_a_json_exception(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new TokenCounter())->count(new UserMessage((new TextContent('Hello'))->setMetadata(['score' => NAN])));
     }
 
     /**

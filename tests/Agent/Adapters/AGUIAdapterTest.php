@@ -13,12 +13,14 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Agent\Interrupt\ActionDecision;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
@@ -33,7 +35,7 @@ use function array_values;
 
 class AGUIAdapterTest extends TestCase
 {
-    public function test_error_emits_run_error_with_optional_code(): void
+    public function test_error_emits_run_error_without_the_exception_code(): void
     {
         foreach ([0, 503] as $code) {
             $adapter = new AGUIAdapter('thread_test', 'run_test');
@@ -42,13 +44,8 @@ class AGUIAdapterTest extends TestCase
             $message = "Provider failed: \"unavailable\"\nPlease retry.";
             $events = iterator_to_array($adapter->error(new RuntimeException($message, $code)), false);
 
-            $expected = ['type' => 'RUN_ERROR', 'message' => 'The run failed.'];
-            if ($code !== 0) {
-                $expected['code'] = (string) $code;
-            }
-
             $this->assertCount(1, $events);
-            $this->assertSame($expected, json_decode(json_encode($events[0]), true));
+            $this->assertSame(['type' => 'RUN_ERROR', 'message' => 'The run failed.'], json_decode(json_encode($events[0]), true));
         }
     }
 
@@ -169,6 +166,15 @@ class AGUIAdapterTest extends TestCase
         $this->assertSame('confirmation', $interrupt['reason']);
         $this->assertSame('Consent required', $interrupt['message']);
         $this->assertSame('geolocation_get', $interrupt['metadata']['name']);
+    }
+
+    public function test_an_interrupt_without_a_run_id_finishes_with_a_generated_one(): void
+    {
+        $events = $this->decode((new AGUIAdapter('thread_test'))->interrupt($this->approval('call_1')));
+
+        $this->assertSame(['STATE_SNAPSHOT', 'MESSAGES_SNAPSHOT', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertStringStartsWith('run_', $events[2]['runId']);
+        $this->assertSame('call_1', $events[2]['outcome']['interrupts'][0]['id']);
     }
 
     public function test_buffered_approval_has_a_snapshot_and_response_schema(): void
@@ -382,6 +388,32 @@ class AGUIAdapterTest extends TestCase
         $this->assertSame('call_w', $events[0]['toolCallId']);
     }
 
+    /** @return iterable<string, array{list<mixed>, string}> */
+    public static function malformedSeeds(): iterable
+    {
+        yield 'message without id' => [[['role' => 'user', 'content' => 'Hi']], 'An AG-UI message requires a non-empty string id.'];
+        yield 'empty id' => [[['id' => '', 'role' => 'user', 'content' => 'Hi']], 'An AG-UI message requires a non-empty string id.'];
+        yield 'array id' => [[['id' => ['x'], 'role' => 'user', 'content' => 'Hi']], 'An AG-UI message requires a non-empty string id.'];
+        yield 'message that is not an object' => [['Hi'], 'An AG-UI message requires a non-empty string id.'];
+        yield 'duplicate id' => [
+            [['id' => 'm', 'role' => 'user', 'content' => 'a'], ['id' => 'm', 'role' => 'user', 'content' => 'b']],
+            "Duplicate AG-UI message 'm'.",
+        ];
+        yield 'toolCalls as a string' => [[['id' => 'm', 'role' => 'assistant', 'toolCalls' => 'x']], "AG-UI message 'm' has toolCalls that are not a list."];
+        yield 'tool call without id' => [[['id' => 'm', 'role' => 'assistant', 'toolCalls' => [['type' => 'function']]]], 'An AG-UI tool call requires a non-empty string id.'];
+        yield 'tool message without toolCallId' => [[['id' => 'm', 'role' => 'tool', 'content' => 'x']], 'An AG-UI tool message requires a non-empty string toolCallId.'];
+    }
+
+    /** @param list<mixed> $messages */
+    #[DataProvider('malformedSeeds')]
+    public function test_a_malformed_seed_is_refused_as_client_input(array $messages, string $error): void
+    {
+        $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage($error);
+
+        new AGUIAdapter('thread_test', 'run_test', $messages);
+    }
+
     public function test_parallel_calls_of_one_tool_keep_their_own_argument_fragments(): void
     {
         $adapter = new AGUIAdapter('thread_test', 'run_test');
@@ -417,7 +449,10 @@ class AGUIAdapterTest extends TestCase
         $adapter = new AGUIAdapter('thread_test');
         iterator_to_array($adapter->transform(new TextChunk('msg_1', 'Hello')), false);
 
-        $this->assertSame([['type' => 'TEXT_MESSAGE_END', 'messageId' => 'msg_1']], $this->decode($adapter->end()));
+        $events = $this->decode($adapter->end());
+
+        $this->assertSame(['TEXT_MESSAGE_END', 'RUN_FINISHED'], array_column($events, 'type'));
+        $this->assertStringStartsWith('run_', $events[1]['runId']);
     }
 
     public function test_a_call_without_inputs_publishes_an_empty_json_object(): void

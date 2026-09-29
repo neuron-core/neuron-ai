@@ -116,6 +116,7 @@ class Message implements JsonSerializable
             $this->contents = [$content];
         } else {
             // Assume it's an array
+            $this->contents = [];
             foreach ($content as $block) {
                 $this->addContent($block);
             }

@@ -61,11 +61,13 @@ class MemoryVectorStore implements VectorStoreInterface
 
     /**
      * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $evaluator = new FilterEvaluator();
+        $evaluator->assertEvaluable($filters);
 
         $this->documents = array_filter(
             $this->documents,
@@ -85,6 +87,7 @@ class MemoryVectorStore implements VectorStoreInterface
 
         if ($filters instanceof FilterExpression) {
             $this->validateFilters($filters);
+            $evaluator->assertEvaluable($filters);
         }
 
         foreach ($this->documents as $index => $document) {

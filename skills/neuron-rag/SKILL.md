@@ -456,7 +456,6 @@ protected function postProcessors(): array
             topN: 3,
         ),
         // or: new JinaRerankerPostProcessor(key: ..., topN: 3)
-        // or: new LocalAIRerankerPostProcessor(...)
         new FixedThresholdPostProcessor(threshold: 0.5),        // drop low-score documents
         // or: new AdaptiveThresholdPostProcessor(multiplier: 0.6)  // statistics-based cutoff
     ];

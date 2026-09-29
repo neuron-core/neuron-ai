@@ -94,7 +94,8 @@ class QdrantVectorStore implements VectorStoreInterface
     {
         $this->validateDocuments($documents);
         $points = array_map(fn (Document $document): array => [
-            'id' => (string) $document->getId(),
+            // Qdrant ids are unsigned integers or UUIDs: an integer must stay one
+            'id' => $document->getId(),
             'payload' => [
                 'content' => $document->getContent(),
                 'sourceType' => $document->getSourceType(),

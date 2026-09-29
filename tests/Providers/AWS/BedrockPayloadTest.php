@@ -190,7 +190,7 @@ class BedrockPayloadTest extends TestCase
                 ['toolUse' => ['toolUseId' => 'tooluse_1', 'name' => 'lookup', 'input' => ['query' => 'neuron']]],
             ]]],
             'stopReason' => 'tool_use',
-            'usage' => ['inputTokens' => 20, 'outputTokens' => 7, 'cacheReadInputTokens' => 15],
+            'usage' => ['inputTokens' => 20, 'outputTokens' => 7, 'cacheReadInputTokens' => 15, 'cacheWriteInputTokens' => 5],
         ]);
         $provider = (new BedrockRuntime($this->client(), 'model'))
             ->setTools([new ToolStub('lookup', 'Look it up')])
@@ -201,7 +201,8 @@ class BedrockPayloadTest extends TestCase
         $this->assertInstanceOf(ToolCallMessage::class, $message);
         $this->assertSame('Let me search.', $message->getContent());
         $this->assertSame('tool_use', $message->stopReason());
-        $this->assertSame([20, 7, 15], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens, $message->getUsage()->cachedInputTokens]);
+        // The cache reads and writes come apart from inputTokens: the prompt is 20 + 15 + 5
+        $this->assertSame([40, 7, 15], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens, $message->getUsage()->cachedInputTokens]);
         [$call] = $message->getToolCalls();
         $this->assertSame(['lookup', 'tooluse_1', ['query' => 'neuron'], 'Look it up'], [$call->getName(), $call->getCallId(), $call->getInputs(), $call->getDescription()]);
         $this->assertSame([1], $message->getMetadata('aws_tool_positions'));

@@ -104,8 +104,9 @@ class ChatHistoryTest extends TestCase
 
         $this->assertCount(2, $store->loadActive('thread'));
         $stored = $store->loadAll('thread')[3]->getUsage();
-        $this->assertSame(200, $stored?->cachedInputTokens);
-        $this->assertSame(20, $stored?->reasoningTokens);
+        $this->assertInstanceOf(Usage::class, $stored);
+        $this->assertSame(200, $stored->cachedInputTokens);
+        $this->assertSame(20, $stored->reasoningTokens);
     }
 
     public function test_the_only_user_turn_is_kept_even_over_the_window(): void

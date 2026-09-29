@@ -27,6 +27,10 @@ class FixedThresholdPostProcessor implements PostProcessorInterface
 
     public function process(Message $question, array $documents): array
     {
-        return array_values(array_filter($documents, fn (Document $document): bool => $document->getScore() >= $this->threshold));
+        // A document nothing scored cannot pass a score threshold, whatever its value
+        return array_values(array_filter(
+            $documents,
+            fn (Document $document): bool => $document->getScore() !== null && $document->getScore() >= $this->threshold,
+        ));
     }
 }

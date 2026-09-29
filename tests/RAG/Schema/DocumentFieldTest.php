@@ -74,6 +74,7 @@ class DocumentFieldTest extends TestCase
             'json path' => ['$.tenant'],
             'non ascii letter' => ['città'],
             'leading newline' => ["\ntenant"],
+            'trailing newline' => ["tenant\n"],
             'null byte' => ["tenant\0"],
         ];
     }

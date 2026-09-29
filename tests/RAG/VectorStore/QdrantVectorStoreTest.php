@@ -118,6 +118,13 @@ class QdrantVectorStoreTest extends TestCase
         ]]], $this->sentJson(1));
     }
 
+    public function test_an_integer_id_is_sent_as_a_json_integer(): void
+    {
+        $this->store(null, null, new Response(200))->addDocument($this->document('11111111-1111-1111-1111-111111111111')->setId(42));
+
+        $this->assertSame(42, $this->sentJson(1)['points'][0]['id']);
+    }
+
     public function test_adds_points_in_chunks_of_one_hundred(): void
     {
         $documents = array_map(fn (int $i): Document => $this->document("doc-{$i}"), range(1, 150));
