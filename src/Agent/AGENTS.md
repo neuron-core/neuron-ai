@@ -214,7 +214,7 @@ $request = $state->getInterruptRequest();
 $state = $agent->submitToolResults([
     'call_123' => ['result' => ['title' => 'Example']],
     'call_456' => ['error' => 'User cancelled the browser operation'],
-])->run(); // Or ->events() to stream the continuation.
+])->run(); // Or ->events(); either streams the answer only if the turn started streaming.
 ```
 
 Each entry has exactly one `result` (a JSON-compatible value) or `error` (a string). Error outcomes become `ToolOutput::error()`; strings pass through and other results are JSON-encoded, preserving `false`, `0` and `null`. Partial deliveries are durably accumulated. The waiting node restores accepted results, tracks pending calls by call ID and removes each one as its result arrives. It builds a request only while calls remain pending; the request receives those calls plus accepted results for validating repeat submissions. An identical result can be restated while the batch is pending; conflicting, unknown or malformed results reject before input acceptance. Workflow's run and interrupt identity rules still apply; this does not provide deduplication across completed runs.

@@ -83,7 +83,9 @@ failure. Partial results are retained and the agent waits for the remaining call
 Approval and execution are separate phases: a result cannot answer an approval.
 
 Both methods stage a continuation. Finish with `run()` for `AgentState` or
-`events()` to stream; do not call `chat()` or `stream()` to deliver these maps.
+`events()` to iterate its output; either way, the answer streams only if the turn
+started with `stream()` or `chat(..., stream: true)`. Do not call `chat()` or
+`stream()` to deliver these maps.
 Reconstruct the same thread, durable history and persistence on every request.
 Missing runs, unknown call IDs and invalid maps fail before execution.
 

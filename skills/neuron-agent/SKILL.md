@@ -452,8 +452,9 @@ $response = $state->getMessage();
 
 `submitApprovalDecisions()` stages decisions for the current approval request,
 so application code needs only the thread ID
-and decisions keyed by tool call ID. Call `events()` instead of `run()` when the
-continued segment must stream.
+and decisions keyed by tool call ID. Call `events()` instead of `run()` to
+iterate the continued segment's output yourself. Either way, the answer streams
+only if the turn started with `stream()` or `chat(..., stream: true)`.
 
 Deferred tools continue through the same thread identity:
 
@@ -468,7 +469,8 @@ $state = MyAgent::make(workflowId: $threadId)
 Reconstruct the same durable history and persistence as for the original turn.
 Each entry contains exactly one JSON-compatible `result` or string `error`.
 Partial results accumulate; the returned state may be interrupted again.
-Use `events()` to stream the continuation. Raw AG-UI or Vercel payloads use
+As with approvals, `events()` iterates the continuation's output, and the answer
+streams only if the turn started streaming. Raw AG-UI or Vercel payloads use
 `submitInputs($payload, $translator)` as described in **neuron-frontend-integration**.
 
 Other interruption types use the generic Workflow API: application-controlled
