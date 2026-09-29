@@ -14,6 +14,7 @@ use NeuronAI\Agent\Nodes\InferenceNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
@@ -25,6 +26,7 @@ use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\Event;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 
@@ -366,21 +368,36 @@ class SummarizationTest extends TestCase
         $this->assertSame($before, $history->getMessages());
     }
 
-    public function test_a_failed_summary_degrades_to_a_placeholder(): void
+    /** @return iterable<string, array{FakeAIProvider}> */
+    public static function missingSummaries(): iterable
+    {
+        // An empty queue makes the provider throw a ProviderException.
+        yield 'failed call' => [new FakeAIProvider()];
+        yield 'reply without text' => [new FakeAIProvider(new AssistantMessage([new ReasoningContent('Thinking...')]))];
+    }
+
+    #[DataProvider('missingSummaries')]
+    public function test_without_a_summary_the_history_is_left_untouched(FakeAIProvider $provider): void
     {
         $history = $this->conversation();
-        // An empty queue makes the provider throw a ProviderException.
-        $provider = new FakeAIProvider();
+        $before = $history->getMessages();
 
         $this->runBefore(new Summarization($provider, maxTokens: 1, messagesToKeep: 1), $history, $provider);
 
-        $this->assertSame(
-            [
-                "## Previous conversation summary:\n\nPrevious conversation contained 3 messages covering various topics.",
-                'Answer 2',
-            ],
-            $this->contents($history->getMessages())
-        );
+        $this->assertSame($before, $history->getMessages());
+    }
+
+    public function test_the_next_inference_tries_the_summary_again(): void
+    {
+        $history = $this->conversation();
+        $provider = new FakeAIProvider(new AssistantMessage([new ReasoningContent('Thinking...')]), new AssistantMessage('Summary'));
+        $middleware = new Summarization($provider, maxTokens: 1, messagesToKeep: 1);
+
+        $this->runBefore($middleware, $history, $provider);
+        $this->runBefore($middleware, $history, $provider);
+
+        $provider->assertCallCount(2);
+        $this->assertSame(["## Previous conversation summary:\n\nSummary", 'Answer 2'], $this->contents($history->getMessages()));
     }
 
     public function test_the_summary_request_describes_the_conversation_and_its_tool_activity(): void

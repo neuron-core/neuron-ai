@@ -103,6 +103,7 @@ class AGUIInputTranslatorTest extends TestCase
         yield 'unknown status' => [['resume' => [['interruptId' => '4', 'status' => 'approved']]], "Interrupt '4' requires resolved or cancelled status."];
         yield 'resolved without payload' => [['resume' => [['interruptId' => '4', 'status' => 'resolved']]], "Interrupt '4' requires an object payload."];
         yield 'resolved with a string payload' => [['resume' => [['interruptId' => '4', 'status' => 'resolved', 'payload' => 'done']]], "Interrupt '4' requires an object payload."];
+        yield 'resolved with an empty result map' => [['resume' => [['interruptId' => '4', 'status' => 'resolved', 'payload' => []]]], 'The payload contains no matching continuation input.'];
         yield 'cancelled with payload' => [['resume' => [['interruptId' => '4', 'status' => 'cancelled', 'payload' => []]]], 'A cancelled resume must omit payload.'];
     }
 
@@ -281,6 +282,34 @@ class AGUIInputTranslatorTest extends TestCase
         $this->expectExceptionMessage('An AG-UI tool requires name, description and parameters.');
 
         (new AGUIInputTranslator())->tools(['tools' => [$definition]]);
+    }
+
+    /** @return iterable<string, array{array<string, mixed>}> */
+    public static function unsupportedParameters(): iterable
+    {
+        yield 'unknown property type' => [['type' => 'object', 'properties' => ['x' => ['type' => 'unknown']]]];
+        yield 'numeric property type' => [['type' => 'object', 'properties' => ['x' => ['type' => 5]]]];
+        yield 'property definition is a string' => [['type' => 'object', 'properties' => ['x' => 'string']]];
+        yield 'properties is a string' => [['type' => 'object', 'properties' => 'x']];
+        yield 'required is a string' => [['type' => 'object', 'required' => 'x', 'properties' => ['x' => ['type' => 'string']]]];
+        yield 'items is a string' => [['type' => 'object', 'properties' => ['x' => ['type' => 'array', 'items' => 'string']]]];
+        yield 'negative minItems' => [['type' => 'object', 'properties' => ['x' => ['type' => 'array', 'minItems' => -1]]]];
+        yield 'reference keyword' => [['type' => 'object', 'properties' => ['x' => ['$ref' => '#/defs/x']]]];
+        yield 'union keyword' => [['type' => 'object', 'properties' => ['x' => ['anyOf' => [['type' => 'string'], ['type' => 'null']]]]]];
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    #[DataProvider('unsupportedParameters')]
+    public function test_unsupported_tool_parameters_are_rejected_as_client_input(array $parameters): void
+    {
+        $this->expectException(InputTranslationException::class);
+        $this->expectExceptionMessage("Frontend tool 'browser' declares unsupported parameters: ");
+
+        (new AGUIInputTranslator())->tools(['tools' => [
+            ['name' => 'browser', 'description' => 'Read the page', 'parameters' => $parameters],
+        ]]);
     }
 
     public function test_a_catalog_must_be_a_list_of_objects(): void

@@ -84,6 +84,11 @@ class Summarization extends AgentMiddleware
         $recentMessages = array_slice($messages, $cutoffIndex);
 
         $summary = $this->generateSummary($provider, $oldMessages);
+        if ($summary === null) {
+            // Summarizing only saves tokens: without a summary the history stays
+            // as it is, and the next inference tries again.
+            return;
+        }
 
         $newMessages = [
             new UserMessage("## Previous conversation summary:\n\n{$summary}"),
@@ -175,9 +180,11 @@ class Summarization extends AgentMiddleware
     }
 
     /**
+     * The summary text, or null when the call fails or the reply has no text.
+     *
      * @param Message[] $messages
      */
-    protected function generateSummary(AIProviderInterface $provider, array $messages): string
+    protected function generateSummary(AIProviderInterface $provider, array $messages): ?string
     {
         $prompt = $this->summaryPrompt ?? $this->getDefaultSummaryPrompt();
 
@@ -191,12 +198,7 @@ class Summarization extends AgentMiddleware
 
             return $response->message()->getContent();
         } catch (Exception) {
-            // A failed summarization degrades to a placeholder rather than
-            // failing the run.
-            return sprintf(
-                'Previous conversation contained %d messages covering various topics.',
-                count($messages)
-            );
+            return null;
         }
     }
 

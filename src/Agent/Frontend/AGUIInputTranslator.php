@@ -7,7 +7,9 @@ namespace NeuronAI\Agent\Frontend;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Interrupt\ToolInputTranslator;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
+use NeuronAI\Exceptions\ArrayPropertyException;
 use NeuronAI\Exceptions\InputTranslationException;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
@@ -81,7 +83,11 @@ class AGUIInputTranslator extends ToolInputTranslator
             if (isset($tools[$name])) {
                 throw new InputTranslationException("Duplicate frontend tool '{$name}'.");
             }
-            $tools[$name] = new FrontendTool($name, $definition['description'], $definition['parameters']);
+            try {
+                $tools[$name] = new FrontendTool($name, $definition['description'], $definition['parameters']);
+            } catch (ToolException|ArrayPropertyException $e) {
+                throw new InputTranslationException("Frontend tool '{$name}' declares unsupported parameters: {$e->getMessage()}", $e->getCode(), previous: $e);
+            }
         }
         return array_values($tools);
     }
@@ -138,7 +144,7 @@ class AGUIInputTranslator extends ToolInputTranslator
             throw new InputTranslationException('AG-UI resume must address every published interrupt.');
         }
         if ($request instanceof ToolResultsRequest) {
-            $request->validateResults($answers);
+            return $this->inputs($request, $answers);
         }
         return $answers;
     }
