@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Output;
 
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
@@ -23,6 +24,7 @@ use function json_encode;
 use function is_float;
 use function is_int;
 
+use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_PRETTY_PRINT;
 use const JSON_THROW_ON_ERROR;
 
@@ -38,7 +40,8 @@ class JsonOutput implements EvaluationOutputInterface
         $data = $this->evaluationReportToArray($report);
 
         try {
-            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+            // One invalid byte in any item must not suppress the whole report
+            $json = json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (JsonException $e) {
             throw new RuntimeException('Failed to encode summary to JSON: ' . $e->getMessage(), 0, $e);
         }
@@ -148,9 +151,13 @@ class JsonOutput implements EvaluationOutputInterface
             return $output;
         }
 
+        if ($output instanceof Trajectory) {
+            return $output->toTranscript();
+        }
+
         if (is_array($output) || is_object($output)) {
             try {
-                return json_encode($output, JSON_THROW_ON_ERROR);
+                return json_encode($output, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
             } catch (JsonException) {
                 return 'Unable to serialize output';
             }

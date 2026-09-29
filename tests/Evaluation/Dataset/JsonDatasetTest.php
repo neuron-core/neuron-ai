@@ -106,7 +106,7 @@ class JsonDatasetTest extends TestCase
         $dataset = new JsonDataset($this->file);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Dataset must be an array of objects');
+        $this->expectExceptionMessage('Dataset must be a JSON array of items');
 
         $dataset->load();
     }

@@ -73,4 +73,26 @@ class ParallelEventTest extends TestCase
         $this->assertSame(['score' => 2], $event->getResult('left'));
         $this->assertSame(['left' => ['score' => 2], 'right' => 'done'], $event->getAllResults());
     }
+
+    public function test_a_branch_that_completed_with_a_null_result_has_a_result(): void
+    {
+        $event = new ParallelEvent(['left' => new StartEvent()]);
+
+        $event->setResult('left', null);
+
+        $this->assertTrue($event->hasResult('left'));
+        $this->assertNull($event->getResult('left'));
+        $this->assertSame(['left' => null], $event->getAllResults());
+    }
+
+    public function test_reading_a_branch_that_did_not_complete_is_refused(): void
+    {
+        $event = new ParallelEvent(['left' => new StartEvent()]);
+        $event->setResult('left', 'done');
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("No completed parallel branch is named 'right'.");
+
+        $event->getResult('right');
+    }
 }

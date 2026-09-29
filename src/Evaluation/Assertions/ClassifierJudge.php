@@ -14,7 +14,6 @@ use NeuronAI\Evaluation\Conversation\Trajectory;
 
 use function count;
 use function get_debug_type;
-use function is_finite;
 use function is_string;
 
 class ClassifierJudge extends AbstractAssertion
@@ -30,9 +29,7 @@ class ClassifierJudge extends AbstractAssertion
         protected float $threshold = 0.7,
         protected ?string $reference = null,
     ) {
-        if (!is_finite($threshold) || $threshold < 0 || $threshold > 1) {
-            throw new InvalidArgumentException('Threshold must be finite and between zero and one.');
-        }
+        $this->validateThreshold($threshold);
     }
 
     public function evaluate(mixed $actual): AssertionResult

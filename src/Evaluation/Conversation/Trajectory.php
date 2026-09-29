@@ -29,6 +29,10 @@ use function end;
 use function implode;
 use function json_decode;
 use function json_encode;
+use function strtr;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * The recorded evaluation subject: a read-only view over the original typed
@@ -228,7 +232,17 @@ class Trajectory
             $lines[] = $line;
         }
 
-        return implode("\n", $lines);
+        return implode("\n", array_map($this->indentContinuation(...), $lines));
+    }
+
+    /**
+     * Indents every line of an entry after its first, so only real entries
+     * start a line: message text, tool results and reasons cannot forge a
+     * "User:" turn or an approved tool call.
+     */
+    protected function indentContinuation(string $entry): string
+    {
+        return strtr($entry, ["\r\n" => "\n    ", "\r" => "\n    ", "\n" => "\n    "]);
     }
 
     /**
@@ -295,8 +309,15 @@ class Trajectory
     public function __serialize(): array
     {
         // The JSON round-trip flattens enums and nested objects into the deserializer's format
+        // Invalid UTF-8 is substituted; anything else unencodable throws here,
+        // where the fork boundary and the cache already expect serialize() to fail
         return [
-            'messages' => json_decode((string) json_encode($this->messages), true),
+            'messages' => json_decode(
+                json_encode($this->messages, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            ),
         ];
     }
 

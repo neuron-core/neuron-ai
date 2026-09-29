@@ -6,10 +6,6 @@ namespace NeuronAI\Evaluation;
 
 use NeuronAI\Evaluation\Contracts\AssertionInterface;
 
-use function debug_backtrace;
-
-use const DEBUG_BACKTRACE_IGNORE_ARGS;
-
 class RuleExecutor
 {
     protected int $passedCount = 0;
@@ -23,9 +19,18 @@ class RuleExecutor
     protected array $scores = [];
 
     /**
-     * Execute an evaluation rule and track the result
+     * @param string $evaluatorClass The evaluator failures are attributed to.
      */
-    public function execute(AssertionInterface $rule, mixed $actual, ?string $label = null): bool
+    public function __construct(protected readonly string $evaluatorClass)
+    {
+    }
+
+    /**
+     * Execute an evaluation rule and track the result
+     *
+     * @param int $line Where the evaluator asserted, reported with a failure.
+     */
+    public function execute(AssertionInterface $rule, mixed $actual, int $line, ?string $label = null): bool
     {
         $result = $rule->evaluate($actual);
 
@@ -36,7 +41,7 @@ class RuleExecutor
             $this->passedCount++;
         } else {
             $this->failedCount++;
-            $this->recordFailure($rule, $result);
+            $this->recordFailure($rule, $result, $line);
         }
 
         return $result->passed;
@@ -66,21 +71,13 @@ class RuleExecutor
         $this->scores = [];
     }
 
-    /**
-     * Record a failure with proper backtrace information
-     */
-    protected function recordFailure(AssertionInterface $rule, AssertionResult $result): void
+    protected function recordFailure(AssertionInterface $rule, AssertionResult $result, int $line): void
     {
-        // Get the calling line from backtrace (skip execute() and recordFailure())
-        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4);
-        $lineNumber = $backtrace[3]['line'] ?? 0;
-        $evaluatorClass = $backtrace[3]['class'] ?? 'Unknown';
-
         $this->failures[] = new AssertionFailure(
-            $evaluatorClass,
+            $this->evaluatorClass,
             $rule->getName(),
             $result->message !== '' ? $result->message : 'Evaluation rule failed',
-            $lineNumber,
+            $line,
             $result->context
         );
     }

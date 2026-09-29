@@ -9,6 +9,7 @@ use NeuronAI\Evaluation\AssertionOutcomes;
 use NeuronAI\Evaluation\Cache\CacheKey;
 use NeuronAI\Evaluation\Cache\EvaluationCacheInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\EvaluationException;
 use Spatie\Fork\Fork;
 use Throwable;
 
@@ -16,8 +17,12 @@ use function class_exists;
 use function count;
 use function function_exists;
 use function get_debug_type;
+use function is_array;
+use function is_int;
+use function ksort;
 use function microtime;
 use function serialize;
+use function var_export;
 
 class EvaluatorRunner
 {
@@ -65,14 +70,40 @@ class EvaluatorRunner
     {
         $evaluator->setUp();
 
-        $dataset = $evaluator->getDataset();
-        $data = $dataset->load();
+        $data = $this->validateDataset($evaluator, $evaluator->getDataset()->load());
 
         $results = $concurrency > 1 && count($data) > 1 && self::supportsConcurrency()
             ? $this->runParallel($evaluator, $data, $concurrency)
             : $this->runSequential($evaluator, $data);
 
         return new EvaluationResults($results);
+    }
+
+    /**
+     * Every dataset implementation reaches the runner here, so the shape of
+     * the items is checked once, with a message naming the evaluator.
+     *
+     * @param array<mixed> $data
+     * @return array<int, array<string, mixed>>
+     * @throws EvaluationException
+     */
+    protected function validateDataset(EvaluatorInterface $evaluator, array $data): array
+    {
+        foreach ($data as $key => $item) {
+            if (!is_int($key)) {
+                throw new EvaluationException(
+                    'The dataset of ' . $evaluator::class . ' must be a list of items: found the key ' . var_export($key, true) . '.'
+                );
+            }
+
+            if (!is_array($item)) {
+                throw new EvaluationException(
+                    'The dataset of ' . $evaluator::class . " must be a list of items, each a JSON object or array: item {$key} is " . get_debug_type($item) . '.'
+                );
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -101,7 +132,8 @@ class EvaluatorRunner
 
     /**
      * Run dataset items in parallel across forked child processes.
-     * Fork returns outputs keyed by task order, so results stay in dataset order.
+     * Fork keys outputs by task order but inserts them as children finish,
+     * so sorting by key restores the dataset order.
      *
      * @param array<int, array<string, mixed>> $data
      * @return array<EvaluatorResult>
@@ -116,9 +148,13 @@ class EvaluatorRunner
             );
         }
 
-        return Fork::new()
+        $results = Fork::new()
             ->concurrent($concurrency)
             ->run(...$tasks);
+
+        ksort($results);
+
+        return $results;
     }
 
     /**
@@ -163,7 +199,7 @@ class EvaluatorRunner
                 }
             }
         } catch (Throwable $e) {
-            $error = $e->getMessage();
+            $error = $this->describeError($e);
         }
 
         $executionTime = microtime(true) - $startTime;
@@ -182,6 +218,17 @@ class EvaluatorRunner
             $error,
             $cachedRun
         );
+    }
+
+    /**
+     * The class and the location tell an evaluator bug from a provider or
+     * framework failure, which the message alone often cannot.
+     */
+    protected function describeError(Throwable $e): string
+    {
+        $message = $e->getMessage() !== '' ? ": {$e->getMessage()}" : '';
+
+        return $e::class . "{$message} ({$e->getFile()}:{$e->getLine()})";
     }
 
     /**

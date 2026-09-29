@@ -16,6 +16,7 @@ class StringSimilarity extends StringAssertion
         protected EmbeddingsProviderInterface $embeddingsProvider,
         protected float $threshold = 0.6
     ) {
+        $this->validateThreshold($threshold);
     }
 
     /**

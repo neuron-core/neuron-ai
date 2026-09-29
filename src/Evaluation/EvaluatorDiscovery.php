@@ -6,16 +6,24 @@ namespace NeuronAI\Evaluation;
 
 use InvalidArgumentException;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use PhpToken;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use ReflectionClass;
 use ReflectionException;
 
+use function array_filter;
+use function array_values;
 use function class_exists;
 use function file_get_contents;
 use function is_dir;
-use function preg_match;
-use function preg_match_all;
+use function sort;
+
+use const SORT_STRING;
+use const T_CLASS;
+use const T_NAME_QUALIFIED;
+use const T_NAMESPACE;
+use const T_STRING;
 
 class EvaluatorDiscovery
 {
@@ -41,6 +49,9 @@ class EvaluatorDiscovery
                 }
             }
         }
+
+        // Filesystem iteration order differs between machines
+        sort($evaluators, SORT_STRING);
 
         return $evaluators;
     }
@@ -74,19 +85,24 @@ class EvaluatorDiscovery
             return [];
         }
 
+        // PHP's own tokenizer: modifiers, attributes and formatting before the
+        // class keyword don't matter, and Foo::class or new class {} name nothing
+        $tokens = array_values(array_filter(
+            PhpToken::tokenize($content),
+            static fn (PhpToken $token): bool => !$token->isIgnorable()
+        ));
+
         $classes = [];
         $namespace = '';
 
-        // Extract namespace
-        if (preg_match('/^namespace\s+([^;]+);/m', $content, $matches)) {
-            $namespace = $matches[1];
-        }
+        foreach ($tokens as $position => $token) {
+            $next = $tokens[$position + 1] ?? null;
 
-        // Extract class names
-        if (preg_match_all('/^class\s+(\w+)/m', $content, $matches)) {
-            foreach ($matches[1] as $className) {
-                $fullClassName = $namespace !== '' && $namespace !== '0' ? "{$namespace}\\{$className}" : $className;
-                $classes[] = $fullClassName;
+            if ($token->is(T_NAMESPACE)) {
+                // A braced global block (namespace { ... }) has no name
+                $namespace = $next?->is([T_STRING, T_NAME_QUALIFIED]) === true ? $next->text : '';
+            } elseif ($token->is(T_CLASS) && $next?->is(T_STRING) === true) {
+                $classes[] = $namespace === '' ? $next->text : "{$namespace}\\{$next->text}";
             }
         }
 

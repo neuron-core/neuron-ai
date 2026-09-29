@@ -512,7 +512,7 @@ MyToolkit::make()
 
 ## MCP (Model Context Protocol) Integration
 
-MCP allows connecting to external tool servers.
+MCP allows connecting to external tool servers. Each server tool becomes a regular Neuron tool whose result is a `ToolOutput`: text, image and audio content become content blocks, other content reaches the model as JSON text, and a result the server marks with `isError` is an error output.
 
 ### Local MCP Server (Stdio)
 

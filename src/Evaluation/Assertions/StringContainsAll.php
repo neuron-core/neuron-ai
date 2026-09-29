@@ -7,9 +7,7 @@ namespace NeuronAI\Evaluation\Assertions;
 use NeuronAI\Evaluation\AssertionResult;
 
 use function implode;
-use function is_string;
 use function str_contains;
-use function strtolower;
 
 class StringContainsAll extends StringAssertion
 {
@@ -18,19 +16,16 @@ class StringContainsAll extends StringAssertion
      */
     public function __construct(protected array $keywords)
     {
+        $this->keywords = $this->stringList($keywords, 'keywords');
     }
 
     protected function evaluateString(string $actual): AssertionResult
     {
-        $lowerHaystack = strtolower($actual);
+        $haystack = $this->foldCase($actual);
         $missing = [];
 
         foreach ($this->keywords as $keyword) {
-            if (!is_string($keyword)) {
-                continue;
-            }
-
-            if (!str_contains($lowerHaystack, strtolower($keyword))) {
+            if (!str_contains($haystack, $this->foldCase($keyword))) {
                 $missing[] = $keyword;
             }
         }

@@ -8,13 +8,17 @@ use NeuronAI\Evaluation\Contracts\AssertionInterface;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 
+use function debug_backtrace;
+
+use const DEBUG_BACKTRACE_IGNORE_ARGS;
+
 abstract class BaseEvaluator implements EvaluatorInterface
 {
     protected RuleExecutor $ruleExecutor;
 
     public function __construct()
     {
-        $this->ruleExecutor = new RuleExecutor();
+        $this->ruleExecutor = new RuleExecutor(static::class);
     }
 
     public function namespace(): ?string
@@ -75,6 +79,9 @@ abstract class BaseEvaluator implements EvaluatorInterface
      */
     protected function assert(AssertionInterface $rule, mixed $actual, ?string $label = null): bool
     {
-        return $this->ruleExecutor->execute($rule, $actual, $label);
+        // This frame's line is the evaluator's assert() call
+        $line = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0]['line'] ?? 0;
+
+        return $this->ruleExecutor->execute($rule, $actual, $line, $label);
     }
 }

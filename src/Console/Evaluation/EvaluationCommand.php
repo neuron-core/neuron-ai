@@ -22,6 +22,7 @@ use ReflectionClass;
 use RuntimeException;
 use Throwable;
 
+use function addcslashes;
 use function array_shift;
 use function array_values;
 use function count;
@@ -81,7 +82,7 @@ class EvaluationCommand extends Command
                 $options['fresh']
             );
         } catch (Throwable $e) {
-            $this->printError($e->getMessage());
+            $this->printError($this->escapeControlCharacters($e->getMessage()));
             return 1;
         }
     }
@@ -166,13 +167,14 @@ class EvaluationCommand extends Command
                 $results = $runner->run($evaluator, $concurrency);
             } catch (Throwable $e) {
                 $finishedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-                $this->printError("Failed to run {$evaluatorClass}: " . $e->getMessage());
+                $error = $this->describeError($e);
+                $this->printError($this->escapeControlCharacters("Failed to run {$evaluatorClass}: {$error}"));
                 $reports[] = new EvaluatorReport(
                     $evaluatorClass,
                     new EvaluationResults([]),
                     $startedAt,
                     $finishedAt,
-                    $e->getMessage(),
+                    $error,
                     $namespace,
                 );
                 continue;
@@ -248,6 +250,26 @@ class EvaluationCommand extends Command
         }
 
         return new $className();
+    }
+
+    /**
+     * Same format as the runner's item errors: the class and the location
+     * tell an evaluator bug from a provider or framework failure.
+     */
+    protected function describeError(Throwable $e): string
+    {
+        $message = $e->getMessage() !== '' ? ": {$e->getMessage()}" : '';
+
+        return $e::class . "{$message} ({$e->getFile()}:{$e->getLine()})";
+    }
+
+    /**
+     * Exception messages can carry terminal control sequences (e.g. from a
+     * provider error body): show them as escapes instead. Newlines and tabs are kept.
+     */
+    protected function escapeControlCharacters(string $text): string
+    {
+        return addcslashes($text, "\0..\10\13..\37\177");
     }
 
     protected function getShortClassName(string $fullClassName): string

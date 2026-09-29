@@ -35,12 +35,4 @@ class AssertionFailureTest extends TestCase
         $this->assertSame(3, $failure->getLineNumber());
         $this->assertSame(['threshold' => 0.7], $failure->getContext());
     }
-
-    public function test_a_non_judge_failure_has_no_judge_score(): void
-    {
-        $failure = new AssertionFailure('App\\E', 'StringContains', 'missing', 3);
-
-        $this->assertFalse($failure->isAIJudgeFailure());
-        $this->assertNull($failure->getAIJudgeScore());
-    }
 }

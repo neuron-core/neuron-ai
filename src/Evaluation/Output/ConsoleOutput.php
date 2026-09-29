@@ -6,9 +6,11 @@ namespace NeuronAI\Evaluation\Output;
 
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 
+use function addcslashes;
 use function array_count_values;
 use function array_map;
 use function array_unique;
@@ -110,7 +112,7 @@ class ConsoleOutput implements EvaluationOutputInterface
 
         foreach ($errors as $index => $report) {
             echo ($index + 1) . ") {$evaluatorLabels[$report->getEvaluatorClass()]}\n";
-            echo "   Error: {$report->getError()}\n\n";
+            echo "   Error: {$this->escapeControlCharacters((string) $report->getError())}\n\n";
         }
     }
 
@@ -210,7 +212,7 @@ class ConsoleOutput implements EvaluationOutputInterface
             echo "{$failureCount}) {$evaluatorLabels[$result->getEvaluatorClass()]} #{$result->getIndex()}\n";
 
             if ($result->hasError()) {
-                echo "   Error: " . $result->getError() . "\n";
+                echo "   Error: " . $this->escapeControlCharacters((string) $result->getError()) . "\n";
             } else {
                 echo "   Evaluation failed\n";
                 if ($this->verbose) {
@@ -235,7 +237,11 @@ class ConsoleOutput implements EvaluationOutputInterface
     protected function formatOutput(mixed $output): string
     {
         if (is_string($output)) {
-            return '"' . $output . '"';
+            return '"' . $this->escapeControlCharacters($output) . '"';
+        }
+
+        if ($output instanceof Trajectory) {
+            return $this->escapeControlCharacters($output->toTranscript());
         }
 
         if (is_array($output) || is_object($output)) {
@@ -285,11 +291,21 @@ class ConsoleOutput implements EvaluationOutputInterface
 
             if ($this->verbose) {
                 foreach ($failures as $failure) {
-                    echo sprintf("  - %s: %s\n", $failure->getAssertionMethod(), $failure->getMessage());
+                    echo sprintf("  - %s: %s\n", $failure->getAssertionMethod(), $this->escapeControlCharacters($failure->getMessage()));
                 }
             }
         }
 
         echo "\n";
+    }
+
+    /**
+     * Model output, provider errors and exception messages can carry terminal
+     * control sequences that would rewrite the report on screen: show them as
+     * escapes instead. Newlines and tabs are kept.
+     */
+    protected function escapeControlCharacters(string $text): string
+    {
+        return addcslashes($text, "\0..\10\13..\37\177");
     }
 }

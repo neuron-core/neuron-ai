@@ -162,7 +162,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         $second = (new EvaluatorRunner($cache))->run(new FailingItemEvaluator($items));
 
         $this->assertSame(0, $second->getCachedRunCount());
-        $this->assertSame('run failed for alpha', $second->getResults()[0]->getError());
+        $this->assertStringContainsString('RuntimeException: run failed for alpha', $second->getResults()[0]->getError());
         $this->assertSame([], glob($this->directory . '/*') ?: []);
     }
 
@@ -178,7 +178,7 @@ class EvaluatorRunnerCacheTest extends TestCase
         $result = $second->getResults()[0];
         $this->assertTrue($result->isCachedRun());
         $this->assertSame('output for alpha', $result->getOutput());
-        $this->assertSame('evaluate failed for alpha', $result->getError());
+        $this->assertStringContainsString('RuntimeException: evaluate failed for alpha', $result->getError());
     }
 
     public function test_items_that_cannot_be_fingerprinted_always_run(): void

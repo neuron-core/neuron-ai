@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringContains;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use InvalidArgumentException;
 
@@ -112,5 +113,23 @@ class StringContainsTest extends TestCase
     {
         $assertion = new StringContains('test');
         $this->assertEquals('StringContains', $assertion->getName());
+    }
+
+    #[DataProvider('caseVariants')]
+    public function test_matching_ignores_case_beyond_ascii(string $keyword, string $actual): void
+    {
+        $this->assertTrue((new StringContains($keyword))->evaluate($actual)->passed);
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function caseVariants(): iterable
+    {
+        yield 'accented latin' => ['ÉCOLE', 'Une école à Paris'];
+        yield 'umlaut' => ['ÜBER', 'über alles'];
+        yield 'cyrillic' => ['МОСКВА', 'столица москва'];
+        yield 'sharp s folds to ss' => ['STRASSE', 'die straße'];
+        yield 'greek final sigma' => ['ΟΔΟΣ', 'μια οδος'];
     }
 }

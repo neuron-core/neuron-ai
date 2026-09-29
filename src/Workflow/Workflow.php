@@ -44,7 +44,7 @@ class Workflow implements WorkflowInterface
     protected ?ListenerRegistry $listeners = null;
 
     /** @var TState|null */
-    protected ?WorkflowState $initialState;
+    protected ?WorkflowState $initialState = null;
 
     /**
      * @param TState|null $state

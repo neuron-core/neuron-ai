@@ -4,19 +4,33 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\MCP;
 
+use NeuronAI\Agent\Agent;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\McpConnector;
 use NeuronAI\MCP\McpException;
 use NeuronAI\MCP\McpTool;
+use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeMcpTransport;
 use NeuronAI\Tests\MCP\Stub\ScriptedHttpClient;
 use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\ToolPropertyInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_is_list;
@@ -251,7 +265,10 @@ class McpConnectorTest extends TestCase
         // Optional inputs the model left out are not sent, nor are inputs the schema does not declare.
         $this->transport->assertSent(fn (array $message): bool => ($message['method'] ?? null) === 'tools/call'
             && json_encode($message['params']) === '{"name":"search","arguments":{"query":"neuron"}}');
-        $this->assertSame(json_encode($content), $tool->getResult());
+        $this->assertEquals(
+            new ToolOutput([new TextContent('Found 3 results'), new ImageContent('iVBORw0KGgo=', SourceType::BASE64, 'image/png')]),
+            $tool->getResult(),
+        );
     }
 
     public function test_invoke_tool_returns_the_result_content(): void
@@ -267,17 +284,17 @@ class McpConnectorTest extends TestCase
             arguments: ['operation' => 'add', 'a' => 20, 'b' => 22],
         );
 
-        $this->assertSame([['type' => 'text', 'text' => 'The result is 42']], $result);
+        $this->assertEquals(ToolOutput::text('The result is 42'), $result);
         $this->transport->assertSent(fn (array $message): bool => ($message['params']['arguments'] ?? null) === ['operation' => 'add', 'a' => 20, 'b' => 22]);
     }
 
-    public function test_a_tool_error_result_reaches_the_model_as_content(): void
+    public function test_a_tool_error_result_reaches_the_model_as_an_error_output(): void
     {
         // A tool failure is feedback the model can act on, unlike a protocol error.
         $content = [['type' => 'text', 'text' => 'Rate limit exceeded, retry later']];
         $this->transport->addResponses(['jsonrpc' => '2.0', 'id' => 2, 'result' => ['content' => $content, 'isError' => true]]);
 
-        $this->assertSame($content, $this->connector->invokeTool(['name' => 'search'], []));
+        $this->assertEquals(ToolOutput::error('Rate limit exceeded, retry later'), $this->connector->invokeTool(['name' => 'search'], []));
     }
 
     public function test_invoke_tool_throws_the_protocol_error_message(): void
@@ -294,7 +311,7 @@ class McpConnectorTest extends TestCase
         $this->connector->invokeTool(item: ['name' => 'invalid_tool_name'], arguments: []);
     }
 
-    public function test_invoke_tool_returns_an_empty_string_without_content(): void
+    public function test_a_result_without_content_is_empty_unless_it_has_structured_content(): void
     {
         $this->transport->addResponses(
             ['jsonrpc' => '2.0', 'id' => 2, 'result' => []],
@@ -304,7 +321,59 @@ class McpConnectorTest extends TestCase
         $withoutResultContent = $this->connector->invokeTool(['name' => 'noop'], []);
         $withStructuredContentOnly = $this->connector->invokeTool(['name' => 'noop'], []);
 
-        $this->assertSame(['', ''], [$withoutResultContent, $withStructuredContentOnly]);
+        $this->assertEquals(new ToolOutput([]), $withoutResultContent);
+        $this->assertEquals(ToolOutput::text('{"ok":true}'), $withStructuredContentOnly);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, ContentBlockInterface}>
+     */
+    public static function contentItems(): iterable
+    {
+        yield 'text' => [['type' => 'text', 'text' => 'hello'], new TextContent('hello')];
+        yield 'image' => [['type' => 'image', 'data' => 'iVBORw0KGgo=', 'mimeType' => 'image/png'], new ImageContent('iVBORw0KGgo=', SourceType::BASE64, 'image/png')];
+        yield 'audio' => [['type' => 'audio', 'data' => 'UklGRg==', 'mimeType' => 'audio/wav'], new AudioContent('UklGRg==', SourceType::BASE64, 'audio/wav')];
+
+        // Anything else reaches the model as the JSON it read before
+        $link = ['type' => 'resource_link', 'uri' => 'file:///report.pdf', 'name' => 'report'];
+        yield 'resource link' => [$link, new TextContent((string) json_encode($link))];
+        $resource = ['type' => 'resource', 'resource' => ['uri' => 'file:///notes.md', 'mimeType' => 'text/markdown', 'text' => '# Notes']];
+        yield 'embedded resource' => [$resource, new TextContent((string) json_encode($resource))];
+        $imageWithoutType = ['type' => 'image', 'data' => 'iVBORw0KGgo='];
+        yield 'image breaking the spec' => [$imageWithoutType, new TextContent((string) json_encode($imageWithoutType))];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    #[DataProvider('contentItems')]
+    public function test_each_content_item_becomes_a_framework_block(array $item, ContentBlockInterface $block): void
+    {
+        $this->transport->addResponses(['jsonrpc' => '2.0', 'id' => 2, 'result' => ['content' => [$item]]]);
+
+        $this->assertEquals(new ToolOutput([$block]), $this->connector->invokeTool(['name' => 'any'], []));
+    }
+
+    public function test_a_failed_tool_with_an_image_reaches_the_model_as_a_multimodal_error_output(): void
+    {
+        $this->listTools([['name' => 'screenshot', 'inputSchema' => ['type' => 'object', 'properties' => ['url' => ['type' => 'string']]]]]);
+        $this->transport->addResponses(['jsonrpc' => '2.0', 'id' => 3, 'result' => ['isError' => true, 'content' => [
+            ['type' => 'text', 'text' => 'Login wall'],
+            ['type' => 'image', 'data' => 'iVBORw0KGgo=', 'mimeType' => 'image/png'],
+        ]]]);
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [ToolCall::make('screenshot', 'call_1', ['url' => 'https://example.com'])]),
+            new AssistantMessage('The page needs a login.'),
+        );
+
+        Agent::make()->setAiProvider($provider)->addTool($this->connector->tools())->chat(new UserMessage('Capture example.com'));
+
+        $toolResult = $provider->getRecorded()[1]->messages[2];
+        $this->assertInstanceOf(ToolResultMessage::class, $toolResult);
+        $this->assertEquals(
+            new ToolOutput([new TextContent('Login wall'), new ImageContent('iVBORw0KGgo=', SourceType::BASE64, 'image/png')], true),
+            $toolResult->getToolCalls()[0]->getResult(),
+        );
     }
 
     public function test_with_configures_the_named_tool(): void
@@ -371,7 +440,7 @@ class McpConnectorTest extends TestCase
 
         $tool->setInputs(['query' => 'neuron'])->execute();
 
-        $this->assertSame('[{"type":"text","text":"after resume"}]', $tool->getResult());
+        $this->assertEquals(ToolOutput::text('after resume'), $tool->getResult());
         $this->transport->assertToolCalled('search', 0);
     }
 

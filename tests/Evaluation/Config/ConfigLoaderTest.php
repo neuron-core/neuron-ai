@@ -14,6 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function file_get_contents;
 use function file_put_contents;
 use function glob;
 use function is_dir;
@@ -305,5 +306,27 @@ class ConfigLoaderTest extends TestCase
         } finally {
             chdir($originalCwd);
         }
+    }
+
+    public function test_the_config_file_runs_once_however_many_entries_are_read(): void
+    {
+        $counter = $this->tempDir . '/loads.txt';
+        file_put_contents($this->tempDir . '/evaluation.php', "<?php\n\n"
+            . "file_put_contents('{$counter}', 'x', FILE_APPEND);\n\n"
+            . "return ['output' => [\\NeuronAI\\Evaluation\\Output\\ConsoleOutput::class]];\n");
+        $originalCwd = getcwd();
+        chdir($this->tempDir);
+
+        try {
+            $loader = new ConfigLoader();
+            $loader->getOutputDrivers();
+            $loader->getResolver();
+            $loader->getRunner();
+            $loader->getCachePath();
+        } finally {
+            chdir($originalCwd);
+        }
+
+        $this->assertSame('x', file_get_contents($counter));
     }
 }

@@ -7,7 +7,6 @@ namespace NeuronAI\Evaluation\Assertions;
 use NeuronAI\Evaluation\AssertionResult;
 
 use function str_contains;
-use function strtolower;
 
 class StringContains extends StringAssertion
 {
@@ -17,7 +16,7 @@ class StringContains extends StringAssertion
 
     protected function evaluateString(string $actual): AssertionResult
     {
-        if (str_contains(strtolower($actual), strtolower($this->keyword))) {
+        if (str_contains($this->foldCase($actual), $this->foldCase($this->keyword))) {
             return AssertionResult::pass(1.0);
         }
 

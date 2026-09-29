@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Assertions\Trajectory;
 
+use InvalidArgumentException;
 use NeuronAI\Evaluation\Assertions\Trajectory\Mode;
 use NeuronAI\Evaluation\Assertions\Trajectory\TrajectoryMatches;
 use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tests\Support\TrajectoryAssertionTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
 {
@@ -173,5 +175,37 @@ class TrajectoryMatchesTest extends TrajectoryAssertionTestCase
         }
 
         return $this->trajectoryWithTools(...$tools);
+    }
+
+    #[DataProvider('modes')]
+    public function test_expected_names_are_compared_by_position_not_by_key(Mode $mode): void
+    {
+        // An expected list left with gaps by array_filter() or unset()
+        $expected = [1 => 'search', 2 => 'refund_order', 3 => 'send_email'];
+
+        $this->assertTrue((new TrajectoryMatches($expected, $mode))->evaluate($this->fixture())->passed);
+    }
+
+    /**
+     * @return iterable<string, array{Mode}>
+     */
+    public static function modes(): iterable
+    {
+        foreach (Mode::cases() as $mode) {
+            yield $mode->value => [$mode];
+        }
+    }
+
+    /**
+     * @param array<mixed> $expected
+     */
+    #[TestWith([['search', null], 'null'])]
+    #[TestWith([['search', 42], 'int'])]
+    public function test_a_non_string_name_is_rejected(array $expected, string $type): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("TrajectoryMatches expected tool names must be strings, got {$type}");
+
+        new TrajectoryMatches($expected);
     }
 }

@@ -8,15 +8,19 @@ use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
+use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Tests\Evaluation\Stub\ChildProcessEvaluator;
 use NeuronAI\Tests\Evaluation\Stub\FailingItemEvaluator;
 use NeuronAI\Tests\Evaluation\Stub\StringContainsEvaluator;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use PHPUnit\Framework\Attributes\DataProvider;
+use NeuronAI\Tests\Support\LocatesSourceLines;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use RuntimeException;
 
+use function array_keys;
 use function array_map;
 use function array_unique;
 use function file;
@@ -25,6 +29,7 @@ use function getmypid;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
+use function usleep;
 
 use const FILE_APPEND;
 use const FILE_IGNORE_NEW_LINES;
@@ -32,6 +37,8 @@ use const PHP_EOL;
 
 class EvaluatorRunnerTest extends TestCase
 {
+    use LocatesSourceLines;
+
     protected function setUp(): void
     {
         ChildProcessEvaluator::$preparedBy = null;
@@ -152,8 +159,8 @@ class EvaluatorRunnerTest extends TestCase
         }
 
         $this->assertSame(['released', 'released'], $released);
-        $this->assertSame('run failed for first', $results[0]->getError());
-        $this->assertSame('evaluate failed for second', $results[1]->getError());
+        $this->assertStringContainsString('RuntimeException: run failed for first', $results[0]->getError());
+        $this->assertStringContainsString('RuntimeException: evaluate failed for second', $results[1]->getError());
     }
 
     public function test_child_hooks_do_not_run_without_child_processes(): void
@@ -190,7 +197,7 @@ class EvaluatorRunnerTest extends TestCase
         foreach ($results as $result) {
             $this->assertInstanceOf(EvaluatorResult::class, $result);
             $this->assertFalse($result->isPassed());
-            $this->assertSame('connection refused', $result->getError());
+            $this->assertStringContainsString('RuntimeException: connection refused', $result->getError());
         }
     }
 
@@ -209,7 +216,7 @@ class EvaluatorRunnerTest extends TestCase
         $this->assertTrue($results[2]->isPassed());
 
         $this->assertFalse($results[1]->isPassed());
-        $this->assertSame('run failed for second', $results[1]->getError());
+        $this->assertStringContainsString('RuntimeException: run failed for second', $results[1]->getError());
         $this->assertNull($results[1]->getOutput());
         $this->assertSame(0, $results[1]->getTotalAssertions());
         $this->assertSame([], $results[1]->getScoreRecords());
@@ -226,7 +233,7 @@ class EvaluatorRunnerTest extends TestCase
         $results = (new EvaluatorRunner())->run($evaluator)->getResults();
 
         $this->assertFalse($results[0]->isPassed());
-        $this->assertSame('evaluate failed for first', $results[0]->getError());
+        $this->assertStringContainsString('RuntimeException: evaluate failed for first', $results[0]->getError());
         $this->assertSame('output for first', $results[0]->getOutput());
         $this->assertTrue($results[1]->isPassed());
         $this->assertNull($results[1]->getError());
@@ -254,7 +261,7 @@ class EvaluatorRunnerTest extends TestCase
 
         $this->assertFalse($result->isPassed());
         $this->assertTrue($result->hasError());
-        $this->assertSame('', $result->getError());
+        $this->assertStringStartsWith('RuntimeException (', $result->getError());
     }
 
     public function test_concurrent_run_isolates_failing_items(): void
@@ -272,10 +279,10 @@ class EvaluatorRunnerTest extends TestCase
         foreach ([0, 1, 2] as $index) {
             $this->assertSame($index, $results[$index]->getIndex());
         }
-        $this->assertSame('run failed for first', $results[0]->getError());
+        $this->assertStringContainsString('RuntimeException: run failed for first', $results[0]->getError());
         $this->assertTrue($results[1]->isPassed());
         $this->assertSame('output for second', $results[1]->getOutput());
-        $this->assertSame('evaluate failed for third', $results[2]->getError());
+        $this->assertStringContainsString('RuntimeException: evaluate failed for third', $results[2]->getError());
     }
 
     public function test_set_up_runs_once_per_run_not_per_item(): void
@@ -360,5 +367,78 @@ class EvaluatorRunnerTest extends TestCase
         if (!EvaluatorRunner::supportsConcurrency()) {
             $this->markTestSkipped('Child hooks run in forked processes, which require pcntl and spatie/fork.');
         }
+    }
+
+    public function test_an_item_error_names_the_exception_class_and_where_it_was_thrown(): void
+    {
+        $evaluator = new FailingItemEvaluator([['name' => 'first', 'fail' => 'run']]);
+        $stub = new ReflectionClass(FailingItemEvaluator::class);
+        $throwLine = $this->lineContaining((string) $stub->getFileName(), 'throw new RuntimeException("run failed');
+
+        $error = (new EvaluatorRunner())->run($evaluator)->getResults()[0]->getError();
+
+        $this->assertSame("RuntimeException: run failed for first ({$stub->getFileName()}:{$throwLine})", $error);
+    }
+
+    /**
+     * @return iterable<string, array{array<mixed>, string}>
+     */
+    public static function malformedDatasets(): iterable
+    {
+        yield 'items keyed by name' => [
+            ['refund_case' => ['name' => 'refund']],
+            "must be a list of items: found the key 'refund_case'",
+        ];
+        yield 'scalar item' => [
+            [['name' => 'first'], 'second'],
+            'must be a list of items, each a JSON object or array: item 1 is string',
+        ];
+        yield 'null item' => [
+            [null],
+            'must be a list of items, each a JSON object or array: item 0 is null',
+        ];
+    }
+
+    /**
+     * @param array<mixed> $items
+     */
+    #[DataProvider('malformedDatasets')]
+    public function test_a_malformed_dataset_fails_the_evaluator_with_a_clear_message(array $items, string $message): void
+    {
+        $evaluator = new FailingItemEvaluator($items);
+
+        $this->expectException(EvaluationException::class);
+        $this->expectExceptionMessage('The dataset of ' . FailingItemEvaluator::class . ' ' . $message);
+
+        (new EvaluatorRunner())->run($evaluator);
+    }
+
+    public function test_concurrent_results_follow_the_dataset_order_not_the_completion_order(): void
+    {
+        $this->requireForking();
+        // Earlier items take longer, so children finish in reverse order
+        $evaluator = new class () extends BaseEvaluator {
+            public function getDataset(): DatasetInterface
+            {
+                return new ArrayDataset([['delay' => 300_000], ['delay' => 150_000], ['delay' => 0]]);
+            }
+
+            public function run(array $datasetItem): mixed
+            {
+                usleep($datasetItem['delay']);
+
+                return $datasetItem['delay'];
+            }
+
+            public function evaluate(mixed $output, array $datasetItem): void
+            {
+            }
+        };
+
+        $results = (new EvaluatorRunner())->run($evaluator, 3)->getResults();
+
+        $this->assertSame([0, 1, 2], array_keys($results));
+        $this->assertSame([0, 1, 2], array_map(static fn (EvaluatorResult $result): int => $result->getIndex(), $results));
+        $this->assertSame([300_000, 150_000, 0], array_map(static fn (EvaluatorResult $result): mixed => $result->getOutput(), $results));
     }
 }

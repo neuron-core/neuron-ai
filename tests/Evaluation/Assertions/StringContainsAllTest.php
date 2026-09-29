@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringContainsAll;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use InvalidArgumentException;
 
@@ -132,5 +133,23 @@ class StringContainsAllTest extends TestCase
     {
         $assertion = new StringContainsAll(['test']);
         $this->assertEquals('StringContainsAll', $assertion->getName());
+    }
+
+    public function test_matching_ignores_case_beyond_ascii(): void
+    {
+        $this->assertTrue((new StringContainsAll(['ÉCOLE', 'ÜBER']))->evaluate('une école, über')->passed);
+    }
+
+    /**
+     * @param array<mixed> $keywords Dataset values such as order IDs decode as integers
+     */
+    #[TestWith([['order', 123], 'int'])]
+    #[TestWith([['order', null], 'null'])]
+    public function test_a_non_string_keyword_is_rejected(array $keywords, string $type): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("StringContainsAll keywords must be strings, got {$type}");
+
+        new StringContainsAll($keywords);
     }
 }

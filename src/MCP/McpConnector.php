@@ -5,19 +5,28 @@ declare(strict_types=1);
 namespace NeuronAI\MCP;
 
 use JsonException;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolPropertyFactory;
 use Exception;
 
 use function array_filter;
-use function array_key_exists;
 use function array_map;
 use function array_values;
 use function call_user_func;
 use function in_array;
 use function is_array;
+use function is_string;
+use function json_encode;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * @method static static make(array<string, mixed> $config)
@@ -153,7 +162,7 @@ class McpConnector
      * @throws McpException
      * @throws JsonException
      */
-    public function invokeTool(array $item, array $arguments): mixed
+    public function invokeTool(array $item, array $arguments): ToolOutput
     {
         $response = call_user_func(
             $this->client()->callTool(...),
@@ -161,10 +170,37 @@ class McpConnector
             $arguments
         );
 
-        if (isset($response['result']) && is_array($response['result']) && array_key_exists('content', $response['result'])) {
-            return $response['result']['content'];
+        $result = is_array($response['result'] ?? null) ? $response['result'] : [];
+        $content = is_array($result['content'] ?? null) ? array_filter($result['content'], is_array(...)) : [];
+        $blocks = array_map($this->contentBlock(...), array_values($content));
+
+        // The spec asks servers to repeat structured content as text: one that does not still reaches the model
+        if ($blocks === [] && is_array($result['structuredContent'] ?? null)) {
+            $blocks = [new TextContent(json_encode($result['structuredContent'], JSON_THROW_ON_ERROR))];
         }
 
-        return '';
+        return new ToolOutput($blocks, ($result['isError'] ?? false) === true);
+    }
+
+    /**
+     * The protocol's text, image and audio content become the framework's blocks. Any other
+     * item, including one that breaks the spec, reaches the model as its JSON.
+     *
+     * @param array<string, mixed> $item
+     * @throws JsonException
+     */
+    protected function contentBlock(array $item): ContentBlockInterface
+    {
+        $type = $item['type'] ?? null;
+        $data = $item['data'] ?? null;
+        $mimeType = $item['mimeType'] ?? null;
+        $isBinary = is_string($data) && is_string($mimeType);
+
+        return match (true) {
+            $type === 'text' && is_string($item['text'] ?? null) => new TextContent($item['text']),
+            $type === 'image' && $isBinary => new ImageContent($data, SourceType::BASE64, $mimeType),
+            $type === 'audio' && $isBinary => new AudioContent($data, SourceType::BASE64, $mimeType),
+            default => new TextContent(json_encode($item, JSON_THROW_ON_ERROR)),
+        };
     }
 }

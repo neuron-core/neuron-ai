@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Events;
 
 use NeuronAI\Exceptions\WorkflowException;
 
+use function array_key_exists;
 use function is_string;
 
 /**
@@ -56,8 +57,15 @@ class ParallelEvent implements Event
         return $this;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function getResult(string $branch): mixed
     {
+        if (!$this->hasResult($branch)) {
+            throw new WorkflowException("No completed parallel branch is named '{$branch}'.");
+        }
+
         return $this->results[$branch];
     }
 
@@ -66,8 +74,11 @@ class ParallelEvent implements Event
         return $this->results;
     }
 
+    /**
+     * Whether the branch completed: one that completed without a result holds null.
+     */
     public function hasResult(string $branch): bool
     {
-        return isset($this->results[$branch]);
+        return array_key_exists($branch, $this->results);
     }
 }

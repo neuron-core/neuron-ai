@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\DocumentParallelProcessing;
 use NeuronAI\Tests\Workflow\Executor\Stub\ImageProcessNode;
 use NeuronAI\Tests\Workflow\Executor\Stub\InterruptableTextProcessNode;
@@ -81,6 +82,32 @@ class BranchTraversalTest extends TestCase
 
         $this->assertSame(2, $trace->visits);
         $this->assertSame(['text' => 2, 'image' => 'processed_image.jpg'], $state->get('analysis'));
+    }
+
+    #[DataProvider('branchRunners')]
+    public function test_the_join_sees_a_branch_that_completed_without_a_result(BranchRunner $runner): void
+    {
+        $resultless = new class () extends Node {
+            public function __invoke(TextProcessEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+        $join = new class () extends Node {
+            public function __invoke(DocumentParallelEvent $event, WorkflowState $state): StopEvent
+            {
+                $state->set('text', ['completed' => $event->hasResult('text'), 'result' => $event->getResult('text')]);
+
+                return new StopEvent();
+            }
+        };
+
+        $state = Workflow::make('resultless-branch')
+            ->setBranchRunner($runner)
+            ->addNodes([new DocumentParallelProcessing(), $resultless, new ImageProcessNode(), $join])
+            ->run();
+
+        $this->assertSame(['completed' => true, 'result' => null], $state->get('text'));
     }
 
     public function test_a_branch_held_back_by_a_sibling_interruption_never_starts(): void

@@ -224,6 +224,22 @@ class StringDistanceTest extends TestCase
         $this->assertEquals(1.0, $result->score);
     }
 
+    public function test_identical_strings_pass_with_zero_max_distance(): void
+    {
+        $result = (new StringDistance('hello', 0.5, 0))->evaluate('hello');
+
+        $this->assertTrue($result->passed);
+        $this->assertSame(1.0, $result->score);
+    }
+
+    public function test_a_negative_max_distance_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Max distance must not be negative.');
+
+        new StringDistance('hello', 0.5, -1);
+    }
+
     public function test_fails_with_zero_max_distance_and_different_strings(): void
     {
         $assertion = new StringDistance('hello', 0.5, 0);

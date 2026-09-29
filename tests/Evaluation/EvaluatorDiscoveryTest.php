@@ -8,6 +8,8 @@ use Closure;
 use FilesystemIterator;
 use InvalidArgumentException;
 use NeuronAI\Evaluation\EvaluatorDiscovery;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -83,9 +85,98 @@ class EvaluatorDiscoveryTest extends TestCase
 
         $discovered = (new EvaluatorDiscovery())->discover($this->directory);
 
-        $this->assertEqualsCanonicalizing([
-            "{$this->namespace}\\SupportEvaluator",
+        $this->assertSame([
             "{$this->namespace}\\Nested\\Deeper\\RefundEvaluator",
+            "{$this->namespace}\\SupportEvaluator",
+        ], $discovered);
+    }
+
+    public function test_evaluators_are_returned_in_class_name_order(): void
+    {
+        $this->writeEvaluator('Zeta/AlphaEvaluator');
+        $this->writeEvaluator('BetaEvaluator');
+        $this->writeEvaluator('AlphaEvaluator');
+
+        $discovered = (new EvaluatorDiscovery())->discover($this->directory);
+
+        $this->assertSame([
+            "{$this->namespace}\\AlphaEvaluator",
+            "{$this->namespace}\\BetaEvaluator",
+            "{$this->namespace}\\Zeta\\AlphaEvaluator",
+        ], $discovered);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function declarationPrefixes(): iterable
+    {
+        yield 'final' => ['final '];
+        yield 'attribute on the same line' => ['#[\\Attribute] final '];
+        yield 'indented' => ['    '];
+        yield 'doc comment on the same line' => ['/** Refunds. */ '];
+    }
+
+    #[DataProvider('declarationPrefixes')]
+    public function test_discovers_evaluators_whatever_precedes_the_class_keyword(string $prefix): void
+    {
+        $this->writeClass('ModifiedEvaluator', $prefix . 'class ModifiedEvaluator extends \\NeuronAI\\Evaluation\\BaseEvaluator {' . $this->evaluatorMethods() . ' }');
+
+        $discovered = (new EvaluatorDiscovery())->discover($this->directory);
+
+        $this->assertSame(["{$this->namespace}\\ModifiedEvaluator"], $discovered);
+    }
+
+    #[RequiresPhp('>= 8.2')]
+    public function test_discovers_readonly_evaluators(): void
+    {
+        // A readonly class cannot extend BaseEvaluator, so it implements the interface
+        $this->writeClass(
+            'ReadonlyEvaluator',
+            'final readonly class ReadonlyEvaluator implements \\NeuronAI\\Evaluation\\Contracts\\EvaluatorInterface {'
+            . ' public function namespace(): ?string { return null; }'
+            . ' public function setUp(): void {}'
+            . ' public function getDataset(): \\NeuronAI\\Evaluation\\Contracts\\DatasetInterface'
+            . ' { return new \\NeuronAI\\Evaluation\\Dataset\\ArrayDataset([]); }'
+            . ' public function run(array $datasetItem): mixed { return null; }'
+            . ' public function performEvaluation(mixed $output, array $datasetItem): \\NeuronAI\\Evaluation\\AssertionOutcomes'
+            . ' { return new \\NeuronAI\\Evaluation\\AssertionOutcomes(0, 0, [], []); } }'
+        );
+
+        $discovered = (new EvaluatorDiscovery())->discover($this->directory);
+
+        $this->assertSame(["{$this->namespace}\\ReadonlyEvaluator"], $discovered);
+    }
+
+    public function test_class_constants_and_anonymous_classes_are_not_declarations(): void
+    {
+        $this->writeClass(
+            'FactoryEvaluator',
+            'class FactoryEvaluator extends \\NeuronAI\\Evaluation\\BaseEvaluator {' . $this->evaluatorMethods()
+            . ' public function helpers(): array { return [self::class, new class {}]; } }'
+        );
+
+        $discovered = (new EvaluatorDiscovery())->discover($this->directory);
+
+        $this->assertSame(["{$this->namespace}\\FactoryEvaluator"], $discovered);
+    }
+
+    public function test_each_class_takes_the_namespace_of_its_own_block(): void
+    {
+        mkdir("{$this->directory}/Shop");
+        file_put_contents(
+            "{$this->directory}/Shop/CartEvaluator.php",
+            "<?php\n\nnamespace {$this->namespace}\\Shop {\n"
+            . "class CartEvaluator extends \\NeuronAI\\Evaluation\\BaseEvaluator {{$this->evaluatorMethods()} }\n}\n\n"
+            . "namespace {$this->namespace}\\Billing {\n"
+            . "class InvoiceEvaluator extends \\NeuronAI\\Evaluation\\BaseEvaluator {{$this->evaluatorMethods()} }\n}\n"
+        );
+
+        $discovered = (new EvaluatorDiscovery())->discover($this->directory);
+
+        $this->assertSame([
+            "{$this->namespace}\\Billing\\InvoiceEvaluator",
+            "{$this->namespace}\\Shop\\CartEvaluator",
         ], $discovered);
     }
 

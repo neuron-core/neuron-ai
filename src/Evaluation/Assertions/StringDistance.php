@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation\Assertions;
 
+use InvalidArgumentException;
 use NeuronAI\Evaluation\AssertionResult;
 
 use function levenshtein;
@@ -15,6 +16,11 @@ class StringDistance extends StringAssertion
         protected float $threshold = 0.5,
         protected int $maxDistance = 50
     ) {
+        $this->validateThreshold($threshold);
+
+        if ($maxDistance < 0) {
+            throw new InvalidArgumentException('Max distance must not be negative.');
+        }
     }
 
     protected function evaluateString(string $actual): AssertionResult
@@ -22,7 +28,8 @@ class StringDistance extends StringAssertion
         $distance = levenshtein($actual, $this->reference);
 
         if ($distance <= $this->maxDistance) {
-            $score = 1.0 - ($distance / $this->maxDistance);
+            // A zero max distance admits only identical strings
+            $score = $this->maxDistance === 0 ? 1.0 : 1.0 - ($distance / $this->maxDistance);
 
             if ($score < $this->threshold) {
                 return AssertionResult::fail(

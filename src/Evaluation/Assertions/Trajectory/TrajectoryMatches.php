@@ -28,6 +28,7 @@ class TrajectoryMatches extends TrajectoryAssertion
         protected array $expected,
         protected Mode $mode = Mode::Strict,
     ) {
+        $this->expected = $this->stringList($expected, 'expected tool names');
     }
 
     protected function evaluateTrajectory(Trajectory $trajectory): AssertionResult

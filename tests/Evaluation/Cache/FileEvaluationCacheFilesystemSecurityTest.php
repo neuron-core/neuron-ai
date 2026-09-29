@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 use function file_get_contents;
 use function file_put_contents;
+use function hash;
 use function is_link;
 use function mkdir;
 
@@ -49,12 +50,13 @@ class FileEvaluationCacheFilesystemSecurityTest extends TestCase
     {
         $outside = $this->base . '/composer.json';
         file_put_contents($outside, '{"name": "victim"}');
-        $this->symlinkOrSkip($outside, $this->directory . '/key.cache');
+        $entry = $this->directory . '/' . hash('sha256', 'key') . '.cache';
+        $this->symlinkOrSkip($outside, $entry);
 
         $cache = new FileEvaluationCache($this->directory);
         $cache->set('key', 'agent output');
 
-        $this->assertFalse(is_link($this->directory . '/key.cache'));
+        $this->assertFalse(is_link($entry));
         $this->assertSame('{"name": "victim"}', file_get_contents($outside));
         $this->assertSame('agent output', $cache->get('key'));
     }

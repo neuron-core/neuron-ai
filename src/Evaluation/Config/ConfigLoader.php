@@ -18,10 +18,24 @@ class ConfigLoader
 {
     protected const ROOT_CONFIG_FILE = 'evaluation.php';
 
+    /** @var array<string, mixed>|null */
+    protected ?array $config = null;
+
     /**
+     * Reads evaluation.php once: running it again would redeclare its
+     * functions and rebuild any application container it bootstraps.
+     *
      * @return array<string, mixed>
      */
     public function load(): array
+    {
+        return $this->config ??= $this->readConfig();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function readConfig(): array
     {
         // Prefer root config over config directory.
         // realpath() resolves the (optional, user-provided) config file to an

@@ -8,8 +8,12 @@ use Closure;
 use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
+use NeuronAI\Agent\Interrupt\ApprovalTranslator;
+use NeuronAI\Agent\Interrupt\ToolResultsRequest;
+use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
+use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\StaticConstructor;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;
@@ -190,8 +194,36 @@ class Conversation
                 $this->assertCompleteDecisionSet($request, $payload);
             }
 
-            $state = $this->agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume($payload));
+            $state = $this->resume($request, $payload);
         }
+    }
+
+    /**
+     * Resumes through the same translators an application uses, so a payload
+     * the agent would ignore (and suspend again on) fails here instead.
+     *
+     * @param array<string, mixed> $payload
+     * @throws EvaluationException
+     * @throws Throwable
+     */
+    protected function resume(InterruptRequest $request, array $payload): AgentState
+    {
+        $translator = match (true) {
+            $request instanceof ApprovalRequest => new ApprovalTranslator(),
+            $request instanceof ToolResultsRequest => new ToolResultsTranslator(),
+            default => null,
+        };
+
+        try {
+            $continuation = $this->agent->submitInputs($payload, $translator);
+        } catch (InputTranslationException $exception) {
+            throw new EvaluationException(
+                'The approval policy returned an invalid resume payload: ' . $exception->getMessage(),
+                previous: $exception
+            );
+        }
+
+        return $continuation->run();
     }
 
     /**

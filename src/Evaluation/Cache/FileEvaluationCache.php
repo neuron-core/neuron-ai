@@ -6,10 +6,12 @@ namespace NeuronAI\Evaluation\Cache;
 
 use Throwable;
 
+use function array_key_exists;
 use function file_get_contents;
 use function file_put_contents;
+use function hash;
+use function is_array;
 use function is_dir;
-use function is_file;
 use function mkdir;
 use function rename;
 use function serialize;
@@ -31,24 +33,18 @@ class FileEvaluationCache implements EvaluationCacheInterface
 
     public function has(string $key): bool
     {
-        return is_file($this->path($key));
+        return $this->read($key) !== null;
     }
 
     public function get(string $key): mixed
     {
-        $data = @file_get_contents($this->path($key));
-
-        if ($data === false) {
-            return null;
-        }
-
-        return unserialize($data);
+        return $this->read($key)['output'] ?? null;
     }
 
     public function set(string $key, mixed $output): void
     {
         try {
-            $payload = serialize($output);
+            $payload = serialize(['output' => $output]);
         } catch (Throwable) {
             // Non-serializable output (same contract as the fork boundary):
             // the item is simply not cacheable.
@@ -67,8 +63,34 @@ class FileEvaluationCache implements EvaluationCacheInterface
         }
     }
 
+    /**
+     * The envelope tells a stored value from a truncated or foreign file, which
+     * is a miss: the runner re-runs the item and set() overwrites the entry.
+     *
+     * @return array{output: mixed}|null
+     */
+    protected function read(string $key): ?array
+    {
+        $data = @file_get_contents($this->path($key));
+
+        if ($data === false) {
+            return null;
+        }
+
+        try {
+            $entry = @unserialize($data);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_array($entry) && array_key_exists('output', $entry) ? $entry : null;
+    }
+
+    /**
+     * Hashing makes every key a safe file name, whatever it contains.
+     */
     protected function path(string $key): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $key . '.cache';
+        return $this->directory . DIRECTORY_SEPARATOR . hash('sha256', $key) . '.cache';
     }
 }

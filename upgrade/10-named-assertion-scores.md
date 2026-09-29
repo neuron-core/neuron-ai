@@ -34,6 +34,14 @@ What changed:
    `{label, value, passed}` objects, and the result collection includes a `metrics` object keyed
    by label with `{average, min, max, count}`. The existing `assertion_scores` and
    `score_statistics` keys are unchanged.
+7. **`AssertionFailure::isAIJudgeFailure()` and `getAIJudgeScore()` were removed** — they
+   always returned `false` and `null`. A judge's score is a labeled score like any other:
+   read it from `EvaluatorResult::getScoreRecords()`.
+8. **`RuleExecutor` records where a failure happened from its caller** — the constructor
+   takes the evaluator class (`new RuleExecutor(static::class)`) and `execute()` takes the
+   line of the assertion before the label:
+   `execute(AssertionInterface $rule, mixed $actual, int $line, ?string $label = null)`.
+   Evaluators extending `BaseEvaluator` are unaffected.
 
 ## Update your code
 
@@ -65,7 +73,7 @@ $this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $traje
 ## What to search for
 
 ```
-grep -rn "new EvaluatorResult\|new AssertionOutcomes" --include="*.php" . | grep -v vendor/
+grep -rn "new EvaluatorResult\|new AssertionOutcomes\|new RuleExecutor\|isAIJudgeFailure\|getAIJudgeScore" --include="*.php" . | grep -v vendor/
 ```
 
 Also review any code parsing the JSON output file if it validates the full document

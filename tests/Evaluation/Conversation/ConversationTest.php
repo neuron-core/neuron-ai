@@ -29,8 +29,11 @@ use NeuronAI\Tools\ApprovalState;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Executor\SequentialBranchRunner;
+use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
+use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -371,6 +374,13 @@ class ConversationTest extends TestCase
         $agent = $this->createMock(AgentInterface::class);
         $agent->method('getThreadId')->willReturn(null);
         $agent->method('chat')->willReturn($suspended);
+        // Mirrors Workflow::submitInputs(): the translator, when given, shapes the resume payload
+        $agent->method('submitInputs')->willReturnCallback(
+            fn (array $payload, ?InputTranslatorInterface $translator): PendingExecution => new PendingExecution(
+                $agent,
+                ExecutionRequest::resume($translator?->translate($payload, $request) ?? $payload),
+            )
+        );
         $agent->method('run')->willReturnCallback(
             function (ExecutionRequest $execution) use (&$payloads, $completed): AgentState {
                 $payloads[] = $execution->payload();
@@ -416,11 +426,13 @@ class ConversationTest extends TestCase
 
     public function test_sequential_interruptions_are_resolved_one_at_a_time(): void
     {
+        $firstRequest = (new ApprovalRequest('first', [new Action('call_1', 'search')]))->withId(1);
         $first = new AgentState();
-        $first->markAsSuspended((new ApprovalRequest('first'))->withId(1));
+        $first->markAsSuspended($firstRequest);
 
+        $secondRequest = (new ApprovalRequest('second', [new Action('call_2', 'search')]))->withId(2);
         $second = new AgentState();
-        $second->markAsSuspended((new ApprovalRequest('second'))->withId(2));
+        $second->markAsSuspended($secondRequest);
 
         $completed = new AgentState();
         $completed->clearInterrupt();
@@ -431,9 +443,14 @@ class ConversationTest extends TestCase
         $agent = $this->createMock(AgentInterface::class);
         $agent->method('getChatHistory')->willReturn($history);
         $agent->expects($this->once())->method('chat')->willReturn($first);
+        $agent->method('submitInputs')->willReturnCallback(
+            fn (array $payload, ?InputTranslatorInterface $translator): PendingExecution => new PendingExecution(
+                $agent,
+                ExecutionRequest::resume($payload),
+            )
+        );
         $agent->expects($this->exactly(2))->method('run')
-            ->willReturnCallback(function (\NeuronAI\Workflow\Executor\ExecutionRequest $request) use (&$responses, $second, $completed): AgentState {
-                $this->assertSame([], $request->payload());
+            ->willReturnCallback(function (ExecutionRequest $request) use (&$responses, $second, $completed): AgentState {
                 $responses[] = $request->payload();
                 return count($responses) === 1 ? $second : $completed;
             });
@@ -442,14 +459,14 @@ class ConversationTest extends TestCase
 
         Conversation::make($agent)
             ->withTurns(['Approve both'])
-            ->withApprovals(function (InterruptRequest $request) use (&$policyInterrupts): array {
+            ->withApprovals(function (ApprovalRequest $request) use (&$policyInterrupts): array {
                 $policyInterrupts[] = $request->getId();
-                return [];
+                return [$request->getActions()[0]->id => 'approve'];
             })
             ->run();
 
         $this->assertSame([1, 2], $policyInterrupts);
-        $this->assertSame([[], []], $responses);
+        $this->assertSame([['call_1' => 'approve'], ['call_2' => 'approve']], $responses);
     }
 
     protected function makeSimulator(FakeAIProvider $provider): UserSimulator
@@ -625,5 +642,64 @@ class ConversationTest extends TestCase
         $this->assertSame(['Hi', 'Search for PHP frameworks', 'Thanks!'], $trajectory->userMessages());
         $this->assertCount(1, $trajectory->toolCalls('search'));
         $this->assertSame('You are welcome!', $trajectory->finalAnswer());
+    }
+
+    /**
+     * @return iterable<string, array{mixed}>
+     */
+    public static function invalidDecisions(): iterable
+    {
+        yield 'misspelled' => ['approved'];
+        yield 'boolean' => [true];
+        yield 'reject without a reason' => [['reject']];
+    }
+
+    #[DataProvider('invalidDecisions')]
+    public function test_an_invalid_decision_fails_instead_of_re_suspending_forever(mixed $decision): void
+    {
+        $provider = new FakeAIProvider(
+            $this->searchCall('call_1', 'PHP frameworks'),
+            new AssistantMessage('Never reached.'),
+        );
+        $policyCalls = 0;
+
+        $conversation = Conversation::make($this->makeAgent($provider, withApproval: true))
+            ->withTurns(['Search for PHP frameworks'])
+            ->withApprovals(function () use (&$policyCalls, $decision): array {
+                if (++$policyCalls > 1) {
+                    throw new LogicException('The invalid decision re-suspended the agent');
+                }
+
+                return ['call_1' => $decision];
+            });
+
+        try {
+            $conversation->run();
+            $this->fail('An invalid decision must not resume the agent');
+        } catch (EvaluationException $exception) {
+            $this->assertSame(
+                "The approval policy returned an invalid resume payload: A decision must be 'approve', 'reject', or ['reject', reason].",
+                $exception->getMessage()
+            );
+        }
+
+        $provider->assertCallCount(1);
+    }
+
+    public function test_a_decision_for_an_unknown_call_is_rejected(): void
+    {
+        $provider = new FakeAIProvider(
+            $this->searchCall('call_1', 'PHP frameworks'),
+            new AssistantMessage('Never reached.'),
+        );
+
+        $conversation = Conversation::make($this->makeAgent($provider, withApproval: true))
+            ->withTurns(['Search for PHP frameworks'])
+            ->withApprovals(fn (): array => ['call_1' => 'approve', 'call_9' => 'approve']);
+
+        $this->expectException(EvaluationException::class);
+        $this->expectExceptionMessage("No matching request for tool call 'call_9'.");
+
+        $conversation->run();
     }
 }

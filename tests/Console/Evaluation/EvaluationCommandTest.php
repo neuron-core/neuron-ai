@@ -231,11 +231,12 @@ class EvaluationCommandTest extends TestCase
 
     public function test_a_failing_evaluator_does_not_stop_the_others(): void
     {
+        $exception = new RuntimeException('Setup failed');
         $runner = $this->createMock(EvaluatorRunner::class);
         $runner->expects($this->exactly(2))
             ->method('run')
             ->willReturnOnConsecutiveCalls(
-                $this->throwException(new RuntimeException('Setup failed')),
+                $this->throwException($exception),
                 $this->results(true),
             );
         $reports = $this->recordedReports();
@@ -249,9 +250,10 @@ class EvaluationCommandTest extends TestCase
         [$exitCode] = $this->execute($command, __DIR__ . '/Stub');
 
         $this->assertSame(1, $exitCode);
-        $this->assertSame('Error: Failed to run ' . RunCountingEvaluator::class . ': Setup failed' . PHP_EOL, $this->errors());
+        $error = "RuntimeException: Setup failed ({$exception->getFile()}:{$exception->getLine()})";
+        $this->assertSame('Error: Failed to run ' . RunCountingEvaluator::class . ": {$error}" . PHP_EOL, $this->errors());
         [$failed, $passed] = $this->onlyReport($reports)->getEvaluatorReports();
-        $this->assertSame('Setup failed', $failed->getError());
+        $this->assertSame($error, $failed->getError());
         $this->assertSame([], $failed->getResults()->getResults());
         $this->assertNull($passed->getError());
         $this->assertSame(1, $passed->getResults()->getPassedCount());
@@ -302,7 +304,7 @@ class EvaluationCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('RunCountingEvaluator', $output);
-        $this->assertStringContainsString('Error: Setup failed', $output);
+        $this->assertStringContainsString('Error: RuntimeException: Setup failed (', $output);
         $this->assertStringContainsString('FAILURES!', $output);
         $this->assertStringNotContainsString('OK', $output);
     }
@@ -542,5 +544,22 @@ class EvaluationCommandTest extends TestCase
     protected function firstOutput(ArrayObject $reports): mixed
     {
         return $this->onlyReport($reports)->getEvaluatorReports()[0]->getResults()->getResults()[0]->getOutput();
+    }
+
+    public function test_evaluator_errors_are_printed_with_control_characters_escaped(): void
+    {
+        $runner = $this->createMock(EvaluatorRunner::class);
+        $runner->method('run')->willThrowException(new RuntimeException("Provider said \e[2J\e[1A OK"));
+
+        $command = new EvaluationCommand(
+            configLoader: $this->config(outputDrivers: []),
+            discovery: $this->discovering(RunCountingEvaluator::class),
+            runner: $runner,
+        );
+
+        $this->execute($command, __DIR__ . '/Stub');
+
+        $this->assertStringContainsString('Provider said \\033[2J\\033[1A OK', $this->errors());
+        $this->assertStringNotContainsString("\e", $this->errors());
     }
 }

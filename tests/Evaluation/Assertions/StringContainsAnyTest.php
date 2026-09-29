@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Evaluation\Assertions;
 
 use NeuronAI\Evaluation\Assertions\StringContainsAny;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use InvalidArgumentException;
 
@@ -91,23 +92,17 @@ class StringContainsAnyTest extends TestCase
         $this->assertEquals("Expected 'any string' to contain any of: ", $result->message);
     }
 
-    public function test_handles_non_string_keywords(): void
+    /**
+     * @param array<mixed> $keywords Dataset values such as order IDs decode as integers
+     */
+    #[TestWith([[123, 'hello', 456], 'int'])]
+    #[TestWith([['hello', true], 'bool'])]
+    public function test_a_non_string_keyword_is_rejected(array $keywords, string $type): void
     {
-        $assertion = new StringContainsAny([123, 'hello', 456]);
-        $result = $assertion->evaluate('hello world');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("StringContainsAny keywords must be strings, got {$type}");
 
-        $this->assertTrue($result->passed);
-        $this->assertEquals(1.0, $result->score);
-    }
-
-    public function test_fails_when_only_non_string_keywords_provided(): void
-    {
-        $assertion = new StringContainsAny([123, 456, true]);
-        $result = $assertion->evaluate('hello world');
-
-        $this->assertFalse($result->passed);
-        $this->assertEquals(0.0, $result->score);
-        $this->assertEquals("Expected 'hello world' to contain any of: 123, 456, 1", $result->message);
+        new StringContainsAny($keywords);
     }
 
     public function test_passes_with_special_characters(): void
@@ -150,5 +145,10 @@ class StringContainsAnyTest extends TestCase
     {
         $assertion = new StringContainsAny(['test']);
         $this->assertEquals('StringContainsAny', $assertion->getName());
+    }
+
+    public function test_matching_ignores_case_beyond_ascii(): void
+    {
+        $this->assertTrue((new StringContainsAny(['ÉCOLE', 'lycée']))->evaluate('Une école à Paris')->passed);
     }
 }

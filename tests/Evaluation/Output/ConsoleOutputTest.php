@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Output;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\AssertionFailure;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
@@ -172,6 +175,11 @@ class ConsoleOutputTest extends TestCase
         yield 'float' => [0.5, '0.5'];
         yield 'list' => [['a', 'b'], "[\n    \"a\",\n    \"b\"\n]"];
         yield 'unencodable array' => [['bad' => "\xB1"], 'Unable to serialize output'];
+        yield 'control characters are shown, not executed' => ["\e[2J\rOK\x07\tdone", "\"\\033[2J\\rOK\\a\tdone\""];
+        yield 'trajectory is its transcript' => [
+            Trajectory::fromMessages([new UserMessage('Refund order 123'), new AssistantMessage('Done.')]),
+            "User: Refund order 123\nAssistant: Done.",
+        ];
     }
 
     #[DataProvider('verboseOutputs')]
@@ -221,5 +229,39 @@ class ConsoleOutputTest extends TestCase
         $console->output($report);
 
         return (string) ob_get_clean();
+    }
+
+    public function test_item_errors_are_printed_with_control_characters_escaped(): void
+    {
+        $report = EvaluationReportFixture::singleResult(null, passed: false, error: "RuntimeException: \e[1A\e[2KOK");
+
+        $output = $this->render(new ConsoleOutput(), $report);
+
+        $this->assertStringContainsString('   Error: RuntimeException: \\033[1A\\033[2KOK', $output);
+        $this->assertStringNotContainsString("\e", $output);
+    }
+
+    public function test_evaluator_errors_are_printed_with_control_characters_escaped(): void
+    {
+        $report = EvaluationReportFixture::report(
+            EvaluationReportFixture::evaluatorReport(EvaluationReportFixture::EVALUATOR, new EvaluationResults([]), "Failed \e]0;title\x07")
+        );
+
+        $output = $this->render(new ConsoleOutput(), $report);
+
+        $this->assertStringContainsString('   Error: Failed \\033]0;title\\a', $output);
+        $this->assertStringNotContainsString("\e", $output);
+    }
+
+    public function test_verbose_failure_messages_are_printed_with_control_characters_escaped(): void
+    {
+        $report = EvaluationReportFixture::singleResult('output', passed: false, failures: [
+            new AssertionFailure(EvaluationReportFixture::EVALUATOR, 'StringContains', "Expected \e[32mOK", 12),
+        ]);
+
+        $output = $this->render(new ConsoleOutput(verbose: true), $report);
+
+        $this->assertStringContainsString('  - StringContains: Expected \\033[32mOK', $output);
+        $this->assertStringNotContainsString("\e", $output);
     }
 }

@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Evaluation\Output;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Output\JsonOutput;
+use NeuronAI\Evaluation\Runner\EvaluationResults;
+use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Tests\Evaluation\Stub\EvaluationReportFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -140,6 +145,12 @@ class JsonOutputTest extends TestCase
         yield 'unicode string' => ['Caffè ☕ 日本', 'Caffè ☕ 日本'];
         yield 'array is embedded as a JSON string' => [['a' => [1, 2]], '{"a":[1,2]}'];
         yield 'unencodable array' => [['score' => INF], 'Unable to serialize output'];
+        yield 'invalid UTF-8 string is substituted' => ["caf\xE9", "caf\u{FFFD}"];
+        yield 'invalid UTF-8 inside an array is substituted' => [['name' => "caf\xE9"], '{"name":"caf\\ufffd"}'];
+        yield 'trajectory is its transcript' => [
+            Trajectory::fromMessages([new UserMessage('Refund order 123'), new AssistantMessage('Done.')]),
+            "User: Refund order 123\nAssistant: Done.",
+        ];
     }
 
     #[DataProvider('outputs')]
@@ -197,5 +208,23 @@ class JsonOutputTest extends TestCase
         (new JsonOutput())->output($report);
 
         return json_decode((string) ob_get_clean(), true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    public function test_invalid_utf8_in_one_item_does_not_suppress_the_report(): void
+    {
+        $report = EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport(
+            EvaluationReportFixture::EVALUATOR,
+            new EvaluationResults([
+                new EvaluatorResult(EvaluationReportFixture::EVALUATOR, 0, false, ['q' => "\xC3\x28"], null, 0.5, 0, 0, [], [], "Truncated \xE2\x82"),
+                new EvaluatorResult(EvaluationReportFixture::EVALUATOR, 1, true, ['q' => 'fine'], 'ok', 0.5, 1, 0, [], []),
+            ])
+        ));
+
+        $results = $this->decode($report)['results'];
+
+        $this->assertCount(2, $results);
+        $this->assertSame("\u{FFFD}(", $results[0]['input']['q']);
+        $this->assertSame("Truncated \u{FFFD}", $results[0]['error']);
+        $this->assertSame('ok', $results[1]['output']);
     }
 }

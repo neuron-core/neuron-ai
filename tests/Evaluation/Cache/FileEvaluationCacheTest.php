@@ -18,9 +18,13 @@ use PHPUnit\Framework\TestCase;
 use function array_map;
 use function file_put_contents;
 use function glob;
+use function hash;
 use function is_dir;
 use function is_file;
+use function mkdir;
 use function rmdir;
+use function serialize;
+use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -50,6 +54,17 @@ class FileEvaluationCacheTest extends TestCase
             array_map($this->remove(...), glob($path . '/*') ?: []);
             rmdir($path);
         }
+    }
+
+    protected function entryPath(string $key): string
+    {
+        return $this->directory . '/' . hash('sha256', $key) . '.cache';
+    }
+
+    protected function plantEntry(string $key, string $contents): void
+    {
+        mkdir($this->directory, 0o755, true);
+        file_put_contents($this->entryPath($key), $contents);
     }
 
     public function test_missing_key_is_absent(): void
@@ -98,7 +113,7 @@ class FileEvaluationCacheTest extends TestCase
         $cache->set('key', 'output');
 
         $this->assertTrue($cache->has('key'));
-        $this->assertFileExists($this->directory . '/nested/evaluation/key.cache');
+        $this->assertFileExists($this->directory . '/nested/evaluation/' . hash('sha256', 'key') . '.cache');
     }
 
     public function test_write_leaves_no_temporary_files_behind(): void
@@ -108,7 +123,7 @@ class FileEvaluationCacheTest extends TestCase
         $cache->set('key', 'first');
         $cache->set('key', 'second');
 
-        $this->assertSame([$this->directory . '/key.cache'], glob($this->directory . '/*'));
+        $this->assertSame([$this->entryPath('key')], glob($this->directory . '/*'));
     }
 
     /**
@@ -175,5 +190,57 @@ class FileEvaluationCacheTest extends TestCase
 
         $this->assertFalse($cache->has('key'));
         $this->assertNull($cache->get('key'));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unreadableEntries(): iterable
+    {
+        yield 'truncated' => [substr(serialize(['output' => 'agent output']), 0, 20)];
+        yield 'garbage' => ['not a serialized value'];
+        yield 'empty file' => [''];
+        yield 'serialized false without envelope' => [serialize(false)];
+        yield 'value without envelope' => [serialize('agent output')];
+    }
+
+    #[DataProvider('unreadableEntries')]
+    public function test_an_unreadable_entry_is_a_miss(string $contents): void
+    {
+        $this->plantEntry('key', $contents);
+        $cache = new FileEvaluationCache($this->directory);
+
+        $this->assertFalse($cache->has('key'));
+        $this->assertNull($cache->get('key'));
+    }
+
+    public function test_a_miss_on_an_unreadable_entry_is_repaired_by_the_next_write(): void
+    {
+        $this->plantEntry('key', 'garbage');
+        $cache = new FileEvaluationCache($this->directory);
+
+        $cache->set('key', 'agent output');
+
+        $this->assertSame('agent output', $cache->get('key'));
+    }
+
+    public function test_a_traversal_key_stays_inside_the_directory(): void
+    {
+        $cache = new FileEvaluationCache($this->directory . '/cache');
+
+        $cache->set('../escaped', 'agent output');
+
+        $this->assertFileDoesNotExist($this->directory . '/escaped.cache');
+        $this->assertSame([$this->directory . '/cache'], glob($this->directory . '/*'));
+        $this->assertSame('agent output', $cache->get('../escaped'));
+    }
+
+    public function test_any_string_is_a_usable_key(): void
+    {
+        $cache = new FileEvaluationCache($this->directory);
+
+        $cache->set('orders/42 refund?', 'agent output');
+
+        $this->assertSame('agent output', $cache->get('orders/42 refund?'));
     }
 }

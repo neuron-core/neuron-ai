@@ -44,7 +44,7 @@ class JsonDataset implements DatasetInterface
         }
 
         if (!is_array($data)) {
-            throw new InvalidArgumentException("Dataset must be an array of objects");
+            throw new InvalidArgumentException("Dataset must be a JSON array of items");
         }
 
         return $data;
