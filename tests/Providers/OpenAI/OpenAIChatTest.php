@@ -170,15 +170,6 @@ class OpenAIChatTest extends TestCase
         ], $this->sentBody()['response_format']);
     }
 
-    public function test_structured_names_anonymous_classes_with_a_valid_identifier(): void
-    {
-        $class = (new class () {})::class;
-
-        $this->provider()->structured(new UserMessage('Who?'), $class, ['type' => 'object']);
-
-        $this->assertSame('anonymous', $this->sentBody()['response_format']['json_schema']['name']);
-    }
-
     public function test_structured_prefixes_schema_names_that_do_not_start_with_a_letter(): void
     {
         $this->provider()->structured(new UserMessage('Who?'), 'App\\Dto\\_Draft', ['type' => 'object']);

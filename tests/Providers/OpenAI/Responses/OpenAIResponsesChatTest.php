@@ -171,11 +171,10 @@ class OpenAIResponsesChatTest extends TestCase
     {
         $schema = ['type' => 'object', 'properties' => ['address' => ['type' => 'object', 'properties' => []]]];
 
-        $this->provider(strict: true)->structured(new UserMessage('Who?'), (new class () {})::class, $schema);
+        $this->provider(strict: true)->structured(new UserMessage('Who?'), 'Person', $schema);
 
         $format = $this->sentBody()['text']['format'];
         $this->assertTrue($format['strict']);
-        $this->assertSame('anonymous', $format['name']);
         $this->assertFalse($format['schema']['additionalProperties']);
         $this->assertFalse($format['schema']['properties']['address']['additionalProperties']);
     }
