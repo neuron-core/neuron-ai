@@ -25,7 +25,7 @@ class AsyncAgentTest extends TestCase
             new AssistantMessage('Hello!')
         );
 
-        $agent = Agent::make()->setAiProvider($provider);
+        $agent = Agent::make()->setAiProvider($provider)->setThreadId('thread_1');
 
         $future = async(fn (): AgentState => $agent->chat(new UserMessage('Say hello in one word')));
 
@@ -46,9 +46,9 @@ class AsyncAgentTest extends TestCase
         $provider2 = new FakeAIProvider(new AssistantMessage('Red, Green, Blue'));
         $provider3 = new FakeAIProvider(new AssistantMessage('Cat, Dog, Bird'));
 
-        $agent1 = Agent::make()->setAiProvider($provider1)->setInstructions('Count to 3');
-        $agent2 = Agent::make()->setAiProvider($provider2)->setInstructions('Name 3 colors');
-        $agent3 = Agent::make()->setAiProvider($provider3)->setInstructions('Name 3 animals');
+        $agent1 = Agent::make()->setAiProvider($provider1)->setInstructions('Count to 3')->setThreadId('thread_1');
+        $agent2 = Agent::make()->setAiProvider($provider2)->setInstructions('Name 3 colors')->setThreadId('thread_2');
+        $agent3 = Agent::make()->setAiProvider($provider3)->setInstructions('Name 3 animals')->setThreadId('thread_3');
 
         $future1 = async(fn (): AgentState => $agent1->chat(new UserMessage('Go 1')));
         $future2 = async(fn (): AgentState => $agent2->chat(new UserMessage('Go 2')));
@@ -77,7 +77,7 @@ class AsyncAgentTest extends TestCase
             new AssistantMessage('Hello!')
         );
 
-        $agent = Agent::make()->setAiProvider($provider);
+        $agent = Agent::make()->setAiProvider($provider)->setThreadId('thread_1');
 
         $agentFuture = async(fn (): AgentState => $agent->chat(new UserMessage('Hello')));
         $delayFuture = async(function (): string {

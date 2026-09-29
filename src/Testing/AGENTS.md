@@ -9,7 +9,7 @@ A fake is pre-loaded with the responses it should return and records everything 
 ```php
 $provider = new FakeAIProvider(new AssistantMessage('Hello!'));
 
-Agent::make()->setAiProvider($provider)->chat(new UserMessage('Hi'));
+Agent::make()->setThreadId('test')->setAiProvider($provider)->chat(new UserMessage('Hi'));
 
 $provider->assertCallCount(1);
 $provider->assertSent(fn (RequestRecord $request): bool => $request->messages[0]->getContent() === 'Hi');

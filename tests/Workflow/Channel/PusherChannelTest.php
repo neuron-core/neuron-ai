@@ -332,7 +332,7 @@ X-Injected: 1"], $channel],
     public function test_streams_an_agent_run_with_protocol_payloads_preserved(): void
     {
         $channel = $this->channel();
-        $agent = Agent::make()->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $channel);
+        $agent = Agent::make()->setThreadId('thread_1')->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $channel);
         $response = 'Hello world from Pusher, streamed in small chunks';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
         $state = $agent->run(\NeuronAI\Workflow\Executor\ExecutionRequest::start(new \NeuronAI\Agent\Events\AgentStartEvent([new UserMessage('Hi')], new \NeuronAI\Agent\AgentRunOptions(stream: true))));

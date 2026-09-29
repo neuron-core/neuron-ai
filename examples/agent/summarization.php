@@ -31,6 +31,7 @@ $summarizationProvider = new Anthropic(
 
 // Create the agent with summarization middleware
 $agent = Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider($mainProvider)
     // Apply summarization middleware to generative nodes
     ->addMiddleware(

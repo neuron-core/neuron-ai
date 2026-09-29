@@ -22,7 +22,7 @@ class AsyncWorkflowTest extends TestCase
 
     public function test_basic_async_execution(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([
                 new FirstNode(),
                 new SecondNode(),
@@ -39,9 +39,9 @@ class AsyncWorkflowTest extends TestCase
     public function test_concurrent_workflow_execution(): void
     {
 
-        $workflow1 = Workflow::make()->addNodes([new AsyncDelayNode()]);
-        $workflow2 = Workflow::make()->addNodes([new AsyncDelayNode()]);
-        $workflow3 = Workflow::make()->addNodes([new AsyncDelayNode()]);
+        $workflow1 = Workflow::make('workflow_1')->addNodes([new AsyncDelayNode()]);
+        $workflow2 = Workflow::make('workflow_2')->addNodes([new AsyncDelayNode()]);
+        $workflow3 = Workflow::make('workflow_3')->addNodes([new AsyncDelayNode()]);
 
         $startTime = microtime(true);
 
@@ -64,7 +64,7 @@ class AsyncWorkflowTest extends TestCase
     {
         $state = new WorkflowState(['initial' => 'value']);
 
-        $workflow = Workflow::make(state: $state)
+        $workflow = Workflow::make('workflow_1', state: $state)
             ->addNodes([
                 new FirstNode(),
                 new SecondNode(),

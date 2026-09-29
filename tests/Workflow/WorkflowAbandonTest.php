@@ -218,7 +218,7 @@ class WorkflowAbandonTest extends TestCase
     public function test_abandon_without_any_workflow_id_throws(): void
     {
         $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('the workflow declares none');
+        $this->expectExceptionMessage('This workflow has no workflow ID: bind one with setWorkflowId() first.');
 
         Workflow::make()->setPersistence(new InMemoryPersistence())->abandon();
     }

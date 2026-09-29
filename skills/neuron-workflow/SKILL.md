@@ -94,7 +94,7 @@ $state = new WorkflowState([
     'input' => $userData,
 ]);
 
-$workflow = Workflow::make(state: $state)
+$workflow = Workflow::make(workflowId: 'demo', state: $state)
     ->addNodes([
         new ValidationNode(),
         new ProcessingNode(),
@@ -202,7 +202,7 @@ final class OrderWorkflow extends Workflow
     }
 }
 
-$state = OrderWorkflow::make()->run(); // inferred as OrderState
+$state = OrderWorkflow::make(workflowId: $orderId)->run(); // inferred as OrderState
 ```
 
 `Agent` uses the same contract by specializing `Workflow<AgentState>`. A node asking for
@@ -329,7 +329,7 @@ Configure Redis persistence and eviction to preserve active and retained runs.
 Use the `setPersistence()` shortcut:
 
 ```php
-$workflow = Workflow::make()
+$workflow = Workflow::make(workflowId: $workflowId)
     ->setPersistence(new FilePersistence('/path/to/storage'))
     ->addNodes([...]);
 
@@ -512,7 +512,7 @@ use NeuronAI\Workflow\Persistence\FilePersistence;
 
 $persistence = new FilePersistence('/tmp/workflows');
 
-$workflow = Workflow::make()
+$workflow = Workflow::make(workflowId: $workflowId)
     ->setPersistence($persistence)
     ->addNodes([...]);
 
@@ -521,7 +521,6 @@ $state = $workflow->run();
 if ($state->isInterrupted()) {
     // Present the request to the user and retain its engine-assigned ID.
     $request = $state->getInterruptRequest();
-    $workflowId = $state->getWorkflowId();
 
     // ... user approves/rejects ...
 
@@ -602,12 +601,12 @@ A running generation whose lease expired is swept on a new start. Settle a pendi
 `run(ExecutionRequest::signal(...))` or `run(ExecutionRequest::resume($payload))`, or discard it with `abandon()`.
 Completed records are swept by default,
 so a later explicit continuation such as `run(ExecutionRequest::resume())` throws "No run in flight";
-a no-input `run()` may start a new generation. A continuation with no workflow
-ID at all throws. A declared `workflowId()` wins over an explicit
-`make($workflowId)`; a disagreement throws (misidentified run). Plain workflows
-that declare no key get a generated workflow ID (read it from the returned state after the
-first segment) and are otherwise unaffected. The `Agent` uses exactly this
-mechanism, with the Agent thread ID used as the workflow ID.
+a no-input `run()` may start a new generation. A declared `workflowId()` wins over an explicit
+`make($workflowId)`; a disagreement throws (misidentified run). The framework never
+makes up a workflow ID: bind a workflow that declares no key with `make($workflowId)`
+or `setWorkflowId()`, because executing, inspecting or answering it unbound throws.
+The `Agent` uses exactly this mechanism, with the Agent thread ID used as the
+workflow ID.
 
 ## Interruption Vocabulary (beyond approval)
 
@@ -1086,6 +1085,7 @@ class ExtractStructuredDataNode extends Node
     public function __invoke(ExtractStructuredDataEvent $event, WorkflowState $state): StopEvent
     {
         $agent = Agent::make()
+            ->setThreadId($state->getWorkflowId() . ':extract')
             ->setProvider(
                 (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
                     ->setHttpClient(new AmpHttpClient())
@@ -1104,6 +1104,7 @@ class GenerateDescriptionNode extends Node
     public function __invoke(GenerateDescriptionEvent $event, WorkflowState $state): StopEvent
     {
         $agent = Agent::make()
+            ->setThreadId($state->getWorkflowId() . ':describe')
             ->setProvider(
                 (new OpenAI(getenv('OPENAI_API_KEY'), 'gpt-4o'))
                     ->setHttpClient(new AmpHttpClient())
@@ -1141,6 +1142,7 @@ class MergeAnalysisNode extends Node
 
 ```php
 $workflow = Workflow::make(
+        workflowId: $analysisId,
         state: new WorkflowState(['image_url' => 'https://example.com/photo.jpg'])
     )
     ->addNodes([

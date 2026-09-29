@@ -45,17 +45,15 @@ What changed:
    pre-bound history with a different key; the ignition record vs an
    explicitly claimed identity on a resume; re-binding a bound history.
 7. **No generation**: the framework never fabricates a thread identity.
-   Anonymous quick-start runs (`Agent::make()->chat(...)`) still work —
-   `InMemoryChatHistory` self-keys as its own storage default — but they are
-   **not findable by their thread** (no pointer, no `threadId` in the ignition
-   record): an identity nobody declared is not a workflow ID.
-8. `Agent::getThreadId()` is a **pure read** of the identity slot. Hooks may
-   consult it (null on anonymous runs), but the recommended pattern remains
-   constructing the history without identity — the framework binds it.
-   Being findable by its thread requires identity declared before the run
-   starts (`make(workflowId:)` or a pre-bound history at the setter); identity
-   arriving later (a self-keyed hook default) is adopted but does not make
-   the run findable by its thread.
+   Anonymous runs that worked in 3.x (`Agent::make()->chat(...)`) now throw
+   `AgentException` ("This agent has no thread ID: bind one with
+   setThreadId() first."), and so do inspecting, answering or resetting an
+   unbound Agent and reading its chat history. Bind a thread before the first
+   call, quick starts included: `Agent::make()->setThreadId('demo')->chat(...)`.
+8. `Agent::getThreadId()` is a **pure read** of the identity slot, null until
+   bound. Hooks may consult it (every run is bound before they execute), but
+   the recommended pattern remains constructing the history without identity
+   — the framework binds it.
 
 ## Update your code
 
@@ -121,6 +119,7 @@ grep -rn "new SQLChatHistory(\|new EloquentChatHistory(\|new FileChatHistory(\|s
 ```
 
 Flip SQL/Eloquent constructor argument orders; replace history resolver
-closures with unbound instances; check any custom `ChatHistoryInterface`
+closures with unbound instances; bind a thread on every Agent that runs without
+one (item 7), whether built with `make()` or resolved from a container; check any custom `ChatHistoryInterface`
 implementation adds `setThreadId()`/`getThreadId(): ?string` (extend
 `AbstractChatHistory` to inherit them plus the lazy-load seam).

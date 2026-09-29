@@ -34,7 +34,7 @@ class GlobalMiddlewareMethodTest extends TestCase
             public function __construct(
                 protected readonly FakeMiddleware $middleware,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -65,7 +65,7 @@ class GlobalMiddlewareMethodTest extends TestCase
             public function __construct(
                 protected readonly FakeMiddleware $middleware,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -98,7 +98,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 protected readonly FakeMiddleware $global,
                 protected readonly FakeMiddleware $nodeSpecific,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -153,7 +153,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 protected readonly FakeMiddleware $global,
                 protected readonly FakeMiddleware $node,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -191,7 +191,7 @@ class GlobalMiddlewareMethodTest extends TestCase
             public function __construct(
                 protected readonly FakeMiddleware $middleware,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -225,7 +225,7 @@ class GlobalMiddlewareMethodTest extends TestCase
             public function __construct(
                 protected readonly FakeMiddleware $middleware,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array
@@ -247,7 +247,7 @@ class GlobalMiddlewareMethodTest extends TestCase
 
     public function test_empty_global_middleware_override_does_not_cause_errors(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class ('workflow_1') extends Workflow {
             protected function nodes(): array
             {
                 return [new NodeOne(), new NodeTwo(), new NodeThree()];
@@ -291,7 +291,7 @@ class GlobalMiddlewareMethodTest extends TestCase
                 protected readonly FakeMiddleware $first,
                 protected readonly FakeMiddleware $second,
             ) {
-                parent::__construct();
+                parent::__construct('workflow_1');
             }
 
             protected function nodes(): array

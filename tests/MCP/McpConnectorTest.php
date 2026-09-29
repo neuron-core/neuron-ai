@@ -366,7 +366,7 @@ class McpConnectorTest extends TestCase
             new AssistantMessage('The page needs a login.'),
         );
 
-        Agent::make()->setAiProvider($provider)->addTool($this->connector->tools())->chat(new UserMessage('Capture example.com'));
+        Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool($this->connector->tools())->chat(new UserMessage('Capture example.com'));
 
         $toolResult = $provider->getRecorded()[1]->messages[2];
         $this->assertInstanceOf(ToolResultMessage::class, $toolResult);

@@ -9,7 +9,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tests\SpeechExperiment\DemoSpeechAgent;
 
-$agent = DemoSpeechAgent::make();
+$agent = DemoSpeechAgent::make()->setThreadId('demo');
 $state = $agent->chat(new UserMessage(new AudioContent(
     \base64_encode('Hello from the microphone.'),
     SourceType::BASE64,

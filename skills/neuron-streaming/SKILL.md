@@ -382,6 +382,7 @@ $channel = new FakeChannel();
 
 // The factory returns the same fake, so the test can read what every segment delivered.
 $agent = Agent::make()
+    ->setThreadId('test-thread')
     ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
     ->setChannel(fn (): FakeChannel => $channel);
 $agent->setAiProvider((new FakeAIProvider(new AssistantMessage('Hello world')))->setStreamChunkSize(5));

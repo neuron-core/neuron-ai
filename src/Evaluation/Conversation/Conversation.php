@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\StaticConstructor;
+use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Throwable;
 
@@ -158,6 +159,10 @@ class Conversation
      */
     protected function deliver(UserMessage $message): void
     {
+        if ($this->agent->getThreadId() === null) {
+            $this->agent->setThreadId(UniqueIdGenerator::generateId('eval_'));
+        }
+
         $state = $this->agent->chat($message);
 
         $this->resolveInterrupts($state);

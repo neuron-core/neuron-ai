@@ -93,7 +93,7 @@ class CompositeRetrievalTest extends TestCase
         $store = new FakeVectorStore([new Document('Shared context')]);
         $child = new SimilarityRetrieval($store, new FakeEmbeddingsProvider());
         $provider = new FakeAIProvider(new AssistantMessage('Answer'));
-        $rag = RAG::make();
+        $rag = RAG::make(workflowId: 'thread_1');
         $rag->setAiProvider($provider);
         $rag->setRetrieval(new CompositeRetrieval([$child, $child]));
         $rag->chat(new UserMessage('Question'));

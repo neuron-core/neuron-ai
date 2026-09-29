@@ -36,7 +36,7 @@ class PushAdapterDeliveryTest extends TestCase
     {
         foreach ([[false, false], [true, false], [false, true], [true, true]] as [$adapter, $channel]) {
             $provider = new FakeAIProvider(new AssistantMessage('Hello'));
-            $agent = Agent::make()
+            $agent = Agent::make(workflowId: 'thread_1')
                 ->setStreamAdapter(fn (): ?StreamAdapterInterface => $adapter ? new ParityAdapter() : null)
                 ->setChannel(fn (): ?StreamingChannelInterface => $channel ? new FakeChannel() : null);
             $agent->setAiProvider($provider);
@@ -54,7 +54,7 @@ class PushAdapterDeliveryTest extends TestCase
     public function test_push_output_is_byte_identical_to_the_pull_path(): void
     {
         // Pull: the caller drains the Workflow-managed adapter output.
-        $pullAgent = Agent::make()->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
+        $pullAgent = Agent::make(workflowId: 'thread_1')->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
         $pullAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
@@ -67,7 +67,7 @@ class PushAdapterDeliveryTest extends TestCase
         // Push: the same Workflow-owned adapter path also delivers each event
         // to the channel's send port.
         $sink = [];
-        $pushAgent = Agent::make();
+        $pushAgent = Agent::make(workflowId: 'thread_1');
         $pushAgent->setAiProvider(
             (new FakeAIProvider(new AssistantMessage('Hello world, streaming bytes')))->setStreamChunkSize(5)
         );
@@ -92,7 +92,7 @@ class PushAdapterDeliveryTest extends TestCase
     {
         $channel = new FakeChannel();
         $provider = (new FakeAIProvider(new AssistantMessage('Hello world')))->setStreamChunkSize(5);
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread-1')
             ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread-1', 'run-1'))
             ->setChannel(fn (): FakeChannel => $channel);
         $agent->setAiProvider($provider);
@@ -114,7 +114,7 @@ class PushAdapterDeliveryTest extends TestCase
         // run with the protocol start/end sequences; so must the push path,
         // whose finishDelivery() emits start+end on completion even though no
         // item was ever delivered to send().
-        $pullAgent = Agent::make()->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
+        $pullAgent = Agent::make(workflowId: 'thread_1')->setStreamAdapter(fn (): ParityAdapter => new ParityAdapter());
         $pullAgent->setAiProvider(new FakeAIProvider(new AssistantMessage('')));
 
         $pulled = [];
@@ -123,7 +123,7 @@ class PushAdapterDeliveryTest extends TestCase
         }
 
         $sink = [];
-        $pushAgent = Agent::make();
+        $pushAgent = Agent::make(workflowId: 'thread_1');
         $pushAgent->setAiProvider(
             new FakeAIProvider(new AssistantMessage(''))
         );

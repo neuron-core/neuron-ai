@@ -27,7 +27,7 @@ class StaticGraphTest extends TestCase
 {
     public function test_every_agent_graph_registers_both_inference_routes(): void
     {
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')))
             ->setInstructions('test');
 

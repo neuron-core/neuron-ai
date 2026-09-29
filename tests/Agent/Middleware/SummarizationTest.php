@@ -223,6 +223,7 @@ class SummarizationTest extends TestCase
         $summarizer = new FakeAIProvider(new AssistantMessage('Summary'), new AssistantMessage('Summary of summary'));
 
         $agent = Agent::make()
+            ->setThreadId('thread_1')
             ->setAiProvider($agentProvider)
             ->setTools([new SearchTool()])
             ->addMiddleware(InferenceNode::class, new Summarization($summarizer, maxTokens: 90, messagesToKeep: 1));
@@ -275,6 +276,7 @@ class SummarizationTest extends TestCase
                 return [InferenceNode::class => new Summarization($this->getProvider(), maxTokens: 1, messagesToKeep: 1)];
             }
         };
+        $agent->setThreadId('thread_1');
 
         $agent->chat(new UserMessage('Question 1'));
         $agent->chat(new UserMessage('Question 2'));

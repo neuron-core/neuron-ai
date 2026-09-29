@@ -36,7 +36,7 @@ class StreamSuspensionDeliveryTest extends TestCase
             new Action('call_1', 'delete_file', inputs: ['path' => '/tmp/x']),
         ]);
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([new NodeOne(), new SharedRequestInterruptNode($request)])
             ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter('thread_test', 'run_test'))
             ->setChannel(fn (): StreamingChannelInterface => $channel);

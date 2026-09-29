@@ -29,7 +29,7 @@ class PortableStreamEventDeliveryTest extends TestCase
                 ['percentage' => $event->percentage],
             ),
         );
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([new PortableProgressNode()])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter);
 
@@ -54,7 +54,7 @@ class PortableStreamEventDeliveryTest extends TestCase
             ),
         );
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([new PortableProgressNode()])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
             ->setChannel(fn (): StreamingChannelInterface => $channel);

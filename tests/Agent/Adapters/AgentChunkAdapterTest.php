@@ -225,7 +225,7 @@ class AgentChunkAdapterTest extends TestCase
     public function test_channel_receives_the_native_chunks_of_a_streamed_run(): void
     {
         $channel = new FakeChannel();
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread-1')
             ->setStreamAdapter(fn (): AgentChunkAdapter => new AgentChunkAdapter())
             ->setChannel(fn (): StreamingChannelInterface => $channel)
             ->setAiProvider((new FakeAIProvider(

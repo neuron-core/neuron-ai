@@ -59,6 +59,7 @@ final class FinishProcessing extends Node
 }
 
 $workflow = Workflow::make()
+    ->setWorkflowId('demo')
     ->addNodes([
         new StartProcessing(),
         new StreamProgress(),

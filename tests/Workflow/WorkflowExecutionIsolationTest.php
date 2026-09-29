@@ -41,7 +41,7 @@ class WorkflowExecutionIsolationTest extends TestCase
                 return new StopEvent();
             }
         };
-        $workflow = Workflow::make(state: $seed)->addNode($node);
+        $workflow = Workflow::make('workflow_1', state: $seed)->addNode($node);
         $first = $workflow->run();
         $firstId = $first->getRunId();
         $second = $workflow->run();
@@ -99,9 +99,24 @@ class WorkflowExecutionIsolationTest extends TestCase
         self::assertSame('accepted', $resume->payload()['answer']->value);
     }
 
-    public function test_generated_identity_supports_continuation_and_cleanup_without_repeating_the_address(): void
+    public function test_unbound_workflow_refuses_to_run_and_binds_or_persists_nothing(): void
     {
-        $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()])
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make()->addNode(new NodeOne())->setPersistence($persistence);
+        $before = serialize($persistence);
+        try {
+            $workflow->run();
+            self::fail('Expected an unbound run to be refused.');
+        } catch (WorkflowException $error) {
+            self::assertSame('This workflow has no workflow ID: bind one with setWorkflowId() first.', $error->getMessage());
+        }
+        self::assertNull($workflow->getWorkflowId());
+        self::assertSame($before, serialize($persistence));
+    }
+
+    public function test_bound_identity_supports_continuation_and_cleanup_without_repeating_the_address(): void
+    {
+        $workflow = Workflow::make('workflow_1')->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()])
             ->retainCompletionUntilAcknowledged();
         $first = $workflow->run();
         self::assertSame($first->getWorkflowId(), $workflow->getWorkflowId());
@@ -168,7 +183,7 @@ class WorkflowExecutionIsolationTest extends TestCase
     public function test_custom_state_properties_follow_the_seed_and_clone_contract(): void
     {
         $seed = new \NeuronAI\Tests\Workflow\Stub\OwnedState();
-        $workflow = Workflow::make(state: $seed)->addNode(new class () extends Node {
+        $workflow = Workflow::make('workflow_1', state: $seed)->addNode(new class () extends Node {
             public function __invoke(StartEvent $event, \NeuronAI\Tests\Workflow\Stub\OwnedState $state): StopEvent
             {
                 $state->details->count++;

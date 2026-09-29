@@ -80,6 +80,7 @@ class RAGObservabilityTest extends TestCase
         $preProcessor = new SuffixPreProcessor(' rewritten');
         $postProcessor = new LimitPostProcessor(1);
         $rag = RAG::make()
+            ->setThreadId('thread_1')
             ->setEmbeddingsProvider(new FakeEmbeddingsProvider())
             ->setVectorStore(new FakeVectorStore($documents))
             ->setPreProcessors([$preProcessor])
@@ -126,7 +127,7 @@ class RAGObservabilityTest extends TestCase
 
     public function test_without_processors_only_retrieval_events_are_emitted(): void
     {
-        $rag = RAG::make()->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore());
+        $rag = RAG::make()->setThreadId('thread_1')->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore());
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
 
         $this->observe($rag)->chat(new UserMessage('Question'));
@@ -144,7 +145,7 @@ class RAGObservabilityTest extends TestCase
             DocumentField::string('tenant')->required()->filterable(),
             DocumentField::integer('clearance')->filterable(),
         ));
-        $rag = RAG::make()->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
+        $rag = RAG::make()->setThreadId('thread_1')->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
             ->setRetrievalScope(FilterGroup::and(
                 Filter::eq('tenant', 'tenant-secret-7f3a'),
                 FilterGroup::anyOf(Filter::lte('clearance', 918273), Filter::in('sourceName', ['private-doc.md'])),

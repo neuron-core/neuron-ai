@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 // Create agent with tools
 $agent = Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider(
         new Anthropic(
             '',

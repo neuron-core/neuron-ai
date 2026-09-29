@@ -292,7 +292,7 @@ class EloquentChatHistoryTest extends TestCase
 
     public function test_with_agent(): void
     {
-        $agent = Agent::make()->setAiProvider(
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider(
             new FakeAIProvider(new AssistantMessage('Hello!'))
         )->setMessageStore(new EloquentMessageStore(ChatMessage::class));
 

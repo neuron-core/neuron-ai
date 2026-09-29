@@ -8,6 +8,7 @@ A workflow routes events through nodes until a `StopEvent`. A node's `__invoke()
 
 ```php
 $state = Workflow::make(state: $state)
+    ->setWorkflowId($orderId)
     ->addNodes([new NodeA(), new NodeB()])
     ->run();
 ```
@@ -173,21 +174,19 @@ address reads `getWorkflowId()`.
 `getWorkflowId()` returns the instance address, or null before binding.
 `setWorkflowId()` binds an unbound instance and accepts the same ID again, but
 rejects a different ID. The optional constructor ID and the `workflowId()`
-declaration hook remain supported. When its `events()` generator starts, Workflow
-generates and retains an ID for an unbound start before admission. A continuation
-requires an already bound Workflow. Later runs share the workflow ID and have
+declaration hook remain supported. The framework never makes up an address:
+executing an unbound Workflow throws `WorkflowException` naming `setWorkflowId()`,
+and `events()` throws when called, before returning its generator. Later runs share the workflow ID and have
 separate run IDs; the engine does not generate or bind the instance identity, and
 it refuses an invalid ID before touching persistence.
 
 `ExecutionRequest` carries execution input and run/attempt fences, not the
 workflow address. `inspect()`, `submitInputs()`, `acknowledge()`
-and `abandon()` use the instance identity and accept no address override.
-Inspection and lazy generator creation do not bind an instance; unbound inspection
-returns null. Pending submissions retain the bound Workflow and an independent
+and `abandon()` use the instance identity, accept no address override and throw
+on an unbound instance like execution. Pending submissions retain the bound Workflow and an independent
 request capturing the inspected run and attempt, so later submissions cannot
 overwrite their input and another worker's continuation cannot silently retarget it.
-A generated identity stays on its instance, so a retry on that instance addresses
-the same workflow. Queue jobs
+Queue jobs
 must transport the workflow address separately and bind their reconstructed
 Workflow before submitting a continuation. Execution contexts, results, snapshots
 and persistence retain identity metadata.

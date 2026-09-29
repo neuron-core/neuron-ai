@@ -36,7 +36,7 @@ class RAGTest extends TestCase
             (new Document('France is a country in Europe. Its capital is Paris.'))->setSourceType('file')->setSourceName('europe.md'),
         ]);
 
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider)->setInstructions('You answer geography questions.');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
@@ -61,7 +61,7 @@ class RAGTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('First reply'), new AssistantMessage('Second reply'));
         $vectorStore = new FakeVectorStore([new Document('First context')]);
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider)->setInstructions('Base instructions');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($vectorStore);
 
@@ -81,6 +81,7 @@ class RAGTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Answer'));
         $embeddings = new FakeEmbeddingsProvider();
         $rag = RAG::make()
+            ->setThreadId('thread_1')
             ->setEmbeddingsProvider($embeddings)
             ->setVectorStore(new FakeVectorStore([new Document('Context')]))
             ->setPreProcessors([new SuffixPreProcessor(' with synonyms')]);
@@ -98,7 +99,7 @@ class RAGTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Never sent'));
         $retrieval = $this->createMock(RetrievalInterface::class);
         $retrieval->method('retrieve')->willThrowException(new RuntimeException('Vector store unavailable.'));
-        $rag = RAG::make()->setRetrieval($retrieval);
+        $rag = RAG::make()->setThreadId('thread_1')->setRetrieval($retrieval);
         $rag->setAiProvider($provider);
 
         try {
@@ -117,7 +118,7 @@ class RAGTest extends TestCase
         $first = new FakeAIProvider(new AssistantMessage('First reply'));
         $second = new FakeAIProvider(new AssistantMessage('Second reply'));
         $vectorStore = new FakeVectorStore([new Document('Reference context')]);
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($first)->setInstructions('Original instructions');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($vectorStore);
         $rag->chat(new UserMessage('First question'));
@@ -145,7 +146,7 @@ class RAGTest extends TestCase
             new Document('France capital is Paris.'),
         ]);
 
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider);
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
@@ -208,7 +209,7 @@ class RAGTest extends TestCase
 
         $vectorStore = new FakeVectorStore([]);
 
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider)->setInstructions('Base instructions');
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
@@ -235,6 +236,7 @@ class RAGTest extends TestCase
             }
         };
 
+        $rag->setThreadId('thread_1');
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);

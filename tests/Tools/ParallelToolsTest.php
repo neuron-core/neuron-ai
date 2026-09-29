@@ -48,7 +48,7 @@ class ParallelToolsTest extends TestCase
 
     public function test_parallel_tool_calls_run_each_call_in_its_own_process(): void
     {
-        $agent = Agent::make()->parallelToolCalls(true)->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
+        $agent = Agent::make()->setThreadId('thread_1')->parallelToolCalls(true)->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make('process_id', 'call_1'),
                 ToolCall::make('process_id', 'call_2'),
@@ -66,7 +66,7 @@ class ParallelToolsTest extends TestCase
 
     public function test_sequential_tool_calls_run_in_the_calling_process(): void
     {
-        $agent = Agent::make()->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
+        $agent = Agent::make()->setThreadId('thread_1')->addTool(new ProcessIdTool())->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [
                 ToolCall::make('process_id', 'call_1'),
                 ToolCall::make('process_id', 'call_2'),
@@ -97,7 +97,7 @@ class ParallelToolsTest extends TestCase
             new AssistantMessage('I have results from both tools.')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(true);
         $agent->addTool($toolA);
@@ -128,7 +128,7 @@ class ParallelToolsTest extends TestCase
             new AssistantMessage('Results: multiply=12, add=13')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(true);
         $agent->addTool($multiplyTool);
@@ -156,7 +156,7 @@ class ParallelToolsTest extends TestCase
             new AssistantMessage('Response')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(true);
         $agent->addTool($failingTool);
@@ -185,7 +185,7 @@ class ParallelToolsTest extends TestCase
             new AssistantMessage('I have results from both tools.')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(true);
         $agent->addTool($toolA);
@@ -219,7 +219,7 @@ class ParallelToolsTest extends TestCase
             new AssistantMessage('Done')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(true);
         $agent->toolMaxRuns(1);

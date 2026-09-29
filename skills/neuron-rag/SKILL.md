@@ -504,6 +504,7 @@ use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 
 $rag = MyChatBot::make()
+    ->setThreadId('test-thread')
     ->setEmbeddingsProvider(new FakeEmbeddingsProvider())
     ->setVectorStore(new FakeVectorStore([new Document('The product costs $99.')]));
 

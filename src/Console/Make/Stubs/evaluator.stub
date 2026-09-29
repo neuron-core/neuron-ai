@@ -8,6 +8,7 @@ use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Dataset\JsonDataset;
+use NeuronAI\UniqueIdGenerator;
 
 class [classname] extends BaseEvaluator
 {
@@ -25,7 +26,7 @@ class [classname] extends BaseEvaluator
     public function run(array $datasetItem): mixed
     {
         /*
-        $response = MyAgent::make()->chat(
+        $response = MyAgent::make()->setThreadId(UniqueIdGenerator::generateId('eval_'))->chat(
             new UserMessage($datasetItem['input'])
         )->getMessage();
 

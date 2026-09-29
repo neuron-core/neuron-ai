@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 
 
 $result = \NeuronAI\Agent\Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider(
         new Anthropic(
             '',

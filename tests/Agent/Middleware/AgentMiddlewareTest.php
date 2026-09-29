@@ -94,6 +94,7 @@ class AgentMiddlewareTest extends TestCase
     {
         $log = [];
         $agent = Agent::make()
+            ->setThreadId('thread_1')
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'php'])]),
                 new AssistantMessage('Done'),

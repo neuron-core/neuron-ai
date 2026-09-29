@@ -63,7 +63,7 @@ class AgentConfigurationTest extends TestCase
     {
         $first = new FakeAIProvider(new AssistantMessage('{"name":"First"}'));
         $second = new FakeAIProvider(new AssistantMessage('{"name":"Second"}'));
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($first)->setInstructions('Original instructions')->addTool(new WeatherToolkit());
         $this->interact($agent, $mode);
 
@@ -85,7 +85,7 @@ class AgentConfigurationTest extends TestCase
     public function test_inference_mode_does_not_leak_into_the_next_chat(string $mode): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('{"name":"First"}'), new AssistantMessage('Plain reply'));
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $this->interact($agent, $mode);
 
@@ -103,7 +103,7 @@ class AgentConfigurationTest extends TestCase
             new ToolCallMessage(null, [$call]),
             new AssistantMessage('Found PHP'),
         );
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider)->addTool(new WeatherToolkit());
         $agent->chat(new UserMessage('Hello'));
 
@@ -126,7 +126,7 @@ class AgentConfigurationTest extends TestCase
             new AssistantMessage('{"name":"Second"}'),
             new AssistantMessage('{"name":"Third"}'),
         );
-        $agent = new WeatherAgent();
+        $agent = (new WeatherAgent())->setThreadId('thread_1');
         $agent->setAiProvider($provider)->setInstructions('Application instructions');
         $this->interact($agent, $mode);
 
@@ -152,7 +152,7 @@ class AgentConfigurationTest extends TestCase
             new AssistantMessage('Found PHP'),
             new AssistantMessage('Next turn'),
         );
-        $agent = new WeatherAgent();
+        $agent = (new WeatherAgent())->setThreadId('thread_1');
         $search = new SearchTool();
         $agent->setAiProvider($provider)->setTools([$search]);
         $stream = $agent->stream(new UserMessage('Search PHP'));
@@ -176,7 +176,7 @@ class AgentConfigurationTest extends TestCase
             new AssistantMessage('Found PHP'),
             new ToolCallMessage(null, [ToolCall::make('search', 'call_2', ['query' => 'PHP'])]),
         );
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider)->addTool(new SearchTool());
         $stream = $agent->stream(new UserMessage('Search PHP'));
         $stream->rewind();
@@ -199,7 +199,7 @@ class AgentConfigurationTest extends TestCase
             new ToolCallMessage(null, [$secondCall]),
             new AssistantMessage('Recovered again'),
         );
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider)->addTool(new AgentFailingTool());
         $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Original handler');
         $stream = $agent->stream(new UserMessage('Use the tool'));
@@ -222,7 +222,7 @@ class AgentConfigurationTest extends TestCase
                 return static fn (Throwable $error, ToolCall $tool): string => 'Declared handler';
             }
         };
-        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
+        $agent->setThreadId('thread_1')->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
             ->addTool(new AgentFailingTool());
         $agent->toolErrorHandler(static fn (Throwable $error, ToolCall $tool): string => 'Configured handler');
 
@@ -240,7 +240,7 @@ class AgentConfigurationTest extends TestCase
                 return static fn (Throwable $error, ToolCall $tool): string => 'Declared handler';
             }
         };
-        $agent->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
+        $agent->setThreadId('thread_1')->setAiProvider(new FakeAIProvider(new ToolCallMessage(null, [$call]), new AssistantMessage('Recovered')))
             ->addTool(new AgentFailingTool());
 
         $agent->chat(new UserMessage('Use the tool'));
@@ -252,7 +252,7 @@ class AgentConfigurationTest extends TestCase
     {
         $node = new FirstNode();
         $middleware = new RecordingAgentMiddleware();
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->addNode($node);
         $agent->setAiProvider(new FakeAIProvider(
             new AssistantMessage('First reply'),
@@ -284,7 +284,7 @@ class AgentConfigurationTest extends TestCase
     {
         $first = new FakeAIProvider(new AssistantMessage('First reply'));
         $second = new FakeAIProvider(new AssistantMessage('Second reply'));
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($first)->setInstructions('Original instructions');
         $stream = $agent->stream(new UserMessage('Hello'));
         $stream->rewind();

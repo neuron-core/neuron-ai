@@ -30,7 +30,9 @@ class YouTubeAgent extends Agent
     }
 }
 
-$state = YouTubeAgent::make()->chat(new UserMessage('Summarize this: https://youtube.com/watch?v=...'));
+$state = YouTubeAgent::make()
+    ->setThreadId('demo')
+    ->chat(new UserMessage('Summarize this: https://youtube.com/watch?v=...'));
 echo $state->getMessage()->getContent();
 ```
 
@@ -249,17 +251,16 @@ an independent direct-construction helper. Subclasses injecting application
 services still call `parent::__construct()`.
 
 Configure conversation identity through the constructor or `setThreadId()`.
-The first execution generates and retains an identity for an unbound new
-conversation. Continuations require an already bound Agent. Later executions reuse that
+The framework never makes up a thread: executing, inspecting, answering or resetting
+an unbound Agent throws `AgentException` naming `setThreadId()`. Executions reuse the bound
 identity with separate run IDs. Repeating the same identity is allowed; setters
 cannot switch a bound instance to another conversation.
-Use a fresh Agent for another conversation. Creating a lazy stream or inspecting the Agent does not bind the instance.
+Use a fresh Agent for another conversation.
 Execution requests and per-operation methods do not accept address overrides.
 
 Histories are opened for the Agent's identity, and message stores carry none, so
-they cannot conflict with it. `getChatHistory()` throws while identity is unset:
-bind before accessing history or using history-dependent operations such as reset
-or graph export.
+they cannot conflict with it. `getChatHistory()` throws the same exception while the
+Agent is unbound, so bind before graph export too.
 
 One live run per thread has these consequences:
 

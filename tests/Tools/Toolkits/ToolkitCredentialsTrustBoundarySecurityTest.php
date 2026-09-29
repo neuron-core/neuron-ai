@@ -66,6 +66,7 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
             ], JSON_THROW_ON_ERROR)));
 
             Agent::make()
+                ->setThreadId('thread_1')
                 ->setAiProvider(new OpenAI(self::PROVIDER_KEY, 'model', httpClient: $client))
                 ->addTool($toolkit)
                 ->chat(new UserMessage('Hi'));

@@ -83,7 +83,7 @@ class AgentObservabilityTest extends TestCase
 
     public function test_a_tool_loop_emits_the_agent_events_in_order(): void
     {
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread_1')
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'php'])]),
                 new AssistantMessage('Done'),
@@ -107,7 +107,7 @@ class AgentObservabilityTest extends TestCase
 
     public function test_tool_events_report_the_call_before_and_after_execution(): void
     {
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread_1')
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'php'])]),
                 new AssistantMessage('Done'),
@@ -129,7 +129,7 @@ class AgentObservabilityTest extends TestCase
 
     public function test_inference_events_report_the_request_tail_and_the_response(): void
     {
-        $agent = Agent::make()->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
+        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
 
         $this->observe($agent)->chat(new UserMessage('Hi'));
 
@@ -148,7 +148,7 @@ class AgentObservabilityTest extends TestCase
     {
         $invalid = '{"firstName":"","lastName":"Doe","address":{"street":"Main","city":"Rome","zip":"00100"},"tags":[]}';
         $valid = '{"firstName":"Jane","lastName":"Doe","address":{"street":"Main","city":"Rome","zip":"00100"},"tags":[]}';
-        $agent = Agent::make()->setAiProvider(new FakeAIProvider(new AssistantMessage($invalid), new AssistantMessage($valid)));
+        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage($invalid), new AssistantMessage($valid)));
 
         $this->observe($agent)->structured(new UserMessage('Generate a person'), Person::class);
 
@@ -175,7 +175,7 @@ class AgentObservabilityTest extends TestCase
     public function test_structured_output_event_payloads(): void
     {
         $json = '{"name":"Alice"}';
-        $agent = Agent::make()->setAiProvider(new FakeAIProvider(new AssistantMessage($json)));
+        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage($json)));
 
         $this->observe($agent)->structured(new UserMessage('Generate a user'), User::class);
 
@@ -216,7 +216,7 @@ class AgentObservabilityTest extends TestCase
 
     public function test_a_deferred_call_refused_by_its_limit_reports_the_handled_result(): void
     {
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread_1')
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [new ToolCall('browser', 'call_1', deferred: true)]),
                 new AssistantMessage('Done'),
@@ -263,7 +263,7 @@ class AgentObservabilityTest extends TestCase
             $this->markTestSkipped('Concurrent tool execution requires pcntl and spatie/fork.');
         }
 
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread_1')
             ->setAiProvider(new FakeAIProvider(
                 new ToolCallMessage(null, [
                     ToolCall::make('search', 'call_1', ['query' => 'one']),

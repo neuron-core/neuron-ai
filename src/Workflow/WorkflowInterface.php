@@ -23,7 +23,7 @@ interface WorkflowInterface
     public function run(?ExecutionRequest $request = null): WorkflowState;
 
     /**
-     * The run holding the workflow ID, or null when none does or the instance is unbound.
+     * The run holding the workflow ID, or null when none does.
      *
      * @phpstan-impure Every call reads the run as persistence holds it now.
      */
@@ -58,7 +58,8 @@ interface WorkflowInterface
     public function events(?ExecutionRequest $request = null): Generator;
 
     /**
-     * The instance address, or null until configured or first executed.
+     * The instance address, or null until one is bound or declared. Executing,
+     * inspecting or answering an instance without one throws.
      */
     public function getWorkflowId(): ?string;
 

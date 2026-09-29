@@ -64,7 +64,7 @@ class NodeSignatureTest extends TestCase
 
     public function test_intersection_node_routes_inside_a_workflow(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('workflow_1')->addNodes([
             new class () extends Node {
                 public function __invoke(StartEvent $event, WorkflowState $state): PrioritizedTestEvent
                 {

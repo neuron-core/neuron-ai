@@ -166,7 +166,7 @@ class MyAgentTest extends TestCase
             new AssistantMessage('Expected response')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('test-thread');
         $agent->setAiProvider($provider);
 
         $message = $agent->chat(new UserMessage('Hello'))->getMessage();
@@ -179,7 +179,7 @@ class MyAgentTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('OK'));
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('test-thread');
         $agent->setAiProvider($provider);
         $agent->setInstructions('Always respond in French.');
 
@@ -227,7 +227,7 @@ public function test_agent_executes_tool_and_returns_result(): void
         new AssistantMessage('Based on my search, here are the top PHP frameworks...')
     );
 
-    $agent = Agent::make();
+    $agent = Agent::make()->setThreadId('test-thread');
     $agent->setAiProvider($provider);
     $agent->addTool(new SearchTool());
 
@@ -249,7 +249,7 @@ public function test_agent_streams_response(): void
     $provider = new FakeAIProvider(new AssistantMessage('Hello world'));
     $provider->setStreamChunkSize(5); // Control chunk size for predictable tests
 
-    $agent = Agent::make();
+    $agent = Agent::make()->setThreadId('test-thread');
     $agent->setAiProvider($provider);
 
     $stream = $agent->stream(new UserMessage('Hi'));
@@ -281,7 +281,7 @@ public function test_agent_extracts_structured_data(): void
         new AssistantMessage('{"name": "Alice", "age": 30}')
     );
 
-    $agent = Agent::make();
+    $agent = Agent::make()->setThreadId('test-thread');
     $agent->setAiProvider($provider);
 
     class Person
@@ -327,7 +327,7 @@ class MyRAGTest extends TestCase
             new Document('France is a country in Europe. Its capital is Paris.'),
         ]);
 
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('test-thread');
         $rag->setAiProvider($provider);
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
@@ -375,7 +375,7 @@ class MyWorkflowTest extends TestCase
 {
     public function test_workflow_executes_nodes_in_sequence(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(workflowId: 'test-workflow')
             ->addNodes([
                 new FirstNode(),
                 new SecondNode(),
@@ -392,6 +392,7 @@ class MyWorkflowTest extends TestCase
     public function test_workflow_with_initial_state(): void
     {
         $workflow = Workflow::make(
+            workflowId: 'test-workflow',
             state: new WorkflowState(['input' => 'test_value'])
         )->addNodes([
             new ProcessNode(),
@@ -415,7 +416,7 @@ class MyMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        Workflow::make()
+        Workflow::make(workflowId: 'test-workflow')
             ->addGlobalMiddleware($middleware)
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
             ->run();
@@ -430,7 +431,7 @@ class MyMiddlewareTest extends TestCase
     {
         $middleware = FakeMiddleware::make();
 
-        Workflow::make()
+        Workflow::make(workflowId: 'test-workflow')
             ->addMiddleware(NodeTwo::class, $middleware)
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
             ->run();
@@ -446,7 +447,7 @@ class MyMiddlewareTest extends TestCase
                 $state->set('injected_by_middleware', true);
             });
 
-        $finalState = Workflow::make()
+        $finalState = Workflow::make(workflowId: 'test-workflow')
             ->addMiddleware(NodeOne::class, $middleware)
             ->addNodes([new NodeOne(), new NodeTwo()])
             ->run();
@@ -721,7 +722,7 @@ public function test_conversation_remembers_context(): void
         new AssistantMessage('The capital of France is Paris.'),
     );
 
-    $agent = Agent::make();
+    $agent = Agent::make()->setThreadId('test-thread');
     $agent->setAiProvider($provider);
 
     $first = $agent->chat(new UserMessage('Hello'))->getMessage();

@@ -8,8 +8,9 @@
   it, so they could generate the same ID: two new conversations could receive one address, and a RAG document
   could overwrite another in a vector store. The generator now keeps no state and each ID carries 74 random
   bits. IDs still sort by creation time to the millisecond.
-- **Every ID Neuron generates changes format:** messages, conversations (`workflow_`), runs, RAG documents,
-  and the IDs stream adapters fill in. A generated workflow ID is 45 characters long, a message ID 40.
+- **Every ID Neuron generates changes format:** messages, runs, RAG documents, and the IDs stream adapters
+  fill in. A generated message ID is 40 characters long. Neuron no longer generates conversation (`workflow_`)
+  IDs at all: see guide 15.
 - **`generateUUID()` takes no argument.** It returns a UUIDv7. It used to hash a given ID into a UUID labelled
   version 4.
 - **Stored IDs stay valid.** Neuron treats IDs as opaque strings and never parses or orders them, so old and

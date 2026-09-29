@@ -99,6 +99,7 @@ $provider = new Anthropic(
 
 // Create agent with the TodoPlanning toolkit next to its own tools
 $agent = Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider($provider)
     ->setInstructions(
         'You are a senior software engineer. When given complex tasks, break them down into clear steps and track your progress using the todo planning tool.'

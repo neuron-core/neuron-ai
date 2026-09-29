@@ -35,7 +35,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
 
-        $workflow = Workflow::make();
+        $workflow = Workflow::make('workflow_1');
         $this->execute($workflow);
     }
 
@@ -44,7 +44,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('No nodes found that handle ' . StartEvent::class);
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNode(new NodeTwo())
             ->addNode(new NodeThree());
 
@@ -63,7 +63,7 @@ class WorkflowValidationTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make()->addNode($invalidNode);
+        $workflow = Workflow::make('workflow_1')->addNode($invalidNode);
         $this->execute($workflow);
     }
 
@@ -72,7 +72,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Node for event ' . FirstEvent::class . ' already exists');
 
-        $this->execute(Workflow::make()->addNodes([new NodeOne(), new NodeTwo(), new ConditionalNode(), new NodeThree()]));
+        $this->execute(Workflow::make('workflow_1')->addNodes([new NodeOne(), new NodeTwo(), new ConditionalNode(), new NodeThree()]));
     }
 
     public function test_an_invalid_node_signature_fails_the_run_naming_the_node(): void
@@ -87,7 +87,7 @@ class WorkflowValidationTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage('Failed to validate ' . $invalid::class . ': __invoke method must return a type that implements ' . Event::class);
 
-        $this->execute(Workflow::make()->addNode($invalid));
+        $this->execute(Workflow::make('workflow_1')->addNode($invalid));
     }
 
     public function test_validation_custom_state(): void
@@ -99,7 +99,7 @@ class WorkflowValidationTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make(state: new CustomState())->addNode($node);
+        $workflow = Workflow::make('workflow_1', new CustomState())->addNode($node);
         $state = $this->execute($workflow);
         $this->assertInstanceOf(CustomState::class, $state);
         $this->assertEquals('custom property', $state->custom);
@@ -160,7 +160,7 @@ class WorkflowValidationTest extends TestCase
 
     public function test_default_lease_timeout_must_be_positive(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class (workflowId: 'workflow_1') extends Workflow {
             protected function leaseTimeout(): int
             {
                 return 0;

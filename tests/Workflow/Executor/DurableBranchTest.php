@@ -97,7 +97,7 @@ class DurableBranchTest extends TestCase
             }
         };
 
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('workflow_1')->addNodes([
             $firstFork,
             $branch,
             new MergeWithContinuationNode(),

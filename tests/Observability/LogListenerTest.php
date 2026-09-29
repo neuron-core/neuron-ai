@@ -63,7 +63,7 @@ class LogListenerTest extends TestCase
     {
         $logger = $this->recordingLogger();
 
-        Workflow::make()
+        Workflow::make('workflow_1')
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
             ->subscribe(ObservabilityEvent::class, new LogListener($logger))
             ->run();
@@ -96,13 +96,13 @@ class LogListenerTest extends TestCase
     {
         $logger = $this->recordingLogger();
 
-        Workflow::make()
+        Workflow::make('workflow_1')
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
             ->observe(new LogObserver($logger))
             ->run();
 
         $listenerLogger = $this->recordingLogger();
-        Workflow::make()
+        Workflow::make('workflow_2')
             ->addNodes([new NodeOne(), new NodeTwo(), new NodeThree()])
             ->subscribe(ObservabilityEvent::class, new LogListener($listenerLogger))
             ->run();

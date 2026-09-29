@@ -71,7 +71,7 @@ class ToolRunLimitTest extends TestCase
             $calls[] = new ToolCallMessage(null, [new ToolCall('lookup', "call-{$turn}", ['query' => "q{$turn}"])]);
         }
         $this->provider->addResponses(...$calls);
-        $agent = Agent::make()->setAiProvider($this->provider)->addTool(new CountingTool());
+        $agent = Agent::make()->setThreadId('tool-run-limit')->setAiProvider($this->provider)->addTool(new CountingTool());
 
         try {
             $agent->chat(new UserMessage('Keep looking'));

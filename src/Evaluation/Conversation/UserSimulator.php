@@ -7,6 +7,7 @@ namespace NeuronAI\Evaluation\Conversation;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
+use NeuronAI\UniqueIdGenerator;
 use Throwable;
 
 use function preg_replace;
@@ -64,7 +65,9 @@ class UserSimulator extends Agent
         }
 
         // Before the first step the simulator has no conversation yet.
-        if ($this->getThreadId() !== null) {
+        if ($this->getThreadId() === null) {
+            $this->setThreadId(UniqueIdGenerator::generateId('sim_'));
+        } else {
             $this->resetConversation();
         }
 

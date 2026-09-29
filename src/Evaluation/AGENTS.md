@@ -43,6 +43,8 @@ class RefundEvaluator extends BaseEvaluator
 }
 ```
 
+Neither agent needs a thread ID: `Conversation` and the agent judges bind an unbound agent to a generated scratch thread, as `UserSimulator` does for itself.
+
 ### Assertions and scores
 
 `AssertionInterface::evaluate(mixed $actual)` is the polymorphic seam, but each family (`StringAssertion`, `TrajectoryAssertion`, judges) enforces its concrete input and **throws `InvalidArgumentException`** on a mismatch: a wrong input type is a coding error in the evaluator, reported by the runner as a per-item *error*, never as a failed assertion about the agent.

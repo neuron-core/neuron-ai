@@ -8,7 +8,6 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Middleware\WorkflowMiddleware;
 use Closure;
 use Generator;
-use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Observability\ListenerRegistry;
@@ -106,8 +105,8 @@ class Workflow implements WorkflowInterface
     }
 
     /**
-     * The workflow address, resolved without initializing a run or services.
-     * Only unkeyed workflows remain unidentified until execution.
+     * The workflow address, resolved without initializing a run or services:
+     * null until one is bound or declared.
      */
     public function getWorkflowId(): ?string
     {
@@ -257,12 +256,13 @@ class Workflow implements WorkflowInterface
         return $this->consume($this->events($request));
     }
 
-    /** @phpstan-impure Every call reads the run as persistence holds it now. */
+    /**
+     * @phpstan-impure Every call reads the run as persistence holds it now.
+     * @throws WorkflowException
+     */
     public function inspect(): ?WorkflowRunSnapshot
     {
-        $workflowId = $this->getWorkflowId();
-
-        return $workflowId === null ? null : $this->getEngine()->inspect($workflowId);
+        return $this->getEngine()->inspect($this->requireWorkflowId());
     }
 
     /**
@@ -271,6 +271,7 @@ class Workflow implements WorkflowInterface
      * @param array<array-key, mixed> $payload
      * @return PendingExecution<TState>
      * @throws InputTranslationException
+     * @throws WorkflowException
      */
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingExecution
     {
@@ -302,20 +303,22 @@ class Workflow implements WorkflowInterface
      */
     public function events(?ExecutionRequest $request = null): Generator
     {
+        // Checked before the lazy part, so a streaming endpoint learns it before sending headers.
+        return $this->execute($this->requireWorkflowId(), $request);
+    }
+
+    /**
+     * @return Generator<int, object, mixed, TState>
+     * @throws WorkflowException
+     */
+    protected function execute(string $workflowId, ?ExecutionRequest $request): Generator
+    {
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
 
         if ($request->starting && !$request->event() instanceof \NeuronAI\Workflow\Events\Event) {
             $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->recoverFailed);
         }
 
-        $workflowId = $this->getWorkflowId();
-        if ($workflowId === null && !$request->starting) {
-            throw new WorkflowException(
-                'Cannot identify the run to continue: no workflow ID was provided '
-                . 'and the workflow declares none.'
-            );
-        }
-        $this->setWorkflowId($workflowId ??= UniqueIdGenerator::generateId('workflow_'));
         $maxSteps = $this->getMaxSteps();
 
         $segment = $this->getEngine()->admit(
@@ -394,13 +397,15 @@ class Workflow implements WorkflowInterface
     }
 
     /**
+     * The framework never makes up an address: the workflow ID selects whose
+     * run is read and written, so executing without one is a programming error.
+     *
      * @throws WorkflowException
      */
     protected function requireWorkflowId(): string
     {
         return $this->getWorkflowId() ?? throw new WorkflowException(
-            'Cannot identify the run: no workflow ID was provided '
-            . 'and the workflow declares none.'
+            'This workflow has no workflow ID: bind one with setWorkflowId() first.'
         );
     }
 

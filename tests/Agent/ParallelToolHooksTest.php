@@ -60,7 +60,7 @@ class ParallelToolHooksTest extends TestCase
             new AssistantMessage('Done'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
@@ -94,7 +94,7 @@ class ParallelToolHooksTest extends TestCase
             ]),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
@@ -129,7 +129,7 @@ class ParallelToolHooksTest extends TestCase
             new AssistantMessage('Done'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
@@ -166,7 +166,7 @@ class ParallelToolHooksTest extends TestCase
             ]),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
@@ -202,7 +202,7 @@ class ParallelToolHooksTest extends TestCase
             ]),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->parallelToolCalls(
             true,
@@ -230,7 +230,7 @@ class ParallelToolHooksTest extends TestCase
             new AssistantMessage('Done'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addTool($tool);
         $agent->parallelToolCalls(

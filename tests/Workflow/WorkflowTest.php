@@ -23,6 +23,7 @@ use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
@@ -37,7 +38,7 @@ class WorkflowTest extends TestCase
 
     public function test_basic_linear_workflow_execution(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -56,7 +57,7 @@ class WorkflowTest extends TestCase
     {
         // Drive through the public run() entry point (not the executor helper) to
         // ensure the lazy generator is actually consumed and the state returned.
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -73,7 +74,7 @@ class WorkflowTest extends TestCase
 
     public function test_workflow_with_initial_state(): void
     {
-        $workflow = Workflow::make(state: new WorkflowState(['initial_data' => 'test']))
+        $workflow = Workflow::make('workflow_1', new WorkflowState(['initial_data' => 'test']))
             ->addNodes([
                 new NodeOne(),
                 new NodeTwo(),
@@ -97,7 +98,7 @@ class WorkflowTest extends TestCase
                 return $this->built[] = new NodeOne();
             }
         };
-        $workflow = Workflow::make()->addNodes([$factory(...), new NodeTwo(), new NodeThree()]);
+        $workflow = Workflow::make('workflow_1')->addNodes([$factory(...), new NodeTwo(), new NodeThree()]);
 
         $this->assertCount(0, $factory->built);
 
@@ -135,7 +136,7 @@ class WorkflowTest extends TestCase
             new NodeForThird(),
         ];
 
-        $workflow = Workflow::make(state: new WorkflowState(['condition' => 'second']))
+        $workflow = Workflow::make('workflow_1', new WorkflowState(['condition' => 'second']))
             ->addNodes($nodes);
 
         $finalState = $this->execute($workflow);
@@ -146,7 +147,7 @@ class WorkflowTest extends TestCase
         $this->assertEquals('Conditional chose second', $finalState->get('final_second_message'));
 
         // Test the third path
-        $workflow = Workflow::make(state: new WorkflowState(['condition' => 'third']))
+        $workflow = Workflow::make('workflow_2', new WorkflowState(['condition' => 'third']))
             ->addNodes($nodes);
         $finalState = $this->execute($workflow);
 
@@ -204,26 +205,55 @@ class WorkflowTest extends TestCase
         $this->assertTrue($state->get('node_three_executed'));
     }
 
-    public function test_identity_is_assigned_on_first_execution(): void
+    public function test_the_run_identity_is_assigned_on_first_execution(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
                 new NodeThree(),
             ]);
 
-        // Workflow establishes identity when execution starts.
-        $this->assertNull($workflow->getWorkflowId());
         $this->assertNull($workflow->inspect()?->runId);
 
         $state = $this->execute($workflow, new InMemoryPersistence());
 
-        $this->assertSame($state->getWorkflowId(), $workflow->getWorkflowId());
-        $this->assertNotEmpty($state->getWorkflowId());
-        $this->assertStringStartsWith('workflow_', $state->getWorkflowId());
+        $this->assertSame('workflow_1', $state->getWorkflowId());
+        $this->assertSame('workflow_1', $workflow->getWorkflowId());
         $this->assertNotEmpty($state->getRunId());
         $this->assertStringStartsWith('run_', $state->getRunId());
+    }
+
+    public function test_executing_an_unbound_workflow_throws_without_touching_persistence(): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects($this->never())->method($this->anything());
+        $workflow = Workflow::make()
+            ->setPersistence($persistence)
+            ->addNodes([
+                new NodeOne(),
+                new InterruptableNode(),
+                new NodeThree(),
+            ]);
+
+        try {
+            $workflow->run();
+            $this->fail('An unbound workflow must refuse to execute.');
+        } catch (WorkflowException $exception) {
+            $this->assertSame('This workflow has no workflow ID: bind one with setWorkflowId() first.', $exception->getMessage());
+        }
+
+        $this->assertNull($workflow->getWorkflowId());
+    }
+
+    public function test_inspecting_an_unbound_workflow_throws(): void
+    {
+        $workflow = Workflow::make()->addNode(new NodeOne());
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('This workflow has no workflow ID: bind one with setWorkflowId() first.');
+
+        $workflow->inspect();
     }
 
     public function test_interrupt_state_is_resumable_from_token(): void
@@ -232,7 +262,7 @@ class WorkflowTest extends TestCase
         // sharing only the persistence and the resume token.
         $persistence = new InMemoryPersistence();
 
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->addNodes([
                 new NodeOne(),
                 new InterruptableNode(),
@@ -288,7 +318,7 @@ class WorkflowTest extends TestCase
     public function test_a_configured_start_event_routes_to_its_node(): void
     {
         $start = new FirstEvent('configured start');
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->setStartEvent($start)
             ->addNodes([new NodeTwo(), new NodeThree()]);
 
@@ -301,7 +331,7 @@ class WorkflowTest extends TestCase
 
     public function test_the_start_event_hook_defines_the_default_start(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class (workflowId: 'workflow_1') extends Workflow {
             protected function startEvent(): FirstEvent
             {
                 return new FirstEvent('hook start');
@@ -319,7 +349,7 @@ class WorkflowTest extends TestCase
 
     public function test_a_start_request_without_an_event_uses_the_configured_start_event(): void
     {
-        $workflow = Workflow::make()
+        $workflow = Workflow::make('workflow_1')
             ->setStartEvent(new FirstEvent('configured start'))
             ->addNodes([new NodeTwo(), new NodeThree()]);
 
@@ -331,7 +361,7 @@ class WorkflowTest extends TestCase
 
     public function test_the_nodes_hook_is_rebuilt_for_every_segment(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class (workflowId: 'workflow_1') extends Workflow {
             /** @var array<NodeInterface[]> */
             public array $graphs = [];
 
@@ -351,7 +381,7 @@ class WorkflowTest extends TestCase
 
     public function test_hook_nodes_and_added_nodes_form_one_graph(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class (workflowId: 'workflow_1') extends Workflow {
             protected function nodes(): array
             {
                 return [new NodeOne()];
@@ -367,7 +397,7 @@ class WorkflowTest extends TestCase
 
     public function test_an_added_node_cannot_shadow_a_hook_node_for_the_same_event(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class (workflowId: 'workflow_1') extends Workflow {
             protected function nodes(): array
             {
                 return [new NodeOne()];
@@ -385,7 +415,7 @@ class WorkflowTest extends TestCase
     {
         $node = new ExposedNode();
         $executions = 0;
-        $workflow = Workflow::make()->addNode(function () use ($node, &$executions): NodeInterface {
+        $workflow = Workflow::make('workflow_1')->addNode(function () use ($node, &$executions): NodeInterface {
             $executions++;
             return $node;
         });
@@ -394,19 +424,37 @@ class WorkflowTest extends TestCase
 
         $this->assertInstanceOf(Generator::class, $events);
         $this->assertSame(0, $executions);
-        $this->assertNull($workflow->getWorkflowId());
         $this->assertNull($workflow->inspect());
 
         iterator_to_array($events);
 
         $this->assertSame(1, $executions);
         $this->assertSame(WorkflowStatus::Completed, $events->getReturn()->getStatus());
-        $this->assertSame($workflow->getWorkflowId(), $events->getReturn()->getWorkflowId());
+        $this->assertSame('workflow_1', $events->getReturn()->getWorkflowId());
+    }
+
+    public function test_events_refuses_an_unbound_workflow_before_iteration(): void
+    {
+        $executions = 0;
+        $workflow = Workflow::make()->addNode(function () use (&$executions): NodeInterface {
+            $executions++;
+            return new ExposedNode();
+        });
+
+        try {
+            $workflow->events();
+            $this->fail('events() must refuse an unbound workflow before returning the generator.');
+        } catch (WorkflowException $exception) {
+            $this->assertSame('This workflow has no workflow ID: bind one with setWorkflowId() first.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $executions);
+        $this->assertNull($workflow->getWorkflowId());
     }
 
     public function test_an_unreachable_node_is_accepted_but_never_executed(): void
     {
-        $workflow = Workflow::make()->addNodes([
+        $workflow = Workflow::make('workflow_1')->addNodes([
             new NodeOne(),
             new NodeTwo(),
             new NodeThree(),

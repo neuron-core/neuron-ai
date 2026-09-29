@@ -154,9 +154,7 @@ class Agent extends Workflow implements AgentInterface
     {
         return new ChatHistory(
             $this->resolveMessageStore(),
-            $this->getThreadId() ?? throw new AgentException(
-                'Chat history requires a conversation identity: call setThreadId() or execute the Agent first.'
-            ),
+            $this->requireWorkflowId(),
             $this->contextWindow ?? $this->contextWindow()
         );
     }
@@ -300,6 +298,16 @@ class Agent extends Workflow implements AgentInterface
         return $this->setWorkflowId($threadId);
     }
 
+    /**
+     * @throws AgentException
+     */
+    protected function requireWorkflowId(): string
+    {
+        return $this->getThreadId() ?? throw new AgentException(
+            'This agent has no thread ID: bind one with setThreadId() first.'
+        );
+    }
+
     protected function startEvent(): AgentStartEvent
     {
         return new AgentStartEvent();
@@ -375,6 +383,7 @@ class Agent extends Workflow implements AgentInterface
      * The tool calls still awaiting a human decision on the current interruption.
      *
      * @return Action[]
+     * @throws AgentException
      */
     public function pendingApprovals(): array
     {
@@ -393,6 +402,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @return PendingExecution<AgentState>
+     * @throws AgentException
      * @throws InputTranslationException
      * @throws WorkflowException
      */
@@ -403,6 +413,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @return PendingExecution<AgentState>
+     * @throws AgentException
      * @throws InputTranslationException
      * @throws WorkflowException
      */

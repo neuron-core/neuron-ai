@@ -313,7 +313,7 @@ class AgentTest extends TestCase
             new AssistantMessage('Helpful answer here')
         ));
 
-        $response = $agent->chat(
+        $response = $agent->setThreadId('test-thread')->chat(
             new UserMessage('Test question')
         )->getMessage();
 

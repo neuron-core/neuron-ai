@@ -606,7 +606,7 @@ class Person
 }
 
 // Use with agent
-$agent = MyAgent::make();
+$agent = MyAgent::make()->setThreadId('demo');
 
 $person = $agent->structured(
     new UserMessage("I'm John Doe, I'm 30 years old and I love pizza!"),

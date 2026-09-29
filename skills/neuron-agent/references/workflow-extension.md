@@ -82,7 +82,7 @@ class DemoVoiceAgent extends SpeechAgent
     }
 }
 
-$agent = DemoVoiceAgent::make();
+$agent = DemoVoiceAgent::make()->setThreadId('demo');
 $state = $agent->chat(new UserMessage('Say hello.'));
 
 if ($state->getStatus() === WorkflowStatus::Completed) {

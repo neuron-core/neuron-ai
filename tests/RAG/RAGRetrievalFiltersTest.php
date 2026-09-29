@@ -58,7 +58,7 @@ class RAGRetrievalFiltersTest extends TestCase
     public function test_middleware_filters_are_anded_with_the_retrieval_scope(): void
     {
         $store = new FakeVectorStore(schema: $this->schema());
-        $rag = RAG::make()->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
+        $rag = RAG::make()->setThreadId('thread_1')->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
             ->setRetrievalScope(Filter::eq('tenant', 'acme'));
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
         $rag->addMiddleware(RetrievalNode::class, $this->injecting(Filter::eq('lang', 'en')));
@@ -72,7 +72,7 @@ class RAGRetrievalFiltersTest extends TestCase
     public function test_injected_filters_do_not_leak_into_the_next_run(): void
     {
         $store = new FakeVectorStore(schema: $this->schema());
-        $rag = RAG::make()->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
+        $rag = RAG::make()->setThreadId('thread_1')->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore($store)
             ->setRetrievalScope(Filter::eq('tenant', 'acme'));
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('First'), new AssistantMessage('Second')));
         $rag->addMiddleware(RetrievalNode::class, $this->injecting(Filter::eq('lang', 'en'), onlyOnce: true));
@@ -99,7 +99,7 @@ class RAGRetrievalFiltersTest extends TestCase
             (new Document('Globex secrets'))->setMetadata(['tenant' => 'globex', 'lang' => 'en']),
         ]));
         $provider = new FakeAIProvider(new AssistantMessage('Answer'));
-        $rag = RAG::make()->setEmbeddingsProvider($embeddings)->setVectorStore($store)->setRetrievalScope(Filter::eq('tenant', 'acme'));
+        $rag = RAG::make()->setThreadId('thread_1')->setEmbeddingsProvider($embeddings)->setVectorStore($store)->setRetrievalScope(Filter::eq('tenant', 'acme'));
         $rag->setAiProvider($provider);
         $rag->addMiddleware(RetrievalNode::class, $this->injecting(
             FilterGroup::anyOf(Filter::eq('tenant', 'globex'), Filter::eq('lang', 'en')),

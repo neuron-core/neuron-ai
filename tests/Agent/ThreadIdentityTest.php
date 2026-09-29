@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent;
 
+use Closure;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\History\InMemoryMessageStore;
@@ -15,43 +16,90 @@ use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
+use NeuronAI\Tests\StructuredOutput\Stub\User;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
 use function iterator_to_array;
+use function serialize;
 
 class ThreadIdentityTest extends TestCase
 {
-    public function test_construction_and_lazy_stream_creation_leave_identity_unbound(): void
+    /** @return iterable<string, array{Closure(Agent): void}> */
+    public static function verbs(): iterable
     {
-        $agent = Agent::make();
-        $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')));
-        $stream = $agent->stream(new UserMessage('Hello'));
+        yield 'chat' => [static function (Agent $agent): void {
+            $agent->chat(new UserMessage('Hello'));
+        }];
+        yield 'stream, before iteration' => [static function (Agent $agent): void {
+            $agent->stream(new UserMessage('Hello'));
+        }];
+        yield 'structured' => [static function (Agent $agent): void {
+            $agent->structured(new UserMessage('Hello'), User::class);
+        }];
+        yield 'run' => [static function (Agent $agent): void {
+            $agent->run();
+        }];
+        yield 'inspect' => [static function (Agent $agent): void {
+            $agent->inspect();
+        }];
+        yield 'submitInputs' => [static function (Agent $agent): void {
+            $agent->submitInputs([]);
+        }];
+        yield 'submitApprovalDecisions' => [static function (Agent $agent): void {
+            $agent->submitApprovalDecisions([]);
+        }];
+        yield 'submitToolResults' => [static function (Agent $agent): void {
+            $agent->submitToolResults([]);
+        }];
+        yield 'pendingApprovals' => [static function (Agent $agent): void {
+            $agent->pendingApprovals();
+        }];
+        yield 'getChatHistory' => [static function (Agent $agent): void {
+            $agent->getChatHistory();
+        }];
+        yield 'resetConversation' => [static function (Agent $agent): void {
+            $agent->resetConversation();
+        }];
+        yield 'abandon' => [static function (Agent $agent): void {
+            $agent->abandon();
+        }];
+    }
+
+    /**
+     * A shared, unbound Agent must never make up a thread: one it kept would
+     * carry one user's conversation into the next user's requests.
+     *
+     * @param Closure(Agent): void $verb
+     */
+    #[DataProvider('verbs')]
+    public function test_unbound_agent_refuses_the_call_without_binding_or_writing(Closure $verb): void
+    {
+        $persistence = new InMemoryPersistence();
+        $messages = new InMemoryMessageStore();
+        $agent = Agent::make()->setPersistence($persistence)->setMessageStore($messages)
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')));
+        $before = [serialize($persistence), serialize($messages)];
+
+        try {
+            $verb($agent);
+            self::fail('An unbound agent has no thread to serve the call.');
+        } catch (AgentException $error) {
+            self::assertSame('This agent has no thread ID: bind one with setThreadId() first.', $error->getMessage());
+        }
 
         self::assertNull($agent->getThreadId());
         self::assertNull($agent->getWorkflowId());
-        self::assertNull($agent->inspect());
+        self::assertSame($before, [serialize($persistence), serialize($messages)]);
 
-        $agent->setThreadId('conversation');
-        iterator_to_array($stream);
+        $state = $agent->setThreadId('thread_1')->chat(new UserMessage('Hello'));
 
-        self::assertSame('conversation', $stream->getReturn()->getWorkflowId());
-        self::assertSame('conversation', $agent->getChatHistory()->getThreadId());
-    }
-
-    public function test_unbound_history_access_throws_without_binding_the_agent(): void
-    {
-        $agent = Agent::make();
-        try {
-            $agent->getChatHistory();
-            self::fail('History access requires a conversation identity.');
-        } catch (AgentException $error) {
-            self::assertStringContainsString('setThreadId()', $error->getMessage());
-        }
-        self::assertNull($agent->getThreadId());
+        self::assertSame('thread_1', $state->getWorkflowId());
+        self::assertCount(2, $messages->loadActive('thread_1'));
     }
 
     public function test_turns_reuse_the_configured_identity_and_history(): void
@@ -86,18 +134,6 @@ class ThreadIdentityTest extends TestCase
         self::assertSame($first->getRunId(), $state->getRunId());
         self::assertSame('Saved', $state->getMessage()->getContent());
         self::assertSame('conversation', $agent->getThreadId());
-    }
-
-    public function test_first_execution_stores_the_conversation_under_the_generated_identity(): void
-    {
-        $messages = new SqliteMessageStore();
-        $agent = Agent::make()->setMessageStore($messages)
-            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi')));
-
-        $state = $agent->chat(new UserMessage('Hello'));
-
-        self::assertSame($state->getWorkflowId(), $agent->getThreadId());
-        self::assertCount(2, $messages->loadActive($state->getWorkflowId()));
     }
 
     public function test_identity_setters_share_one_binding_and_reject_rebinding(): void
@@ -221,14 +257,14 @@ class ThreadIdentityTest extends TestCase
         $this->assertCount(1, $provider->getRecorded()[1]->messages);
     }
 
-    public function test_generated_identity_cannot_be_replaced_after_execution(): void
+    public function test_bound_identity_cannot_be_replaced_after_execution(): void
     {
-        $agent = Agent::make()->setAiProvider(new FakeAIProvider(new AssistantMessage('Reply')));
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage('Reply')));
         $state = $agent->chat(new UserMessage('Hello'));
 
         try {
             $agent->setThreadId('another-thread');
-            self::fail('Generated identities remain bound after execution.');
+            self::fail('Identities remain bound after execution.');
         } catch (WorkflowException) {
             self::assertSame($state->getWorkflowId(), $agent->getThreadId());
             self::assertCount(2, $agent->getChatHistory()->getMessages());
@@ -267,22 +303,6 @@ class ThreadIdentityTest extends TestCase
         // engine refuses the contradiction before any record is touched.
         $this->expectException(WorkflowException::class);
         $first->setThreadId('thread-other');
-    }
-
-    public function test_generated_identity_and_default_store_are_retained_across_turns(): void
-    {
-        $agent = Agent::make()->setAiProvider(
-            new FakeAIProvider(new AssistantMessage('One'), new AssistantMessage('Two')),
-        );
-        $first = $agent->chat(new UserMessage('First'));
-        $second = $agent->chat(new UserMessage('Second'));
-
-        self::assertNotNull($agent->getThreadId());
-        self::assertSame($first->getWorkflowId(), $second->getWorkflowId());
-        self::assertSame($first->getWorkflowId(), $agent->getThreadId());
-        self::assertNotSame($first->getRunId(), $second->getRunId());
-        self::assertSame($agent->getThreadId(), $agent->getChatHistory()->getThreadId());
-        self::assertCount(4, $agent->getChatHistory()->getMessages());
     }
 
     public function test_every_access_opens_a_fresh_view_of_the_conversation(): void

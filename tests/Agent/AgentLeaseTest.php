@@ -82,7 +82,7 @@ class AgentLeaseTest extends TestCase
             }
         };
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hi!')));
         $agent->setMessageStore(new InMemoryMessageStore());
         $agent->setPersistence($persistence);
@@ -144,7 +144,7 @@ class AgentLeaseTest extends TestCase
         };
 
         try {
-            $workflow->setPersistence($persistence)->run();
+            $workflow->setWorkflowId('workflow_1')->setPersistence($persistence)->run();
         } catch (Throwable) {
             // Neither a provider nor nodes are configured: only the admission matters.
         }

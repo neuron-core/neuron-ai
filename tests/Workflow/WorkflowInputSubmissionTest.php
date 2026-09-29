@@ -175,15 +175,19 @@ class WorkflowInputSubmissionTest extends TestCase
         }
     }
 
-    public function test_unbound_submission_does_not_generate_an_identity(): void
+    public function test_unbound_submission_throws_without_binding_or_persisting_anything(): void
     {
-        $workflow = Workflow::make();
+        $persistence = new InMemoryPersistence();
+        $workflow = Workflow::make()->setPersistence($persistence);
+        $before = serialize($persistence);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('This workflow has no workflow ID: bind one with setWorkflowId() first.');
         try {
             $workflow->submitInputs([]);
-            self::fail('A submission needs a bound workflow with a persisted run.');
-        } catch (InputTranslationException $e) {
-            self::assertSame('There is no persisted run to continue.', $e->getMessage());
+        } finally {
             self::assertNull($workflow->getWorkflowId());
+            self::assertSame($before, serialize($persistence));
         }
     }
 

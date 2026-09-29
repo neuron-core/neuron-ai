@@ -30,6 +30,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -41,7 +42,7 @@ use function str_repeat;
 
 /**
  * Key-based identity: a run's durable records live in the partition named
- * by its workflow ID (the declared business key, or a generated handle), with the
+ * by its workflow ID (the declared business key, or one bound by the caller), with the
  * ignition record as the generation head. One live run per workflow ID, enforced
  * by refusal, except that a dead generation (failed, or lease expired) is
  * swept by the next ignition; completion sweeps the whole partition, leaving
@@ -51,27 +52,86 @@ class WorkflowIdentityTest extends TestCase
 {
     use ExecutorTestHelpers;
 
-    public function test_workflow_binds_identity_before_admission(): void
+    /** @return iterable<string, array{Closure(Workflow): void}> */
+    public static function verbs(): iterable
     {
-        foreach ([null, 'explicit-address'] as $address) {
-            $workflow = Workflow::make()->addNode(new MemoizingNode());
-            $workflow->setResources(function () use ($workflow, $address): WorkflowResources {
-                // Resources are built after admission, so the run is found under the bound address.
-                self::assertSame(WorkflowStatus::Running, $workflow->inspect()?->status);
-                if ($address !== null) {
-                    self::assertSame($address, $workflow->getWorkflowId());
-                }
-                return new WorkflowResources();
-            });
-            if ($address !== null) {
-                $workflow->setWorkflowId($address);
-            }
-            $stream = $workflow->events(ExecutionRequest::start());
-            self::assertSame($address, $workflow->getWorkflowId());
+        yield 'run, starting' => [static function (Workflow $workflow): void {
+            $workflow->run();
+        }];
+        yield 'run, continuing' => [static function (Workflow $workflow): void {
+            $workflow->run(ExecutionRequest::resume([]));
+        }];
+        yield 'events, before iteration' => [static function (Workflow $workflow): void {
+            $workflow->events();
+        }];
+        yield 'inspect' => [static function (Workflow $workflow): void {
+            $workflow->inspect();
+        }];
+        yield 'submitInputs' => [static function (Workflow $workflow): void {
+            $workflow->submitInputs([]);
+        }];
+        yield 'acknowledge' => [static function (Workflow $workflow): void {
+            $workflow->acknowledge('run_1');
+        }];
+        yield 'abandon' => [static function (Workflow $workflow): void {
+            $workflow->abandon();
+        }];
+    }
 
-            iterator_to_array($stream);
-            self::assertSame($stream->getReturn()->getWorkflowId(), $workflow->getWorkflowId());
+    /**
+     * The framework never makes up an address: a generated one would be
+     * retained by the instance and shared by every later caller.
+     *
+     * @param Closure(Workflow): void $verb
+     */
+    #[DataProvider('verbs')]
+    public function test_unbound_workflow_refuses_the_call_without_binding_or_persisting(Closure $verb): void
+    {
+        $persistence = new InMemoryPersistence();
+        $before = serialize($persistence);
+        $workflow = Workflow::make()->setPersistence($persistence)
+            ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
+
+        try {
+            $verb($workflow);
+            self::fail('An unbound workflow has no run to address.');
+        } catch (WorkflowException $error) {
+            self::assertSame('This workflow has no workflow ID: bind one with setWorkflowId() first.', $error->getMessage());
         }
+
+        self::assertNull($workflow->getWorkflowId());
+        self::assertSame($before, serialize($persistence));
+
+        $state = $workflow->setWorkflowId('workflow_1')->run();
+
+        self::assertTrue($state->isInterrupted());
+        self::assertSame('workflow_1', $state->getWorkflowId());
+    }
+
+    public function test_a_declared_workflow_id_counts_as_bound(): void
+    {
+        $workflow = KeyedWorkflow::make()->withDeclaredWorkflowId('workflow_1');
+
+        // No run holds the ID yet: inspection answers instead of refusing.
+        self::assertNull($workflow->inspect());
+        self::assertSame('workflow_1', $workflow->run()->getWorkflowId());
+    }
+
+    public function test_the_run_is_admitted_under_the_bound_workflow_id_before_resources_are_built(): void
+    {
+        $workflow = Workflow::make()->addNode(new MemoizingNode());
+        $workflow->setResources(function () use ($workflow): WorkflowResources {
+            // Resources are built after admission, so the run is found under the bound address.
+            self::assertSame(WorkflowStatus::Running, $workflow->inspect()?->status);
+            self::assertSame('workflow_1', $workflow->getWorkflowId());
+            return new WorkflowResources();
+        });
+        $workflow->setWorkflowId('workflow_1');
+        $stream = $workflow->events(ExecutionRequest::start());
+        self::assertSame('workflow_1', $workflow->getWorkflowId());
+
+        iterator_to_array($stream);
+        self::assertSame($stream->getReturn()->getWorkflowId(), $workflow->getWorkflowId());
     }
 
     public function test_setter_binds_once_and_preserves_identity_after_rejection(): void
@@ -108,14 +168,6 @@ class WorkflowIdentityTest extends TestCase
         $this->expectException(WorkflowException::class);
         $this->expectExceptionMessage("This workflow is bound to 'declared' and cannot be re-pointed to 'other'.");
         $workflow->setWorkflowId('other');
-    }
-
-    public function test_inspection_does_not_bind_an_unbound_instance(): void
-    {
-        $workflow = Workflow::make();
-
-        self::assertNull($workflow->inspect());
-        self::assertNull($workflow->getWorkflowId());
     }
 
     public function test_records_live_under_the_declared_workflow_id(): void
@@ -348,18 +400,6 @@ class WorkflowIdentityTest extends TestCase
         );
     }
 
-    public function test_continuation_without_any_workflow_id_throws(): void
-    {
-        $this->expectException(WorkflowException::class);
-        $this->expectExceptionMessage('the workflow declares none');
-
-        $this->resume(
-            Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]),
-            new InMemoryPersistence(),
-            [],
-        );
-    }
-
     public function test_declared_and_explicit_workflow_id_conflict_throws(): void
     {
         $this->expectException(WorkflowException::class);
@@ -426,10 +466,11 @@ class WorkflowIdentityTest extends TestCase
         $this->assertSame('completed', $state->get('received_feedback'));
     }
 
-    public function test_generated_workflow_id_is_the_continuation_handle(): void
+    public function test_bound_workflow_id_is_the_continuation_handle(): void
     {
         $persistence = new InMemoryPersistence();
-        $workflow = Workflow::make()->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
+        $workflow = Workflow::make()->setWorkflowId('workflow_1')
+            ->addNodes([new NodeOne(), new InterruptableNode(), new NodeThree()]);
         $state = $this->execute($workflow, $persistence);
 
         $workflowId = $state->getWorkflowId();

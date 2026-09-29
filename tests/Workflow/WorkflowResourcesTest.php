@@ -90,7 +90,7 @@ class WorkflowResourcesTest extends TestCase
 
     public function test_the_factory_wins_over_the_hook_and_runs_once_per_segment(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class ('workflow_1') extends Workflow {
             public int $hookCalls = 0;
 
             protected function resources(): WorkflowResources
@@ -133,7 +133,7 @@ class WorkflowResourcesTest extends TestCase
 
     public function test_the_hook_builds_fresh_resources_for_every_segment(): void
     {
-        $workflow = new class () extends Workflow {
+        $workflow = new class ('workflow_1') extends Workflow {
             /** @var WorkflowResources[] */
             public array $built = [];
 

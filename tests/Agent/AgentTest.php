@@ -43,7 +43,7 @@ class AgentTest extends TestCase
             new AssistantMessage('Hello! How can I help you?')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
 
         $message = $agent->chat(new UserMessage('Hi'))->getMessage();
@@ -58,7 +58,7 @@ class AgentTest extends TestCase
             new AssistantMessage('Bonjour!')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('Always respond in French.');
 
@@ -80,7 +80,7 @@ class AgentTest extends TestCase
             new AssistantMessage('Based on my search, here are the top PHP frameworks...')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addTool($searchTool);
 
@@ -107,7 +107,7 @@ class AgentTest extends TestCase
         );
         $provider->setStreamChunkSize(5);
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
 
         $gen = $agent->stream(new UserMessage('Hi'));
@@ -156,7 +156,7 @@ class AgentTest extends TestCase
             new AssistantMessage('{"name": "Alice"}')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
 
         $user = $agent->structured(
@@ -177,7 +177,7 @@ class AgentTest extends TestCase
             new AssistantMessage('{"name": "Alice"}'),
         );
 
-        $user = Agent::make()->setAiProvider($provider)->structured(new UserMessage('Generate a user'), User::class, maxRetries: 2);
+        $user = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->structured(new UserMessage('Generate a user'), User::class, maxRetries: 2);
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame('Alice', $user->name);
@@ -189,7 +189,7 @@ class AgentTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('not json'), new AssistantMessage('{"name": "Alice"}'));
 
         try {
-            Agent::make()->setAiProvider($provider)->structured(new UserMessage('Generate a user'), User::class, maxRetries: 0);
+            Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->structured(new UserMessage('Generate a user'), User::class, maxRetries: 0);
             $this->fail('An invalid answer with no retry budget must fail the call.');
         } catch (AgentException $exception) {
             $this->assertSame('The response does not contains a valid JSON Object.', $exception->getMessage());
@@ -205,7 +205,7 @@ class AgentTest extends TestCase
             new AssistantMessage('The capital of France is Paris.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
 
         $first = $agent->chat(new UserMessage('Hello'))->getMessage();
@@ -232,7 +232,7 @@ class AgentTest extends TestCase
             new AssistantMessage('Here is my answer.')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addTool($visibleTool);
         $agent->addTool($hiddenTool);
@@ -249,7 +249,7 @@ class AgentTest extends TestCase
             new AssistantMessage('OK')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->chat(new UserMessage('Hello'))->getMessage();
 
@@ -271,7 +271,7 @@ class AgentTest extends TestCase
         );
 
         $handled = [];
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addTool($failingTool);
         $agent->toolErrorHandler(function (Throwable $e, ToolCall $call) use (&$handled): string {
@@ -297,7 +297,7 @@ class AgentTest extends TestCase
             new ToolCallMessage(null, [ToolCall::make('failing_tool', 'call_1', ['input' => 'test'])]),
             new AssistantMessage('This should not be reached.')
         );
-        $agent = Agent::make()->setAiProvider($provider)->addTool(new AgentFailingTool());
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool(new AgentFailingTool());
         $agent->toolErrorHandler(fn (Throwable $e, ToolCall $call): ?string => null);
 
         try {
@@ -321,7 +321,7 @@ class AgentTest extends TestCase
             new ToolCallMessage(null, [ToolCall::make('drop_database', 'call_1')]),
             new AssistantMessage('This should not be reached.')
         );
-        $agent = Agent::make()->setAiProvider($provider)->addTool(new AgentSearchTool());
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool(new AgentSearchTool());
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('The tool drop_database is not registered on this agent: the call cannot be executed.');
@@ -335,7 +335,7 @@ class AgentTest extends TestCase
             new ToolCallMessage(null, [ToolCall::make('secret', 'call_1')]),
             new AssistantMessage('This should not be reached.')
         );
-        $agent = Agent::make()->setAiProvider($provider)->addTool((new AgentSecretTool())->visible(false));
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool((new AgentSecretTool())->visible(false));
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('The tool secret is not registered on this agent');
@@ -346,7 +346,7 @@ class AgentTest extends TestCase
     public function test_a_hidden_toolkit_tool_is_neither_offered_nor_listed_in_the_guidelines(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done'));
-        $agent = Agent::make()->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
 
         $agent->chat(new UserMessage('Hi'));
 
@@ -367,7 +367,7 @@ class AgentTest extends TestCase
             new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'x'])]),
             new AssistantMessage('This should not be reached.')
         );
-        $agent = Agent::make()->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->addTool($this->weatherToolkitHidingSearch());
 
         $this->expectException(ToolException::class);
         $this->expectExceptionMessage('The tool search is not registered on this agent');
@@ -392,7 +392,7 @@ class AgentTest extends TestCase
         $this->expectException(AgentException::class);
         $this->expectExceptionMessage('No AI provider configured: override the provider() method in your agent, or call setAiProvider().');
 
-        Agent::make()->chat(new UserMessage('Hi'));
+        Agent::make()->setThreadId('thread_1')->chat(new UserMessage('Hi'));
     }
 
     public function test_structured_output_without_a_class_is_refused(): void
@@ -400,7 +400,7 @@ class AgentTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('{"name": "Alice"}'));
 
         try {
-            Agent::make()->setAiProvider($provider)->structured(new UserMessage('Generate a user'));
+            Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->structured(new UserMessage('Generate a user'));
             $this->fail('A structured call needs an output class.');
         } catch (AgentException $exception) {
             $this->assertSame('You need to set a structured output class.', $exception->getMessage());
@@ -420,7 +420,7 @@ class AgentTest extends TestCase
             new AssistantMessage('This should not be reached.')
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addTool($failingTool);
         // No error handler set - default behavior

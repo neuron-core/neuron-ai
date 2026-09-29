@@ -47,7 +47,7 @@ class StreamFailureDeliveryTest extends TestCase
     ): void {
         $error = new RuntimeException('Provider unavailable', 503);
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(workflowId: 'workflow_1')
             ->addNodes([new FailingStreamNode($error, $emitChunk)])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
             ->setChannel(fn (): ?StreamingChannelInterface => $push ? $channel : null);
@@ -109,7 +109,7 @@ class StreamFailureDeliveryTest extends TestCase
         $adapter->expects($this->once())->method('error')->with($this->identicalTo($error))->willReturn([$failed]);
         $adapter->expects($this->never())->method('end');
         $channel = new FakeChannel();
-        $workflow = Workflow::make()
+        $workflow = Workflow::make(workflowId: 'workflow_1')
             ->addNodes([new FailingStreamNode($error, false)])
             ->setStreamAdapter(fn (): StreamAdapterInterface => $adapter)
             ->setChannel(fn (): StreamingChannelInterface => $channel);

@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\JudgeScoreOutput;
 use NeuronAI\Evaluation\Conversation\Trajectory;
+use NeuronAI\UniqueIdGenerator;
 
 use function get_debug_type;
 use function implode;
@@ -49,8 +50,11 @@ class AgentJudge extends AbstractAssertion
 
         $prompt = $this->buildPrompt($actual);
 
-        // A shared judge must not carry earlier judgments into this one
-        if ($this->judge->getThreadId() !== null) {
+        // A judgment is a private exchange: an unbound judge gets a scratch
+        // thread, and a shared one must not carry earlier judgments into this one.
+        if ($this->judge->getThreadId() === null) {
+            $this->judge->setThreadId(UniqueIdGenerator::generateId('judge_'));
+        } else {
             $this->judge->resetConversation();
         }
 

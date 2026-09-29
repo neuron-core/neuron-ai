@@ -29,6 +29,7 @@ $agent = Agent::make()
 // CLI demo can make one up.
 $threadId = \uniqid();
 $stream = $agent
+    ->setThreadId($threadId)
     ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter(threadId: $threadId))
     ->stream(new UserMessage('What is the square root of 144?'));
 

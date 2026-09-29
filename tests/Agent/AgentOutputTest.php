@@ -66,7 +66,7 @@ class AgentOutputTest extends TestCase
 
     public function test_output_waits_until_tool_approval_and_final_inference(): void
     {
-        $agent = OutputAgent::make();
+        $agent = OutputAgent::make(workflowId: 'output-approval');
         $agent->setAiProvider(new FakeAIProvider(
             new ToolCallMessage(null, [new ToolCall('get_weather', 'weather-1', ['location' => 'Rome'])]),
             new AssistantMessage('Sunny.'),

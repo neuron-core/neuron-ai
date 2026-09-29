@@ -42,7 +42,7 @@ class SpeechAgentTest extends TestCase
     public function test_chat_preserves_input_metadata_and_block_order_without_mutating_the_caller(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('It is sunny.'));
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider($provider);
         $input = new UserMessage([new TextContent('Please answer:'), $this->audio('Weather in Rome?')]);
         $input->addMetadata('source', 'microphone');
@@ -64,7 +64,7 @@ class SpeechAgentTest extends TestCase
 
     public function test_multiple_audio_blocks_are_transcribed_in_order(): void
     {
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $state = $agent->chat(new UserMessage([$this->audio('Hello'), $this->audio('world')]));
         $this->assertSame(['Hello', 'world'], $agent->transcribed);
         $this->assertSame('Hello world', $state->request->messages[0]->getContent());
@@ -72,7 +72,7 @@ class SpeechAgentTest extends TestCase
 
     public function test_stream_forwards_text_and_produces_audio_only_at_completion(): void
     {
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello there.')));
         $stream = $agent->stream(new UserMessage($this->audio('Hello')));
         $text = '';
@@ -93,7 +93,7 @@ class SpeechAgentTest extends TestCase
             new ToolCallMessage('Checking weather.', [new ToolCall('get_weather', 'weather-1', ['location' => 'Rome'])]),
             new AssistantMessage('Rome is sunny.'),
         );
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider($provider)
             ->addTool(GetWeatherTool::make()->requireApproval());
         $paused = $agent->chat(new UserMessage($this->audio('Weather in Rome?')));
@@ -138,7 +138,7 @@ class SpeechAgentTest extends TestCase
 
     public function test_new_turn_does_not_expose_previous_audio_during_approval(): void
     {
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider(new FakeAIProvider(
             new AssistantMessage('First reply.'),
             new ToolCallMessage(null, [new ToolCall('get_weather', 'weather-2', ['location' => 'Rome'])]),
@@ -153,7 +153,7 @@ class SpeechAgentTest extends TestCase
 
     public function test_structured_returns_the_object_while_audio_remains_in_state(): void
     {
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider(new FakeAIProvider(new AssistantMessage('{"name":"Ada"}')));
         $result = $agent->structured(new UserMessage($this->audio('My name is Ada.')), User::class);
         $this->assertInstanceOf(User::class, $result);
@@ -165,7 +165,7 @@ class SpeechAgentTest extends TestCase
     public function test_inference_middleware_runs_on_the_original_chat_node(): void
     {
         $middleware = new FakeMiddleware();
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->addMiddleware(InferenceNode::class, $middleware);
         $agent->chat(new UserMessage($this->audio('Hello')));
         $this->assertCount(1, $middleware->getBeforeRecords());
@@ -185,7 +185,7 @@ class SpeechAgentTest extends TestCase
 
     public function test_add_node_cannot_replace_an_existing_event_handler(): void
     {
-        $agent = Agent::make();
+        $agent = Agent::make(workflowId: 'speech');
         $agent->setAiProvider(new FakeAIProvider());
         $agent->addNode(new ChatNode(new FakeAIProvider(), $agent->getChatHistory()));
         $this->expectException(WorkflowException::class);
@@ -212,7 +212,7 @@ class SpeechAgentTest extends TestCase
     public function test_transcription_failure_does_not_call_the_llm_or_write_history(): void
     {
         $provider = new FakeAIProvider();
-        $agent = DemoSpeechAgent::make();
+        $agent = DemoSpeechAgent::make(workflowId: 'speech');
         $agent->setAiProvider($provider);
         try {
             $agent->chat(new UserMessage(new AudioContent('invalid base64!', SourceType::BASE64)));

@@ -13,6 +13,7 @@ use NeuronAI\Tools\Toolkits\Calculator\CalculatorToolkit;
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 $agent = Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider(
         new Anthropic(
             '',

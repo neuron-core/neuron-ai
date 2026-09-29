@@ -17,6 +17,7 @@ class Person
 }
 
 $result = Agent::make()
+    ->setThreadId('demo')
     ->setAiProvider(
         new Anthropic(
             '',

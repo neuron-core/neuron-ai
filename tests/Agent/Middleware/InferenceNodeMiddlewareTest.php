@@ -43,7 +43,7 @@ class InferenceNodeMiddlewareTest extends TestCase
 
         $middleware = FakeMiddleware::make();
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addMiddleware(InferenceNode::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 
@@ -64,7 +64,7 @@ class InferenceNodeMiddlewareTest extends TestCase
 
         $middleware = FakeMiddleware::make();
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->addMiddleware(InferenceNode::class, fn (): \NeuronAI\Testing\FakeMiddleware => $middleware);
 

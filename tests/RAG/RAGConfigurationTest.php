@@ -44,7 +44,7 @@ class RAGConfigurationTest extends TestCase
         $postProcessor->expects(self::once())->method('process')
             ->with(self::isInstanceOf(UserMessage::class), [$nextDocument])
             ->willReturn([new Document('Processed context')]);
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider);
         $rag->setEmbeddingsProvider($firstEmbeddings)->setVectorStore($firstStore)->setRetrievalScope($firstScope);
         $changed = false;
@@ -82,7 +82,7 @@ class RAGConfigurationTest extends TestCase
         $next = $this->createMock(RetrievalInterface::class);
         $next->expects(self::exactly(2))->method('retrieve')->willReturn([new Document('Next strategy')]);
         $provider = new FakeAIProvider(new AssistantMessage('One'), new AssistantMessage('Two'), new AssistantMessage('Three'));
-        $rag = RAG::make()->setRetrieval($first);
+        $rag = RAG::make()->setThreadId('thread_1')->setRetrieval($first);
         $rag->setAiProvider($provider);
         $rag->subscribe(WorkflowStart::class, static function () use ($rag, $next): void {
             $rag->setRetrieval($next);
@@ -125,6 +125,7 @@ class RAGConfigurationTest extends TestCase
                 return [$this->declaredPost];
             }
         };
+        $rag->setThreadId('thread_1');
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore([new Document('Context')]))
             ->setPreProcessors([$configuredPre])->setPostProcessors([$configuredPost]);
@@ -142,7 +143,7 @@ class RAGConfigurationTest extends TestCase
         $currentPre->expects(self::once())->method('process')->willReturnArgument(0);
         $currentPost = $this->createMock(PostProcessorInterface::class);
         $currentPost->expects(self::once())->method('process')->willReturnArgument(1);
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider(new FakeAIProvider(new AssistantMessage('Answer')));
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider())->setVectorStore(new FakeVectorStore([new Document('Context')]))
             ->setPreProcessors([$replacedPre])->setPreProcessors([$currentPre])
@@ -171,7 +172,7 @@ class RAGConfigurationTest extends TestCase
     public function test_processor_setters_reject_the_wrong_kind_of_processor_without_replacing_the_list(): void
     {
         $current = new LimitPostProcessor(1);
-        $rag = RAG::make()->setPostProcessors([$current]);
+        $rag = RAG::make()->setThreadId('thread_1')->setPostProcessors([$current]);
 
         try {
             /** @phpstan-ignore-next-line deliberately wrong type */
@@ -207,7 +208,7 @@ class RAGConfigurationTest extends TestCase
     public function test_a_turn_without_embeddings_provider_fails_before_inference(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Never sent'));
-        $rag = RAG::make();
+        $rag = RAG::make()->setThreadId('thread_1');
         $rag->setAiProvider($provider);
 
         try {

@@ -125,11 +125,11 @@ class DataAnalystAgent extends Agent
 
 ### 3) Talk to the Agent
 
-Send a message to the agent and get a response:
+Bind the agent to a conversation thread, then send it a message and get a response:
 
 ```php
 
-$agent = DataAnalystAgent::make();
+$agent = DataAnalystAgent::make()->setThreadId('user-42');
 
 
 $response = $agent->chat(
@@ -246,7 +246,7 @@ The select tool runs each query in a read-only transaction, so the database refu
 Ask the agent something about your database:
 
 ```php
-$response = DataAnalystAgent::make()->chat(
+$response = DataAnalystAgent::make()->setThreadId('demo')->chat(
     new UserMessage("How many orders we received today?")
 )->getMessage();
 
@@ -319,7 +319,7 @@ class Person
 /*
  * Talk to the agent requiring the structured output
  */
-$person = MyAgent::make()->structured(
+$person = MyAgent::make()->setThreadId('demo')->structured(
     new UserMessage("I'm John and I like pizza!"),
     Person::class
 );

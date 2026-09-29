@@ -130,7 +130,7 @@ class RedisChannelTest extends TestCase
 
     public function test_streams_an_agent_run_as_the_adapter_events_followed_by_the_completion(): void
     {
-        $agent = Agent::make()->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $this->channel());
+        $agent = Agent::make()->setThreadId('thread_1')->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())->setChannel(fn (): StreamingChannelInterface => $this->channel());
         $response = 'Hello world from Redis';
         $agent->setAiProvider((new FakeAIProvider(new AssistantMessage($response)))->setStreamChunkSize(5));
 

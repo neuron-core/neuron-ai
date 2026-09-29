@@ -49,7 +49,7 @@ class DuplicateCallIdToolExecutionTest extends TestCase
             new AssistantMessage('done'),
         );
 
-        $agent = Agent::make()
+        $agent = Agent::make(workflowId: 'thread')
             ->setAiProvider($provider)
             ->addTool($registered);
 

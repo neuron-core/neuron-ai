@@ -35,8 +35,9 @@ Route::post('/agui', function (Request $request) {
         abort(422, 'AG-UI input must end with a user message.');
     }
 
-    // Create agent
+    // Create the agent on the client's thread
     $agent = Agent::make()
+        ->setThreadId($input['threadId'])
         ->setAiProvider(
             new Anthropic(
                 config('services.anthropic.api_key'),

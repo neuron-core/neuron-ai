@@ -85,7 +85,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('You are a helpful assistant.');
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
@@ -116,7 +116,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions(new SystemMessage(
             new SystemContent('You are a helpful assistant.'),
@@ -155,7 +155,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('You are a helpful assistant.');
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
@@ -193,7 +193,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('You are a helpful assistant.');
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
@@ -234,7 +234,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('You are a helpful assistant.');
         $agent->addTool($weatherTool);
@@ -254,7 +254,7 @@ class AgentInstructionsTest extends TestCase
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done.'));
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions('You are a helpful assistant.');
         $agent->addTool(new WeatherToolkit());
@@ -297,7 +297,7 @@ class AgentInstructionsTest extends TestCase
             new AssistantMessage('Done.'),
         );
 
-        $agent = Agent::make();
+        $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions(new SystemMessage([
             new SystemContent('Base instructions'),
@@ -324,7 +324,7 @@ class AgentInstructionsTest extends TestCase
     public function test_toolkit_guidelines_never_accumulate_across_turns(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('First'), new AssistantMessage('Second'));
-        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
         $agent->addTool(new WeatherToolkit());
 
         $agent->chat(new UserMessage('Weather in Rome?'));
@@ -350,7 +350,7 @@ class AgentInstructionsTest extends TestCase
     public function test_a_toolkit_without_guidelines_adds_no_guidelines_block(?string $guidelines): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done'));
-        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
         $agent->addTool(new class ($guidelines) extends AbstractToolkit {
             public function __construct(protected ?string $configuredGuidelines)
             {
@@ -377,7 +377,7 @@ class AgentInstructionsTest extends TestCase
     public function test_toolkit_guidelines_are_headed_by_their_tool_names(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done'));
-        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
         $agent->addTool(new class () extends AbstractToolkit {
             public function guidelines(): string
             {
@@ -401,7 +401,7 @@ class AgentInstructionsTest extends TestCase
     public function test_a_toolkit_without_visible_tools_adds_no_guidelines_block(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Done'));
-        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
         $agent->addTool((new WeatherToolkit())->with(GetWeatherTool::class, fn (ToolInterface $tool): ToolInterface => $tool->visible(false)));
 
         $agent->chat(new UserMessage('Weather in Rome?'));
@@ -420,7 +420,7 @@ class AgentInstructionsTest extends TestCase
                 return 'Hook instructions';
             }
         };
-        $agent->setAiProvider($provider);
+        $agent->setThreadId('thread_1')->setAiProvider($provider);
 
         $agent->chat(new UserMessage('Hi'));
 
@@ -437,7 +437,7 @@ class AgentInstructionsTest extends TestCase
                 return 'Hook instructions';
             }
         };
-        $agent->setAiProvider($provider)->setInstructions(new SystemMessage('Explicit instructions'));
+        $agent->setThreadId('thread_1')->setAiProvider($provider)->setInstructions(new SystemMessage('Explicit instructions'));
 
         $agent->chat(new UserMessage('Hi'));
 

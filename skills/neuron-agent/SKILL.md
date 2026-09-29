@@ -110,7 +110,7 @@ Neither method starts a new user turn.
 For standard back-and-forth conversations:
 
 ```php
-$agent = MyAgent::make();
+$agent = MyAgent::make()->setThreadId('demo');
 
 $response = $agent->chat(
     new UserMessage("Hello!")
@@ -298,7 +298,7 @@ $agent->setMessageStore(new SQLMessageStore($pdo));
 $state = $agent->chat(new UserMessage($input));
 ```
 
-A store names the thread on every call and keeps no conversation state, so one instance can serve the whole application: bind it once in the container, or return it from the `messageStore()` hook. `getThreadId(): ?string` reads the resolved conversation identity; an Agent without one generates it at its first execution.
+A store names the thread on every call and keeps no conversation state, so one instance can serve the whole application: bind it once in the container, or return it from the `messageStore()` hook. `getThreadId(): ?string` reads the resolved conversation identity. The framework never makes one up: executing, inspecting or answering an Agent without one, or reading its chat history, throws an `AgentException` naming `setThreadId()`.
 
 Size the conversation sent to the model to the provider's model with the `contextWindow()` hook (50,000 tokens by default), or with `setContextWindow()` when the Agent is configured from outside:
 
@@ -416,7 +416,7 @@ Agent is built on Workflow, so it inherits the same persistence system. Enable p
 ```php
 use NeuronAI\Workflow\Persistence\FilePersistence;
 
-$response = MyAgent::make()
+$response = MyAgent::make(workflowId: $threadId)
     ->setPersistence(new FilePersistence('/path/to/storage'))
     ->chat(new UserMessage('Hello'))
     ->getMessage();

@@ -41,6 +41,7 @@ use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Agent;
+use NeuronAI\UniqueIdGenerator;
 
 class ContainsEvaluator extends BaseEvaluator
 {
@@ -60,9 +61,11 @@ class ContainsEvaluator extends BaseEvaluator
 
     public function run(array $datasetItem): mixed
     {
-        $response = MyAgent::make()->chat(
-            new UserMessage($datasetItem['text'])
-        )->getMessage();
+        // A fresh thread per item, so no item sees another item's conversation
+        $response = MyAgent::make()
+            ->setThreadId(UniqueIdGenerator::generateId('eval_'))
+            ->chat(new UserMessage($datasetItem['text']))
+            ->getMessage();
 
         return $response->getContent();
     }
@@ -985,16 +988,12 @@ public function evaluate(mixed $output, array $datasetItem): void
 ```php
 class RAGEvaluator extends BaseEvaluator
 {
-    public function setUp(): void
-    {
-        $this->rag = new MyRAGAgent();
-    }
-
     public function run(array $datasetItem): mixed
     {
-        return $this->rag->chat(
-            new UserMessage($datasetItem['question'])
-        )->getMessage()->getContent();
+        return MyRAGAgent::make()
+            ->setThreadId(UniqueIdGenerator::generateId('eval_'))
+            ->chat(new UserMessage($datasetItem['question']))
+            ->getMessage()->getContent();
     }
 
     public function evaluate(mixed $output, array $datasetItem): void
@@ -1012,17 +1011,11 @@ class RAGEvaluator extends BaseEvaluator
 ### Comparing Multiple Agents
 
 ```php
-public function setUp(): void
-{
-    $this->agentA = new AgentOne();
-    $this->agentB = new AgentTwo();
-}
-
 public function run(array $datasetItem): mixed
 {
     return [
-        'agent_a' => $this->agentA->chat(...)->getContent(),
-        'agent_b' => $this->agentB->chat(...)->getContent(),
+        'agent_a' => AgentOne::make()->setThreadId(UniqueIdGenerator::generateId('eval_'))->chat(...)->getContent(),
+        'agent_b' => AgentTwo::make()->setThreadId(UniqueIdGenerator::generateId('eval_'))->chat(...)->getContent(),
     ];
 }
 
