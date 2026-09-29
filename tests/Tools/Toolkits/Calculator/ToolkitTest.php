@@ -15,6 +15,7 @@ use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_is_list;
 use function array_map;
 use function array_values;
 use function count;
@@ -90,6 +91,12 @@ class ToolkitTest extends TestCase
             ->exclude([EvaluateTool::class,MeanTool::class]);
 
         $this->assertEquals(0, count($toolkit->tools()));
+    }
+
+    public function test_a_filtered_toolkit_returns_a_list(): void
+    {
+        $this->assertTrue(array_is_list(CalculatorToolkit::make()->exclude([EvaluateTool::class])->tools()));
+        $this->assertTrue(array_is_list(CalculatorToolkit::make()->only([MeanTool::class])->tools()));
     }
 
     public function test_toolkit_with(): void

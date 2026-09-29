@@ -19,6 +19,7 @@ use NeuronAI\Tools\ToolProperty;
 use NeuronAI\Tools\ToolPropertyInterface;
 use PHPUnit\Framework\TestCase;
 
+use function array_is_list;
 use function array_map;
 use function array_values;
 use function json_encode;
@@ -193,6 +194,33 @@ class McpConnectorTest extends TestCase
         $this->connector->exclude(['delete']);
 
         $this->assertSame(['Delete', 'delete '], $this->toolNames());
+    }
+
+    public function test_only_does_not_equate_number_like_names(): void
+    {
+        $this->listTools([['name' => '100'], ['name' => '1e2'], ['name' => '100.0']]);
+
+        $this->connector->only(['100']);
+
+        $this->assertSame(['100'], $this->toolNames());
+    }
+
+    public function test_exclude_does_not_equate_number_like_names(): void
+    {
+        $this->listTools([['name' => '100'], ['name' => '1e2'], ['name' => '100.0']]);
+
+        $this->connector->exclude(['100']);
+
+        $this->assertSame(['1e2', '100.0'], $this->toolNames());
+    }
+
+    public function test_filtered_tools_are_a_list(): void
+    {
+        $this->listTools([['name' => 'read'], ['name' => 'write'], ['name' => 'delete']]);
+
+        $this->connector->exclude(['write']);
+
+        $this->assertTrue(array_is_list($this->connector->tools()));
     }
 
     public function test_an_empty_only_list_keeps_every_tool(): void

@@ -9,6 +9,7 @@ use NeuronAI\Tools\ToolInterface;
 
 use function array_filter;
 use function array_map;
+use function array_values;
 use function in_array;
 
 abstract class AbstractToolkit implements ToolkitInterface
@@ -62,11 +63,11 @@ abstract class AbstractToolkit implements ToolkitInterface
         $tools = $this->provide();
 
         if ($this->exclude !== [] || $this->only !== []) {
-            $tools = array_filter(
+            $tools = array_values(array_filter(
                 $tools,
-                fn (ToolInterface $tool): bool => !in_array($tool::class, $this->exclude)
-                    && ($this->only === [] || in_array($tool::class, $this->only))
-            );
+                fn (ToolInterface $tool): bool => !in_array($tool::class, $this->exclude, true)
+                    && ($this->only === [] || in_array($tool::class, $this->only, true))
+            ));
         }
 
         if ($this->with !== []) {

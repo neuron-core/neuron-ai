@@ -14,6 +14,7 @@ use Exception;
 use function array_filter;
 use function array_key_exists;
 use function array_map;
+use function array_values;
 use function call_user_func;
 use function in_array;
 use function is_array;
@@ -111,12 +112,12 @@ class McpConnector
      */
     public function tools(): array
     {
-        $tools = array_filter(
+        $tools = array_values(array_filter(
             $this->client()->listTools(),
             fn (array $tool): bool =>
-                !in_array($tool['name'], $this->exclude) &&
-                ($this->only === [] || in_array($tool['name'], $this->only)),
-        );
+                !in_array($tool['name'], $this->exclude, true) &&
+                ($this->only === [] || in_array($tool['name'], $this->only, true)),
+        ));
 
         return array_map($this->createTool(...), $tools);
     }

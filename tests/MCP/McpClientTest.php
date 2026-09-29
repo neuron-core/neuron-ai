@@ -405,6 +405,40 @@ class McpClientTest extends TestCase
         $client->listTools();
     }
 
+    /**
+     * @return iterable<string, array{array<int, string>, int}>
+     */
+    public static function repeatingCursors(): iterable
+    {
+        // The cursor each page returns, and how many pages are read before the repeat is caught
+        yield 'echoed cursor' => [['same', 'same', 'same'], 2];
+        yield 'cycle of two cursors' => [['a', 'b', 'a', 'b'], 3];
+    }
+
+    /**
+     * @param array<int, string> $cursors
+     */
+    #[DataProvider('repeatingCursors')]
+    public function test_a_repeated_tools_list_cursor_ends_the_listing_with_an_error(array $cursors, int $pagesRead): void
+    {
+        $pages = [];
+        foreach ($cursors as $index => $cursor) {
+            $pages[] = ['jsonrpc' => '2.0', 'id' => $index + 2, 'result' => ['tools' => [['name' => "tool{$index}"]], 'nextCursor' => $cursor]];
+        }
+        $transport = new FakeMcpTransport(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], ...$pages);
+        $client = new McpClient(['transport' => $transport]);
+
+        try {
+            $client->listTools();
+            $this->fail('A repeated cursor must not keep the client paging');
+        } catch (McpException $exception) {
+            $this->assertStringContainsString('same tools/list cursor twice', $exception->getMessage());
+        }
+
+        // The handshake's two messages, then one request per page read
+        $transport->assertSendCount(2 + $pagesRead);
+    }
+
     public function test_a_refused_tool_call_throws_the_server_error(): void
     {
         $client = new McpClient(['transport' => new FakeMcpTransport(

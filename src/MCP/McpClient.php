@@ -12,6 +12,7 @@ use stdClass;
 use function array_filter;
 use function array_merge;
 use function getmypid;
+use function in_array;
 use function is_null;
 
 class McpClient
@@ -127,11 +128,19 @@ class McpClient
     {
         $tools = [];
         $cursor = null;
+        $followed = [];
 
         do {
             $response = $this->request('tools/list', $cursor === null ? [] : ['cursor' => $cursor]);
             $tools = array_merge($tools, $response['result']['tools']);
             $cursor = $response['result']['nextCursor'] ?? null;
+
+            // A cursor already followed leads back to pages already read, forever
+            if (in_array($cursor, $followed, true)) {
+                throw new McpException('The MCP server sent the same tools/list cursor twice, so its pagination never ends');
+            }
+
+            $followed[] = $cursor;
         } while ($cursor !== null);
 
         return $tools;
