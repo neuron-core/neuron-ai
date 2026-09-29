@@ -144,6 +144,18 @@ class AgentStateTest extends TestCase
         $this->assertSame(0, $state->getToolRuns('read_file'));
     }
 
+    public function test_tool_runs_without_a_run_key_return_every_count(): void
+    {
+        $state = new AgentState();
+        $this->assertSame([], $state->getToolRuns());
+
+        $state->incrementToolRun('search');
+        $state->incrementToolRun('search');
+        $state->incrementToolRun('read_file:offset=0');
+
+        $this->assertSame(['search' => 2, 'read_file:offset=0' => 1], $state->getToolRuns());
+    }
+
     public function test_reset_tool_runs_clears_every_run_key(): void
     {
         $state = new AgentState();

@@ -8,6 +8,7 @@ use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Agent\Stub\GetWeatherTool;
 use NeuronAI\Tests\Agent\Stub\QueryDatabaseTool;
+use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\Agent\Stub\WeatherToolkit;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Agent\Agent;
@@ -265,7 +266,7 @@ class AgentInstructionsTest extends TestCase
         $systemPrompt = $record->systemPrompt->getContent();
         $this->assertStringContainsString('You are a helpful assistant.', $systemPrompt);
         $this->assertStringContainsString('<TOOLS-GUIDELINES>', $systemPrompt);
-        $this->assertStringContainsString('# WeatherToolkit', $systemPrompt);
+        $this->assertStringContainsString('# get_weather', $systemPrompt);
         $this->assertStringContainsString('Always report temperatures in Celsius.', $systemPrompt);
         $this->assertStringContainsString('get_weather', $systemPrompt);
 
@@ -332,7 +333,7 @@ class AgentInstructionsTest extends TestCase
         $this->assertCount(2, $provider->getRecorded());
         foreach ($provider->getRecorded() as $record) {
             $prompt = (string) $record->systemPrompt?->getContent();
-            $this->assertStringStartsWith("You are a helpful assistant.\n\n<TOOLS-GUIDELINES>\n# WeatherToolkit\n", $prompt);
+            $this->assertStringStartsWith("You are a helpful assistant.\n\n<TOOLS-GUIDELINES>\n# get_weather\n", $prompt);
             $this->assertSame(1, substr_count($prompt, '<TOOLS-GUIDELINES>'));
             $this->assertSame(1, substr_count($prompt, 'Always report temperatures in Celsius.'));
         }
@@ -371,6 +372,43 @@ class AgentInstructionsTest extends TestCase
         $record = $provider->getRecorded()[0];
         $this->assertSame('You are a helpful assistant.', $record->systemPrompt?->getContent());
         $this->assertSame(['get_weather'], array_map(static fn (ToolInterface|ProviderToolInterface $tool): string => $tool->getName(), $record->tools));
+    }
+
+    public function test_toolkit_guidelines_are_headed_by_their_tool_names(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent->addTool(new class () extends AbstractToolkit {
+            public function guidelines(): string
+            {
+                return 'Use wisely.';
+            }
+
+            public function provide(): array
+            {
+                return [new GetWeatherTool(), new SearchTool()];
+            }
+        });
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+
+        $this->assertSame(
+            "You are a helpful assistant.\n\n<TOOLS-GUIDELINES>\n# get_weather, search\nUse wisely.\n</TOOLS-GUIDELINES>",
+            $provider->getRecorded()[0]->systemPrompt?->getContent()
+        );
+    }
+
+    public function test_a_toolkit_without_visible_tools_adds_no_guidelines_block(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setAiProvider($provider)->setInstructions('You are a helpful assistant.');
+        $agent->addTool((new WeatherToolkit())->with(GetWeatherTool::class, fn (ToolInterface $tool): ToolInterface => $tool->visible(false)));
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+
+        $record = $provider->getRecorded()[0];
+        $this->assertSame('You are a helpful assistant.', $record->systemPrompt?->getContent());
+        $this->assertSame([], $record->tools);
     }
 
     public function test_a_plain_string_from_the_instructions_hook_becomes_a_system_message(): void

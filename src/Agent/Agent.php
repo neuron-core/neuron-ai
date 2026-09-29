@@ -38,7 +38,6 @@ use NeuronAI\Workflow\PendingExecution;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use ReflectionClass;
 use Throwable;
 
 use function array_filter;
@@ -47,7 +46,6 @@ use function array_merge;
 use function array_values;
 use function end;
 use function implode;
-use function in_array;
 use function is_array;
 use function serialize;
 use function unserialize;
@@ -185,24 +183,13 @@ class Agent extends Workflow implements AgentInterface
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
-                $kitGuidelines = $tool->guidelines();
-                if ($kitGuidelines !== null && $kitGuidelines !== '') {
-                    $name = (new ReflectionClass($tool))->getShortName();
-                    $kitGuidelines = '# '.$name.PHP_EOL.$kitGuidelines;
-                }
                 $innerTools = array_filter($tool->tools(), fn (ToolInterface $tool): bool => $tool->isVisible());
                 $tools = array_merge($tools, $innerTools);
 
-                if (!in_array($kitGuidelines, [null, '', '0'], true)) {
-                    $kitGuidelines .= PHP_EOL.implode(
-                        PHP_EOL.'- ',
-                        array_map(
-                            fn (ToolInterface $tool): string => $tool->getName(),
-                            $innerTools
-                        )
-                    );
-
-                    $guidelines[] = $kitGuidelines;
+                $kitGuidelines = $tool->guidelines();
+                if ($innerTools !== [] && $kitGuidelines !== null && $kitGuidelines !== '') {
+                    $names = array_map(fn (ToolInterface $tool): string => $tool->getName(), $innerTools);
+                    $guidelines[] = '# '.implode(', ', $names).PHP_EOL.$kitGuidelines;
                 }
             } elseif ($tool->isVisible()) {
                 $tools[] = $tool;

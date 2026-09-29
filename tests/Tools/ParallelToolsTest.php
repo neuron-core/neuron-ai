@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\PropertyType;
@@ -23,7 +24,6 @@ use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 use function extension_loaded;
 use function class_exists;
@@ -163,8 +163,8 @@ class ParallelToolsTest extends TestCase
         $agent->addTool($workingTool);
 
         // The error should be propagated
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Tool execution failed');
+        $this->expectException(ToolException::class);
+        $this->expectExceptionMessage('Tool failing_tool failed with RuntimeException: Tool execution failed');
 
         $agent->chat(new UserMessage('Run failing tool'));
     }

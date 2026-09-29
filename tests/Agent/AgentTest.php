@@ -356,7 +356,7 @@ class AgentTest extends TestCase
             array_map(static fn (ToolInterface|ProviderToolInterface $tool): string => $tool->getName(), $record->tools)
         );
         $this->assertStringEndsWith(
-            "Always report temperatures in Celsius.\nget_weather\n</TOOLS-GUIDELINES>",
+            "<TOOLS-GUIDELINES>\n# get_weather\nAlways report temperatures in Celsius.\n</TOOLS-GUIDELINES>",
             (string) $record->systemPrompt?->getContent()
         );
     }

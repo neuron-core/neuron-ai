@@ -59,7 +59,12 @@ class AgentState extends WorkflowState
         $this->set('__tool_runs', $attempts);
     }
 
-    public function getToolRuns(?string $toolName = null): int
+    /**
+     * The run count of one key, or every count keyed by run key.
+     *
+     * @return ($toolName is null ? array<string, int> : int)
+     */
+    public function getToolRuns(?string $toolName = null): array|int
     {
         $attempts = $this->get('__tool_runs', []);
 
