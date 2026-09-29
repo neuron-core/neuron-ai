@@ -6,6 +6,11 @@ import type { APIRequestContext, Page } from "@playwright/test";
 export const BACKEND = "http://127.0.0.1:8787";
 export const FRONTEND = "http://127.0.0.1:5173";
 
+/** In the abandoned-stream scenario, the prompt the backend answers slowly (ScenarioProvider::LONG_STORY). */
+export const LONG_STORY = "Tell me a long story.";
+/** The whole answer, streamed one sentence every 100 ms. */
+export const LONG_STORY_ANSWER = "Once upon a time. ".repeat(50);
+
 export interface ProviderInvocation {
   method: string;
   messages: Array<Record<string, any>>;

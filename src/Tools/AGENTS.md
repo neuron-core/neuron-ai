@@ -95,7 +95,7 @@ Per-call approval state (`ApprovalState`: pending / approved / rejected) is stam
 
 ## SQL select tools
 
-`MySQLSelectTool` and `PGSQLSelectTool` leave read-only enforcement to the database. Each query runs alone in a transaction opened with `START TRANSACTION READ ONLY` and always rolled back, so the database refuses a write whatever the SQL looks like (data-modifying CTEs, `SELECT INTO`, functions that write), and the rollback undoes session changes such as `set_config()`. A refusal from that transaction (SQLSTATE `25006`) reaches the model as `ToolOutput::error()`; other database errors propagate. The tools throw when the connection is already inside a transaction, because their rollback would discard the application's work.
+`MySQLSelectTool` and `PGSQLSelectTool` leave read-only enforcement to the database. Each query runs alone in a transaction opened with `START TRANSACTION READ ONLY` and always rolled back, so the database refuses a write whatever the SQL looks like (data-modifying CTEs, `SELECT INTO`, functions that write), and the rollback undoes session changes such as `set_config()`. On PostgreSQL a refusal from that transaction (SQLSTATE `25006`) reaches the model as `ToolOutput::error()` and other database errors propagate; `MySQLSelectTool` and `MySQLWriteTool` return every database error as `ToolOutput::error()` with the exception's message, so the model can correct its query. The tools throw when the connection is already inside a transaction, because their rollback would discard the application's work.
 
 The text rules cover only what a read-only transaction lets through. Each must refuse, never interpret SQL, so it stays stricter than the database in every case:
 

@@ -55,6 +55,10 @@ function streamFrames(Generator $events, array $headers): void
     try {
         foreach (SSEEncoder::encode($events) as $frame) {
             echo $frame;
+            // The built-in server buffers 4 KB of output (output_buffering): push every frame now.
+            if (\ob_get_level() > 0) {
+                \ob_flush();
+            }
             \flush();
         }
     } catch (Throwable) {

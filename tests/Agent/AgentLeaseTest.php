@@ -101,6 +101,26 @@ class AgentLeaseTest extends TestCase
         $this->assertCount(3, $renewals);
     }
 
+    public function test_an_abandoned_stream_does_not_hold_the_thread_for_the_lease(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $store = new InMemoryMessageStore();
+        $provider = new FakeAIProvider(new AssistantMessage('A streamed answer'), new AssistantMessage('Still here'));
+        $agent = fn (): Agent => Agent::make()
+            ->setThreadId('thread_1')
+            ->setAiProvider($provider)
+            ->setPersistence($persistence)
+            ->setMessageStore($store);
+
+        // The client disconnects after the first chunk and the response stops pulling.
+        $stream = $agent()->stream(new UserMessage('Hi'));
+        $stream->current();
+        unset($stream);
+
+        $this->assertSame(WorkflowStatus::Failed, $agent()->inspect()?->status);
+        $this->assertSame('Still here', $agent()->chat(new UserMessage('Are you there?'))->getMessage()?->getContent());
+    }
+
     /**
      * The lease a run is admitted with: the deadline of its first control
      * record, in seconds from the moment it was written.

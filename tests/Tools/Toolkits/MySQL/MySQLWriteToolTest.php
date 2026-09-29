@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Tools\Toolkits\MySQL;
 
 use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
 use NeuronAI\Tests\Tools\Toolkits\MySQL\Stub\MySQLSandbox;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\Toolkits\MySQL\MySQLWriteTool;
 use PDO;
 use PDOStatement;
@@ -71,6 +72,24 @@ class MySQLWriteToolTest extends TestCase
         $this->assertSame([$payload], $this->names());
     }
 
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function databaseErrorProvider(): iterable
+    {
+        yield 'refused when prepared' => ["INSRT INTO users (name) VALUES ('Grace')", 'SQLSTATE[HY000]: General error: 1 near "INSRT": syntax error'];
+        yield 'refused when executed' => ["INSERT INTO users (name) VALUES ('Ada')", 'SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed: users.name'];
+    }
+
+    #[DataProvider('databaseErrorProvider')]
+    public function test_database_errors_are_returned_to_the_model(string $query, string $error): void
+    {
+        $this->pdo->exec("INSERT INTO users (name) VALUES ('Ada')");
+
+        $this->assertError($error, (new MySQLWriteTool($this->pdo))($query));
+        $this->assertSame(['Ada'], $this->names());
+    }
+
     public function test_failed_execution_is_reported_when_errors_are_silent(): void
     {
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
@@ -81,7 +100,7 @@ class MySQLWriteToolTest extends TestCase
             [['name' => 'name', 'value' => 'Ada']]
         );
 
-        $this->assertSame('Error executing query: UNIQUE constraint failed: users.name', $result);
+        $this->assertError('Error executing query: UNIQUE constraint failed: users.name', $result);
         $this->assertSame(['Ada'], $this->names());
     }
 
@@ -172,6 +191,13 @@ class MySQLWriteToolTest extends TestCase
 
         $this->assertSame('mysql_write_query', $tool->getName());
         $this->assertSame(['query'], $tool->getRequiredProperties());
+    }
+
+    protected function assertError(string $message, mixed $result): void
+    {
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue($result->isError());
+        $this->assertSame($message, $result->getText());
     }
 
     /**

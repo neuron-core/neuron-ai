@@ -18,8 +18,10 @@ shell commands with `COPY ... TO PROGRAM`. The inspection also refused harmless 
   PostgreSQL) with nothing before it, not even a comment. It may contain a `;` only as its last character. On MySQL
   it may not contain `OUTFILE`, `DUMPFILE` or `LOAD_FILE` anywhere.
 - **Refusals are `ToolOutput::error()`.** Each rule has its own message telling the model what to change. When the
-  database refuses a write (SQLSTATE `25006`), the tool returns a refusal quoting the database's message. Any other
-  database error still escapes, as before.
+  database refuses a write (SQLSTATE `25006`), the tool returns a refusal quoting the database's message.
+  `PGSQLSelectTool` lets any other database error escape, as before. `MySQLSelectTool` returns every database error,
+  such as a missing table or a syntax error, as `ToolOutput::error()` with the exception's message, so the model can
+  correct its query.
 - **The tools refuse to run inside an open transaction.** They throw a `ToolException` when the connection is already
   in a transaction, because their rollback would discard the application's work.
 - **`MySQLSchemaTool` applies its table allow-list to indexes.** The "Available Indexes" section listed the indexes of
@@ -34,6 +36,7 @@ shell commands with `COPY ... TO PROGRAM`. The inspection also refused harmless 
 | `SELECT 1; SELECT 2` accepted by `PGSQLSelectTool` | Refused: one statement per call |
 | `DESCRIBE` and `DESC` accepted by `PGSQLSelectTool`, then rejected by PostgreSQL | Refused by the tool |
 | A `SELECT` calling a function that writes ran the write | The database refuses it and the tool returns a refusal |
+| `MySQLSelectTool`: a database error such as a missing table escaped as a `PDOException` | `ToolOutput::error()` with the exception's message |
 | A call inside an open transaction on the same connection ran | `ToolException` |
 | MySQL: protected `$forbiddenStatements`, `validateReadOnly()`, `sanitizeQuery()`, `containsKeyword()` | Removed; `refusal()`, `beginReadOnlyTransaction()`, `fetchRows()`, `$fileAccessKeywords` |
 | PostgreSQL: protected `$forbiddenPatterns`, `$allowedPatterns`, `validateReadOnlyQuery()`, `removeComments()`, `performAdditionalSecurityChecks()`, `splitStatements()`, `validateSingleStatement()` | Removed; `$allowedStatements`, `getFirstKeyword()`, `refusal()`, `beginReadOnlyTransaction()`, `fetchRows()` |

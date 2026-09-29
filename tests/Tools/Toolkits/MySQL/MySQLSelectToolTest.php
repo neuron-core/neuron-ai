@@ -25,8 +25,6 @@ class MySQLSelectToolTest extends TestCase
 
     protected const FILE_ACCESS = 'Reading or writing server files (OUTFILE, DUMPFILE, LOAD_FILE) is not allowed.';
 
-    protected const DATABASE_REFUSAL = 'This tool is read-only. The database refused the query: ';
-
     /**
      * @var string[]
      */
@@ -168,32 +166,14 @@ class MySQLSelectToolTest extends TestCase
         $this->assertRefusal(self::FILE_ACCESS, (new MySQLSelectTool($this->untouchedConnection()))($query));
     }
 
-    public function test_a_write_refused_by_the_database_is_returned_to_the_model(): void
+    public function test_database_errors_are_returned_to_the_model_after_the_rollback(): void
     {
-        $refusal = new PDOException('SQLSTATE[25006]: Read only sql transaction: 1792 Cannot execute statement in a READ ONLY transaction.');
-        $refusal->errorInfo = ['25006', 1792, 'Cannot execute statement in a READ ONLY transaction.'];
-        $query = 'SELECT purge_users()';
-
-        $result = (new MySQLSelectTool($this->connection($query, $this->statementThrowing($refusal))))($query);
-
-        $this->assertRefusal(self::DATABASE_REFUSAL . 'Cannot execute statement in a READ ONLY transaction.', $result);
-        $this->assertSame(['exec: START TRANSACTION READ ONLY', 'prepare', 'rollBack'], $this->calls);
-    }
-
-    public function test_other_database_errors_escape_after_the_rollback(): void
-    {
-        $missingTable = new PDOException("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'app.nope' doesn't exist");
-        $missingTable->errorInfo = ['42S02', 1146, "Table 'app.nope' doesn't exist"];
+        $missingTable = "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'app.nope' doesn't exist";
         $query = 'SELECT * FROM nope';
-        $tool = new MySQLSelectTool($this->connection($query, $this->statementThrowing($missingTable)));
 
-        try {
-            $tool($query);
-            $this->fail('The database error should escape.');
-        } catch (PDOException $exception) {
-            $this->assertSame($missingTable, $exception);
-        }
+        $result = (new MySQLSelectTool($this->connection($query, $this->statementThrowing(new PDOException($missingTable)))))($query);
 
+        $this->assertRefusal($missingTable, $result);
         $this->assertSame(['exec: START TRANSACTION READ ONLY', 'prepare', 'rollBack'], $this->calls);
     }
 
@@ -267,7 +247,7 @@ class MySQLSelectToolTest extends TestCase
 
         $this->assertInstanceOf(ToolOutput::class, $result);
         $this->assertTrue($result->isError());
-        $this->assertStringStartsWith(self::DATABASE_REFUSAL, $result->getText());
+        $this->assertStringStartsWith('SQLSTATE[25006]', $result->getText());
         $this->assertSame(2, $this->countUsers($pdo));
     }
 

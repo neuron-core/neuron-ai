@@ -6,21 +6,36 @@ namespace NeuronAI\Tests\Workflow;
 
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Testing\FakeChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\ChunkStreamingNode;
 use NeuronAI\Workflow\Executor\WorkflowControl;
+use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function function_exists;
+use function getmypid;
+use function glob;
 use function iterator_to_array;
+use function pcntl_fork;
+use function pcntl_waitpid;
+use function posix_kill;
+use function rmdir;
+use function sys_get_temp_dir;
+use function unlink;
+
+use const SIGKILL;
 
 /**
  * A workflow instance keeps nothing of a segment, so a call made while one of
  * its segments is in flight meets the persisted run as another process
  * would: the running generation refuses a new ignition, a live lease refuses
- * an abandon, and an abandoned run fences its segment out.
+ * an abandon, and an abandoned run fences its segment out. A segment whose
+ * consumer lets go before it settles fails its run instead of holding it.
  */
 class WorkflowSegmentOverlapTest extends TestCase
 {
@@ -104,10 +119,57 @@ class WorkflowSegmentOverlapTest extends TestCase
         $discarded->current();
         unset($discarded);
 
-        // The run it left behind is still marked running with no lease, so an
-        // inputless continuation on the same instance takes it over.
-        $state = $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume());
+        // The segment failed the run it left behind, so a plain run() recovers it.
+        $this->assertSame(WorkflowStatus::Failed, $workflow->inspect()?->status);
+        $state = $workflow->run();
 
         $this->assertSame(WorkflowStatus::Completed, $state->getStatus());
+    }
+
+    public function test_a_discarded_segment_notifies_its_channel(): void
+    {
+        $channel = new FakeChannel();
+        $workflow = $this->streaming(new InMemoryPersistence())->setChannel(fn (): FakeChannel => $channel);
+
+        $discarded = $workflow->events();
+        $discarded->current();
+        unset($discarded);
+
+        $channel->assertFailed();
+    }
+
+    public function test_a_forked_child_never_fails_its_parents_run(): void
+    {
+        if (!function_exists('pcntl_fork')) {
+            $this->markTestSkipped('Forking requires the pcntl extension.');
+        }
+
+        $directory = sys_get_temp_dir() . '/neuron-segment-fork-' . getmypid();
+        $workflow = Workflow::make('thread_1')
+            ->addNode(new ChunkStreamingNode())
+            ->setPersistence(new FilePersistence($directory));
+        $live = $workflow->events();
+        $live->current();
+
+        try {
+            $child = pcntl_fork();
+            if ($child === 0) {
+                try {
+                    // A forked worker ends: its copy of the segment is destroyed.
+                    unset($live);
+                } finally {
+                    posix_kill(getmypid(), SIGKILL);
+                }
+            } else {
+                pcntl_waitpid($child, $status);
+
+                $this->assertSame(WorkflowStatus::Running, $workflow->inspect()?->status);
+                iterator_to_array($live, false);
+                $this->assertSame(WorkflowStatus::Completed, $live->getReturn()->getStatus());
+            }
+        } finally {
+            array_map(unlink(...), glob($directory . '/*') ?: []);
+            rmdir($directory);
+        }
     }
 }

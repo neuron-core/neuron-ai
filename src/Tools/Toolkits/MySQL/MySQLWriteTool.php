@@ -10,8 +10,10 @@ use NeuronAI\Tools\ArrayProperty;
 use NeuronAI\Tools\ObjectProperty;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
+use NeuronAI\Tools\ToolOutput;
 use NeuronAI\Tools\ToolProperty;
 use PDO;
+use PDOException;
 use ReflectionException;
 
 use function json_encode;
@@ -44,7 +46,7 @@ class MySQLWriteTool extends Tool
             new ToolProperty(
                 'query',
                 PropertyType::STRING,
-                'The parameterized SQL write query with named placeholders (e.g., "INSERT INTO users (name, email) VALUES (:name, :email)" or "UPDATE users SET name = :name WHERE id = :id"). Use named parameters (:parameter_name) for all dynamic values.',
+                'The parameterized SQL write query with named placeholders (e.g., "INSERT INTO users (name, email) VALUES (:name, :email)" or "UPDATE users SET name = :name WHERE id = :id"). Use named parameters (:parameter_name) for all dynamic values. Each placeholder name can be used only once: give each occurrence its own name, even for the same value (e.g., "UPDATE users SET status = :status WHERE id = :id OR parent_id = :parent_id").',
                 true
             ),
             new ArrayProperty(
@@ -65,22 +67,26 @@ class MySQLWriteTool extends Tool
     /**
      * @param array<array{name: string, value: string}>|null $parameters
      */
-    public function __invoke(string $query, ?array $parameters = []): string
+    public function __invoke(string $query, ?array $parameters = []): string|ToolOutput
     {
-        $statement = $this->pdo->prepare($query);
+        try {
+            $statement = $this->pdo->prepare($query);
 
-        // Bind parameters if provided
-        $parameters ??= [];
-        foreach ($parameters as $parameter) {
-            $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
-            $statement->bindValue($paramName, $parameter['value']);
+            // Bind parameters if provided
+            $parameters ??= [];
+            foreach ($parameters as $parameter) {
+                $paramName = str_starts_with((string) $parameter['name'], ':') ? $parameter['name'] : ':' . $parameter['name'];
+                $statement->bindValue($paramName, $parameter['value']);
+            }
+
+            $result = $statement->execute();
+        } catch (PDOException $exception) {
+            return ToolOutput::error($exception->getMessage());
         }
-
-        $result = $statement->execute();
 
         if (!$result) {
             $errorInfo = $statement->errorInfo();
-            return "Error executing query: " . ($errorInfo[2] ?? 'Unknown database error');
+            return ToolOutput::error("Error executing query: " . ($errorInfo[2] ?? 'Unknown database error'));
         }
 
         $output = "Query executed successfully. {$statement->rowCount()} row(s) affected.";

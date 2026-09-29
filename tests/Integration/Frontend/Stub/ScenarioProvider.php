@@ -26,7 +26,10 @@ use function array_key_exists;
 use function array_map;
 use function array_slice;
 use function count;
+use function end;
 use function json_encode;
+use function str_repeat;
+use function usleep;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -57,7 +60,11 @@ class ScenarioProvider implements AIProviderInterface
         'handler-error' => [[['probe', 'call_throw', ['kind' => 'throw']]]],
         'backend-error' => [[['server_fail', 'call_fail_1', []]]],
         'two-steps' => [[['read_title', 'call_read_title_1', []]], [['read_text', 'call_text_1', ['selector' => '#first']]]],
+        'abandoned-stream' => [],
     ];
+
+    /** In the abandoned-stream scenario, this prompt streams a long answer slowly enough to leave mid-stream. */
+    public const LONG_STORY = 'Tell me a long story.';
 
     public function __construct(
         protected PDO $pdo,
@@ -83,6 +90,10 @@ class ScenarioProvider implements AIProviderInterface
 
     public function stream(Message ...$messages): Generator
     {
+        if ($this->scenario === 'abandoned-stream' && $this->lastUserText($messages) === self::LONG_STORY) {
+            return $this->streamLongStory($messages);
+        }
+
         $response = $this->respond('stream', $messages);
         return $this->streamChunks($response);
     }
@@ -109,6 +120,31 @@ class ScenarioProvider implements AIProviderInterface
             yield new TextChunk($response->getId(), $text);
         }
         return new ProviderResponse(message: $response);
+    }
+
+    /**
+     * One sentence every 100 ms for five seconds.
+     *
+     * @param Message[] $messages
+     * @return Generator<int, TextChunk, mixed, ProviderResponse>
+     */
+    protected function streamLongStory(array $messages): Generator
+    {
+        $response = new AssistantMessage(str_repeat('Once upon a time. ', 50));
+        $this->record('stream', $messages, $response);
+
+        for ($sentence = 0; $sentence < 50; $sentence++) {
+            usleep(100_000);
+            yield new TextChunk($response->getId(), 'Once upon a time. ');
+        }
+        return new ProviderResponse(message: $response);
+    }
+
+    /** @param Message[] $messages */
+    protected function lastUserText(array $messages): ?string
+    {
+        $users = array_filter($messages, $this->isUserTurn(...));
+        return $users === [] ? null : end($users)->getContent();
     }
 
     /** @param Message[] $messages */

@@ -32,8 +32,6 @@ use function strtoupper;
  */
 class MySQLSelectTool extends Tool
 {
-    protected const READ_ONLY_VIOLATION = '25006';
-
     protected array $allowedStatements = ['SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN'];
 
     /**
@@ -71,7 +69,7 @@ Always use backticks around identifiers that are reserved keywords.';
             new ToolProperty(
                 name: 'query',
                 type: PropertyType::STRING,
-                description: 'The SELECT query. Use backticks (`) around table/column names that are MySQL reserved keywords (e.g., `character`, `order`, `group`, `index`, `key`, `value`, `date`, `time`). Use named placeholders (:parameter_name) for all dynamic values. Examples: "SELECT id, name FROM `character` WHERE type = :type", "SELECT * FROM `order` WHERE status = :status"',
+                description: 'The SELECT query. Use backticks (`) around table/column names that are MySQL reserved keywords (e.g., `character`, `order`, `group`, `index`, `key`, `value`, `date`, `time`). Use named placeholders (:parameter_name) for all dynamic values. Each placeholder name can be used only once: give each occurrence its own name, even for the same value (e.g., "WHERE name LIKE :name_term OR email LIKE :email_term"). Examples: "SELECT id, name FROM `character` WHERE type = :type", "SELECT * FROM `order` WHERE status = :status"',
                 required: true
             ),
             new ArrayProperty(
@@ -105,11 +103,7 @@ Always use backticks around identifiers that are reserved keywords.';
         try {
             return $this->fetchRows($query, $parameters ?? []);
         } catch (PDOException $exception) {
-            if (($exception->errorInfo[0] ?? null) !== self::READ_ONLY_VIOLATION) {
-                throw $exception;
-            }
-
-            return ToolOutput::error('This tool is read-only. The database refused the query: ' . $exception->errorInfo[2]);
+            return ToolOutput::error($exception->getMessage());
         } finally {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();

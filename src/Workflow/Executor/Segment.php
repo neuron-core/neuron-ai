@@ -40,7 +40,9 @@ use NeuronAI\Workflow\WorkflowStatus;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function getmypid;
 use function hash;
+use function iterator_to_array;
 use function time;
 
 /**
@@ -73,6 +75,9 @@ final class Segment
      */
     protected array $forkStates = [];
 
+    /** The process that admitted the segment: a forked child must never settle its parent's run. */
+    protected int|false $processId;
+
     public function __construct(
         protected WorkflowRunStore $store,
         protected ExecutionContext $context,
@@ -80,8 +85,24 @@ final class Segment
         protected ?int $leaseTimeout,
         protected bool $retainCompletion,
     ) {
+        $this->processId = getmypid();
         $this->state->markAsRunning();
         $this->stamp($this->state);
+    }
+
+    /**
+     * A client abort under ignore_user_abort(false) ends the request without
+     * running the generator's finally block, but still destroys the segment.
+     */
+    public function __destruct()
+    {
+        try {
+            if ($this->releaseIfAbandoned()) {
+                $this->report(new WorkflowEnd($this->state));
+            }
+        } catch (Throwable) {
+            // A destructor must not throw at shutdown: the lease still covers the run.
+        }
     }
 
     /**
@@ -111,6 +132,7 @@ final class Segment
         try {
             return yield from $this->execute($graph, $adapter, $channel);
         } finally {
+            $this->releaseIfAbandoned();
             $this->report(new WorkflowEnd($this->state));
         }
     }
@@ -222,6 +244,31 @@ final class Segment
         $this->state->markAsFailed();
         $this->markControlFailed();
         $this->report(new WorkflowError($e, false));
+    }
+
+    /**
+     * A consumer that stops pulling before the segment settles would leave the
+     * run running under its lease: fail it instead, so the next start
+     * supersedes it at once and a plain run() recovers it.
+     */
+    protected function releaseIfAbandoned(): bool
+    {
+        // Only settle() and fail() move the state off running.
+        if ($this->state->getStatus() !== WorkflowStatus::Running || $this->processId !== getmypid()) {
+            return false;
+        }
+
+        // Branch fibers left running start no new node.
+        $this->pauseRequested = true;
+        $error = new WorkflowException("The consumer of workflow ID '{$this->context->workflowId}' stopped before the run settled.");
+        $this->fail($error);
+
+        if (isset($this->output)) {
+            // Nothing can be yielded any more; draining still notifies a channel.
+            iterator_to_array($this->output->failed($error), false);
+        }
+
+        return true;
     }
 
     protected function markControlFailed(): void
