@@ -64,6 +64,21 @@ class PdfReaderTest extends TestCase
         new PdfReader($this->sandbox . '/pdftotext');
     }
 
+    public function test_a_directory_is_rejected_as_bin_path(): void
+    {
+        $this->expectException(DataReaderException::class);
+        $this->expectExceptionMessage('The provided path is not executable.');
+
+        new PdfReader($this->sandbox);
+    }
+
+    public function test_the_configured_binary_runs_whatever_its_file_name(): void
+    {
+        $reader = new PdfReader($this->fakeBinary('pdftotext-24.02', "#!/bin/sh\necho 'configured'"));
+
+        $this->assertSame('configured', $reader->read($this->pdf));
+    }
+
     public function test_pdf_must_be_readable(): void
     {
         $missing = $this->sandbox . '/missing.pdf';

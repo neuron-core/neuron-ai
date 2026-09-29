@@ -10,6 +10,7 @@ use NeuronAI\RAG\Splitter\DelimiterTextSplitter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_fill;
 use function array_filter;
 use function array_map;
 use function array_unique;
@@ -229,6 +230,15 @@ class DelimiterTextSplitterTest extends TestCase
             ->splitDocument(new Document('aaaaaaaa.bbbbbbbbb.c'));
 
         $this->assertSame(['aaaaaaaa', 'bbbbbbbbb.c'], $this->contents($result));
+    }
+
+    public function test_short_chunks_join_a_previous_chunk_only_while_it_is_within_the_maximum(): void
+    {
+        $text = implode(' ', array_fill(0, 50, 'abcdefg'));
+
+        $chunks = (new DelimiterTextSplitter(maxLength: 10, minLength: 8))->splitDocument(new Document($text));
+
+        $this->assertSame(array_fill(0, 25, 'abcdefg abcdefg'), $this->contents($chunks));
     }
 
     public function test_source_and_metadata_are_copied_to_every_chunk(): void

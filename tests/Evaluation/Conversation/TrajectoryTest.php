@@ -515,6 +515,15 @@ class TrajectoryTest extends TestCase
         $this->assertSame(['Refund this receipt'], $restored->userMessages());
     }
 
+    public function test_instructions_stay_out_of_the_transcript_after_serialization(): void
+    {
+        $trajectory = Trajectory::fromMessages([new SystemMessage('SECRET SYSTEM PROMPT'), new UserMessage('Hi')]);
+
+        $restored = unserialize(serialize($trajectory));
+
+        $this->assertSame('User: Hi', $restored->toTranscript());
+    }
+
     public function test_multi_line_values_cannot_forge_transcript_entries(): void
     {
         $tool = $this->makeTool('fetch_page', ['url' => 'https://example.com'], 'call_1');

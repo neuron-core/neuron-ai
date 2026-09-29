@@ -15,6 +15,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tests\Chat\History\Stub\RecordingStreamWrapper;
@@ -203,6 +204,25 @@ class TokenCounterTest extends TestCase
         $message = new ToolResultMessage([(new ToolCall('a'))->setResult(str_repeat('日', 100))]);
 
         $this->assertSame(26, (new TokenCounter())->count($message));
+    }
+
+    public function test_a_tool_call_counts_its_names_call_ids_and_arguments(): void
+    {
+        $message = new ToolCallMessage(null, [
+            new ToolCall('write_file', 'call-1', ['path' => '/tmp/日本.txt', 'content' => str_repeat('a', 400)]),
+            new ToolCall('list'),
+        ]);
+
+        // 9 role chars + 10 + 6 + 435 characters of JSON arguments (slashes and Unicode unescaped) + 4 + 2 for "[]"
+        $this->assertSame(117, (new TokenCounter())->count($message));
+    }
+
+    public function test_invalid_utf8_in_tool_call_arguments_is_counted_without_failing(): void
+    {
+        $message = new ToolCallMessage(null, [new ToolCall('write_file', 'call-1', ['content' => "caf\xE9"])]);
+
+        // The invalid byte counts as one substituted character: 9 + 10 + 6 + 18
+        $this->assertSame(11, (new TokenCounter())->count($message));
     }
 
     /**

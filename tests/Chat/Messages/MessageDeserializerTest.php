@@ -17,6 +17,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\MessageDeserializer;
+use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\Usage;
@@ -58,6 +59,7 @@ class MessageDeserializerTest extends TestCase
             ])],
             'reasoning and text' => [new AssistantMessage([new ReasoningContent('thinking', 'rs_1'), new TextContent('Answer')])],
             'multibyte text' => [new UserMessage("Ciao 👋 — 日本語\n\t\"quoted\" \\ back")],
+            'system' => [new SystemMessage([new SystemContent('Be concise.'), new SystemContent('Answer in English.')])],
             'model role' => [new Message(MessageRole::MODEL, 'Hi')],
             'tool call with multimodal and error results' => [new ToolResultMessage([
                 (new ToolCall('chart', 'call-1', ['symbol' => 'AAPL']))->setResult(ToolOutput::image('aGVsbG8=', SourceType::BASE64, MediaType::PNG)),
@@ -82,6 +84,14 @@ class MessageDeserializerTest extends TestCase
 
         $this->assertSame(Message::class, $restored::class);
         $this->assertSame('developer', $restored->getRole());
+    }
+
+    public function test_a_system_message_keeps_its_instruction_join(): void
+    {
+        $restored = $this->roundTrip(new SystemMessage([new SystemContent('Be concise.'), new SystemContent('Answer in English.')]));
+
+        $this->assertInstanceOf(SystemMessage::class, $restored);
+        $this->assertSame("Be concise.\n\nAnswer in English.", $restored->getContent());
     }
 
     public function test_system_blocks_come_back_as_system_blocks(): void
@@ -229,6 +239,42 @@ class MessageDeserializerTest extends TestCase
         ]);
 
         $this->assertSame('Encoded twice', $restored->getContent());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function legacyTextLookingLikeJson(): array
+    {
+        return [
+            'boolean word' => ['true'],
+            'scientific number' => ['1e3'],
+            'quoted' => ['"quoted"'],
+            'json list' => ['[1,2]'],
+            'structured output' => ['{"name":"John","age":30}'],
+            'list of objects with an unknown type' => ['[{"type":"invoice","amount":10}]'],
+            'list of objects with a block type but no content' => ['[{"type":"text","label":"x"}]'],
+        ];
+    }
+
+    #[DataProvider('legacyTextLookingLikeJson')]
+    public function test_legacy_text_that_is_valid_json_is_kept_verbatim(string $text): void
+    {
+        $restored = (new MessageDeserializer())->deserialize(['role' => 'assistant', 'content' => $text]);
+
+        $this->assertSame(TextContent::class, $restored->getContentBlocks()[0]::class);
+        $this->assertSame($text, $restored->getContent());
+    }
+
+    public function test_legacy_encoded_media_without_content_still_loads_as_a_block(): void
+    {
+        // 3.x dropped a media block's empty content, but always kept its source type
+        $restored = (new MessageDeserializer())->deserialize([
+            'role' => 'user',
+            'content' => '[{"type":"image","source_type":"url","media_type":"image/png"}]',
+        ]);
+
+        $this->assertInstanceOf(ImageContent::class, $restored->getContentBlocks()[0]);
     }
 
     public function test_an_entry_stored_without_identity_receives_a_fresh_one(): void

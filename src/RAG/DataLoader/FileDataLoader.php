@@ -14,6 +14,7 @@ use function file_exists;
 use function is_array;
 use function is_dir;
 use function is_link;
+use function ltrim;
 use function opendir;
 use function pathinfo;
 use function readdir;
@@ -51,7 +52,8 @@ class FileDataLoader extends AbstractDataLoader
         $extensions = is_array($fileExtension) ? $fileExtension : [$fileExtension];
 
         foreach ($extensions as $extension) {
-            $this->readers[$extension] = $reader;
+            // Stored the way file extensions are looked up: lowercase, without the dot
+            $this->readers[strtolower(ltrim($extension, '.'))] = $reader;
         }
 
         return $this;
@@ -59,7 +61,12 @@ class FileDataLoader extends AbstractDataLoader
 
     public function setReaders(array $readers): self
     {
-        $this->readers = $readers;
+        $this->readers = [];
+
+        foreach ($readers as $extension => $reader) {
+            $this->addReader((string) $extension, $reader);
+        }
+
         return $this;
     }
 

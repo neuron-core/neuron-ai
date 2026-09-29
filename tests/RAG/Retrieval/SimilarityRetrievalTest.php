@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\Retrieval;
 
 use Generator;
+use NeuronAI\Chat\Enums\SourceType;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Retrieval\SimilarityRetrieval;
@@ -30,6 +32,19 @@ class SimilarityRetrievalTest extends TestCase
         $this->assertInstanceOf(SearchRequest::class, $request);
         $this->assertSame((new FakeEmbeddingsProvider())->embedText('Città più grande?'), $request->embedding);
         $this->assertNull($request->topK);
+    }
+
+    public function test_a_question_without_text_retrieves_nothing_without_embedding_or_searching(): void
+    {
+        $embeddings = new FakeEmbeddingsProvider();
+        $store = new FakeVectorStore([new Document('Context')]);
+
+        $result = (new SimilarityRetrieval($store, $embeddings))
+            ->retrieve(new UserMessage(new ImageContent('https://example.com/cat.png', SourceType::URL)));
+
+        $this->assertSame([], $result);
+        $embeddings->assertNothingEmbedded();
+        $store->assertSearchCount(0);
     }
 
     public function test_the_store_results_are_returned_as_they_are(): void

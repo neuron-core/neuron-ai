@@ -34,7 +34,7 @@ interface PersistenceInterface
      * Atomically initialize an absent condition key and its related records.
      * Returns false without writing anything when the key already exists.
      *
-     * @param array<string, string> $records
+     * @param array<array-key, string> $records
      */
     public function initializeIfAbsent(
         string $partition,
@@ -48,7 +48,7 @@ interface PersistenceInterface
      * byte-identical expected value. Returns false without partial writes when
      * the condition key is absent or its value changed.
      *
-     * @param array<string, string> $records
+     * @param array<array-key, string> $records
      */
     public function writeIfUnchanged(
         string $partition,

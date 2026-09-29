@@ -6,7 +6,6 @@ namespace NeuronAI\Workflow\Persistence;
 
 use JsonException;
 use NeuronAI\Exceptions\PersistenceException;
-use NeuronAI\Exceptions\WorkflowException;
 
 use function base64_decode;
 use function base64_encode;
@@ -105,7 +104,7 @@ class FilePersistence implements PersistenceInterface
         $path = $this->filePath($partition);
 
         if (is_file($path) && !@unlink($path)) {
-            throw new WorkflowException("Unable to delete partition '{$partition}' at '{$path}'.");
+            throw new PersistenceException("Unable to delete partition '{$partition}' at '{$path}'.");
         }
 
         return true;
@@ -154,14 +153,14 @@ class FilePersistence implements PersistenceInterface
         return $data;
     }
 
-    /** @param array<string, string> $data */
+    /** @param array<array-key, string> $data */
     protected function writePartition(string $partition, array $data): void
     {
         $path = $this->filePath($partition);
 
         $records = [];
         foreach ($data as $key => $value) {
-            $records[base64_encode($key)] = base64_encode($value);
+            $records[base64_encode((string) $key)] = base64_encode($value);
         }
 
         try {
@@ -178,22 +177,22 @@ class FilePersistence implements PersistenceInterface
         }
 
         if (!is_dir($this->directory) && !@mkdir($this->directory, 0o700, true) && !is_dir($this->directory)) {
-            throw new WorkflowException("Unable to create directory '{$this->directory}'");
+            throw new PersistenceException("Unable to create directory '{$this->directory}'");
         }
 
         $temporaryPath = @tempnam($this->directory, '.workflow-');
         if ($temporaryPath === false) {
-            throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+            throw new PersistenceException("Unable to write partition '{$partition}' to '{$path}'.");
         }
 
         try {
             $written = @file_put_contents($temporaryPath, $contents);
             if ($written !== strlen($contents)) {
-                throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+                throw new PersistenceException("Unable to write partition '{$partition}' to '{$path}'.");
             }
 
             if (!@rename($temporaryPath, $path)) {
-                throw new WorkflowException("Unable to write partition '{$partition}' to '{$path}'.");
+                throw new PersistenceException("Unable to write partition '{$partition}' to '{$path}'.");
             }
         } finally {
             if (is_file($temporaryPath)) {
@@ -203,14 +202,14 @@ class FilePersistence implements PersistenceInterface
     }
 
     /**
-     * @param array<string, mixed> $records
+     * @param array<array-key, mixed> $records
      * @return array<string, string>
      */
     protected function decodeRecords(array $records, string $path): array
     {
         $decoded = [];
         foreach ($records as $key => $value) {
-            $decodedKey = is_string($key) ? base64_decode($key, true) : false;
+            $decodedKey = base64_decode((string) $key, true);
             $decodedValue = is_string($value) ? base64_decode($value, true) : false;
 
             if ($decodedKey === false || $decodedValue === false) {

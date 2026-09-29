@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow;
 
+use NeuronAI\Tests\Workflow\Stub\AbstractEvent;
 use NeuronAI\Tests\Workflow\Stub\AuditedEvent;
 use NeuronAI\Tests\Workflow\Stub\CustomState;
 use NeuronAI\Tests\Workflow\Stub\FirstEvent;
+use NeuronAI\Tests\Workflow\Stub\NamedConstructorEvent;
 use NeuronAI\Tests\Workflow\Stub\PrioritizedSignal;
 use NeuronAI\Tests\Workflow\Stub\PrioritizedTestEvent;
 use NeuronAI\Tests\Workflow\Stub\ProvidedResources;
@@ -362,6 +364,42 @@ class NodeSignatureTest extends TestCase
                 return $state->has('text') ? 'text' : new StopEvent();
             }
         }, 'All return types in union must implement ' . Event::class];
+        yield 'the event interface' => [new class () extends Node {
+            public function __invoke(Event $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        }, 'First parameter of __invoke method must be a concrete event class, ' . Event::class . ' can never be routed'];
+        yield 'an interface extending the event interface' => [new class () extends Node {
+            public function __invoke(AuditedEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        }, 'First parameter of __invoke method must be a concrete event class, ' . AuditedEvent::class . ' can never be routed'];
+        yield 'an abstract event class' => [new class () extends Node {
+            public function __invoke(AbstractEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        }, 'First parameter of __invoke method must be a concrete event class, ' . AbstractEvent::class . ' can never be routed'];
+        yield 'an intersection whose event is an interface' => [new class () extends Node {
+            public function __invoke(AuditedEvent&Countable $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        }, 'First parameter of __invoke method must be a concrete event class, ' . AuditedEvent::class . ' can never be routed'];
+    }
+
+    public function test_accepts_an_event_class_built_through_a_named_constructor(): void
+    {
+        $node = new class () extends Node {
+            public function __invoke(NamedConstructorEvent $event, WorkflowState $state): StopEvent
+            {
+                return new StopEvent();
+            }
+        };
+
+        $this->assertSame(NamedConstructorEvent::class, $this->signature->eventClass($node, new WorkflowState(), new WorkflowResources()));
     }
 
     #[DataProvider('invalidSignatures')]

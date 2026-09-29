@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\GraphStore;
 
 use Exception;
+use Laudis\Neo4j\Exception\Neo4jException;
 use NeuronAI\RAG\GraphStore\GraphStoreInterface;
 use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
 use NeuronAI\RAG\GraphStore\Triplet;
 use NeuronAI\Tests\Support\CheckOpenPort;
 use PHPUnit\Framework\TestCase;
 
-use function count;
+use function array_map;
+use function sort;
 use function strtoupper;
+use function gc_collect_cycles;
 
 class Neo4jGraphStoreTest extends TestCase
 {
@@ -105,10 +108,44 @@ class Neo4jGraphStoreTest extends TestCase
         $relationshipMap = $this->store->getRelationshipMap(['Alice'], depth: 2);
 
         $this->assertArrayHasKey('Alice', $relationshipMap);
-        $this->assertNotEmpty($relationshipMap['Alice']);
 
-        // Should include Alice->Bob and Bob->Charlie (depth 2)
-        $this->assertGreaterThanOrEqual(2, count($relationshipMap['Alice']));
+        // Each hop keeps its own start node, once: Alice->Bob and Bob->Charlie, never "Alice KNOWS Charlie"
+        $triplets = array_map(static fn (Triplet $triplet): array => $triplet->toArray(), $relationshipMap['Alice']);
+        sort($triplets);
+        $this->assertSame([['Alice', 'KNOWS', 'Bob'], ['Bob', 'KNOWS', 'Charlie']], $triplets);
+    }
+
+    public function test_a_store_on_another_database_does_not_write_into_this_one(): void
+    {
+        $elsewhere = new Neo4jGraphStore(
+            uri: 'bolt://localhost:7687',
+            username: 'neo4j',
+            password: 'test_password',
+            database: 'missing',
+            nodeLabel: 'TestEntity'
+        );
+
+        try {
+            $elsewhere->upsert('Alice', 'KNOWS', 'Bob');
+            $this->fail('A store configured with a missing database must not write into another one.');
+        } catch (Neo4jException $exception) {
+            $this->assertSame('Neo.ClientError.Database.DatabaseNotFound', $exception->getNeo4jCode());
+        } finally {
+            // Closes its connections, as tearDown() does for the main store
+            unset($elsewhere);
+            gc_collect_cycles();
+        }
+
+        $this->assertSame([], $this->store->get('Alice'));
+    }
+
+    public function test_relationship_map_limit_caps_the_relationships(): void
+    {
+        $this->store->upsert('Alice', 'KNOWS', 'Bob');
+        $this->store->upsert('Alice', 'KNOWS', 'Charlie');
+        $this->store->upsert('Alice', 'KNOWS', 'Dave');
+
+        $this->assertCount(2, $this->store->getRelationshipMap(['Alice'], depth: 1, limit: 2)['Alice']);
     }
 
     public function test_get_schema(): void

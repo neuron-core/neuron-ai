@@ -50,6 +50,9 @@ class EloquentPersistence implements PersistenceInterface
         string $initialValue,
         array $records = [],
     ): bool {
+        // The condition key holds the initial value, never a related record's.
+        unset($records[$conditionKey]);
+
         return $this->atomically(fn (): bool => $this->create($partition, $conditionKey, $initialValue)
             && $this->save($partition, $records));
     }

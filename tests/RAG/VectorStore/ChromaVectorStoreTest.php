@@ -54,6 +54,25 @@ class ChromaVectorStoreTest extends TestCase
         );
     }
 
+    public function test_the_key_is_sent_as_a_bearer_token_in_the_authorization_header(): void
+    {
+        new ChromaVectorStore(
+            collection: 'docs',
+            key: 'chroma-token',
+            httpClient: $this->recordingClient($this->jsonResponse(['id' => 'col-uuid'])),
+        );
+
+        $this->assertSame('Bearer chroma-token', $this->sentRequest(0)->getHeaderLine('Authorization'));
+        $this->assertFalse($this->sentRequest(0)->hasHeader('Authentication'));
+    }
+
+    public function test_no_authorization_header_is_sent_without_a_key(): void
+    {
+        $this->store();
+
+        $this->assertFalse($this->sentRequest(0)->hasHeader('Authorization'));
+    }
+
     public function test_gets_or_creates_the_collection_in_the_configured_tenant_and_database(): void
     {
         $this->store();

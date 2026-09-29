@@ -7,6 +7,7 @@ namespace NeuronAI\RAG\GraphStore;
 use Laudis\Neo4j\Authentication\Authenticate;
 use Laudis\Neo4j\ClientBuilder;
 use Laudis\Neo4j\Contracts\ClientInterface;
+use Laudis\Neo4j\Databags\SessionConfiguration;
 use Exception;
 use InvalidArgumentException;
 
@@ -26,7 +27,7 @@ class Neo4jGraphStore implements GraphStoreInterface
         protected string $uri = 'bolt://localhost:7687',
         protected string $username = '',
         protected string $password = '',
-        protected string $database = 'neo4j',
+        protected ?string $database = null,
         protected string $nodeLabel = 'Entity',
     ) {
         // The label is written into every statement between backticks, where only a backtick (ending the name)
@@ -124,12 +125,12 @@ class Neo4jGraphStore implements GraphStoreInterface
             MATCH path = (n1:`{$this->nodeLabel}`)-[*1..{$depth}]->(n2:`{$this->nodeLabel}`)
             WHERE n1.id IN \$subjects
             UNWIND relationships(path) AS rel
-            WITH n1.id AS subject, collect([type(rel), endNode(rel).id]) AS rels
-            RETURN subject, rels
+            WITH DISTINCT n1.id AS subject, startNode(rel).id AS source, type(rel) AS relation, endNode(rel).id AS target
             LIMIT {$limit}
+            RETURN subject, collect([source, relation, target]) AS rels
             CYPHER;
 
-        $result = $this->client->run($query, ['subjects' => $subjects]);
+        $result = $this->client()->run($query, ['subjects' => $subjects]);
 
         $relationshipMap = [];
         foreach ($result as $record) {
@@ -138,12 +139,8 @@ class Neo4jGraphStore implements GraphStoreInterface
 
             $triplets = [];
             foreach ($rels as $rel) {
-                // Each rel is [relationship_type, end_node_id]
-                $triplets[] = new Triplet(
-                    $subject,
-                    $rel[0], // relationship type
-                    $rel[1]  // end node id
-                );
+                // Each rel is [start_node_id, relationship_type, end_node_id]: a hop keeps its own start node
+                $triplets[] = new Triplet($rel[0], $rel[1], $rel[2]);
             }
 
             $relationshipMap[$subject] = $triplets;
@@ -233,6 +230,7 @@ class Neo4jGraphStore implements GraphStoreInterface
         return $this->client ?? $this->client = ClientBuilder::create()
             ->withDriver('default', $this->uri, Authenticate::basic($this->username, $this->password))
             ->withDefaultDriver('default')
+            ->withDefaultSessionConfiguration(SessionConfiguration::default()->withDatabase($this->database))
             ->build();
     }
 }

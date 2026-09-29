@@ -75,7 +75,7 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
                         'texts' => array_map(fn (Document $document): string => $document->getContent(), $chunk),
                         'embedding_types' => ['float'],
                         ...array_merge([
-                            'input_type' => 'search_query',
+                            'input_type' => 'search_document',
                         ], $this->parameters),
                     ],
                     headers: $this->httpHeaders,
@@ -88,5 +88,15 @@ class CohereEmbeddingsProvider extends AbstractEmbeddingsProvider
         }
 
         return array_merge(...$chunks);
+    }
+
+    /**
+     * A stored document, so it takes the document input type, unlike embedText() at search time.
+     *
+     * @throws HttpException
+     */
+    public function embedDocument(Document $document): Document
+    {
+        return $this->embedDocuments([$document])[0];
     }
 }

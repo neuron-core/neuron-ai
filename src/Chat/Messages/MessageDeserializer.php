@@ -21,6 +21,8 @@ use NeuronAI\Tools\ToolOutput;
 
 use function array_diff_key;
 use function array_flip;
+use function array_is_list;
+use function array_key_exists;
 use function array_map;
 use function is_array;
 use function is_string;
@@ -60,6 +62,7 @@ class MessageDeserializer
         $item = match ($role) {
             MessageRole::ASSISTANT => new AssistantMessage($content),
             MessageRole::USER => new UserMessage($content),
+            MessageRole::SYSTEM => new SystemMessage($content),
             default => new Message($role, $content)
         };
 
@@ -180,10 +183,12 @@ class MessageDeserializer
         }
 
         if (is_string($content)) {
-            if ($json = json_decode($content, true)) {
-                return $this->deserializeContent($json);
-            }
-            return new TextContent($content);
+            $decoded = json_decode($content, true);
+
+            // A legacy string is the text itself, unless it is exactly a list of blocks stored encoded
+            return $this->isBlockList($decoded)
+                ? array_map($this->deserializeContentBlock(...), $decoded)
+                : new TextContent($content);
         }
 
         if (is_array($content)) {
@@ -197,6 +202,30 @@ class MessageDeserializer
         }
 
         return new TextContent((string) $content);
+    }
+
+    /**
+     * The blocks this library serializes: a known type each, with their content,
+     * or with a source type for media, whose empty content earlier versions left out.
+     */
+    protected function isBlockList(mixed $value): bool
+    {
+        if (!is_array($value) || $value === [] || !array_is_list($value)) {
+            return false;
+        }
+
+        foreach ($value as $block) {
+            if (
+                !is_array($block)
+                || !is_string($block['type'] ?? null)
+                || ContentBlockType::tryFrom($block['type']) === null
+                || (!array_key_exists('content', $block) && !isset($block['source_type']))
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

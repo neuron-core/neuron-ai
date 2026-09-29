@@ -10,6 +10,7 @@ use NeuronAI\RAG\Splitter\SentenceTextSplitter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_fill;
 use function array_map;
 use function array_merge;
 use function array_slice;
@@ -22,6 +23,7 @@ use function implode;
 use function mb_check_encoding;
 use function preg_split;
 use function range;
+use function str_repeat;
 use function trim;
 
 class SentenceTextSplitterTest extends TestCase
@@ -281,6 +283,14 @@ class SentenceTextSplitterTest extends TestCase
             ['Hi.', 'One two three four five six.', 'Seven eight nine.'],
             $this->contents((new SentenceTextSplitter(maxWords: 6, minWords: 3))->splitDocument($doc))
         );
+    }
+
+    public function test_short_chunks_join_a_previous_chunk_only_while_it_is_within_the_maximum(): void
+    {
+        $chunks = (new SentenceTextSplitter(maxWords: 6, minWords: 5))
+            ->splitDocument(new Document(str_repeat('Alpha beta gamma delta. ', 20)));
+
+        $this->assertSame(array_fill(0, 10, 'Alpha beta gamma delta. Alpha beta gamma delta.'), $this->contents($chunks));
     }
 
     public function test_source_and_metadata_are_copied_to_every_chunk(): void

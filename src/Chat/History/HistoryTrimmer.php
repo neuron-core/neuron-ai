@@ -17,7 +17,6 @@ use function array_reduce;
 use function array_slice;
 use function count;
 use function end;
-use function spl_object_hash;
 use function sprintf;
 use function max;
 use function min;
@@ -35,11 +34,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
     protected const OVERFLOW_TOLERANCE = 0.05;
 
     protected int $totalTokens = 0;
-
-    /** @var array<int, array{index: int, tokens: int}> */
-    protected array $cachedCheckpoints = [];
-    protected ?int $cachedCount = null;
-    protected ?string $cachedLastHash = null;
 
     public function __construct(
         protected TokenCounter $tokenCounter = new TokenCounter()
@@ -64,11 +58,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
             return [];
         }
 
-        $count = count($messages);
-        $hash = spl_object_hash($messages[$count - 1]);
-
-        $checkpoints = $this->getCheckpoints($messages, $count, $hash);
-        $this->totalTokens = $this->calculateTotal($messages, $checkpoints, $count);
+        $checkpoints = $this->getCheckpoints($messages);
+        $this->totalTokens = $this->calculateTotal($messages, $checkpoints, count($messages));
 
         if ($this->totalTokens <= $contextWindow) {
             $this->validateAlternation($messages);
@@ -115,11 +106,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 ));
             }
         }
-
-        // Checkpoint values changed, so the cache is stale
-        $this->cachedCount = null;
-        $this->cachedLastHash = null;
-        $this->cachedCheckpoints = [];
     }
 
     /**
@@ -128,12 +114,8 @@ class HistoryTrimmer implements HistoryTrimmerInterface
      * @param Message[] $messages
      * @return array<int, array{index: int, tokens: int}>
      */
-    protected function getCheckpoints(array $messages, int $count, string $hash): array
+    protected function getCheckpoints(array $messages): array
     {
-        if ($count === $this->cachedCount && $hash === $this->cachedLastHash) {
-            return $this->cachedCheckpoints;
-        }
-
         $checkpoints = [];
 
         foreach ($messages as $index => $message) {
@@ -147,10 +129,6 @@ class HistoryTrimmer implements HistoryTrimmerInterface
                 ];
             }
         }
-
-        $this->cachedCount = $count;
-        $this->cachedLastHash = $hash;
-        $this->cachedCheckpoints = $checkpoints;
 
         return $checkpoints;
     }

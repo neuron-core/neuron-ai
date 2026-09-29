@@ -29,8 +29,15 @@ class SimilarityRetrieval implements RetrievalInterface
      */
     public function retrieve(Message $query, ?FilterExpression $filters = null): array
     {
+        $text = $query->getContent();
+
+        // A question without text, such as an image alone, has nothing to search with
+        if ($text === null) {
+            return [];
+        }
+
         $documents = $this->vectorStore->search(new SearchRequest(
-            embedding: $this->embeddingProvider->embedText($query->getContent()),
+            embedding: $this->embeddingProvider->embedText($text),
             // Filters only accumulate: incoming per-run constraints are AND-ed
             // with the strategy's own, so neither can widen what the other scoped.
             filters: FilterScope::merge($this->filters, $filters)?->expression(),

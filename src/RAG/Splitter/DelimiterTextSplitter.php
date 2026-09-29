@@ -125,7 +125,8 @@ class DelimiterTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Merges chunks that fall below minLength into the previous chunk.
+     * Merges chunks that fall below minLength into the previous chunk while that one is
+     * within maxLength, so the maximum is exceeded by one short chunk at most.
      *
      * @param  array<string>  $chunks
      * @return array<string>
@@ -139,8 +140,9 @@ class DelimiterTextSplitter extends AbstractSplitter
         $result = [$chunks[0]];
 
         for ($i = 1, $count = count($chunks); $i < $count; $i++) {
-            if (mb_strlen($chunks[$i]) < $this->minLength) {
-                $lastIndex = count($result) - 1;
+            $lastIndex = count($result) - 1;
+
+            if (mb_strlen($chunks[$i]) < $this->minLength && mb_strlen($result[$lastIndex]) <= $this->maxLength) {
                 $result[$lastIndex] = implode($this->separator, [$result[$lastIndex], $chunks[$i]]);
             } else {
                 $result[] = $chunks[$i];

@@ -100,16 +100,36 @@ class NodeSignature
             /** @var ReflectionNamedType $eventType */
             $eventType = reset($eventTypes);
 
-            /** @var class-string<Event> */
-            return $eventType->getName();
+            return $this->routable($node, $eventType);
         }
 
         if (!($type instanceof ReflectionNamedType) || !is_a($type->getName(), Event::class, true)) {
             throw $this->invalid($node, 'First parameter of __invoke method must be a type that implements ' . Event::class);
         }
 
-        /** @var class-string<Event> */
-        return $type->getName();
+        return $this->routable($node, $type);
+    }
+
+    /**
+     * Events are routed by their exact class, so an interface or an abstract
+     * class is never matched. A constructor that is not public is fine: such an
+     * event is built through a named constructor.
+     *
+     * @return class-string<Event>
+     * @throws WorkflowException
+     * @throws ReflectionException
+     */
+    protected function routable(NodeInterface $node, ReflectionNamedType $type): string
+    {
+        /** @var class-string<Event> $class */
+        $class = $type->getName();
+        $event = new ReflectionClass($class);
+
+        if ($event->isInterface() || $event->isAbstract()) {
+            throw $this->invalid($node, "First parameter of __invoke method must be a concrete event class, {$class} can never be routed");
+        }
+
+        return $class;
     }
 
     /**

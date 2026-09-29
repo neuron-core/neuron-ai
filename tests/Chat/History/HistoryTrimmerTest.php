@@ -21,6 +21,8 @@ use function array_map;
 use function array_slice;
 use function str_repeat;
 
+use const PHP_INT_MAX;
+
 class HistoryTrimmerTest extends TestCase
 {
     public function test_an_empty_history_has_no_tokens(): void
@@ -91,6 +93,31 @@ class HistoryTrimmerTest extends TestCase
         $this->assertSame(220, $trimmer->getTotalTokens());
     }
 
+    public function test_usage_set_after_a_measurement_counts_at_the_next_one(): void
+    {
+        $trimmer = new HistoryTrimmer();
+        $messages = [new UserMessage('Hello'), new AssistantMessage('Hello')];
+        $trimmer->trim($messages, PHP_INT_MAX);
+
+        $messages[1]->setUsage(new Usage(5000, 10));
+        $trimmer->trim($messages, PHP_INT_MAX);
+
+        $this->assertSame(5010, $trimmer->getTotalTokens());
+    }
+
+    public function test_a_reused_trimmer_never_measures_with_a_freed_conversations_checkpoints(): void
+    {
+        $trimmer = new HistoryTrimmer();
+        $user = new UserMessage('Hello');
+
+        // The measured answer is freed right after: PHP may hand its object hash to the next message
+        $trimmer->trim([$user, (new AssistantMessage('Hello'))->setUsage(new Usage(1000, 10))], PHP_INT_MAX);
+        $unmeasured = [$user, new AssistantMessage('Hello')];
+        $trimmer->trim($unmeasured, PHP_INT_MAX);
+
+        $this->assertSame(25, $trimmer->getTotalTokens());
+    }
+
     public function test_the_kept_checkpoints_are_rebased_on_the_trimmed_context(): void
     {
         $trimmer = new HistoryTrimmer();
@@ -156,6 +183,24 @@ class HistoryTrimmerTest extends TestCase
         $trimmed = (new HistoryTrimmer())->trim($messages, 30);
 
         $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
+    }
+
+    public function test_without_usage_tool_call_arguments_count_toward_the_window(): void
+    {
+        $messages = [
+            new UserMessage('first question'),
+            new AssistantMessage('first answer'),
+            new UserMessage('write the file'),
+            new ToolCallMessage(null, [new ToolCall('write_file', 'call-1', ['content' => str_repeat('a', 40000)])]),
+            new ToolResultMessage([(new ToolCall('write_file', 'call-1'))->setResult('ok')]),
+        ];
+        $trimmer = new HistoryTrimmer();
+
+        $trimmed = $trimmer->trim($messages, 5000);
+
+        // The call alone is about 10,000 tokens: the older turn goes, and the latest turn is kept whole.
+        $this->assertSame($this->ids(array_slice($messages, 2)), $this->ids($trimmed));
+        $this->assertGreaterThan(10000, $trimmer->getTotalTokens());
     }
 
     public function test_a_tool_call_and_its_result_are_never_split(): void

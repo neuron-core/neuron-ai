@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\GraphStore;
 
 use InvalidArgumentException;
+use Laudis\Neo4j\Client;
 use Laudis\Neo4j\Types\CypherList;
 use Laudis\Neo4j\Types\CypherMap;
 use Laudis\Neo4j\Types\Node;
@@ -162,6 +163,22 @@ class Neo4jGraphStoreQueryTest extends TestCase
         $this->assertSame([], $this->store->get('Nobody'));
     }
 
+    public function test_client_sessions_use_the_configured_database(): void
+    {
+        $client = (new Neo4jGraphStore(database: 'knowledge'))->client();
+
+        $this->assertInstanceOf(Client::class, $client);
+        $this->assertSame('knowledge', $client->getDefaultSessionConfiguration()->getDatabase());
+    }
+
+    public function test_client_sessions_use_the_server_home_database_by_default(): void
+    {
+        $client = (new Neo4jGraphStore())->client();
+
+        $this->assertInstanceOf(Client::class, $client);
+        $this->assertNull($client->getDefaultSessionConfiguration()->getDatabase());
+    }
+
     public function test_relationship_map_of_no_subjects_does_not_query_the_graph(): void
     {
         $this->assertSame([], $this->store->getRelationshipMap([]));
@@ -180,26 +197,38 @@ class Neo4jGraphStoreQueryTest extends TestCase
         $this->assertStringContainsString('LIMIT 7', $run['statement']);
     }
 
-    public function test_relationship_map_explores_two_hops_and_thirty_rows_by_default(): void
+    public function test_relationship_map_explores_two_hops_and_thirty_relationships_by_default(): void
     {
         $this->store->getRelationshipMap(['Alice']);
 
         $this->assertStringContainsString('(n1:`Person`)-[*1..2]->(n2:`Person`)', $this->statement(0));
-        $this->assertStringEndsWith('LIMIT 30', $this->statement(0));
+        $this->assertStringContainsString('LIMIT 30 RETURN', $this->statement(0));
+    }
+
+    public function test_relationship_map_limits_distinct_relationships_keeping_their_own_start_node(): void
+    {
+        $this->store->getRelationshipMap(['Alice'], depth: 3, limit: 7);
+
+        $this->assertSame(
+            'MATCH path = (n1:`Person`)-[*1..3]->(n2:`Person`) WHERE n1.id IN $subjects UNWIND relationships(path) AS rel '
+            . 'WITH DISTINCT n1.id AS subject, startNode(rel).id AS source, type(rel) AS relation, endNode(rel).id AS target '
+            . 'LIMIT 7 RETURN subject, collect([source, relation, target]) AS rels',
+            $this->statement(0)
+        );
     }
 
     public function test_relationship_map_groups_triplets_by_subject(): void
     {
         $this->client->willReturn([
-            ['subject' => 'Alice', 'rels' => new CypherList([new CypherList(['KNOWS', 'Bob']), new CypherList(['LIKES', 'Tea'])])],
-            ['subject' => 'Bob', 'rels' => new CypherList([new CypherList(['WORKS_AT', 'Acme'])])],
+            ['subject' => 'Alice', 'rels' => new CypherList([new CypherList(['Alice', 'KNOWS', 'Bob']), new CypherList(['Bob', 'LIKES', 'Tea'])])],
+            ['subject' => 'Bob', 'rels' => new CypherList([new CypherList(['Bob', 'WORKS_AT', 'Acme'])])],
         ]);
 
         $map = $this->store->getRelationshipMap(['Alice', 'Bob']);
 
         $this->assertSame(['Alice', 'Bob'], array_keys($map));
         $this->assertSame(
-            [['Alice', 'KNOWS', 'Bob'], ['Alice', 'LIKES', 'Tea']],
+            [['Alice', 'KNOWS', 'Bob'], ['Bob', 'LIKES', 'Tea']],
             array_map(static fn (Triplet $triplet): array => $triplet->toArray(), $map['Alice'])
         );
         $this->assertSame(

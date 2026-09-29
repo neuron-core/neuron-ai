@@ -11,11 +11,13 @@ use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\UniqueIdGenerator;
 
 use function array_filter;
+use function array_is_list;
 use function array_map;
 use function array_values;
 use function date;
 use function file_get_contents;
 use function file_put_contents;
+use function hash;
 use function is_array;
 use function is_dir;
 use function is_file;
@@ -40,11 +42,17 @@ use const JSON_THROW_ON_ERROR;
  * controlled single-host use: concurrent workers need a database store. The
  * file name keeps the thread ID's letter case, so on a case-insensitive
  * filesystem (the macOS and Windows defaults) two IDs that differ only by case
- * share one file: use IDs that differ by more than case there.
+ * share one file: use IDs that differ by more than case there. An ID whose
+ * encoded name would pass the 255-byte file-name limit is named by its hash.
  */
 class FileMessageStore implements MessageStoreInterface
 {
     use PaginatesMessages;
+
+    /**
+     * The longest file name ext4, APFS and NTFS accept.
+     */
+    protected const MAX_FILE_NAME_BYTES = 255;
 
     /**
      * @throws ChatHistoryException
@@ -150,7 +158,7 @@ class FileMessageStore implements MessageStoreInterface
         }
 
         $entries = json_decode($content, true);
-        if (!is_array($entries)) {
+        if (!$this->isEntryList($entries)) {
             throw new ChatHistoryException("The chat history file '{$path}' is corrupt.");
         }
 
@@ -159,6 +167,24 @@ class FileMessageStore implements MessageStoreInterface
         }
 
         return $entries;
+    }
+
+    /**
+     * A thread file holds a list of message objects.
+     */
+    protected function isEntryList(mixed $entries): bool
+    {
+        if (!is_array($entries) || !array_is_list($entries)) {
+            return false;
+        }
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -208,6 +234,13 @@ class FileMessageStore implements MessageStoreInterface
 
     protected function path(string $threadId): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . $this->prefix . rawurlencode($threadId) . $this->ext;
+        $name = $this->prefix . rawurlencode($threadId) . $this->ext;
+
+        // Too long to spell out: rawurlencode() escapes '+', so a hashed name never matches an encoded one
+        if (strlen($name) > self::MAX_FILE_NAME_BYTES) {
+            $name = $this->prefix . '+' . hash('sha256', $threadId) . $this->ext;
+        }
+
+        return $this->directory . DIRECTORY_SEPARATOR . $name;
     }
 }

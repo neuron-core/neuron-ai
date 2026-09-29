@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow\Persistence;
 
 use NeuronAI\Exceptions\PersistenceException;
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -144,7 +143,7 @@ class FilePersistenceTest extends TestCase
         mkdir($this->root, 0o700);
         file_put_contents($this->directory, 'a file where the directory should be');
 
-        $this->expectException(WorkflowException::class);
+        $this->expectException(PersistenceException::class);
         $this->expectExceptionMessage("Unable to create directory '{$this->directory}/nested'");
 
         (new FilePersistence($this->directory . '/nested'))->initializeIfAbsent('workflow', '__control', 'owner');
@@ -189,7 +188,7 @@ class FilePersistenceTest extends TestCase
                 try {
                     $operation();
                     $this->fail("Expected: {$message}");
-                } catch (WorkflowException $e) {
+                } catch (PersistenceException $e) {
                     $this->assertStringStartsWith("{$message} 'workflow'", $e->getMessage());
                 }
             }
@@ -208,7 +207,7 @@ class FilePersistenceTest extends TestCase
         try {
             $store->initializeIfAbsent($partition, '__control', 'owner');
             $this->fail('The oversized partition filename should fail.');
-        } catch (WorkflowException $e) {
+        } catch (PersistenceException $e) {
             $this->assertStringContainsString("Unable to write partition '{$partition}'", $e->getMessage());
         }
 
@@ -244,6 +243,17 @@ class FilePersistenceTest extends TestCase
                 base64_encode('__control') => base64_encode("owner\0\xFF"),
             ],
         ], $contents);
+    }
+
+    public function test_a_key_whose_encoding_is_all_digits_reads_back(): void
+    {
+        // Encoded as '5420', which json_decode() turns into an integer key.
+        $key = "\u{7374}";
+        $store = new FilePersistence($this->directory);
+
+        $this->assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner', [$key => 'step']));
+        $this->assertSame('step', $store->get('workflow', $key));
+        $this->assertSame('owner', $store->get('workflow', '__control'));
     }
 
     public function test_a_stale_instance_cannot_overwrite_a_newer_write(): void
@@ -300,6 +310,7 @@ class FilePersistenceTest extends TestCase
             'unknown envelope version' => ['{"version":3,"records":{"c3RlcA==":"cmVzdWx0"}}', 'Corrupted Workflow partition'],
             'string envelope version' => ['{"version":"2","records":{"c3RlcA==":"cmVzdWx0"}}', 'Corrupted Workflow partition'],
             'invalid base64 key' => ['{"version":2,"records":{"***":"cmVzdWx0"}}', 'invalid encoded record'],
+            'records as a list' => ['{"version":2,"records":["cmVzdWx0"]}', 'invalid encoded record'],
             'invalid base64 value' => ['{"version":2,"records":{"c3RlcA==":"***"}}', 'invalid encoded record'],
             'non-string encoded value' => ['{"version":2,"records":{"c3RlcA==":42}}', 'invalid encoded record'],
         ];

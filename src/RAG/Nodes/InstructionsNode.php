@@ -10,6 +10,8 @@ use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
+use function preg_replace;
+
 /**
  * Enriches instructions with retrieved documents as context.
  *
@@ -29,13 +31,15 @@ class InstructionsNode extends Node
         return AIInferenceEvent::fromRequest($state->request);
     }
 
-    private function buildBlockContent(array $documents): string
+    protected function buildBlockContent(array $documents): string
     {
         $context = "<EXTRA-CONTEXT>";
         foreach ($documents as $document) {
-            $context .= "Source Type: " . $document->getSourceType() . "\n" .
+            $entry = "Source Type: " . $document->getSourceType() . "\n" .
                 "Source Name: " . $document->getSourceName() . "\n" .
                 "Content: " . $document->getContent() . "\n\n";
+            // Retrieved text is untrusted: it must not close the block and pass for the developer's instructions
+            $context .= preg_replace('~</(EXTRA-CONTEXT)~i', '<\\/$1', $entry);
         }
         return $context . "</EXTRA-CONTEXT>";
     }

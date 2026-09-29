@@ -151,7 +151,8 @@ class SentenceTextSplitter extends AbstractSplitter
     }
 
     /**
-     * Merges chunks that fall below minWords into the previous chunk.
+     * Merges chunks that fall below minWords into the previous chunk while that one is
+     * within maxWords, so the maximum is exceeded by one short chunk at most.
      *
      * @param  array<array<string>>  $chunks
      * @return array<array<string>>
@@ -166,9 +167,9 @@ class SentenceTextSplitter extends AbstractSplitter
 
         for ($i = 1, $count = count($chunks); $i < $count; $i++) {
             $wordCount = count($chunks[$i]);
+            $lastIndex = count($result) - 1;
 
-            if ($wordCount < $this->minWords) {
-                $lastIndex = count($result) - 1;
+            if ($wordCount < $this->minWords && count($result[$lastIndex]) <= $this->maxWords) {
                 $result[$lastIndex] = array_merge($result[$lastIndex], $chunks[$i]);
             } else {
                 $result[] = $chunks[$i];

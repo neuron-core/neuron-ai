@@ -29,7 +29,6 @@ use function str_repeat;
 use function sys_get_temp_dir;
 use function unlink;
 use function array_combine;
-use function str_ends_with;
 
 /**
  * The opaque atomic store contract, exercised against every built-in backend.
@@ -154,11 +153,22 @@ class PersistenceContractTest extends TestCase
     }
 
     #[DataProvider('backendProvider')]
+    public function test_numeric_string_keys_are_ordinary_keys(string $backend): void
+    {
+        $store = $this->backend($backend);
+
+        $this->assertTrue($store->initializeIfAbsent('workflow', '0', 'owner', ['42' => 'step']));
+        $this->assertTrue($store->writeIfUnchanged('workflow', '0', 'owner', ['0' => 'next', '7' => 'memo']));
+        $this->assertSame('next', $store->get('workflow', '0'));
+        $this->assertSame('step', $store->get('workflow', '42'));
+        $this->assertSame('memo', $store->get('workflow', '7'));
+        $this->assertTrue($store->deleteIfUnchanged('workflow', '0', 'next'));
+        $this->assertNull($store->get('workflow', '42'));
+    }
+
+    #[DataProvider('backendProvider')]
     public function test_the_initial_value_wins_over_a_related_record_with_the_condition_key(string $backend): void
     {
-        if (str_ends_with($backend, '-eloquent')) {
-            $this->markTestSkipped('Known framework issue: EloquentPersistence lets the related record override the initial value.');
-        }
         $store = $this->backend($backend);
 
         $this->assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner', [

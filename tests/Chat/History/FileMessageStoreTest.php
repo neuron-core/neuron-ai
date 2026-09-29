@@ -21,6 +21,7 @@ use function basename;
 use function file_get_contents;
 use function file_put_contents;
 use function glob;
+use function hash;
 use function in_array;
 use function is_dir;
 use function is_file;
@@ -29,6 +30,7 @@ use function json_encode;
 use function mkdir;
 use function rmdir;
 use function scandir;
+use function str_repeat;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -193,6 +195,41 @@ class FileMessageStoreTest extends TestCase
         $this->assertSame([$fileName], $this->filesIn($this->directory));
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function longThreadIds(): array
+    {
+        return [
+            '100 CJK characters' => [str_repeat('線', 100)],
+            '255 ASCII characters' => [str_repeat('a', 255)],
+        ];
+    }
+
+    #[DataProvider('longThreadIds')]
+    public function test_a_thread_id_too_long_for_a_file_name_is_stored_under_its_hash(string $threadId): void
+    {
+        $store = new FileMessageStore($this->directory);
+        $message = new UserMessage('Hello');
+
+        $store->append($threadId, $message);
+
+        $this->assertSame(['neuron_+' . hash('sha256', $threadId) . '.chat'], $this->filesIn($this->directory));
+        $this->assertSame([$message->getId()], array_map(fn (Message $loaded): string => $loaded->getId(), $store->loadActive($threadId)));
+        $this->assertSame([], $store->loadActive($threadId . 'x'));
+
+        $store->clear($threadId);
+        $this->assertSame([], $this->filesIn($this->directory));
+    }
+
+    public function test_an_encoded_name_that_fits_the_limit_stays_readable(): void
+    {
+        // 7 prefix bytes + 243 + 5 extension bytes: exactly 255
+        (new FileMessageStore($this->directory))->append(str_repeat('a', 243), new UserMessage('Hello'));
+
+        $this->assertSame(['neuron_' . str_repeat('a', 243) . '.chat'], $this->filesIn($this->directory));
+    }
+
     public function test_writes_leave_no_temporary_file_behind(): void
     {
         $store = new FileMessageStore($this->directory);
@@ -253,6 +290,9 @@ class FileMessageStoreTest extends TestCase
             'JSON null' => ['null'],
             'JSON string' => ['"messages"'],
             'JSON number' => ['42'],
+            'list of numbers' => ['[1]'],
+            'list of strings' => ['["x"]'],
+            'one message instead of a list' => ['{"role":"user","content":"hi"}'],
         ];
     }
 

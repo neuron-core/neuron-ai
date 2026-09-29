@@ -14,6 +14,9 @@ existed it silently replaced the configured one.
   configure it with its constructor and setters, and call `read()`.
 - **`PdfReader::read()` works on a copy**, so one configured reader serves every file of a loader. `setPdf()` and
   `text()` are unchanged.
+- **`PdfReader` runs the executable you configure, whatever its name.** In 3.x it ran a file named `pdftotext` next to
+  it, or a system `pdftotext` in its place. The bin path must be that executable: a directory is rejected. `pdfinfo`,
+  used by `getPageCount()`, is still looked up next to it first.
 
 | Before (3.x) | After |
 |---|---|
@@ -21,6 +24,7 @@ existed it silently replaced the configured one.
 | `PdfReader::getText($path, ['binPath' => $bin, 'options' => ['layout'], 'timeout' => 120])` | `(new PdfReader($bin))->setOptions(['layout'])->setTimeout(120)->read($path)` |
 | `HtmlReader::getText($path)`, `TextFileReader::getText($path)` | `(new HtmlReader())->read($path)`, `(new TextFileReader())->read($path)` |
 | `addReader('pdf', new PdfReader($bin))` runs the system `pdftotext` when there is one | Runs `$bin` |
+| `new PdfReader('/opt/poppler/bin')`, a directory | `DataReaderException`: `The provided path is not executable.` |
 
 ## How to Refactor
 
@@ -113,12 +117,30 @@ After:
 $text = (new PdfReader('/opt/poppler/bin/pdftotext'))->setOptions(['layout'])->setTimeout(120)->read($path);
 ```
 
+### Case 4: A `PdfReader` configured with a directory
+
+In 3.x a directory passed as the bin path was accepted, and extraction then found a `pdftotext` elsewhere, often the
+system one. The constructor and `setBinPath()` now throw. Pass the executable itself:
+
+Before:
+
+```php
+new PdfReader('/opt/poppler/bin');
+```
+
+After:
+
+```php
+new PdfReader('/opt/poppler/bin/pdftotext');
+```
+
 ## What to Search For
 
 ```
 grep -rn "ReaderInterface" --include="*.php" .
 grep -rnE "extends (PdfReader|HtmlReader|TextFileReader)\b" --include="*.php" .
 grep -rnE "static function getText\(|::getText\(" --include="*.php" .
+grep -rnE "new PdfReader\(|setBinPath\(" --include="*.php" .
 ```
 
 ## Checklist
@@ -129,3 +151,4 @@ grep -rnE "static function getText\(|::getText\(" --include="*.php" .
   or is configured in its constructor.
 - No code calls `getText()` statically on a reader, and options once passed as an array are set with the constructor
   and setters.
+- Every bin path given to `PdfReader` is the `pdftotext` executable, not its directory.

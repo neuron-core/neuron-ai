@@ -14,6 +14,7 @@ use function array_reduce;
 use function dirname;
 use function explode;
 use function is_executable;
+use function is_file;
 use function is_null;
 use function is_readable;
 use function preg_match;
@@ -57,7 +58,7 @@ class PdfReader implements ReaderInterface
 
     public function setBinPath(string $binPath): self
     {
-        if (!is_executable($binPath)) {
+        if (!is_file($binPath) || !is_executable($binPath)) {
             throw new DataReaderException("The provided path is not executable.");
         }
         $this->binPath = $binPath;
@@ -89,7 +90,7 @@ class PdfReader implements ReaderInterface
      */
     protected function findPdfToText(): string
     {
-        return $this->findBinary('pdftotext');
+        return $this->binPath ?? $this->findBinary('pdftotext');
     }
 
     /**

@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Tools\ToolCall;
 
@@ -20,6 +21,11 @@ use function array_reduce;
 use function base64_decode;
 use function getimagesizefromstring;
 use function max;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 class TokenCounter
 {
@@ -50,6 +56,10 @@ class TokenCounter
             $chars
         );
 
+        if ($message instanceof ToolCallMessage) {
+            $chars += $this->handleToolCalls($message);
+        }
+
         return (int) $this->tokens((int) ceil($chars));
     }
 
@@ -78,6 +88,24 @@ class TokenCounter
         );
 
         return $this->tokens($chars);
+    }
+
+    /**
+     * What the model reads of each call: its name, its ID and its arguments.
+     */
+    protected function handleToolCalls(ToolCallMessage $message): int
+    {
+        return array_reduce(
+            $message->getToolCalls(),
+            fn (int $carry, ToolCall $call): int => $carry
+                + mb_strlen($call->getName())
+                + mb_strlen((string) $call->getCallId())
+                + mb_strlen(json_encode(
+                    $call->getInputs(),
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+                )),
+            0
+        );
     }
 
     protected function handleTextBlock(TextContent $block): int

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\DataLoader;
 
+use NeuronAI\Exceptions\DataReaderException;
 use NeuronAI\RAG\DataLoader\FileDataLoader;
 use NeuronAI\RAG\DataLoader\HtmlReader;
 use NeuronAI\Tests\Support\FileSystemSandbox;
@@ -46,6 +47,16 @@ class HtmlReaderTest extends TestCase
         );
 
         $this->assertSame('Visible', trim((new HtmlReader())->read($path)));
+    }
+
+    public function test_an_unreadable_file_is_reported_with_its_path(): void
+    {
+        $missing = $this->sandbox . '/missing.html';
+
+        $this->expectException(DataReaderException::class);
+        $this->expectExceptionMessage("Could not read `{$missing}`. Invalid path or permission denied.");
+
+        (new HtmlReader())->read($missing);
     }
 
     public function test_file_data_loader_can_read_html_through_the_reader(): void

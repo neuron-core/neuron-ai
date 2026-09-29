@@ -51,6 +51,23 @@ class CohereEmbeddingsProviderTest extends TestCase
         ], $this->sentJson());
     }
 
+    public function test_stored_documents_are_embedded_as_search_documents(): void
+    {
+        $provider = new CohereEmbeddingsProvider(
+            key: 'cohere-key',
+            model: 'embed-v4.0',
+            httpClient: $this->recordingClient($this->embeddingsResponse([1]), $this->embeddingsResponse([2])),
+        );
+
+        $provider->embedDocuments([new Document('Stored passage')]);
+        $single = $provider->embedDocument(new Document('Stored conversation turn'));
+
+        $this->assertSame('search_document', $this->sentJson(0)['input_type']);
+        $this->assertSame('search_document', $this->sentJson(1)['input_type']);
+        $this->assertSame(['Stored conversation turn'], $this->sentJson(1)['texts']);
+        $this->assertSame([2.0], $single->getEmbedding());
+    }
+
     public function test_parameters_extend_the_request_and_override_the_input_type(): void
     {
         $provider = new CohereEmbeddingsProvider(

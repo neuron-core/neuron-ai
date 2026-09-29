@@ -13,6 +13,7 @@ use NeuronAI\Tests\RAG\DataLoader\Stub\FailingReader;
 use NeuronAI\Tests\RAG\DataLoader\Stub\FileNameReader;
 use NeuronAI\Tests\Support\FileSystemSandbox;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 use function array_map;
 use function dirname;
@@ -66,6 +67,16 @@ class FileDataLoaderTest extends TestCase
 
         $this->assertSame($content, (new TextFileReader())->read($path));
         $this->assertSame($content, FileDataLoader::for($path)->getDocuments()[0]->getContent());
+    }
+
+    public function test_an_unreadable_text_file_is_reported_with_its_path(): void
+    {
+        $missing = $this->sandbox . '/missing.txt';
+
+        $this->expectException(DataReaderException::class);
+        $this->expectExceptionMessage("Could not read `{$missing}`. Invalid path or permission denied.");
+
+        (new TextFileReader())->read($missing);
     }
 
     public function test_directory_is_loaded_recursively(): void
@@ -164,6 +175,32 @@ class FileDataLoaderTest extends TestCase
         $documents = FileDataLoader::for($path)->addReader('md', new FileNameReader())->getDocuments();
 
         $this->assertSame('read by FileNameReader: README.MD', $documents[0]->getContent());
+    }
+
+    public function test_added_reader_extensions_ignore_case_and_a_leading_dot(): void
+    {
+        $this->write('guide.md', '# ignored');
+        $this->write('notes.markdown', '# ignored');
+
+        $documents = FileDataLoader::for($this->sandbox)->addReader(['MD', '.markdown'], new FileNameReader())->getDocuments();
+
+        $this->assertSame(['read by FileNameReader: guide.md', 'read by FileNameReader: notes.markdown'], $this->sortedContents($documents));
+    }
+
+    public function test_constructor_reader_extensions_ignore_case_and_a_leading_dot(): void
+    {
+        $path = $this->write('page.html', '<p>ignored</p>');
+
+        $documents = (new FileDataLoader($path, ['.HTML' => new FileNameReader()]))->getDocuments();
+
+        $this->assertSame('read by FileNameReader: page.html', $documents[0]->getContent());
+    }
+
+    public function test_set_readers_refuses_a_value_that_is_not_a_reader(): void
+    {
+        $this->expectException(TypeError::class);
+
+        FileDataLoader::for($this->sandbox)->setReaders(['md' => 'MarkdownReader']);
     }
 
     public function test_added_reader_overrides_the_one_registered_for_the_same_extension(): void
