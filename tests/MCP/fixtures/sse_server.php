@@ -18,7 +18,8 @@ declare(strict_types=1);
  * `value` argument and reports the headers of the POST and of the stream request.
  *
  * GET ...?script=<name> instead relays the file <name> in the temp directory as the test
- * appends to it, so a test scripts the exact bytes of the stream.
+ * appends to it, so a test scripts the exact bytes of the stream. With quiet, it sends no
+ * heartbeat between events: bytes arrive only when the test writes them.
  */
 
 if (isset($_GET['script'])) {
@@ -40,7 +41,7 @@ if (isset($_GET['script'])) {
             $offset += \strlen($bytes);
             $betweenEvents = \str_ends_with($bytes, "\n\n");
             echo $bytes;
-        } elseif ($betweenEvents) {
+        } elseif ($betweenEvents && !isset($_GET['quiet'])) {
             // Writing is also how PHP notices a client that went away.
             echo ": heartbeat\n\n";
         }

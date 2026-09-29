@@ -161,46 +161,22 @@ class SseHttpTransport implements McpTransportInterface
      */
     protected function waitForEndpoint(): void
     {
-        $timeout = microtime(true) + 10;
-        $endpointReceived = false;
+        $timeout = microtime(true) + ($this->config['timeout'] ?? 30);
 
-        while (!$endpointReceived && microtime(true) < $timeout) {
-            if ($this->sseStream === null) {
-                throw new McpException('SSE stream closed while waiting for endpoint');
-            }
-
-            $data = fread($this->sseStream, 8192);
-
-            if ($data !== false && $data !== '') {
-                $this->sseBuffer .= $data;
-
-                if (strlen($this->sseBuffer) > self::MAX_BUFFER_SIZE) {
-                    throw new McpException('SSE buffer exceeded maximum size');
-                }
-
-                // Complete SSE events are framed by a blank line
-                while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
-                    $eventBlock = substr($this->sseBuffer, 0, $pos);
-                    $this->sseBuffer = substr($this->sseBuffer, $pos + 2);
-
-                    $parsed = $this->parseSseEvent($eventBlock);
-
-                    if ($parsed['event'] === 'endpoint' && $parsed['data'] !== '') {
-                        $this->postEndpointUrl = $this->resolveEndpointUrl($this->config['url'], $parsed['data']);
-                        $endpointReceived = true;
-                        break;
-                    }
+        while (microtime(true) < $timeout) {
+            while (($event = $this->nextBufferedEvent()) !== null) {
+                if ($event['event'] === 'endpoint' && $event['data'] !== '') {
+                    $this->postEndpointUrl = $this->resolveEndpointUrl($this->config['url'], $event['data']);
+                    return;
                 }
             }
 
-            if (!$endpointReceived) {
+            if (!$this->readIntoBuffer()) {
                 usleep(10000); // avoid busy waiting
             }
         }
 
-        if (!$endpointReceived) {
-            throw new McpException('Timeout waiting for endpoint event from server');
-        }
+        throw new McpException('Timeout waiting for endpoint event from server');
     }
 
     /**
@@ -296,56 +272,76 @@ class SseHttpTransport implements McpTransportInterface
         }
 
         $timeout = microtime(true) + ($this->config['timeout'] ?? 30);
-        $received = false;
-        $response = null;
 
-        while (!$received && microtime(true) < $timeout) {
-            $data = fread($this->sseStream, 8192);
+        while (microtime(true) < $timeout) {
+            while (($event = $this->nextBufferedEvent()) !== null) {
+                // JSON-RPC responses arrive as 'message' events
+                if ($event['event'] === 'message' && $event['data'] !== '') {
+                    try {
+                        $message = json_decode($event['data'], true, 64, JSON_THROW_ON_ERROR);
 
-            if ($data === false) {
-                if (feof($this->sseStream)) {
-                    throw new McpException('SSE stream closed by server');
-                }
-            } elseif ($data !== '') {
-                $this->sseBuffer .= $data;
-
-                if (strlen($this->sseBuffer) > self::MAX_BUFFER_SIZE) {
-                    throw new McpException('SSE buffer exceeded maximum size');
-                }
-
-                while (($pos = strpos($this->sseBuffer, "\n\n")) !== false) {
-                    $eventBlock = substr($this->sseBuffer, 0, $pos);
-                    $this->sseBuffer = substr($this->sseBuffer, $pos + 2);
-
-                    $parsed = $this->parseSseEvent($eventBlock);
-
-                    // JSON-RPC responses arrive as 'message' events
-                    if ($parsed['event'] === 'message' && $parsed['data'] !== '') {
-                        try {
-                            $message = json_decode($parsed['data'], true, 64, JSON_THROW_ON_ERROR);
-
-                            if (isset($message['jsonrpc']) && $message['jsonrpc'] === '2.0') {
-                                $response = $message;
-                                $received = true;
-                                break;
-                            }
-                        } catch (JsonException) {
-                            // Ignore invalid JSON, continue reading
+                        if (isset($message['jsonrpc']) && $message['jsonrpc'] === '2.0') {
+                            return $message;
                         }
+                    } catch (JsonException) {
+                        // Ignore invalid JSON, continue reading
                     }
                 }
             }
 
-            if (!$received) {
+            if (!$this->readIntoBuffer()) {
                 usleep(10000); // avoid busy waiting
             }
         }
 
-        if (!$received || $response === null) {
-            throw new McpException('Timeout waiting for response from server');
+        throw new McpException('Timeout waiting for response from server');
+    }
+
+    /**
+     * Take the oldest complete event out of the buffer: a server may send several at once,
+     * and the ones not needed yet must still be found without waiting for more bytes.
+     *
+     * @return array{event: string, data: string, id: ?string}|null
+     */
+    protected function nextBufferedEvent(): ?array
+    {
+        // Complete SSE events are framed by a blank line
+        $pos = strpos($this->sseBuffer, "\n\n");
+        if ($pos === false) {
+            return null;
         }
 
-        return $response;
+        $eventBlock = substr($this->sseBuffer, 0, $pos);
+        $this->sseBuffer = substr($this->sseBuffer, $pos + 2);
+
+        return $this->parseSseEvent($eventBlock);
+    }
+
+    /**
+     * Read what has arrived, reporting whether anything did. On the non-blocking stream a
+     * closed connection reads as an empty string too: only feof() tells it apart.
+     *
+     * @throws McpException
+     */
+    protected function readIntoBuffer(): bool
+    {
+        $data = fread($this->sseStream, 8192);
+
+        if ($data === false || $data === '') {
+            if (feof($this->sseStream)) {
+                throw new McpException('SSE stream closed by server');
+            }
+
+            return false;
+        }
+
+        $this->sseBuffer .= $data;
+
+        if (strlen($this->sseBuffer) > self::MAX_BUFFER_SIZE) {
+            throw new McpException('SSE buffer exceeded maximum size');
+        }
+
+        return true;
     }
 
     /**

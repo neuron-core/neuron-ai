@@ -14,15 +14,20 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function basename;
+use function file_put_contents;
 use function glob;
 use function is_dir;
+use function microtime;
 use function parse_url;
 use function rawurlencode;
 use function rmdir;
 use function str_replace;
 use function sys_get_temp_dir;
+use function tempnam;
 use function unlink;
 
+use const FILE_APPEND;
 use const PHP_URL_PORT;
 
 class SseHttpTransportTest extends TestCase
@@ -362,6 +367,99 @@ class SseHttpTransportTest extends TestCase
         } finally {
             $transport->disconnect();
         }
+    }
+
+    public function test_a_stream_closed_after_the_endpoint_fails_receive_at_once(): void
+    {
+        $transport = $this->transport('/sse?close=1', new ScriptedHttpClient(), ['timeout' => 3]);
+        $transport->connect();
+        $started = microtime(true);
+
+        try {
+            $transport->receive();
+            $this->fail('A closed stream must not be waited on');
+        } catch (McpException $exception) {
+            $this->assertSame('SSE stream closed by server', $exception->getMessage());
+            $this->assertLessThan(1.0, microtime(true) - $started);
+        }
+    }
+
+    public function test_a_stream_closed_before_the_endpoint_fails_the_connection_at_once(): void
+    {
+        $transport = $this->transport('/sse?status=200', new ScriptedHttpClient(), ['timeout' => 3]);
+        $started = microtime(true);
+
+        try {
+            $transport->connect();
+            $this->fail('A closed stream must not be waited on');
+        } catch (McpException $exception) {
+            $this->assertSame('SSE stream closed by server', $exception->getMessage());
+            $this->assertLessThan(1.0, microtime(true) - $started);
+        }
+    }
+
+    public function test_a_response_sent_with_the_endpoint_is_delivered(): void
+    {
+        $script = $this->script("event: endpoint\ndata: /messages\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n");
+
+        try {
+            $transport = $this->transport('/sse?quiet=1&script=' . basename($script), new ScriptedHttpClient(), ['timeout' => 1]);
+            $transport->connect();
+
+            $this->assertSame(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], $transport->receive());
+        } finally {
+            unlink($script);
+        }
+    }
+
+    public function test_messages_arriving_together_are_delivered_one_by_one(): void
+    {
+        $script = $this->script("event: endpoint\ndata: /messages\n\n");
+
+        try {
+            $transport = $this->transport('/sse?quiet=1&script=' . basename($script), new ScriptedHttpClient(), ['timeout' => 1]);
+            $transport->connect();
+            file_put_contents(
+                $script,
+                "event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\n"
+                . "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+                FILE_APPEND,
+            );
+
+            $this->assertSame(['jsonrpc' => '2.0', 'method' => 'notifications/progress'], $transport->receive());
+            $this->assertSame(['jsonrpc' => '2.0', 'id' => 1, 'result' => []], $transport->receive());
+        } finally {
+            unlink($script);
+        }
+    }
+
+    public function test_the_endpoint_is_awaited_for_the_configured_timeout(): void
+    {
+        // A comment opens the stream, so the server sends its headers
+        $script = $this->script(": waiting\n\n");
+        $transport = $this->transport('/sse?quiet=1&script=' . basename($script), new ScriptedHttpClient(), ['timeout' => 0.5]);
+        $started = microtime(true);
+
+        try {
+            $transport->connect();
+            $this->fail('A stream that never announces its endpoint must not be waited on longer than the timeout');
+        } catch (McpException $exception) {
+            $this->assertSame('Timeout waiting for endpoint event from server', $exception->getMessage());
+            $this->assertLessThan(2.0, microtime(true) - $started);
+        } finally {
+            unlink($script);
+        }
+    }
+
+    /**
+     * A file the fixture relays as the event stream, so a test scripts its exact bytes.
+     */
+    protected function script(string $bytes): string
+    {
+        $script = (string) tempnam(sys_get_temp_dir(), 'neuron-sse-');
+        file_put_contents($script, $bytes);
+
+        return $script;
     }
 
     /**

@@ -579,6 +579,8 @@ $mcpTools = McpConnector::make([
 ])->tools();
 ```
 
+A stdio server inherits only `HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM` and `USER` from the application (on Windows, their equivalents such as `USERPROFILE`, `APPDATA` and `SYSTEMROOT`), as the official MCP SDKs do. Pass anything else it needs through `env`: API keys and tokens, `HTTPS_PROXY`, `LANG`.
+
 ### MCP Tool Filtering and Configuration
 
 ```php

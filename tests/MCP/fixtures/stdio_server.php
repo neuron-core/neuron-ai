@@ -16,7 +16,8 @@ declare(strict_types=1);
  *  - batched: write the notification and the response in a single write
  *  - lingerSeconds: keep running this long after stdin closes, as a server that ignores EOF does
  * tools/call echoes its `value` argument and reports the server's process ID, the
- * arguments it was started with after the options, and NEURON_MCP_FIXTURE from its environment.
+ * arguments it was started with after the options, NEURON_MCP_FIXTURE from its environment, and
+ * the names of every environment variable it received.
  */
 
 $options = \json_decode($argv[1] ?? '{}', true) + [
@@ -70,6 +71,7 @@ while (($line = \fgets(\STDIN)) !== false) {
             'server' => \getmypid(),
             'args' => \array_slice($argv, 2),
             'env' => \getenv('NEURON_MCP_FIXTURE') ?: null,
+            'envNames' => \array_keys(\getenv()),
         ],
         default => new \stdClass(),
     };

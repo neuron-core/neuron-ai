@@ -21,6 +21,7 @@ use function in_array;
 use function is_file;
 use function json_encode;
 use function mkdir;
+use function putenv;
 use function rmdir;
 use function strlen;
 use function symlink;
@@ -106,6 +107,22 @@ class StdioTransportTest extends TestCase
         $client = new McpClient(['env' => ['NEURON_MCP_FIXTURE' => 'from config']] + $this->server());
 
         $this->assertSame('from config', $client->callTool('echo', ['value' => 'x'])['result']['env']);
+    }
+
+    public function test_the_server_inherits_only_the_basic_variables_of_the_application(): void
+    {
+        putenv('NEURON_MCP_SECRET=sk-live-application-secret');
+
+        try {
+            $client = new McpClient(['env' => ['NEURON_MCP_FIXTURE' => 'from config']] + $this->server());
+            $names = $client->callTool('echo', ['value' => 'x'])['result']['envNames'];
+        } finally {
+            putenv('NEURON_MCP_SECRET');
+        }
+
+        $this->assertNotContains('NEURON_MCP_SECRET', $names);
+        $this->assertContains('PATH', $names);
+        $this->assertContains('NEURON_MCP_FIXTURE', $names);
     }
 
     public function test_multibyte_payloads_round_trip(): void

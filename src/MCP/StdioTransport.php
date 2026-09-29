@@ -6,6 +6,7 @@ namespace NeuronAI\MCP;
 
 use JsonException;
 
+use function array_filter;
 use function array_merge;
 use function error_get_last;
 use function fclose;
@@ -14,7 +15,9 @@ use function fread;
 use function function_exists;
 use function fwrite;
 use function getenv;
+use function in_array;
 use function is_resource;
+use function is_string;
 use function json_decode;
 use function json_encode;
 use function proc_close;
@@ -25,6 +28,7 @@ use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_read_buffer;
 use function stream_set_write_buffer;
+use function strtoupper;
 use function mb_strlen;
 use function microtime;
 use function strpos;
@@ -32,10 +36,21 @@ use function substr;
 use function trim;
 use function usleep;
 
+use const ARRAY_FILTER_USE_KEY;
 use const JSON_THROW_ON_ERROR;
 
 class StdioTransport implements McpTransportInterface
 {
+    /**
+     * The variables a server inherits from the application, as in the official MCP SDKs (Linux
+     * and macOS, then Windows): anything else, credentials included, is passed through `env`.
+     */
+    protected const INHERITED_ENV = [
+        'HOME', 'LOGNAME', 'PATH', 'SHELL', 'TERM', 'USER',
+        'APPDATA', 'HOMEDRIVE', 'HOMEPATH', 'LOCALAPPDATA', 'PROCESSOR_ARCHITECTURE', 'PROGRAMFILES',
+        'SYSTEMDRIVE', 'SYSTEMROOT', 'TEMP', 'USERNAME', 'USERPROFILE',
+    ];
+
     /**
      * @var null|resource|false $process
      */
@@ -73,7 +88,14 @@ class StdioTransport implements McpTransportInterface
         $args = $this->config['args'] ?? [];
         $env = $this->config['env'] ?? [];
 
-        $fullEnv = array_merge(getenv(), $env);
+        // Windows reports names in any case, such as Path, and getenv() turns a numeric name into an int key
+        $inheritedEnv = array_filter(
+            getenv(),
+            fn (int|string $name): bool => is_string($name) && in_array(strtoupper($name), static::INHERITED_ENV, true),
+            ARRAY_FILTER_USE_KEY,
+        );
+
+        $fullEnv = array_merge($inheritedEnv, $env);
 
         // Started directly, not through a shell: stopping the process stops the server itself,
         // and a path with spaces or shell syntax in the command is taken literally
