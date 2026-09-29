@@ -14,9 +14,16 @@ services:
       - composer-cache:/tmp/composer-cache
     working_dir: /app
     network_mode: host
+    # Non-root, so POSIX permission tests run and files written to the repo stay yours
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
       WORKFLOW_REDIS_HOST: 127.0.0.1
       WORKFLOW_REDIS_PORT: "6379"
+      WORKFLOW_MYSQL_DSN: "mysql:host=127.0.0.1;dbname=neuron-ai"
+      WORKFLOW_MYSQL_USER: root
+      WORKFLOW_PGSQL_DSN: "pgsql:host=127.0.0.1;dbname=neuron-ai"
+      WORKFLOW_PGSQL_USER: postgres
+      WORKFLOW_PGSQL_PASSWORD: workflow-test
     depends_on:
       redis:
         condition: service_healthy
@@ -29,6 +36,8 @@ services:
       mysql:
         condition: service_healthy
       mariadb:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       opensearch:
         condition: service_healthy
@@ -91,6 +100,19 @@ services:
       - 3307:3306
     healthcheck:
       test: ["CMD", "mariadb-admin", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-17-alpine}
+    environment:
+      POSTGRES_DB: neuron-ai
+      POSTGRES_PASSWORD: workflow-test
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 10s
       timeout: 5s
       retries: 3

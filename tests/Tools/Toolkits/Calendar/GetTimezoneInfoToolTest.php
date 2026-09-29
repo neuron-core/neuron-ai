@@ -130,7 +130,7 @@ class GetTimezoneInfoToolTest extends TestCase
     {
         $result = json_decode(($this->tool)('Australia/Sydney', '2023-01-15 12:00:00'), true);
 
-        $this->assertSame(['country_code' => 'AU', 'latitude' => -33.86666, 'longitude' => 151.21666], $result['location']);
+        $this->assertSame(['country_code' => 'AU', 'latitude' => -33.8667, 'longitude' => 151.2167], $result['location']);
     }
 
     public function test_get_timezone_info_without_location(): void
@@ -151,7 +151,7 @@ class GetTimezoneInfoToolTest extends TestCase
             'offset_formatted' => '+02:00',
             'is_dst' => true,
             'abbreviation' => 'CEST',
-            'location' => ['country_code' => 'FR', 'latitude' => 48.86666, 'longitude' => 2.33333],
+            'location' => ['country_code' => 'FR', 'latitude' => 48.8667, 'longitude' => 2.3333],
             'reference_time' => '2023-07-01 12:00:00 CEST',
         ], json_decode(($this->tool)('Europe/Paris', '2023-07-01 12:00:00'), true));
     }
@@ -181,7 +181,7 @@ class GetTimezoneInfoToolTest extends TestCase
             'offset_formatted' => '+05:30',
             'is_dst' => false,
             'abbreviation' => 'IST',
-            'location' => ['country_code' => 'IN', 'latitude' => 22.53333, 'longitude' => 88.36666],
+            'location' => ['country_code' => 'IN', 'latitude' => 22.5333, 'longitude' => 88.3667],
             'reference_time' => '2023-01-15 12:00:00 IST',
         ], json_decode(($this->tool)('Asia/Kolkata', '2023-01-15 12:00:00'), true));
     }

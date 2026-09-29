@@ -13,17 +13,28 @@ jobs:
     ci:
         runs-on: ${{ matrix.os }}
         services:
+            redis:
+                image: redis:7.4-alpine
+                ports:
+                    - 6379:6379
+                options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=3
+            mongodb:
+                # Atlas Local bundles the search engine (mongot) required by $vectorSearch
+                image: mongodb/mongodb-atlas-local:8.0
+                ports:
+                    - 27017:27017
+                options: --health-cmd="runner healthcheck" --health-interval=10s --health-timeout=5s --health-retries=10
             qdrant:
-                image: qdrant/qdrant:latest
+                image: qdrant/qdrant:v1.14.1
                 ports:
                     - 6333:6333
                     - 6334:6334
             chroma:
-                image: chromadb/chroma:latest
+                image: chromadb/chroma:1.0.2
                 ports:
                     - 8000:8000
             meilisearch:
-                image: getmeili/meilisearch:latest
+                image: getmeili/meilisearch:v1.13.0
                 ports:
                     - 7700:7700
             mysql:
@@ -51,7 +62,7 @@ jobs:
                     - 3307:3306
                 options: --health-cmd="mariadb-admin ping" --health-interval=10s --health-timeout=5s --health-retries=3
             opensearch:
-                image: opensearchproject/opensearch:${{ matrix.opensearch-version || 'latest' }}
+                image: opensearchproject/opensearch:${{ matrix.opensearch-version || '2.19.1' }}
                 ports:
                     - 9201:9200 # Avoid port conflict with Elasticsearch
                     - 9600:9600
@@ -82,7 +93,7 @@ jobs:
                 os: [ubuntu-latest]
                 php: ['8.1', '8.2', '8.3', '8.4', '8.5']
                 dependency-version: [lowest, highest]
-                opensearch-version: ['latest']
+                opensearch-version: ['2.19.1']
                 include:
                     - os: ubuntu-latest
                       php: '8.5'
@@ -115,7 +126,7 @@ jobs:
               uses: shivammathur/setup-php@v2
               with:
                   php-version: ${{ matrix.php }}
-                  extensions: pdo_mysql, pdo_pgsql, pdo_sqlite, mongodb-2.5.2
+                  extensions: pdo_mysql, pdo_pgsql, pdo_sqlite, mongodb-2.5.2, redis, igbinary, bcmath, sodium
                   coverage: none
 
             - name: Setup Problem Matches
@@ -178,6 +189,8 @@ jobs:
 
             - name: Unit Tests
               env:
+                  WORKFLOW_REDIS_HOST: 127.0.0.1
+                  WORKFLOW_REDIS_PORT: "6379"
                   WORKFLOW_MYSQL_DSN: "mysql:host=127.0.0.1;dbname=neuron-ai"
                   WORKFLOW_MYSQL_USER: root
                   WORKFLOW_PGSQL_DSN: "pgsql:host=127.0.0.1;dbname=neuron-ai"

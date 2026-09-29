@@ -13,6 +13,7 @@ use Exception;
 
 use function is_numeric;
 use function json_encode;
+use function round;
 use function str_contains;
 
 class GetTimezoneInfoTool extends Tool
@@ -67,8 +68,9 @@ class GetTimezoneInfoTool extends Tool
                 'abbreviation' => $date->format('T'),
                 'location' => ($location !== false && !str_contains($location['country_code'], '?')) ? [
                     'country_code' => $location['country_code'],
-                    'latitude' => $location['latitude'],
-                    'longitude' => $location['longitude'],
+                    // Arc-minute precision of the source data; also hides float noise that differs between timezone databases
+                    'latitude' => round($location['latitude'], 4),
+                    'longitude' => round($location['longitude'], 4),
                 ] : null,
                 'reference_time' => $date->format('Y-m-d H:i:s T'),
             ]);

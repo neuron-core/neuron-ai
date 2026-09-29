@@ -14,6 +14,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\MCP\StreamableHttpTransport;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\OpenAI\OpenAI;
+use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Embeddings\OpenAIEmbeddingsProvider;
 use NeuronAI\RAG\PostProcessor\CohereRerankerPostProcessor;
 use NeuronAI\RAG\VectorStore\PineconeVectorStore;
@@ -52,7 +53,7 @@ class ConsumerIsolationTest extends TestCase
         $openai->chat(new UserMessage('Hi'));
         $embeddings->embedText('Hi');
         $store->search(new SearchRequest([0.5]));
-        $reranker->process(new UserMessage('Hi'), []);
+        $reranker->process(new UserMessage('Hi'), [new Document('Hi')]);
         $mcp->send(['jsonrpc' => '2.0', 'method' => 'test']);
         $client->request(HttpRequest::get('health'));
 
