@@ -1,6 +1,6 @@
 # Upgrade Guides — How to Apply Them
 
-This directory contains the step-by-step guides for upgrading an application from Neuron AI 3.x to 4.x. Each numbered file (`1-*.md`, `2-*.md`, ...) documents one breaking change: what changed, how to find affected code, and how to refactor it.
+This directory contains the step-by-step guides for upgrading an application from Neuron AI 3.x to 4.x. Each numbered file (`0-*.md`, `1-*.md`, ...) documents one breaking change: what changed, how to find affected code, and how to refactor it. Every guide migrates 3.x code straight to the final 4.x API, and each API is migrated by exactly one guide: when a guide points to another guide for a symbol, leave that symbol alone until you reach that guide.
 
 Your job is to upgrade the **application codebase** you are working in (the project that depends on `neuron-core/neuron-ai`), not the framework itself.
 
@@ -17,11 +17,15 @@ For each guide:
 3. **Apply the refactoring** to every affected file, following the guide's Before/After examples. Preserve the application's existing behavior, namespaces, and code style — you are translating old API usage to new API usage, not redesigning the code.
 
 4. **Verify** before moving to the next guide:
-   - Run the guide's checklist against each modified file, if the guide has one.
-   - Run the application's test suite and/or static analysis if available (`composer test`, `vendor/bin/phpunit`, `vendor/bin/phpstan`).
+   - Run the guide's checklist against each modified file.
    - Re-run the guide's search patterns to confirm no old-API usage remains.
+   - If the application has static analysis (`vendor/bin/phpstan`), run it and check that no error mentions a symbol this guide migrates. Errors about symbols that later guides migrate are expected until those guides are applied.
 
 5. **Report** what you changed for this step (files touched, patterns found, anything skipped) before starting the next one.
+
+Guide 0 reinstalls the agent skills and ends with a stop: report to the user and continue with guide 1 in a new coding-agent session that the user starts. Do not restart or continue on your own.
+
+After the last guide, run the application's full test suite and static analysis (`composer test`, `vendor/bin/phpunit`, `vendor/bin/phpstan`) and fix the remaining failures the upgrade caused.
 
 ## Rules
 
@@ -31,3 +35,9 @@ For each guide:
 - **Don't fix unrelated issues.** If you notice pre-existing problems outside the scope of the current guide, mention them in your report — don't change them.
 - **When a guide mentions a database migration** (e.g., renamed columns), generate the migration in the application's own migration system; don't run raw DDL against a database unless asked.
 - **If something is ambiguous** — a usage the guide doesn't cover, or two plausible refactorings — surface it and ask rather than guessing silently.
+
+## Conclusion
+
+After completing the update process, look at composer.json and the project structure to tell whether it is a Laravel app or a Symfony app, then
+activate the matching skill: neuron-laravel-integration or neuron-symfony-integration. Go through the skill's foundations checklist item by item.
+Report what differs from the recommended setup. Finish with your recommendations on how to improve the Neuron integration based on the best practices.

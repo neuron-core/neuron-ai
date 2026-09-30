@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use NeuronAI\Exceptions\ChatHistoryException;
+
 /**
  * Migrates chat histories from the legacy SQLChatHistory structure
  * (a single row per thread with all the messages serialized in one column)
  * to the new structure with one row per message.
  *
- * The target table must already exist (see SQLChatHistory for the schema):
+ * The target table must already exist (see SQLMessageStore for the schema):
  *
  * $migration = new SQLChatHistoryMigration($pdo);
  * $migrated = $migration->run();
