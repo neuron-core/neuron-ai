@@ -76,6 +76,8 @@ the same language as the system you are building today.
 
 ## Start With One Prompt
 
+Copy & paste this initial prompt to tell your conding agent how to install and configure Neuron AI in your project.
+
 ```
 You are going to set up Neuron AI, a PHP framework for building agentic applications,
 in this project, and you must follow three steps in order. First, install the framework:
