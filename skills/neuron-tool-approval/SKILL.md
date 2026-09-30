@@ -301,7 +301,7 @@ Set complete → approved tool runs, rejected tool's template becomes its result
 ```json
 { "status": "completed",
   "message": { "role": "assistant", "content": [ { "type": "text",
-      "text": "I deleted the file. I didn't send the email — let me know if you'd like to notify someone individually." } ] } }
+      "content": "I deleted the file. I didn't send the email — let me know if you'd like to notify someone individually." } ] } }
 ```
 
 ## Related

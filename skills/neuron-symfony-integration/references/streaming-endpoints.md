@@ -43,7 +43,7 @@ class VercelChatController extends AbstractController
 
         $this->stopSignal->clear($threadId);
         if (($last['role'] ?? null) === 'assistant') {
-            $adapter = new VercelAIAdapter($last['id'], $last['parts'] ?? []);
+            $adapter = new VercelAIAdapter(messageId: $last['id'], parts: $last['parts'] ?? []);
             $events = $this->agent->for($threadId)
                 ->setStreamAdapter(fn (): VercelAIAdapter => $adapter)
                 ->submitInputs($input, new VercelAIInputTranslator())
@@ -51,6 +51,7 @@ class VercelChatController extends AbstractController
         } elseif (($last['role'] ?? null) === 'user') {
             $adapter = new VercelAIAdapter();
             $text = implode('', array_map(fn (array $part): string => $part['type'] === 'text' ? (string) $part['text'] : '', $last['parts'] ?? []));
+            $this->agent->for($threadId)->recoverFailedTurn();
             $events = $this->agent->for($threadId)
                 ->setStreamAdapter(fn (): VercelAIAdapter => $adapter)
                 ->stream(new UserMessage($text));
@@ -82,4 +83,5 @@ What differs from the AG-UI endpoint, as run:
 - Priming gave the same 409 JSON response before any frame when a second turn arrived during a pending approval, though `valid()` returns only at the first provider chunk: `VercelAIAdapter::start()` emits nothing.
 - The headers add `x-vercel-ai-ui-message-stream: v1` to the SSE ones.
 - There is no `hydrate()`: `useChat` keeps its messages client-side. A reload endpoint returns `loadAll()` and `pendingApprovals()` as JSON (SKILL.md, "Reload").
-- A `WebTestCase` with `FakeAIProvider` ran a turn, an approval round trip through a trailing assistant message, and the 409 (the base class is in [testing.md](testing.md)).
+- A new turn finishes a failed one first, on its own copy, as in the AG-UI endpoint: after a failure past a tool, the next message answered and history held the recovered turn before it.
+- A `WebTestCase` with `FakeAIProvider` ran a turn, an approval round trip through a trailing assistant message, the 409 and the recovery (the base class is in [testing.md](testing.md)).

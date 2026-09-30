@@ -1,6 +1,6 @@
 ---
 name: neuron-symfony-integration
-description: Integrate Neuron AI agents into a Symfony 8 application the Symfony way — a foundations checklist (packages, the App\Neuron layout, keys from env vars, a Doctrine migration for chat_messages and workflow_store, services.yaml wiring of the message store, workflow persistence and WorkflowEngine over Doctrine's PDO, Neuron exceptions mapped to HTTP statuses, a bin/console neuron:evaluate command wrapping Neuron's evaluation runner), then a shared agent bound per request with for(), thread ownership with a voter, a JSON chat endpoint, an AG-UI/CopilotKit or Vercel useChat streaming endpoint with StreamedResponse, reload with pending approvals, Messenger background runs with a reserved run ID and failure publication, Redis relay or Mercure delivery, a Stop button, observability through Symfony's event dispatcher, evaluators built by the container with in-memory stores and run in parallel on the app's database, and WebTestCase tests with FakeAIProvider. Use this skill whenever the user mentions Symfony together with Neuron, an AI assistant or chat in a Symfony app, streaming an agent from a Symfony controller, running an agent in Messenger, a worker or a background job, showing a conversation after a reload, a stop-generating button, evaluating an agent in a Symfony app, or testing agents in Symfony. Also trigger for any task involving services.yaml with MessageStoreInterface, PersistenceInterface, WorkflowEngine, SQLMessageStore, DatabasePersistence, getNativeConnection, AutowireServiceClosure, #[Autowire(env:)], StreamedResponse with SSEEncoder, AGUIAdapter::hydrate, #[AsMessageHandler] with ExecutionRequest::start, RecoverableMessageHandlingException, WorkerMessageFailedEvent, RedisChannel, RedisChannelReader, MercureChannel, StoppableHttpClient with a cache pool, #[AsEventListener] on Neuron events, KernelBrowser disableReboot, doctrine:migrations for Neuron tables, EvaluationCommand, EvaluatorRunner beforeChild, #[AutowireLocator] of evaluators, evaluation.php or make:evaluators in a Symfony app.
+description: Integrate Neuron AI agents into a Symfony 8 app, from packages, env keys, a Doctrine migration for the Neuron tables and services.yaml wiring to a shared agent bound per request with for(), a thread voter, JSON and AG-UI (CopilotKit) or useChat streaming with StreamedResponse, reload with pending approvals, Messenger background runs relayed over Redis or Mercure, a Stop button, observability, bin/console neuron:evaluate and WebTestCase tests. Use this skill whenever the user mentions Symfony together with Neuron, an AI assistant or chat in a Symfony app, streaming an agent from a Symfony controller, running an agent in Messenger or a worker, showing a conversation after a reload, a stop-generating button, or evaluating or testing agents in Symfony. Also trigger for SQLMessageStore or DatabasePersistence in services.yaml, AutowireServiceClosure, AsMessageHandler with ExecutionRequest::start, WorkerMessageFailedEvent, RedisChannelReader, MercureChannel, StoppableHttpClient, or KernelBrowser disableReboot.
 ---
 
 # Neuron AI Symfony Integration
@@ -9,18 +9,19 @@ This skill wires Neuron into a Symfony 8 application: first the foundations ever
 
 ## The Mental Model
 
-**The container holds definitions; every request or message works on a bound copy.** The agent is a shared service. A controller or handler calls `$this->agent->for($threadId)`, which returns a copy bound to the thread and leaves the shared agent unbound. Per-request pieces (stream adapter, channel, frontend tools) go on the copy. Never call `setThreadId()` on the injected agent: the second request or message throws `WorkflowException: This workflow is bound to 't-a' and cannot be re-pointed to 't-b'.`
+**The container holds definitions; every request or message works on a bound copy.** The agent is a shared service. A controller or handler calls `$this->agent->for($threadId)`, which returns a copy bound to the thread and leaves the shared agent unbound. Per-request pieces (stream adapter, channel, frontend tools) go on the copy. Never call `setThreadId()` on the injected agent: the second thread served by the same container (the next message in a worker, the next request under a worker runtime or a test client that does not reboot) throws `WorkflowException: This workflow is bound to 't-a' and cannot be re-pointed to 't-b'.`
 
 **Hooks run once per copy, so anything holding a connection is resolved there.** The agent pulls its stores through service closures of `shared: false` services built on Doctrine's current PDO. The shared agent never resolves them; each copy gets its own instances.
 
 | Piece | Where | Lifetime |
 |---|---|---|
-| `SupportAgent`: provider hook, instructions, tools | `src/Neuron/Agents`, autowired | Shared service, never bound |
+| `SupportAgent`: provider hook, instructions, `tools()` hook | `src/Neuron/Agents`, autowired | Shared service, never bound |
 | Bound copy + adapter, channel, frontend tools | Controller action, message handler | One request or one message |
+| Tools, scoped to the thread's customer | Built by `tools()` on each copy | One copy |
 | `MessageStoreInterface`, `PersistenceInterface`, `neuron.pdo` | `config/packages/neuron.yaml` | `shared: false`: new per resolution, current PDO |
 | `WorkflowEngine` | Autowired, `shared: false` | Reads runs without building the agent |
 | Provider wrapped in `StoppableHttpClient` | Agent `provider()` hook | Built for every execution segment |
-| Stop flags | Cache pool `neuron.stop_signals` | One flag stops one answer |
+| Stop flags | Cache pool `neuron.stop_signals` | Raised by Stop, cleared by the next turn (5 minutes at most) |
 | Thread ownership | `ThreadVoter` + `#[IsGranted]` | Every Neuron route |
 | Neuron exceptions to statuses | `NeuronExceptionListener` | `kernel.exception` |
 | Background turn | `RunSupportAgent` message + handler | Run ID minted at dispatch |
@@ -37,7 +38,7 @@ composer require neuron-core/neuron-ai
 composer require --dev spatie/fork
 ```
 
-`spatie/fork` and `ext-pcntl` run evaluation items in parallel; without them `--concurrency` prints a notice and runs sequentially. The features below also use `doctrine/doctrine-bundle` and `doctrine/doctrine-migrations-bundle` with a `pdo_*` driver, `symfony/security-bundle`, `symfony/uid` (thread and run IDs), `symfony/messenger` with a transport (`symfony/redis-messenger` here), and for delivery `ext-redis` or `symfony/mercure-bundle`.
+`spatie/fork` (with `ext-pcntl` and `ext-sockets`, plus `ext-posix` so forked children end with `SIGKILL`) runs evaluation items in parallel; without it `--concurrency` prints a notice and runs sequentially. `--dev` is enough for evaluations; workers that use `parallelToolCalls()` need it without `--dev`, or their tool calls run one after another. The features below also use `doctrine/doctrine-bundle` and `doctrine/doctrine-migrations-bundle` with a `pdo_*` driver, `symfony/security-bundle`, `symfony/uid` (thread and run IDs), `symfony/messenger` with a transport (`symfony/redis-messenger` here), and for delivery `ext-redis` or `symfony/mercure-bundle`. They assume a Doctrine `App\Entity\User` with an integer ID behind the firewall: `php bin/console make:user`, then `#[ORM\Table(name: 'app_user')]` on the entity (`user` is reserved on PostgreSQL).
 
 ### 2. Layout and generators
 
@@ -60,8 +61,11 @@ Keys are env vars: a placeholder in `.env`, the real value in a real env var or 
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-4-6
 REDIS_DSN=redis://127.0.0.1:6379
+MESSENGER_TRANSPORT_DSN=redis://127.0.0.1:6379/messages
 ###< neuron ###
 ```
+
+`MESSENGER_TRANSPORT_DSN` replaces the Messenger recipe's `doctrine://default?auto_setup=0`, which needs `symfony/doctrine-messenger` (without it `messenger:consume` stopped with `No transport supports Messenger DSN "doctrine://default"`). Give each worker its own consumer name (Background Runs).
 
 - The env value is read when the service is built, not when the container compiles: the same compiled container picked up a new `ANTHROPIC_API_KEY` after a restart, with no `cache:clear`.
 - Never read `$_ENV` or `getenv()` in app classes.
@@ -71,7 +75,7 @@ REDIS_DSN=redis://127.0.0.1:6379
 
 One Doctrine migration creates both tables with the DDL core documents, per platform: `VARBINARY` thread and message IDs and `ascii_bin` keys on MySQL and MariaDB, an identity column on PostgreSQL, plain types on SQLite. MySQL and MariaDB need strict SQL mode: on a session without it the first write threw `PersistenceException: Workflow persistence requires MySQL strict SQL mode to prevent truncated records.` The `schema_filter` of step 5 keeps Doctrine's diff away from them.
 
-Read [references/database.md](references/database.md) when writing the migration: the full class, why PostgreSQL needs `GENERATED BY DEFAULT AS IDENTITY` instead of `BIGSERIAL`, and how it was proven on the four platforms.
+Read [references/database.md](references/database.md) when writing the migration: the full class (with `isTransactional(): false`, because MySQL and MariaDB commit DDL implicitly), why PostgreSQL needs `GENERATED BY DEFAULT AS IDENTITY` instead of `BIGSERIAL`, and how it was proven on the four platforms.
 
 ### 5. Container wiring
 
@@ -141,6 +145,7 @@ use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -169,16 +174,15 @@ class NeuronExceptionListener
         };
 
         if ($response !== null) {
-            if ($response->getStatusCode() >= 500) {
-                $this->logger->error($e->getMessage(), ['exception' => $e]);
-            }
+            // setResponse() stops the event: Symfony's own exception logger never sees these.
+            $this->logger->log($response->getStatusCode() >= 500 ? LogLevel::ERROR : LogLevel::NOTICE, $e->getMessage(), ['exception' => $e]);
             $event->setResponse($response);
         }
     }
 }
 ```
 
-- The most specific class comes first: `PersistenceException` and `RunInFlightException` extend `WorkflowException`. Only `InputTranslationException`'s message is written for clients; the rest stay in the log.
+- The most specific class comes first: `PersistenceException` and `RunInFlightException` extend `WorkflowException`. Only `InputTranslationException`'s message is written for clients; every mapped exception is logged with its real message, 4xx at notice and 5xx at error (a 409 during a pending approval logged `[notice] Cannot ignite a new run for workflow ID …`).
 - `Retry-After` is the lease expiry, an upper bound: a turn still streaming gave `Retry-After: 598`. A suspended run holds no lease, so no header.
 - `framework.exceptions` is not enough: it matched the first `instanceof` in config order (a `RunInFlightException` listed after `WorkflowException` got the latter's status), and in prod it rendered the HTML error page with no message and no `Retry-After`.
 
@@ -205,18 +209,24 @@ namespace App\Neuron\Agents;
 use App\Neuron\StopSignal;
 use App\Neuron\Tools\OrderStatusTool;
 use App\Neuron\Tools\RefundOrderTool;
+use App\Repository\OrderRepository;
 use Closure;
+use LogicException;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\SystemPrompt;
 use NeuronAI\Chat\History\MessageStoreInterface;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\StoppableHttpClient;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tools\FrontendTool;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\WorkflowStatus;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\AutowireServiceClosure;
 
@@ -228,8 +238,8 @@ class SupportAgent extends Agent
         #[AutowireServiceClosure(MessageStoreInterface::class)] protected Closure $conversations,
         #[AutowireServiceClosure(PersistenceInterface::class)] protected Closure $runs,
         protected StopSignal $stopSignal,
-        protected OrderStatusTool $orderStatus,
-        protected RefundOrderTool $refundOrder,
+        protected OrderRepository $orders,
+        protected LoggerInterface $logger,
     ) {
         parent::__construct();
     }
@@ -240,10 +250,16 @@ class SupportAgent extends Agent
             key: $this->anthropicKey,
             model: $this->anthropicModel,
             httpClient: new StoppableHttpClient(
-                new CurlHttpClient(),
-                fn (): bool => $this->stopSignal->pull($this->getThreadId()),
+                client: $this->transport(),
+                shouldStop: fn (): bool => $this->stopSignal->raised($this->getThreadId()),
             ),
         );
+    }
+
+    /** The provider's HTTP client: a test subclass scripts a streamed answer here. */
+    protected function transport(): HttpClientInterface
+    {
+        return new CurlHttpClient();
     }
 
     protected function instructions(): string
@@ -253,7 +269,10 @@ class SupportAgent extends Agent
 
     protected function tools(): array
     {
-        return [$this->orderStatus, $this->refundOrder];
+        return [
+            new OrderStatusTool($this->orders, $this->customerId()),
+            new RefundOrderTool($this->orders, $this->logger, $this->customerId()),
+        ];
     }
 
     protected function messageStore(): MessageStoreInterface
@@ -281,12 +300,35 @@ class SupportAgent extends Agent
 
         return $this->addTool($tools);
     }
+
+    /** A turn that failed after it stored its question blocks the next one: finish it first. */
+    public function recoverFailedTurn(): void
+    {
+        $run = $this->inspect();
+        if ($run?->status === WorkflowStatus::Failed) {
+            $this->run(ExecutionRequest::resume(expectedRunId: $run->runId, expectedExecutionAttempt: $run->executionAttempt));
+        }
+    }
+
+    /** The server names threads "user-{id}-{uuid}"; a worker has no security token to ask. */
+    protected function customerId(): int
+    {
+        if (preg_match('/^user-(\d+)-/', (string) $this->getThreadId(), $match) !== 1) {
+            throw new LogicException("Thread '{$this->getThreadId()}' names no customer.");
+        }
+
+        return (int) $match[1];
+    }
 }
 ```
 
-- **Each agent owns its provider.** The hook builds it per segment from injected env values: each agent picks its model, no provider instance is shared between agents, and the Stop predicate knows the thread. Do not register a global `AIProviderInterface`; tests use `setAiProvider()`, which wins over the hook and reaches every copy.
-- **Promoted properties must not reuse Agent property names** (`$messageStore`, `$persistence`, `$provider`, `$tools`, …): `protected MessageStoreInterface $messageStore` is a fatal `Type of …::$messageStore must be ?NeuronAI\Chat\History\MessageStoreInterface`. Always call `parent::__construct()`.
-- Tools are services with their own dependencies; `RefundOrderTool` requires approval through its `approvalPolicy()`. See **neuron-tool** and **neuron-tool-approval**.
+- **Each agent owns its provider.** The hook builds it per segment from injected env values: each agent picks its model, no provider instance is shared between agents, and the Stop predicate knows the thread. Do not register a global `AIProviderInterface`; tests use `setAiProvider()`, which wins over the hook and reaches every copy. `transport()` is the seam a real Stop test replaces (Testing).
+- **Promoted properties must not reuse Agent property names**: a fatal error when the types differ (`$messageStore`, `$persistence`, `$channel`: `Type of …::$messageStore must be ?NeuronAI\Chat\History\MessageStoreInterface`), a silent override when they match (a promoted `$provider` bypasses the `provider()` hook, and with it the Stop client). Always call `parent::__construct()`.
+- **`recoverFailedTurn()` finishes a failed turn before the next one.** A turn that failed after it stored its question (the client disconnected or the provider failed after a tool step, an approved tool threw) makes the next `chat()` or `stream()` throw `ChatHistoryException` ("Invalid message sequence…": the dangling question, or an approved tool call), and `abandon()` refuses a history that ends in a tool call. Every endpoint that starts a turn calls it first, on a copy with no stream adapter or channel: an adapter factory returns the same instance for every segment, and the relay reads only the first segment. The failed turn's answer lands in history before the new question; if finishing it fails again, so does the new message, until `resetConversation()` clears the thread. It finishes a turn that stored nothing too (a provider error at the first inference, a Stop before the first word): a user who sends the same question again gets it answered twice. It only sees failed runs: a request killed outright (SIGKILL, OOM, `request_terminate_timeout`) leaves its run `running`, and once its lease expires the next message supersedes it and fails the same way when the question was stored, until `resetConversation()`.
+
+### Tools that act for the user
+
+Tools run inside the agent's copy, in a controller or in a Messenger worker, and a worker has no security token: a tool never reads `Security`. `tools()` builds them per copy for the customer the thread names (`customerId()` reads the server-minted `user-{id}-{uuid}`), from injected dependencies such as a repository or DBAL's `Connection`. `OrderStatusTool` takes `(OrderRepository $orders, int $customerId)` and looks orders up with `findForCustomer($reference, $customerId)`; `RefundOrderTool` also takes the logger and requires approval through its `approvalPolicy()`. Never set the user on a shared tool service per request: the agent and its injected services serve every request and message of the process. On Alice's thread, the lookup and an approved refund of Bob's order both answered `The customer has no order B-1.`, and the order stayed `shipped`. Evaluations pin their tools to a fixture customer (Evaluation). Writing tools and gating them: **neuron-tool** and **neuron-tool-approval**.
 
 ## Thread Identity and Authorization
 
@@ -330,6 +372,13 @@ The `/chat` routes sit behind the firewall (`access_control: - { path: ^/chat, r
 One endpoint takes a message or approval decisions (**neuron-tool-approval**, "One Endpoint for the Whole Conversation"). `ChatController` injects `SupportAgent $agent` and `StopSignal $stopSignal` in its constructor, like the streaming controller below:
 
 ```php
+use NeuronAI\Chat\Messages\UserMessage;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+
 #[Route('/chat/{threadId}/messages', methods: ['POST'])]
 #[IsCsrfTokenValid('chat', tokenKey: 'X-CSRF-Token', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
 #[IsGranted('THREAD', subject: 'threadId')]
@@ -338,17 +387,23 @@ public function message(string $threadId, Request $request): JsonResponse
     $body = $request->toArray();
     $agent = $this->agent->for($threadId);
 
-    $state = isset($body['decisions'])
-        ? $agent->submitApprovalDecisions($body['decisions'])->run()
-        : $agent->chat(new UserMessage((string) ($body['message'] ?? '')));
+    $this->stopSignal->clear($threadId);
+    if (isset($body['decisions'])) {
+        $state = $agent->submitApprovalDecisions($body['decisions'])->run();
+    } else {
+        $agent->recoverFailedTurn();
+        $state = $agent->chat(new UserMessage((string) ($body['message'] ?? '')));
+    }
 
-    return $this->json($state->isInterrupted()
+    return new JsonResponse($state->isInterrupted()
         ? ['status' => 'awaiting_approval', 'approvals' => $agent->pendingApprovals()]
         : ['status' => 'completed', 'answer' => $state->getMessage()->getContent()]);
 }
 ```
 
-A message while an approval is pending was refused before anything ran: 409 `{"error":"The conversation is busy.","status":"suspended"}`. A decision for an unknown call was a 400 carrying `No matching request for tool call 'call_9'.` Both come from the exception listener of Setup step 6. `$this->json()` gave the same JSON for Neuron's `JsonSerializable` objects with and without `symfony/serializer` installed.
+This copy has no stream adapter or channel, so it finishes a failed turn itself before its own; the Stop flag is cleared first, because a flag still raised would stop that recovery too (The Stop Button). A message while an approval is pending was refused before anything ran: 409 `{"error":"The conversation is busy.","status":"suspended"}`. A decision for an unknown call was a 400 carrying `No matching request for tool call 'call_9'.` Both come from the exception listener of Setup step 6.
+
+Return Neuron's objects with `new JsonResponse()`: with `symfony/serializer` installed, `$this->json()` turned a tool call without arguments, `"inputs":{}`, into `"inputs":[]` in `pendingApprovals()` and in stored messages. `$this->json($data, context: ['preserve_empty_objects' => true])` keeps `{}` too.
 
 ## Streaming to the Browser (AG-UI, CopilotKit)
 
@@ -389,15 +444,20 @@ class AgUiController extends AbstractController
         $input = $request->toArray();
         $translator = new AGUIInputTranslator();
 
-        $adapter = new AGUIAdapter($threadId, $input['runId'] ?? null, $input['messages'] ?? [], $input['state'] ?? []);
+        $adapter = new AGUIAdapter(threadId: $threadId, runId: $input['runId'] ?? null, messages: $input['messages'] ?? [], state: $input['state'] ?? []);
         $agent = $this->agent->for($threadId)
             ->setStreamAdapter(fn (): AGUIAdapter => $adapter)
             ->addFrontendTools($translator->tools($input));
 
         $this->stopSignal->clear($threadId);
-        $events = $this->isContinuation($input)
-            ? $agent->submitInputs($input, $translator)->events()
-            : $agent->stream(new UserMessage($this->lastUserText($input)));
+        if ($this->isContinuation($input)) {
+            $events = $agent->submitInputs($input, $translator)->events();
+        } else {
+            $message = new UserMessage($this->lastUserText($input));
+            // On its own copy: this one's adapter belongs to the new turn.
+            $this->agent->for($threadId)->recoverFailedTurn();
+            $events = $agent->stream($message);
+        }
 
         // Admission is lazy: priming turns a refusal (a pending approval, another
         // tab's run) into an HTTP status before any header is sent.
@@ -441,13 +501,28 @@ class AgUiController extends AbstractController
 ```
 
 - **Prime before returning.** `stream()` and `events()` admit the run on first iteration. With `$events->valid()` in the controller, a second turn while an approval was pending became a 409 JSON response with no `data:` frame, not a `RUN_ERROR` under a 200. `AGUIAdapter` emits `RUN_STARTED` right after admission, so priming returns before the provider is called. After priming, only `SSEEncoder::encode()` may iterate the generator; never `foreach` it again.
-- Everything eager throws before the headers and goes through the exception listener: a malformed seed in the `AGUIAdapter` constructor, a frontend tool shadowing a backend tool (400), a bad `resume`.
+- Everything eager throws before the headers and goes through the exception listener: a malformed seed in the `AGUIAdapter` constructor, a frontend tool shadowing a backend tool (400), a bad `resume`, a failed turn that cannot be finished.
+- A new turn finishes a failed one first, on its own copy: `$agent` carries this response's adapter, which must see only the new turn. After a disconnect past a tool step, the next message streamed only its own answer, and history held the old question, its tool call and result, the recovered answer, then the new turn.
 - `StreamedResponse` takes the generator as chunks and flushes each one: frames reached `curl` one at a time, as `text/event-stream; charset=UTF-8` with `X-Accel-Buffering: no`. `frames()` ends a failure after the first frame with the adapter's `RUN_ERROR` (a no-op when the segment already sent it): an empty fake queue produced exactly `RUN_STARTED`, `RUN_ERROR`.
-- The route's `threadId` is the authorized one; the body's `threadId` is not used. Point the client at the route: `new HttpAgent({url: '/chat/' + threadId + '/agui', threadId, headers: {'X-CSRF-Token': 'csrf-token'}})`. Client wiring, continuation rules and `resume` payloads: **neuron-frontend-integration**.
+- The route's `threadId` is the authorized one; the body's `threadId` is not used. Client wiring, continuation rules and `resume` payloads: **neuron-frontend-integration**.
 
-**Vercel AI SDK (`useChat`).** The same controller shape: the thread is the chat `id`, a trailing assistant message is a continuation (`new VercelAIAdapter($last['id'], $last['parts'])` and `submitInputs($input, new VercelAIInputTranslator())`), priming gives the same 409, and there is no `hydrate()`. Read [references/streaming-endpoints.md](references/streaming-endpoints.md) for the controller and what differed when run.
+**The browser client (AG-UI or CopilotKit).** Point the AG-UI `HttpAgent` at the route from the page itself; CopilotKit v2 can drive the same agent without a runtime (the Vue `CopilotKitProvider` takes it in `self-managed-agents`). A same-origin `fetch()` sends the session cookie and `Sec-Fetch-Site`; add `X-CSRF-Token`, and seed a reloaded page from the reload endpoint (Reload, below):
 
-**Disconnects.** When the client goes away, PHP ends the request and Neuron fails the run at once: the thread was `failed` a second after `curl --max-time 2`, and the next turn streamed normally. To keep the answer when the tab closes, call `ignore_user_abort(true)` before returning the response (the turn finished and the whole answer was saved), or run the turn in the background.
+```ts
+import { HttpAgent } from "@ag-ui/client";
+
+const { messages, interrupts } = await (await fetch(`/chat/${threadId}`)).json();
+const agent = new HttpAgent({ url: `/chat/${threadId}/agui`, threadId, headers: { "X-CSRF-Token": "csrf-token" }, initialMessages: messages });
+agent.pendingInterrupts = interrupts;
+```
+
+Run from Node with `@ag-ui/client` 0.0.59 and a session cookie (plus the `Origin` a browser adds), the approval turn, the reload and the `resume` after it worked.
+
+**CopilotKit's runtime bridge** calls the route server to server, with neither the browser's cookie nor its same-origin headers. Forwarding the session cookie and `X-CSRF-Token` was a 401 (the stateless CSRF check found no origin); adding the app's `Origin` made it a 200. Forward those from the bridge, or authenticate the bridge with a token on a firewall without the CSRF check, and authorize the thread either way. The bridge then owns the reload (**neuron-frontend-integration**, "CopilotKit").
+
+**Vercel AI SDK (`useChat`).** The same controller shape: the thread is the chat `id`, a trailing assistant message is a continuation (`new VercelAIAdapter(messageId: $last['id'], parts: $last['parts'] ?? [])` and `submitInputs($input, new VercelAIInputTranslator())`), a new turn finishes a failed one first, priming gives the same 409, and there is no `hydrate()`. Read [references/streaming-endpoints.md](references/streaming-endpoints.md) for the controller and what differed when run.
+
+**Disconnects.** When the client goes away, PHP ends the request and Neuron fails the run at once: the thread was `failed` a second after `curl --max-time 2`. The next message first finishes that turn through `recoverFailedTurn()`, then answers. To keep the answer when the tab closes, call `ignore_user_abort(true)` before returning the response (the turn finished and the whole answer was saved), or run the turn in the background.
 
 **Sessions and CSRF.** Symfony saves the session before the streamed body runs: a Stop request with the same session cookie was answered in 22 ms while a turn streamed. Read what you need from the session before returning the response. Plain controllers get no CSRF check; the attribute above needs `framework.csrf_protection.stateless_token_ids: [chat]` and a same-origin `fetch()` sending `X-CSRF-Token: csrf-token`. A cross-site POST was refused as an authentication failure (401 under HTTP Basic) before the provider was called.
 
@@ -458,6 +533,14 @@ class AgUiController extends AbstractController
 A page load reads the conversation without building the agent:
 
 ```php
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Chat\History\MessageStoreInterface;
+use NeuronAI\Workflow\WorkflowEngine;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+
 #[Route('/chat/{threadId}', methods: ['GET'])]
 #[IsGranted('THREAD', subject: 'threadId')]
 public function show(string $threadId, Request $request, MessageStoreInterface $messages, WorkflowEngine $engine): JsonResponse
@@ -466,7 +549,7 @@ public function show(string $threadId, Request $request, MessageStoreInterface $
     $page = $messages->loadAll($threadId, limit: 50, before: $before);
 
     // The run's interrupts belong to the latest page only.
-    return $this->json((new AGUIAdapter($threadId))->hydrate($page, $before === null ? $engine->inspect($threadId) : null));
+    return new JsonResponse((new AGUIAdapter($threadId))->hydrate($page, $before === null ? $engine->inspect($threadId) : null));
 }
 ```
 
@@ -476,105 +559,17 @@ It returns `{messages, interrupts}` for AG-UI's `initialMessages` and `pendingIn
 
 The controller mints the run ID and dispatches; a handler runs the turn in a worker and pushes its frames through a channel.
 
-The message is `final class RunSupportAgent` in `src/Message` with three public readonly strings, `threadId`, `runId` and `message`; the run ID is minted at dispatch, so every retry finishes the same run. Dispatch `new RunSupportAgent($threadId, (string) Uuid::v7(), $text)`: a UUID matches the reserved run ID format `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`. The transport's message ID will not do: a retry is a new envelope. `ResumeSupportAgent(threadId, runId, array $input)` carries an AG-UI continuation the same way.
+The message is `final class RunSupportAgent` in `src/Message` with public readonly `threadId`, `runId`, `message` and `array $input = []`, the browser's `RunAgentInput`: the worker seeds its adapter with the client's `runId`, `messages` and `state`, and adds the browser's tools from it. Without the seed, the `MESSAGES_SNAPSHOT` sent at an approval prompt was empty, and the AG-UI client replaced its transcript with it. The run ID is minted at dispatch, so every retry finishes the same run: dispatch `new RunSupportAgent($threadId, (string) Uuid::v7(), $text, $input)`, a UUID matching the reserved run ID format `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`. The transport's message ID will not do: a retry is a new envelope. `ResumeSupportAgent(threadId, runId, array $input)` carries an AG-UI continuation of the suspended run, whose ID it takes (`$agent->for($threadId)->inspect()->runId`), so a retry recognises its own run.
 
-```php
-namespace App\MessageHandler;
+`SupportAgentHandler` handles both messages on the injected agent, with `RedisRelay` as the channel factory. Read [references/background-runs.md](references/background-runs.md) when writing it: the messages, the full class, and what each situation did when run. What it does:
 
-use App\Message\ResumeSupportAgent;
-use App\Message\RunSupportAgent;
-use App\Neuron\Agents\SupportAgent;
-use App\Neuron\RedisRelay;
-use NeuronAI\Agent\Adapters\AGUIAdapter;
-use NeuronAI\Agent\AgentRunOptions;
-use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronAI\Agent\Frontend\AGUIInputTranslator;
-use NeuronAI\Chat\Messages\UserMessage;
-use NeuronAI\Exceptions\RunInFlightException;
-use NeuronAI\Workflow\Executor\ExecutionRequest;
-use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
-use NeuronAI\Workflow\WorkflowStatus;
-use Symfony\Component\Messenger\Attribute\AsMessageHandler;
-use Symfony\Component\Messenger\Exception\RecoverableMessageHandlingException;
-use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
+- **`start()`** runs `ExecutionRequest::start(new AgentStartEvent(messages: [new UserMessage($message->message)], options: new AgentRunOptions(stream: true)), runId: $message->runId, recoverFailed: true)` on a copy whose adapter factory seeds a new `AGUIAdapter(threadId:, runId:, messages:, state:)` from the input for every segment, whose channel comes from `RedisRelay::publisher($runId)`, and which carries the browser's tools (`addFrontendTools()`). A redelivery finishes the same run from its last committed step: after an HTTP 500 past a tool, the retry did not run the tool again and history held one question.
+- **Refused by its own run**: still executing under its lease → `RecoverableMessageHandlingException` with the remaining lease as `retryDelay` (after a `kill -9`, the redelivery waited 27 s of a 30 s lease, then recovered and completed the run); waiting for an approval → nothing.
+- **Refused by another message's dead run** (failed, or running past its lease): finish it with `ExecutionRequest::resume(expectedRunId: $e->runId, expectedExecutionAttempt: $e->executionAttempt)` on `$this->agent->for($threadId)`, a copy without adapter or channel, then start again. Never `abandon()` it: `Agent::abandon()` throws when the history ends in a tool call, and when it succeeds the next start still fails with `ChatHistoryException`. A refund approved while the payment API threw was executed once, when the next turn finished that run. A pending approval or a live turn → `UnrecoverableMessageHandlingException` at once, instead of burning retries.
+- **`resume()`** stages the answers at handling time, from the run as it is then. A retry that finds its own run failed with no interrupt (the approved tool ran, then the answer failed) finishes that run instead, because staging again throws `There is no current interruption to answer`; an approved tool that threw leaves the approval pending, so its retries stage it again and re-run the tool.
+- **Redelivery after success runs the turn again**: completion deletes the run's records, so a reserved start finds nothing to match (`Hi, One., Hi, Two.`). A failed turn's retry still queued when the next turn finishes that turn asks its question again.
 
-class SupportAgentHandler
-{
-    public function __construct(
-        protected SupportAgent $agent,
-        protected RedisRelay $relay,
-    ) {
-    }
-
-    #[AsMessageHandler]
-    public function start(RunSupportAgent $message): void
-    {
-        $agent = $this->agent($message->threadId, $message->runId);
-        $start = ExecutionRequest::start(
-            new AgentStartEvent([new UserMessage($message->message)], new AgentRunOptions(stream: true)),
-            runId: $message->runId,
-            recoverFailed: true, // a redelivery finishes this run from its last committed step
-        );
-
-        try {
-            $agent->run($start);
-        } catch (RunInFlightException $e) {
-            if ($e->runId === $message->runId) {
-                $this->redelivered($e);
-
-                return;
-            }
-            if (!$this->isDead($e)) {
-                throw new UnrecoverableMessageHandlingException('Another run holds the thread.', previous: $e);
-            }
-            // A reserved start never replaces another run: settle the turn that failed before this one.
-            $agent->abandon($e->runId, $e->executionAttempt);
-            $agent->run($start);
-        }
-    }
-
-    #[AsMessageHandler]
-    public function resume(ResumeSupportAgent $message): void
-    {
-        // Built at handling time, from the run as it is now.
-        $this->agent($message->threadId, $message->runId)
-            ->submitInputs($message->input, new AGUIInputTranslator())
-            ->run();
-    }
-
-    protected function agent(string $threadId, string $runId): SupportAgent
-    {
-        return $this->agent->for($threadId)
-            ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter($threadId, $runId))
-            ->setChannel(fn (): StreamingChannelInterface => $this->relay->publisher($runId));
-    }
-
-    /** This message's own run, delivered again: wait for a live worker, or let a suspended run wait for its answer. */
-    protected function redelivered(RunInFlightException $e): void
-    {
-        if ($e->status === WorkflowStatus::Running && $e->leaseExpiresAt !== null) {
-            throw new RecoverableMessageHandlingException('The run is still executing.', previous: $e, retryDelay: max(1, $e->leaseExpiresAt - time()) * 1000);
-        }
-    }
-
-    protected function isDead(RunInFlightException $e): bool
-    {
-        return $e->status === WorkflowStatus::Failed
-            || ($e->status === WorkflowStatus::Running && $e->leaseExpiresAt !== null && $e->leaseExpiresAt <= time());
-    }
-}
-```
-
-| Situation, as run | What the handler did |
-|---|---|
-| Inference after a tool failed once (HTTP 500) | Messenger retried after 1 s; same run ID, attempt 2, tool not repeated, one question in history |
-| Worker killed with `kill -9` mid-answer | The redelivery met its own run under the lease, retried after the remaining lease (27 s of a 30 s lease), then recovered and completed it |
-| Redelivered while the run waits for approval | Nothing |
-| A new turn while an approval is pending | Given up (`UnrecoverableMessageHandlingException`); the failure listener told the browser |
-| The previous turn failed | Abandoned it, then ran. Without that, the reserved start threw `RunInFlightException` (status `failed`), where a plain `chat()` would have superseded it |
-| The same message handled twice after success | Ran the turn twice (`Hi, One., Hi, Two.`): completion deletes the run's records |
-
-Closing the last window takes `retainCompletionUntilAcknowledged()` on the copy plus `acknowledge()`, and a retained completion refuses every new turn on the thread, HTTP ones included, until acknowledged (**neuron-workflow**, "Workflow Lifecycle"). `stream: true` in `AgentRunOptions` makes the provider stream token by token to the channel; continuations follow that choice.
+`retainCompletionUntilAcknowledged()` on the copy narrows only this message's own redelivery after success, and never belongs on the copy that finishes another message's run. It works only if the handler calls `acknowledge()` after `run()` and also when a redelivery meets its own completed run: a completion never acknowledged refused the next turn on the thread, HTTP ones included (**neuron-workflow**, "Workflow Lifecycle"). `stream: true` in `AgentRunOptions` makes the provider stream token by token to the channel; continuations follow that choice.
 
 ```yaml
 # config/packages/messenger.yaml
@@ -596,21 +591,21 @@ framework:
 
 | Clock | Rule | Otherwise, as run |
 |---|---|---|
-| Agent lease, 600 s (`leaseTimeout()` hook) | Above the longest single step, a whole tool batch plus one inference: it renews only at step commits | Past it the engine treats a live run as dead. A killed worker holds the thread until it expires: new turns get 409 with `Retry-After` |
+| Agent lease, 600 s (`leaseTimeout()` hook) | Above the longest single step, one inference or one whole tool batch: it renews only at step commits | Past it the engine treats a live run as dead. A killed worker holds the thread until it expires: new turns get 409 with `Retry-After` |
 | `redeliver_timeout` (Doctrine and Redis transports) | Above the longest turn, or run `php bin/console messenger:consume async --keepalive` | 8 s against a 15 s turn: a second worker claimed the message, waited on the lease, and ran the turn again once the first completed; the first worker then crashed on "Could not acknowledge redis message". With `--keepalive=2` the turn ran once |
 
 - `doctrine_ping_connection` needs Doctrine ORM. **Never add `doctrine_transaction`** to the bus that runs agents: inside an open transaction the suspended run was invisible to other processes, and the rollback erased it.
 - On the Redis transport, give each worker its own consumer name (`redis://host:6379/messages/symfony/worker-1`): a worker that starts takes every message pending under its name at once (after a kill, the new worker picked up the dead one's message immediately).
-- A handler receives only the message: carry the user ID in it when tools need the user.
-- `parallelToolCalls()` forks the process: enable it only in `messenger:consume` or console workers, with `beforeChild` reconnecting the child's DB and Redis clients (**neuron-agent**, "Parallel Tool Calls").
+- A handler receives only the message and has no security token: the tools take their customer from the thread (Tools that act for the user).
+- `parallelToolCalls()` forks the process: enable it only in `messenger:consume` or console workers, with `spatie/fork` installed without `--dev` and `beforeChild` reconnecting the child's DB and Redis clients (**neuron-agent**, "Parallel Tool Calls").
 
-**Failure publication.** A failure inside the segment already sent `RUN_ERROR` and `stream.failed`; refusals, crashes before the segment and exhausted retries send nothing. `PublishRunFailure`, an `#[AsEventListener]` on `WorkerMessageFailedEvent`, returns while `$event->willRetry()`, then sends the frames of `(new AGUIAdapter($threadId, $runId))->error($throwable)` and `failed($throwable, $threadId)` on a fresh `$this->relay->publisher($runId)` channel. The full class is in the delivery reference below.
+**Failure publication.** A run that fails inside its segment sends `RUN_ERROR` and `stream.failed` itself, on every attempt; refusals, crashes before the segment and attempts refused at admission send nothing. `PublishRunFailure`, an `#[AsEventListener]` on `WorkerMessageFailedEvent`, returns while `$event->willRetry()` and when the message's own run is `failed` (its segment reported it, and a second pair would show the browser a second error), then sends the frames of `(new AGUIAdapter(threadId: $threadId, runId: $runId))->error($throwable)` and `failed($throwable, $threadId)` on a fresh `$this->relay->publisher($runId)` channel. A turn whose answer failed on all four deliveries reached the relay as one `RUN_ERROR`, and so did a turn refused while an approval was pending. The full class is in the delivery reference below.
 
-**Getting the frames to the browser.** For clients that need one SSE response per request (CopilotKit `HttpAgent`, `useChat`), the controller dispatches and relays the run's Redis Pub/Sub channel into a `StreamedResponse` with Neuron's `RedisChannelReader`; the `RedisChannel` from `RedisRelay::publisher()` waits up to 10 s for that subscription before its first publish, because Pub/Sub keeps nothing for late subscribers. For pages that subscribe once, a 20-line `MercureChannel extends AbstractChannel` publishes each envelope as a private Mercure update. Read [references/background-delivery.md](references/background-delivery.md) when building either: `RedisRelay`, the relay controller, `PublishRunFailure`, the Mercure channel, and what each delivered when run. Envelope and consumer: **neuron-streaming** (`references/channels.md`).
+**Getting the frames to the browser.** For AG-UI clients that need one SSE response per request (the `HttpAgent`, or CopilotKit driving it in the browser), the controller dispatches and relays the run's Redis Pub/Sub channel into a `StreamedResponse` with Neuron's `RedisChannelReader`; the `RedisChannel` from `RedisRelay::publisher()` waits up to 10 s for that subscription before its first publish, because Pub/Sub keeps nothing for late subscribers. The relay endpoint accepts what the synchronous one does (new turns, `resume`, trailing tool messages, browser tools), and the official client ended every step of a turn, approval, reload and browser-tool round trip with the same transcript on both. It speaks AG-UI only. For pages that subscribe once, a 20-line `MercureChannel extends AbstractChannel` publishes each envelope as a private Mercure update. Read [references/background-delivery.md](references/background-delivery.md) when building either: `RedisRelay`, the relay controller, `PublishRunFailure`, the Mercure channel, and what each delivered when run. Envelope and consumer: **neuron-streaming** (`references/channels.md`).
 
 ## The Stop Button
 
-The provider hook asks `StopSignal::pull()` before every streamed event; the Stop endpoint raises the flag in a cache pool every process shares:
+The provider hook asks `StopSignal::raised()` before every streamed event; the Stop endpoint raises the flag in a cache pool every process shares, and every endpoint that starts a turn clears it first:
 
 ```php
 namespace App\Neuron;
@@ -634,16 +629,13 @@ class StopSignal
         $this->flags->deleteItem($this->key($threadId));
     }
 
-    /** Get, then delete: one raised flag stops one answer. */
-    public function pull(string $threadId): bool
+    /**
+     * Asked before every streamed event; only the next turn clears the flag, so a retry stays stopped.
+     * Not hasItem(): on the filesystem pool a worker kept seeing a cleared flag (PHP's stat cache).
+     */
+    public function raised(string $threadId): bool
     {
-        $key = $this->key($threadId);
-        if (!$this->flags->hasItem($key)) {
-            return false;
-        }
-        $this->flags->deleteItem($key);
-
-        return true;
+        return $this->flags->getItem($this->key($threadId))->isHit();
     }
 
     /** PSR-6 reserves {}()/\@: in keys, which thread IDs may contain. */
@@ -656,27 +648,61 @@ class StopSignal
 
 The Stop endpoint is `POST /chat/{threadId}/stop` with the same `#[IsCsrfTokenValid]` and `#[IsGranted('THREAD', subject: 'threadId')]` attributes as the chat routes: it calls `$this->stopSignal->raise($threadId)` and returns `new Response(status: 204)`.
 
-- Stopped mid-answer, the stream ended with `RUN_FINISHED`, the turn completed and history kept the partial text with stop reason `stopped`. A turn running in a Messenger worker stopped the same way.
-- **Clear the flag when a turn starts**, as the streaming controllers do: a flag raised after an answer ended stopped the next turn before its first word, which fails it (`The stream was stopped before the answer started.`).
+- Stopped mid-answer, the stream ended with `TEXT_MESSAGE_END` and `RUN_FINISHED`, the turn completed and history kept the partial text with stop reason `stopped`, in the request and in a Messenger worker alike.
+- **The predicate only reads the flag**, so it stays raised until the next turn clears it (5 minutes at most): a queued turn stopped before its first word failed on all four deliveries instead of generating the answer on a retry. A Stop pressed before the first word fails the turn; the next message then finishes that turn before answering (`recoverFailedTurn()`, or the handler), so the stopped answer is generated at that point.
+- **Clear the flag before finishing a failed turn**: a flag still raised stopped that recovery too, before its first word.
+- **`getItem()->isHit()`, not `hasItem()`**: on the filesystem pool, a worker kept seeing a flag the next turn had cleared, and stopped that turn's recovery on every delivery. `hasItem()` reads PHP's file-stat cache, which keeps the last file checked and can go stale across deliveries (it answered false only after `clearstatcache()`); `getItem()` opens the file and saw the deletion at once.
 - Only streamed inference stops; `chat()` without `stream: true` is not interrupted. `cache.app` lives on one host: with several, back the pool with Redis. Semantics and provider limits: **neuron-agent** (`references/providers.md`, "Stopping a streamed answer").
+
+Wire the chat UI's stop control to the endpoint and keep reading the stream until `RUN_FINISHED`:
+
+```ts
+// The stream then ends with TEXT_MESSAGE_END and RUN_FINISHED; history keeps the text so far.
+const stop = () => fetch(`/chat/${threadId}/stop`, { method: "POST", headers: { "X-CSRF-Token": "csrf-token" } });
+```
+
+Never abort the fetch to stop (the AG-UI client's `abortRun()`): on the in-request endpoint that is a disconnect, which failed the run and lost the partial answer; on the relay endpoint it never reaches the worker, which finished the whole answer.
 
 ## Observability
 
 With the `_instanceof` call of Setup step 5, every agent forwards its events to Symfony's PSR-14 dispatcher. Symfony matches listeners by exact class, so listen to concrete Neuron events:
 
 ```php
-// App\Neuron\AgentEventsListener, with LoggerInterface $logger injected
-#[AsEventListener]
-public function onInference(InferenceStop $event): void
+namespace App\Neuron;
+
+use NeuronAI\Agent\Observability\InferenceStop;
+use NeuronAI\Workflow\Observability\ChannelError;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+
+/**
+ * Symfony matches listeners by exact class: listen to concrete Neuron events. Never throw here:
+ * an exception on an event a node emits (InferenceStop) fails the turn.
+ */
+class AgentEventsListener
 {
-    $usage = $event->response->message()->getUsage();
-    $this->logger->info('neuron.inference', ['input_tokens' => $usage?->inputTokens, 'output_tokens' => $usage?->outputTokens]);
+    public function __construct(protected LoggerInterface $logger)
+    {
+    }
+
+    #[AsEventListener]
+    public function onInference(InferenceStop $event): void
+    {
+        $usage = $event->response->message()->getUsage();
+        $this->logger->info('neuron.inference', ['input_tokens' => $usage?->inputTokens, 'output_tokens' => $usage?->outputTokens]);
+    }
+
+    #[AsEventListener]
+    public function onChannelError(ChannelError $event): void
+    {
+        $this->logger->warning('neuron.channel_error: '.$event->exception->getMessage());
+    }
 }
 ```
 
-- A Symfony listener on `ObservabilityEvent::class` never fired. For every event, use Neuron's `subscribe()`, which matches by `instanceof`, on the agent when it is built (for example in its constructor): `subscribe(ObservabilityEvent::class, new LogListener($logger))` on the container's agent logged `inference-stop`, `workflow-end` and the rest for every copy.
-- **Listeners run inside the agent's step and must not throw**: a listener on `InferenceStop` that threw turned the turn into a 500.
-- A failing channel never fails the run: with the push hub answering 401, every turn still completed. Listen to `ChannelError` to log failed deliveries. Event catalog and Neuron Cloud: **neuron-monitoring**.
+- A Symfony listener on `NeuronAI\Observability\ObservabilityEvent` never fired. For every event, use Neuron's `subscribe()`, which matches by `instanceof`, on the agent when it is built (for example in its constructor): `subscribe(ObservabilityEvent::class, new LogListener($logger))` (`NeuronAI\Observability\LogListener`) on the container's agent logged `inference-stop`, `workflow-end` and the rest for every copy.
+- **Listeners must not throw.** On an event a node emits (`InferenceStop`, `ToolCalling`, `ToolCalled`, `MessageSaving`, …) a listener that threw turned the turn into a 500; on the engine's lifecycle events (`WorkflowStart`, `WorkflowNodeEnd`, `WorkflowEnd`) the turn completed and the failure was reported as a `WorkflowError`.
+- Only delivery failures are isolated: with the push hub answering 401 or the channel throwing on send, every turn still completed, and `NeuronAI\Workflow\Observability\ChannelError` carried the failure to the listener above. A channel factory that throws fails the run: `RedisRelay::publisher()` connects inside it, and a worker whose Redis was unreachable failed the run with `Redis connection failed: Connection refused`. Event catalog and Neuron Cloud: **neuron-monitoring**.
 
 ## Evaluation
 
@@ -689,50 +715,35 @@ php bin/console neuron:evaluate --concurrency=4    # dataset items in 4 forked p
 php bin/console neuron:evaluate --cache            # reuse unchanged run() outputs; --fresh re-runs and rewrites
 ```
 
-The exit code is 1 when any item fails or errors. The command turns its arguments into Neuron's, calls `chdir($this->projectDir)`, and returns `(new EvaluationCommand(runner: $this->runner(), resolver: $this->resolve(...)))->run($args)` with:
-
-```php
-/** Evaluators and the app's output drivers come from the container; Neuron's own drivers need no arguments. */
-protected function resolve(string $class): object
-{
-    return $this->services->has($class) ? $this->services->get($class) : new $class();
-}
-
-protected function runner(): EvaluatorRunner
-{
-    return new EvaluatorRunner(
-        beforeChild: function (): void {
-            if ($this->connection->isConnected()) {
-                $this->inherited = $this->connection->getNativeConnection();
-                $this->connection->close(); // the next query opens this child's own connection
-            }
-        },
-        afterChild: $this->connection->close(...),
-    );
-}
-```
+The exit code is 1 when any item fails or errors. The command turns its arguments into Neuron's, calls `chdir($this->projectDir)`, and runs Neuron's `EvaluationCommand` with a resolver that takes evaluators and the app's output drivers from an `#[AutowireLocator('neuron.evaluation')]` and an `EvaluatorRunner` whose child hooks give every forked child its own Doctrine connection (the class is in [references/evaluation.md](references/evaluation.md)).
 
 - **The project root, from anywhere.** Neuron reads `evaluation.php` and its relative paths from the working directory. Launched from `/tmp`, the command found the evaluators, wrote `var/evaluation.json` and cached into `var/evaluation/cache`; without the `chdir()`, `evaluation.php` was ignored and the cache landed in `/tmp/.neuron`. A path argument resolves against the launch directory (`Path::makeAbsolute($path, getcwd())`).
-- **The child hooks.** `$services` is an `#[AutowireLocator('neuron.evaluation')]`, `$connection` Doctrine's `Connection`, and `$inherited` a property that keeps the child's copy of the parent's connection alive. With `--concurrency=4` on MySQL and an evaluator querying in `setUp()` and `run()`, each child got its own connection and the parent's still wrote the report afterwards. Without hooks the children shared it and 2 of 8 items failed with `2006 MySQL server has gone away`; a hook that only called `close()` destroyed the inherited PDO, which closed the parent's connection. Treat any other connection opened before the fork (a Redis client) the same way.
+- **The child hooks.** `beforeChild` keeps the child's copy of the parent's connection referenced and closes Doctrine's `Connection`, so the child's next query opens its own; `afterChild` closes that one. With `--concurrency=4` on MySQL and an evaluator querying in `setUp()` and `run()`, each child got its own connection and the parent's still wrote the report afterwards. Without hooks the children shared it and 2 of 8 items failed with `2006 MySQL server has gone away`; a hook that only called `close()` destroyed the inherited PDO, which closed the parent's connection. Treat any other connection opened before the fork (a Redis client) the same way.
 
-An evaluator injects the agent in `public function __construct(protected SupportAgent $agent)`, which must call `parent::__construct()` (without it every item errored with `Typed property NeuronAI\Evaluation\BaseEvaluator::$ruleExecutor must not be accessed before initialization`), and runs each item on its own copy:
+An evaluator injects the agent in `public function __construct(protected SupportAgent $agent)`, which must call `parent::__construct()` (without it every item errored with `Typed property NeuronAI\Evaluation\BaseEvaluator::$ruleExecutor must not be accessed before initialization`), and runs each item on its own copy, bound to a thread of the customer the evaluation database is seeded with:
 
 ```php
-/** The app's agent on a fresh thread, with stores that never touch the conversation tables. */
+use App\Neuron\Agents\SupportAgent;
+use NeuronAI\Chat\History\InMemoryMessageStore;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use Symfony\Component\Uid\Uuid;
+
+/** The app's agent on a fresh thread of the evaluation customer, with stores that never touch the conversation tables. */
 protected function agent(): SupportAgent
 {
-    return $this->agent->for(UniqueIdGenerator::generateId('eval_'))
+    return $this->agent->for('user-'.self::CUSTOMER.'-'.Uuid::v4())
         ->setMessageStore(new InMemoryMessageStore())
         ->setPersistence(new InMemoryPersistence());
 }
 ```
 
-- **Keep evaluations out of the conversation tables.** Setters win over the hooks and stay on the copy: after runs on MySQL, `chat_messages` and `workflow_store` were empty and the container's agent still had no stores; a copy without the setters wrote its `eval_…` thread to `chat_messages`. Tools still run for real: the approved refund executed.
-- **Multi-turn:** pass the same copy to `Conversation::make($this->agent())`. `Conversation` binds its own copy with `for()`, which kept the in-memory stores: the conversation's 6 messages were in the evaluator's `InMemoryMessageStore`.
+- **Keep evaluations out of the conversation tables.** Setters win over the hooks and stay on the copy: after runs on MySQL, `chat_messages` and `workflow_store` were empty and the container's agent still had no stores; a copy without the setters wrote its thread to `chat_messages`.
+- **Multi-turn:** `Conversation::make($this->agent())` binds its own copy with `for()`, which kept the in-memory stores (the conversation's 6 messages were in the evaluator's `InMemoryMessageStore`), but to an `eval_…` thread that names no customer: `customerId()` refused it with `LogicException: Thread 'eval_…' names no customer.` The conversation evaluator pins its tools on its copy with `->setTools([new OrderStatusTool($this->orders, self::CUSTOMER), new RefundOrderTool($this->orders, $this->logger, self::CUSTOMER)])`; a setter wins over the `tools()` hook.
+- **A database of its own.** The tools run for real: the approved refund refunded the order. Point `DATABASE_URL` at a dedicated database and rebuild it before every run, CI included: drop, create, migrate, and load the fixtures that create the customer and the orders the datasets name (the commands are in the reference).
+- **CI.** Fail the job on the command's exit code, persist `var/evaluation/cache`, run with `--cache` and schedule a `--fresh` run. `--cache` replays `run()` until `run()`, its dataset item or a file in `cacheDependencies()` changes, and the agent's prompt and tools live outside `run()`: every evaluator that receives the agent declares `public function cacheDependencies(): array { return [SupportAgent::class, OrderStatusTool::class, RefundOrderTool::class]; }`. Without it a changed prompt still gave `Cached runs: 5 of 5` and called no model; with it every item ran again.
 - `vendor/bin/neuron evaluation --autoload-file=…` with a `$container->get()` resolver in `evaluation.php` fails: evaluators are private services (`has been removed or inlined when the container was compiled`). Use the console command.
-- CI: run `php bin/console neuron:evaluate --cache` and fail the job on its exit code; persist `var/evaluation/cache` and schedule a `--fresh` run.
 
-Read [references/evaluation.md](references/evaluation.md) for the command and evaluator classes, a multi-turn evaluator, why evaluators live in `src/` rather than an `autoload-dev` directory, and what each run showed. Evaluators, datasets, assertions, judges and caching: **neuron-evaluation**.
+Read [references/evaluation.md](references/evaluation.md) for the command and evaluator classes, the evaluation database, why evaluators live in `src/` rather than an `autoload-dev` directory, and what each run showed. Evaluators, datasets, assertions, judges and caching: **neuron-evaluation**.
 
 ## Testing
 
@@ -740,29 +751,33 @@ Fake the provider on the shared agent before the first request, and keep one ker
 
 - A `StreamedResponse` body is in `getInternalResponse()->getContent()`; `getResponse()->getContent()` is `false`.
 - `setAiProvider()` on the shared agent reaches every `for()` copy the controllers make, and the `FakeAIProvider` instance holds the assertions. Symfony's `MockHttpClient` never sees provider traffic: providers use Neuron's own HTTP client.
-- The stores run against the test database: build the schema with the app's migrations in `tests/bootstrap.php` and empty `chat_messages` and `workflow_store` in `setUp()`.
-- Call handlers directly after replacing `RedisRelay` in the test container with a subclass whose `publisher()` returns a `FakeChannel`, then `$channel->assertSuspended()` or `assertCompleted()`. Dispatch tests read `static::getContainer()->get('messenger.transport.async')->getSent()`.
+- The stores run against the test database: build it with the app's migrations in `tests/bootstrap.php` (unlink and migrate on SQLite; drop, create and migrate on MySQL, MariaDB or PostgreSQL) and empty `chat_messages`, `workflow_store` and the app's tables in `setUp()`.
+- Replace `RedisRelay` in the test container with a subclass whose `publisher()` returns a `FakeChannel` and whose `relay()` only dispatches. Call handlers directly, then `$channel->assertSuspended()` or `assertCompleted()`; the relay endpoint's tests read the queued message from `static::getContainer()->get('messenger.transport.async')->getSent()`.
+- **Stop.** `FakeAIProvider` replaces the provider and its Stop client, so a faked turn never stops: test the flag through the endpoints (204, raised, cleared by the next turn), and a real stop with a subclass whose `transport()` streams a scripted answer.
 
-Read [references/testing.md](references/testing.md) for the base class (with the SSE `frames()` parser), the `when@test` transport and the bootstrap, approval tests over JSON and AG-UI, and the handler tests (suspend and resume, a turn given up, redelivery after success). Fakes and assertions: **neuron-test**.
+Read [references/testing.md](references/testing.md) for the base class (with the SSE `frames()` parser), the `when@test` transport and both bootstraps, approval tests over JSON and AG-UI, a failed turn finished before the next one, the relay endpoint and the handler tests, and a real Stop. Fakes and assertions: **neuron-test**.
 
 ## Pitfalls
 
-- **`setThreadId()` on the injected agent**: the second request or message throws. Use `for()`.
-- **A promoted constructor property named like an Agent property** (`$messageStore`, `$persistence`, …): fatal type error.
+- **`setThreadId()` on the injected agent**: the second thread the same container serves throws. Use `for()`.
+- **`SupportAgent::make()` or `make(workflowId: …)`**: `ArgumentCountError` or `Unknown named parameter $workflowId`, because the agent has its own constructor. Inject it from the container and bind it with `for()`.
+- **A promoted constructor property named like an Agent property**: fatal when the types differ (`$messageStore`, `$persistence`, `$channel`), a silent override when they match (a promoted `$provider` bypasses the `provider()` hook).
 - **A PDO captured once** (a shared store, a store built in a constructor): dead after the server drops the connection. Use `shared: false` stores plus `doctrine_ping_connection`.
 - **`doctrine_transaction` on the agents' bus**: runs invisible while the handler runs, erased on rollback.
 - **`redeliver_timeout` below the longest turn** without `--keepalive`: the same turn runs twice.
-- **A reserved start after a failed turn**: refused until the failed run is abandoned.
+- **A new turn after a failed one**: `ChatHistoryException` when the failed turn had stored its question. Finish it first (`recoverFailedTurn()`); in a handler, finish another message's dead run, never `abandon()` it.
 - **Not priming the generator**: refusals become `RUN_ERROR` frames under a 200 instead of 409s.
 - **Iterating the generator without the try/catch of `frames()`**: a failure after the headers escapes instead of ending with `RUN_ERROR`.
-- **A stale stop flag**: clear it when a turn starts.
+- **A stale stop flag**: clear it when a turn starts, before finishing a failed one. **A consuming `pull()`**: a retry generates the stopped answer. **`hasItem()` on the filesystem pool**: a worker kept seeing the flag after the next turn cleared it.
+- **`abortRun()` as the Stop button**: in the request it is a disconnect that loses the partial answer; relayed, the worker finishes the whole answer. POST the Stop endpoint and keep reading.
+- **`$this->json()` with `symfony/serializer`**: empty tool inputs `{}` become `[]`. Return `new JsonResponse()`.
 - **`framework.exceptions` for Neuron exceptions**: no message, no `Retry-After`, first match wins.
 - **`php -S` without `-d variables_order=EGPCS`**: `.env` placeholders shadow real env vars. One server worker serialises Stop behind the stream.
-- **A Symfony listener on `ObservabilityEvent`**: never called. **A throwing listener**: fails the turn.
+- **A Symfony listener on `ObservabilityEvent`**: never called. **A listener that throws on a node event**: fails the turn.
 - **MySQL/MariaDB without strict mode**: `PersistenceException` at the first write.
 - **A Doctrine diff without `schema_filter`**, or a `BIGSERIAL` id on PostgreSQL: the diff drops Neuron's tables or sequence.
 - **Entities in workflow state**: state is serialized at every step; keep IDs and load the entity in the tool.
-- **Evaluating the container's agent without in-memory stores**: evaluation threads land in `chat_messages`.
+- **Evaluating the container's agent without in-memory stores**: evaluation threads land in `chat_messages`. **Without `cacheDependencies()`**: `--cache` replays outputs of an agent that changed.
 - **`--concurrency` without the child hooks, or a hook that closes the inherited connection**: items fail with `2006 MySQL server has gone away`, or the parent loses its connection.
 - **Running Neuron's `EvaluationCommand` outside the project root without `chdir()`**: `evaluation.php` is ignored and the cache lands in the launch directory.
 

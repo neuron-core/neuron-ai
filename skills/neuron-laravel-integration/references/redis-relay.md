@@ -1,6 +1,6 @@
 # Redis relay: a queued run behind one SSE response
 
-Use this when the client needs a single streamed HTTP response (CopilotKit or the AG-UI `HttpAgent`, Vercel `useChat`) but the turn must run in a queue worker. The controller dispatches `RunSupportAgent` with the AG-UI input, subscribes to a Redis Pub/Sub channel named after the run, and writes each protocol event as an SSE frame until the run's stream ends. The worker publishes through Neuron's `RedisChannel` and the endpoint reads through Neuron's `RedisChannelReader`. Everything here ran against Redis 7.4 with `php artisan serve` and `php artisan queue:work`.
+Use this when the client needs a single streamed HTTP response (the AG-UI `HttpAgent` or CopilotKit in the browser, Vercel `useChat`) but the turn must run in a queue worker. The controller dispatches `RunSupportAgent` with the AG-UI input, subscribes to a Redis Pub/Sub channel named after the run, and writes each protocol event as an SSE frame until the run's stream ends. The worker publishes through Neuron's `RedisChannel` and the endpoint reads through Neuron's `RedisChannelReader`. Everything here ran against Redis 7.4 with `php artisan serve` and `php artisan queue:work`.
 
 ## The relay
 
@@ -74,18 +74,19 @@ use Throwable;
 public function stream(RunAgentRequest $request, SupportAgent $agent, RedisRelay $relay): StreamedResponse
 {
     $threadId = $request->threadId();
-    $runId = (string) Str::uuid();
 
     // Refused here, before any header: browser tools that shadow backend tools, answers the run does not wait for.
     $agent = $agent->for($threadId)->addFrontendTools($request->frontendTools());
     if ($request->isContinuation()) {
         $agent->submitInputs($request->all(), new AGUIInputTranslator);
     }
+    // A new turn gets a new run; a continuation names the suspended one.
+    $runId = $request->isContinuation() ? $agent->inspect()->runId : (string) Str::uuid();
 
     Cache::forget(SupportAgent::stopKey($threadId));
     RunSupportAgent::dispatch($threadId, $runId, $request->isContinuation() ? null : $request->prompt(), input: $request->all());
 
-    $adapter = new AGUIAdapter($threadId, $request->input('runId'));
+    $adapter = new AGUIAdapter(threadId: $threadId, runId: $request->input('runId'));
 
     return response()->stream(function () use ($relay, $runId, $adapter): void {
         try {
@@ -102,6 +103,8 @@ public function stream(RunAgentRequest $request, SupportAgent $agent, RedisRelay
 
 Route: `Route::post('agui/background', [BackgroundChatController::class, 'stream'])` in the `auth` group, under the `chat/*` path the input middlewares skip.
 
+- It needs a real queue worker, in local development too. On the `sync` driver the job runs inside this request, before the response exists, and publishes to nobody: the browser receives nothing until the reader's timeout.
+- A continuation carries the suspended run's ID, so the job recognises its own run when a redelivery finds it failed after the approved tools ran (see "Background Runs" in the skill).
 - The callback is not a generator: phpredis delivers messages to a callback, so the relay echoes and flushes itself, with the `ob_get_level()` guard.
 - `submitInputs()` only stages: calling it here turns a stale or malformed continuation into a 400 before any header; the job stages the same input again from the run as it is at job time.
 - The job receives the whole AG-UI input so its adapter is seeded with the client's `runId`, messages and state: an interrupt's `MESSAGES_SNAPSHOT` then carries the client's whole conversation.
@@ -113,7 +116,7 @@ Route: `Route::post('agui/background', [BackgroundChatController::class, 'stream
 | A turn | The AG-UI frames as the worker streams them, ending after `RUN_FINISHED` |
 | The run suspends for an approval | `RUN_FINISHED` with the interrupt outcome, then the response ends; the approval posts `resume` to the same endpoint |
 | A new message while an approval is pending | A 200 carrying one `RUN_ERROR`: the worker is refused, the job fails at once and `failed()` publishes the error |
-| The LLM fails on the first delivery | `RUN_ERROR`, then the response ends. The retry recovers the same run into history 5 seconds later (its channel waits for a listener that already left); a reload shows the answer once |
+| The LLM fails on the first delivery of a turn or a continuation | `RUN_ERROR`, then the response ends. The retry recovers the same run into history 5 seconds later (its channel waits for a listener that already left); a reload shows the answer once |
 | The worker is killed mid-answer | Frames stop. If the reader is still listening when the redelivery recovers the run, the recovered segment ends the response with `RUN_ERROR`: a second `RUN_STARTED` would restart the client's run. A reload shows the answer once the run completes |
 | No worker picks the job up | `RUN_ERROR` after the reader's timeout |
 

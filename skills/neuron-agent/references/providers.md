@@ -129,12 +129,12 @@ protected function provider(): AIProviderInterface
         key: $this->apiKey,
         model: 'claude-sonnet-4-6',
         // Laravel's cache here; any shared store works (Symfony Cache, Redis, a database row)
-        httpClient: new StoppableHttpClient(new CurlHttpClient(), fn (): bool => Cache::pull("stop:{$this->getThreadId()}", false)),
+        httpClient: new StoppableHttpClient(new CurlHttpClient(), fn (): bool => Cache::get("stop:{$this->getThreadId()}", false)),
     );
 }
 ```
 
-Keep the predicate cheap: it runs once per streamed event. Stopping closes the connection, so the vendor stops generating, and the turn completes normally: the answer keeps the text streamed so far, its stop reason is `StoppableHttpClient::STOP_REASON` (`'stopped'`), and the reasoning and tool calls it left incomplete are dropped. A stop before the first word fails the turn with a `ProviderException`, since there is no answer to keep. Bedrock streams through the AWS SDK and cannot be stopped this way.
+Keep the predicate cheap: it runs once per streamed event. Read the flag without consuming it, and clear it when the next turn starts: a consumed flag lets a retry of a queued turn generate the answer the user stopped. Stopping closes the connection, so the vendor stops generating, and the turn completes normally: the answer keeps the text streamed so far, its stop reason is `StoppableHttpClient::STOP_REASON` (`'stopped'`), and the reasoning and tool calls it left incomplete are dropped. A stop before the first word fails the turn with a `ProviderException`, since there is no answer to keep. Bedrock streams through the AWS SDK and cannot be stopped this way.
 
 Any other early end is a cut connection (a proxy, a load balancer, the vendor's edge): every stream must end with the vendor's closing event, so a cut raises a `ProviderException` instead of saving half an answer, and the failed run can be retried.
 

@@ -32,6 +32,8 @@ Bind it in `NeuronServiceProvider`: `$this->app->bind(ChannelFactory::class, Rev
 
 ```php
 // routes/channels.php, registered by withRouting(channels: __DIR__.'/../routes/channels.php') in bootstrap/app.php
+use Illuminate\Support\Facades\Broadcast;
+
 Broadcast::channel('agent.{threadId}', fn ($user, string $threadId): bool => str_starts_with($threadId, "user-{$user->id}-"));
 ```
 
@@ -51,12 +53,14 @@ use Illuminate\Support\Str;
 public function dispatch(ChatRequest $request, SupportAgent $agent): JsonResponse
 {
     $threadId = $request->threadId();
-    $runId = (string) Str::uuid();
+    $agent = $agent->for($threadId);
 
     if ($request->has('decisions')) {
         // Refused here, before queuing, when the run does not wait for these answers; the job stages them again.
-        $agent->for($threadId)->submitApprovalDecisions($request->input('decisions'));
+        $agent->submitApprovalDecisions($request->input('decisions'));
     }
+    // A new turn gets a new run; decisions continue the suspended one.
+    $runId = $request->has('decisions') ? $agent->inspect()->runId : (string) Str::uuid();
 
     Cache::forget(SupportAgent::stopKey($threadId));
     RunSupportAgent::dispatch($threadId, $runId, $request->input('message'), $request->input('decisions', []));
@@ -69,7 +73,7 @@ Route: `Route::post('threads/{thread}/runs', [BackgroundChatController::class, '
 
 ## The browser
 
-Pusher does not replay: subscribe, wait for `pusher:subscription_succeeded`, then post the turn.
+Pusher does not replay: subscribe, wait for `pusher:subscription_succeeded`, then post the turn, once. pusher-js fires that event again after every reconnect, so the handler unbinds itself; a handler left bound posted the same turn a second time when the Reverb server came back.
 
 ```js
 import Pusher from "pusher-js";
@@ -91,7 +95,8 @@ const pusher = new Pusher(REVERB_APP_KEY, {
 });
 
 const channel = pusher.subscribe(`private-agent.${threadId}`);
-channel.bind("pusher:subscription_succeeded", async () => {
+channel.bind("pusher:subscription_succeeded", async function once() {
+  channel.unbind("pusher:subscription_succeeded", once);
   subscribeToPusher(channel, {
     // AG-UI events in order, each segment closed by stream.completed, stream.interrupted or stream.failed
     onEvent: ({ type, data }) => render(type, data),
@@ -117,6 +122,6 @@ stream.completed {"workflowId":"user-1-ec5d29d6-…"}
 
 An approval arrives as `RUN_FINISHED` with the interrupt outcome, then `stream.interrupted`. The page posts `{"decisions": {"<call id>": "approve"}}` to the same endpoint; the continuation's segment arrives on the same channel under a new stream ID, which the consumer tracks on its own, and ends with `stream.completed`.
 
-- The job's adapter is not seeded with browser messages on this path, so an interrupt's `MESSAGES_SNAPSHOT` arrives empty (`{"messages":[]}`). Render the conversation from your own state or from the reload endpoint, not from that snapshot.
+- The job's adapter is not seeded with browser messages on this path, so an interrupt's `MESSAGES_SNAPSHOT` carries only what this segment streamed (`{"messages":[]}` when the model went straight to the tool call). Render the conversation from your own state or from the reload endpoint, not from that snapshot.
 - Events published before the subscription, or while the tab is closed, are gone: reconcile from the reload endpoint on `onGap`, on reconnect and on page load.
 - Envelope, ordering, fragments and the consumer's options: **neuron-streaming** (`references/channels.md`).

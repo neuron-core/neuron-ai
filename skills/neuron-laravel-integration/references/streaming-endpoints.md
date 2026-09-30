@@ -9,6 +9,7 @@ Every endpoint of the skill in one group; register the ones you build. The `chat
 use App\Http\Controllers\BackgroundChatController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ThreadController;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth')->prefix('chat')->group(function () {
     Route::post('threads', [ThreadController::class, 'store']);
@@ -53,7 +54,7 @@ class RunAgentRequest extends ThreadRequest
 
     public function threadId(): string
     {
-        return (string) $this->input('threadId');
+        return is_string($id = $this->input('threadId')) ? $id : '';
     }
 
     /**
@@ -97,21 +98,36 @@ class RunAgentRequest extends ThreadRequest
 }
 ```
 
+- `threadId()` runs inside `authorize()`, before validation: a thread ID that is not a string (`"threadId": ["x"]`) fails authorization with a 403 instead of a 500.
 - `isContinuation()` looks for a tool message anywhere after the last user message, not only at the end: CopilotKit can insert a tool result before trailing assistant text.
-- The client's messages reach the adapter as its seed (`new AGUIAdapter($threadId, $request->input('runId'), $request->input('messages'), $request->array('state'))`) so the snapshots the adapter sends back are complete. That is why `TrimStrings` and `ConvertEmptyStringsToNull` must skip these routes: with them, an empty tool result comes back as `null` and indented text comes back trimmed.
+- The client's messages reach the adapter as its seed (`new AGUIAdapter(threadId: $threadId, runId: $request->input('runId'), messages: $request->input('messages'), state: $request->array('state'))`) so the snapshots the adapter sends back are complete. That is why `TrimStrings` and `ConvertEmptyStringsToNull` must skip these routes: with them, an empty tool result comes back as `null` and indented text comes back trimmed.
 - Continuation rules, resume shapes and browser tools: **neuron-frontend-integration**.
 
 ## The Vercel AI SDK variant
 
-Same shape as the AG-UI controller, with the Vercel pieces swapped in: the thread is the chat `id`, the adapter is seeded with the last assistant message on a continuation, and the translator is `VercelAIInputTranslator`. This ran as a route in a feature test: a turn suspended with a `tool-approval-request` part, and an `approval-responded` part continued it to `tool-output-available` and the answer.
+Same shape as the AG-UI controller, with the Vercel pieces swapped in: the thread is the chat `id`, the adapter is seeded with the last assistant message on a continuation, and the translator is `VercelAIInputTranslator`. This ran in the app's `routes/web.php`, driven by feature tests: a turn suspended with a `tool-approval-request` part, an `approval-responded` part continued it to `tool-output-available` and the answer, and a turn that had failed after its tool step was finished before the next one.
 
 ```php
+// routes/web.php
+use App\Neuron\Agents\SupportAgent;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
+use NeuronAI\Agent\Adapters\VercelAIAdapter;
+use NeuronAI\Agent\Frontend\VercelAIInputTranslator;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Workflow\Streaming\SSEEncoder;
+
 Route::post('/chat/vercel', function (Request $request, SupportAgent $agent) {
+    $threadId = $request->input('id');
+    Cache::forget(SupportAgent::stopKey($threadId));
+    $agent->for($threadId)->recoverFailedTurn();
+
     $last = $request->input('messages.'.(count($request->input('messages')) - 1));
     $continuation = ($last['role'] ?? null) === 'assistant';
-    $adapter = $continuation ? new VercelAIAdapter($last['id'], $last['parts'] ?? []) : new VercelAIAdapter;
+    $adapter = $continuation ? new VercelAIAdapter(messageId: $last['id'], parts: $last['parts'] ?? []) : new VercelAIAdapter;
 
-    $agent = $agent->for($request->input('id'))->setStreamAdapter(fn (): VercelAIAdapter => $adapter);
+    $agent = $agent->for($threadId)->setStreamAdapter(fn (): VercelAIAdapter => $adapter);
     $events = $continuation
         ? $agent->submitInputs($request->all(), new VercelAIInputTranslator)->events()
         : $agent->stream(new UserMessage(collect($last['parts'])->where('type', 'text')->pluck('text')->implode('')));
@@ -127,9 +143,10 @@ Route::post('/chat/vercel', function (Request $request, SupportAgent $agent) {
             }
         }
     }, 200, $adapter->getHeaders());
-})->middleware('web');
+})->middleware('auth');
 ```
 
+- Like the AG-UI controller, it clears the Stop flag, then finishes a failed turn on a copy of its own, before the turn's copy streams.
 - In the application, move this into a controller with a FormRequest that authorizes `id` the way `ThreadRequest` authorizes `threadId`.
 - `getHeaders()` adds `x-vercel-ai-ui-message-stream: v1`.
 - `VercelAIAdapter` sends no start frame, so `$events->valid()` waits for the provider's first chunk; refusals still throw before any header.

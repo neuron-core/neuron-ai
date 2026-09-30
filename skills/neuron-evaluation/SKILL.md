@@ -607,9 +607,11 @@ programmatically: `$runner->run($evaluator, concurrency: 4)`.
 **`--autoload-file=<path>`** (also `--autoload-file <path>`) loads a custom bootstrap
 file *before* (in addition to) the default Composer autoloader. It's a global
 `vendor/bin/neuron` option, so it works with any command. Use it when evaluators need
-framework bootstrapping (e.g. a Laravel/Symfony bootstrap that sets up the DI
-container) or an autoloader not covered by the project's `composer.json`. To build
-evaluators through that container, configure a resolver (next section).
+framework bootstrapping (e.g. a Laravel bootstrap that sets up the DI container) or an
+autoloader not covered by the project's `composer.json`. To build evaluators through that
+container, configure a resolver (next section). Symfony services are private, so a
+resolver cannot fetch evaluators from the compiled container: use the console command of
+the **neuron-symfony-integration** skill.
 
 ### Container Integration
 
