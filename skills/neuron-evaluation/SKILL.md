@@ -662,6 +662,9 @@ $exitCode = (new EvaluationCommand(
 ))->run(['neuron', '--path=evaluations', '--concurrency=4']);
 ```
 
+The complete Artisan and Symfony Console commands, with fork-safe database hooks, are in
+the **neuron-laravel-integration** and **neuron-symfony-integration** skills.
+
 ### Run Output Caching (`--cache`)
 
 The cache stores the **output of `run()`, never the verdict** — `evaluate()` always

@@ -558,6 +558,8 @@ When helping users build agents:
 
 ## Related Skills
 
+- Use the **neuron-laravel-integration** or **neuron-symfony-integration** skill to wire
+  agents into a Laravel or Symfony app: container, tables, controllers, jobs, tests.
 - Use the **neuron-evaluation** skill to test agents with dataset-driven
   evaluations, assertions, AI judges, and multi-turn conversation testing.
 - Use the **neuron-monitoring** skill to debug and monitor agents with the

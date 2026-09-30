@@ -25,6 +25,7 @@ use function array_map;
 use function count;
 use function implode;
 use function json_decode;
+use function microtime;
 use function str_split;
 
 class RedisChannelTest extends TestCase
@@ -112,6 +113,55 @@ class RedisChannelTest extends TestCase
             $this->assertSame('Redis streaming cannot run inside a transaction or pipeline.', $e->getMessage());
         }
         $this->assertSame([], $this->redis->published);
+    }
+
+    public function test_without_await_listener_no_subscriber_is_counted(): void
+    {
+        $this->channel()->send(new ProtocolEvent('text-delta'));
+
+        $this->assertSame(0, $this->redis->subscriberCounts);
+        $this->assertCount(1, $this->redis->published);
+    }
+
+    public function test_the_first_publish_waits_until_a_listener_subscribes(): void
+    {
+        $this->redis->subscribers = [0, 0, 1];
+        $channel = new RedisChannel($this->redis, 'chat:42', awaitListener: 5);
+
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'a']));
+        $channel->send(new ProtocolEvent('text-delta', ['delta' => 'b']));
+
+        $this->assertSame(3, $this->redis->subscriberCounts);
+        $this->assertCount(2, $this->redis->published);
+    }
+
+    public function test_the_first_publish_goes_out_when_no_listener_subscribes_in_time(): void
+    {
+        $this->redis->subscribers = [0];
+        $started = microtime(true);
+
+        (new RedisChannel($this->redis, 'chat:42', awaitListener: 0.2))->send(new ProtocolEvent('text-delta'));
+
+        $this->assertGreaterThanOrEqual(0.2, microtime(true) - $started);
+        $this->assertCount(1, $this->redis->published);
+    }
+
+    public function test_a_failed_subscriber_count_stops_data_delivery_but_allows_the_terminal(): void
+    {
+        $this->redis->subscribers = [false];
+        $this->redis->lastError = "NOPERM User has no permissions to run the 'pubsub|numsub' command";
+        $channel = new RedisChannel($this->redis, 'chat:42', awaitListener: 5);
+        try {
+            $channel->send(new ProtocolEvent('text-delta'));
+            $this->fail('Expected a subscriber count failure.');
+        } catch (RuntimeException $e) {
+            $this->assertSame("Redis streaming could not count subscribers: NOPERM User has no permissions to run the 'pubsub|numsub' command", $e->getMessage());
+        }
+
+        $channel->completed($this->state(), 'wf-1');
+
+        $this->assertSame(1, $this->redis->subscriberCounts);
+        $this->assertSame('stream.completed', json_decode($this->redis->published[0]['message'], true)['type']);
     }
 
     public function test_every_event_is_published_as_its_own_message_on_the_configured_channel(): void

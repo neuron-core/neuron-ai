@@ -51,6 +51,10 @@ consumer.close(); // on cleanup
 
 Reconcile late subscriptions and transport disconnections from authoritative history. A lost final event or silence before the first event requires an application run timeout/status check. The package cannot replay events. See the [package guide](../../../packages/streaming/README.md) for limits, lifecycle details, and TypeScript usage.
 
+## Redis consumer in PHP
+
+`RedisChannelReader` reads what `RedisChannel` publishes, for the process holding the client's connection. `listen()` passes the channel's first segment to a callback as protocol events and returns at its terminal event. A segment that started before it subscribed, or that another segment replaces before its terminal event, raises `ChannelReadException`, as does silence past its timeout. Redis delivers one publisher's messages in order and `RedisChannel` never fragments, so it needs no reordering or reassembly. Pub/Sub keeps nothing for late subscribers: build the worker's channel with `awaitListener`, so its first publish waits for the reader. Example: the RedisChannel section of the skill.
+
 ## Implementing a transport
 
 `AbstractChannel` owns the final orchestration methods. The only required hook is `deliver(string $batch)`: transmit the batch and throw on failure. SDK-backed transports may transform it during delivery if `batchBytes()` conservatively accounts for that transformation. The base class does not retain failed batches or retry ambiguous delivery.

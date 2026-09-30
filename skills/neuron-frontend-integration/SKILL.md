@@ -441,4 +441,5 @@ Each client stack is supported on its current major line; the integration suite 
 - **neuron-tool-approval** — the approval gate, decision translators and history-based approval UIs.
 - **neuron-streaming** — the outbound half of this round trip: stream adapters, terminal frames on suspension, portable progress events, custom adapters and push channels.
 - **neuron-tool** — writing backend tools and toolkits.
+- **neuron-laravel-integration**, **neuron-symfony-integration** — these endpoints as framework controllers, with thread authorization, error mapping, reload and queued runs.
 - `tests/Integration/Frontend/README.md` — the suite layout, scenarios and the full list of verified behaviours.

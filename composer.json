@@ -90,7 +90,7 @@
     "suggest": {
         "ext-bcmath": "Exact integer tools in the Calculator toolkit (factorial, combinations, gcd, mod_pow, primes).",
         "ext-igbinary": "Smaller/faster durable-step serialization via IgbinarySerializer.",
-        "ext-redis": "Redis workflow persistence via RedisPersistence and Pub/Sub streaming via RedisChannel.",
+        "ext-redis": "Redis workflow persistence via RedisPersistence and Pub/Sub streaming via RedisChannel and RedisChannelReader.",
         "ext-sodium": "End-to-end encryption for Pusher streaming channels.",
         "psr/log": "Logging observability events through LogListener.",
         "pusher/pusher-php-server": "Pusher-compatible streaming channels, including encrypted channels (requires >=7.2.4 for HTTP timeout propagation).",

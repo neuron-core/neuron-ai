@@ -136,15 +136,14 @@ Route::post('/chat', function (Request $request) {
         ->setStreamAdapter(fn (): VercelAIAdapter => $adapter)
         ->stream(new UserMessage($request->input('message')));
 
+    // A generator callback: Laravel echoes and flushes every frame.
     return response()->stream(function () use ($stream) {
-        foreach (SSEEncoder::encode($stream) as $line) {
-            echo $line;
-            ob_flush();
-            flush();
-        }
+        yield from SSEEncoder::encode($stream);
     }, 200, $adapter->getHeaders());
 });
 ```
+
+A complete Laravel or Symfony endpoint (thread authorization, errors mapped to statuses before the first frame, the failure frame after it) is in the **neuron-laravel-integration** and **neuron-symfony-integration** skills.
 
 An adapter holds the state of one segment's stream. The factory runs for every segment, so a suspension and its continuation in one process, as a queue worker runs them, each get their own adapter. Seed a continuation's adapter with what the client already holds: the AG-UI `messages`, the Vercel message and its `parts`.
 
@@ -320,6 +319,26 @@ $state = $agent->chat(new UserMessage($message), stream: true);
 
 Every message is a JSON envelope `{streamId, sequence, type, data}`. Unwrap it before passing the protocol event to an SSE encoder; forwarding the envelope directly is not the UI protocol. The Redis client must be connected and outside a transaction or pipeline. A publish result of zero subscribers is valid; Pub/Sub does not replay missed messages. Read [Channel wire contract and consumers](references/channels.md) when wiring subscribers, reassembly, or gap recovery.
 
+**One SSE response for a queued run.** When a worker runs the turn and the client needs a single SSE response (the AG-UI `HttpAgent`, Vercel `useChat`), name the channel after a run ID the endpoint mints, give the worker's channel `awaitListener`, and relay it in the endpoint with `RedisChannelReader`:
+
+```php
+use NeuronAI\Workflow\Streaming\Channel\RedisChannelReader;
+
+// Worker: the first publish waits up to 5 seconds for the endpoint to subscribe.
+->setChannel(fn (): RedisChannel => new RedisChannel($redis, "agent-run.{$runId}", awaitListener: 5))
+
+// Endpoint, after dispatching the job, inside the streamed response:
+(new RedisChannelReader($redis, "agent-run.{$runId}"))->listen(function (ProtocolEvent $event): void {
+    echo SSEEncoder::frame($event);
+    if (ob_get_level() > 0) {
+        ob_flush();
+    }
+    flush();
+});
+```
+
+`listen()` passes the protocol events of the channel's first segment to the callback and returns at its terminal event. It throws `ChannelReadException` when nothing arrives within its timeout (300 seconds by default: pass `timeout:` above the longest silent step), when the segment started before it subscribed, or when another segment starts before the first one ends (a redelivered job recovering the run): answer with the adapter's `error()` frames. It handles the client's key prefix, sets its own read timeout and closes the connection when it returns; phpredis reconnects on the next command. `awaitListener` defaults to 0 because the wait counts only subscribers of that exact channel: a pattern subscriber or a page that is not listening would delay every segment.
+
 ### PusherChannel
 
 `PusherChannel` accepts an application-configured `Pusher\Pusher` instance from the optional `pusher/pusher-php-server` package (`composer require pusher/pusher-php-server:^7.2.4`). The official SDK owns signing, encryption, endpoint settings and HTTP delivery. Configure `host`, `port` and `scheme` on that client for Pusher-compatible servers such as Reverb and Soketi; a custom Guzzle client can be passed as its fifth constructor argument.
@@ -402,3 +421,4 @@ See the **neuron-test** skill for the provider fake and assertion helpers.
 - **Writing nodes, memoization, and durable resume**: the **neuron-workflow** skill.
 - **Approval round trip** (rendering the pending approval, translating client decisions, continuing the run): the **neuron-tool-approval** skill.
 - **Frontend tools executed in the browser** (deferred tools, the endpoint, Vercel `useChat`, the AG-UI client, CopilotKit): the **neuron-frontend-integration** skill.
+- **Laravel or Symfony apps** (controllers, queue jobs and Messenger handlers, Reverb, Mercure and Redis delivery): the **neuron-laravel-integration** and **neuron-symfony-integration** skills.

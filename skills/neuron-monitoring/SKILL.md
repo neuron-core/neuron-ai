@@ -102,13 +102,18 @@ $workflow->subscribe(DocumentScored::class, fn (DocumentScored $e) => $metrics->
 
 ### Integrating a Host Framework
 
-Forward every event to an application-wide PSR-14 dispatcher (Symfony,
-Laravel's PSR bridge, League\Event) — Neuron events become regular application
+Forward every event to an application-wide PSR-14 dispatcher (Symfony's
+EventDispatcher, League\Event) — Neuron events become regular application
 events:
 
 ```php
 $agent->setEventDispatcher($appEventDispatcher);
 ```
+
+Laravel's dispatcher is not PSR-14: it needs a small adapter, shown in the
+**neuron-laravel-integration** skill. Framework dispatchers match listeners by
+exact class, so a listener on `ObservabilityEvent` never fires there; listen to
+concrete event classes, or use `subscribe(ObservabilityEvent::class, ...)`.
 
 ### Legacy Observers (deprecated)
 
