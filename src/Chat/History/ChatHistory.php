@@ -75,6 +75,9 @@ class ChatHistory implements JsonSerializable
         return $this;
     }
 
+    /**
+     * @return Message[]
+     */
     public function getMessages(): array
     {
         return $this->messages ??= $this->store->loadActive($this->threadId);
