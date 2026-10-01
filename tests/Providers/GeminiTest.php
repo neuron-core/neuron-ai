@@ -457,4 +457,50 @@ class GeminiTest extends TestCase
         $expectedText = 'hi Respond using this JSON schema: {"type":"object","properties":{"name":{"type":"string","description":"User name"}},"required":["name"]}';
         $this->assertSame($expectedText, $requestBody['contents'][0]['parts'][0]['text']);
     }
+
+    public function test_chat_keeps_thought_signature_when_text_precedes_function_call(): void
+    {
+        $sentRequests = [];
+        $body = '{"candidates":[{"content":{"role":"model","parts":[
+            {"text":"Let me check."},
+            {"functionCall":{"name":"lookup","args":{"q":"a"}},"thoughtSignature":"sig-1"}
+        ]},"finishReason":"STOP"}]}';
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(status: 200, body: $body),
+            new Response(status: 200, body: $this->body),
+        ]));
+        $stack->push(Middleware::history($sentRequests));
+
+        $provider = (new Gemini('', 'gemini-3.1-pro-preview'))
+            ->setTools([Tool::make('lookup', 'Lookup something.')])
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
+
+        $toolCall = $provider->chat(new UserMessage('Hi'));
+        $this->assertSame('sig-1', $toolCall->getMetadata('thought_signature'));
+
+        $provider->chat(new UserMessage('Hi'), $toolCall);
+        $sent = json_decode($sentRequests[1]['request']->getBody()->getContents(), true);
+
+        $this->assertSame('sig-1', $sent['contents'][1]['parts'][1]['thought_signature']);
+    }
+
+    public function test_stream_keeps_thought_signature_when_text_precedes_function_call(): void
+    {
+        $body = '[{"candidates":[{"content":{"role":"model","parts":[
+            {"text":"Let me check."},
+            {"functionCall":{"name":"lookup","args":{"q":"a"}},"thoughtSignature":"sig-1"}
+        ]},"finishReason":"STOP"}]}]';
+        $stack = HandlerStack::create(new MockHandler([new Response(status: 200, body: $body)]));
+
+        $provider = (new Gemini('', 'gemini-3.1-pro-preview'))
+            ->setTools([Tool::make('lookup', 'Lookup something.')])
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack));
+
+        $stream = $provider->stream(new UserMessage('Hi'));
+        foreach ($stream as $chunk) {
+            // drain
+        }
+
+        $this->assertSame('sig-1', $stream->getReturn()->getMetadata('thought_signature'));
+    }
 }

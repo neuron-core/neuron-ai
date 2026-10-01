@@ -82,13 +82,16 @@ class Gemini implements AIProviderInterface
      */
     protected function createToolCallMessage(array $blocks, array $toolCalls): ToolCallMessage
     {
+        // The calls arrive keyed by their position among the response parts, which is not zero when text precedes them.
+        $toolCalls = array_values($toolCalls);
+
         $tools = array_map(function (array $item): ToolInterface {
             return $this->findTool($item['functionCall']['name'])
                 ->setInputs($item['functionCall']['args'])
                 ->setCallId($item['functionCall']['name']); // Gemini uses the tool's name as a unique identifier.
         }, $toolCalls);
 
-        $message = new ToolCallMessage($blocks, array_values($tools));
+        $message = new ToolCallMessage($blocks, $tools);
 
         if (isset($toolCalls[0]['thoughtSignature'])) {
             $message->addMetadata('thought_signature', $toolCalls[0]['thoughtSignature']);

@@ -34,7 +34,7 @@ class StreamState extends BasicStreamState
             if (isset($part['functionCall'])) {
                 $this->toolCalls[$index]['functionCall'] = $part['functionCall'];
 
-                if ($index === 0 && $signature = $part['thoughtSignature'] ?? null) {
+                if ($signature = $part['thoughtSignature'] ?? null) {
                     $this->toolCalls[$index]['thoughtSignature'] = $signature;
                 }
             }
