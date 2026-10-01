@@ -174,6 +174,7 @@ class StdioTransport implements McpTransportInterface
             $chunk = fread($this->pipes[1], 4096);
             if ($chunk !== false && $chunk !== '') {
                 $this->readBuffer .= $chunk;
+                continue;
             }
 
             // Small delay to prevent CPU spinning
