@@ -102,8 +102,8 @@ trait HandleStream
 
             // Handle tool calls
             if ($this->finishForToolCall($choice)) {
-                toolcall:
                 yield from $this->processToolCallDelta($choice);
+                toolcall:
                 $message = $this->createToolCallMessage(
                     $this->streamState->getToolCalls(),
                     $this->streamState->getContentBlocks()

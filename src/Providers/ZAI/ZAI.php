@@ -62,12 +62,7 @@ class ZAI extends OpenAI
      */
     protected function processToolCallDelta(array $choice): Generator
     {
-        if (isset($choice['delta']['reasoning_content'])) {
-            $reasoningContent = $choice['delta']['reasoning_content'];
-            $this->streamState->updateContentBlock(-1, new ReasoningContent($reasoningContent));
-
-            yield new ReasoningChunk($this->streamState->messageId(), $reasoningContent);
-        }
+        yield from $this->processReasoning($choice);
     }
 
     /**
@@ -77,6 +72,14 @@ class ZAI extends OpenAI
     {
         yield from parent::processContentDelta($choice);
 
+        yield from $this->processReasoning($choice);
+    }
+
+    /**
+     * @return Generator<StreamChunk>
+     */
+    protected function processReasoning(array $choice): Generator
+    {
         if (isset($choice['delta']['reasoning_content'])) {
             $reasoningContent = $choice['delta']['reasoning_content'];
             $this->streamState->updateContentBlock(-1, new ReasoningContent($reasoningContent));

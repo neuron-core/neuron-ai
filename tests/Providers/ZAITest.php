@@ -130,4 +130,29 @@ class ZAITest extends TestCase
         $messages = $provider->messageMapper()->map([$message]);
         $this->assertSame('Inspect schema. ', $messages[0]['reasoning_content']);
     }
+
+    public function test_stream_processes_tool_call_delta_once_when_it_carries_the_finish_reason(): void
+    {
+        $streamBody = "data: {\"id\":\"chatcmpl-123\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"Inspect schema. \",\"tool_calls\":[{\"index\":0,\"id\":\"call-123\",\"type\":\"function\",\"function\":{\"name\":\"inspect_schema\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\n";
+        $streamBody .= "data: [DONE]\n\n";
+
+        $mockHandler = new MockHandler([
+            new Response(status: 200, body: $streamBody),
+        ]);
+
+        $provider = (new ZAI('', 'glm-5.2'))
+            ->setTools([Tool::make('inspect_schema', 'Inspect the database schema.')])
+            ->setHttpClient(new GuzzleHttpClient(handler: HandlerStack::create($mockHandler)));
+
+        $generator = $provider->stream(new UserMessage('Inspect the database schema.'));
+        $chunks = [];
+        foreach ($generator as $chunk) {
+            $chunks[] = $chunk;
+        }
+        $message = $generator->getReturn();
+
+        $this->assertCount(1, $chunks);
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Inspect schema. ', $message->getReasoning()?->content);
+    }
 }
