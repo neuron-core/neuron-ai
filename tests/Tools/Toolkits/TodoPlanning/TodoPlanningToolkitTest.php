@@ -100,6 +100,7 @@ class TodoPlanningToolkitTest extends TestCase
         $agent->chat(new UserMessage('Build the blog'));
 
         [, $call, $results] = $agent->getChatHistory()->getMessages();
+        self::assertInstanceOf(ToolCallMessage::class, $call);
         self::assertSame($this->todos, $call->getToolCalls()[0]->getInput('todos'));
         self::assertInstanceOf(ToolResultMessage::class, $results);
         self::assertSame('Updated to do list to: [{"content":"Design the schema","status":"in_progress"}]', $results->getToolCalls()[0]->getResult());
