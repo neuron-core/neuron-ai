@@ -18,8 +18,8 @@ jobs:
     outputs:
       dist-tag: ${{ steps.release.outputs.dist-tag }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -39,12 +39,12 @@ jobs:
       - run: npm run pack:streaming
       - name: Test the archive against the PHP backend
         run: npm run test:packed
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: streaming-package
           path: artifacts/streaming.tgz
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: frontend-release-traces
@@ -58,11 +58,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: streaming-package
           path: artifacts
