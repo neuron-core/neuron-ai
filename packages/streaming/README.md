@@ -251,7 +251,8 @@ Configure the backend with `AGUIAdapter`. Extend AG-UI's `AbstractAgent` to conn
 
 ```ts
 import { AbstractAgent } from '@ag-ui/client';
-import { EventSchemas, type BaseEvent, type RunAgentInput } from '@ag-ui/core';
+import type { BaseEvent, RunAgentInput } from '@ag-ui/core';
+import { EventSchemas } from '@ag-ui/core/schemas';
 import { Observable } from 'rxjs';
 import { createProtocolStream } from '@neuron-core/streaming';
 

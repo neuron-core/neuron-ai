@@ -51,11 +51,11 @@ The suite is the compatibility statement for Neuron's frontend integrations. Eac
 client stack is fixed to its current major line in `package.json`; patch and minor
 releases within that line are accepted, a new major requires a deliberate review
 and a new run of this suite. The lockfile records the exact versions the suite last
-passed with. There is no automatic upgrade process.
+passed with. Dependabot proposes patch and minor releases; a new major is upgraded by hand.
 
 | Stack | Supported line | Last verified |
 |---|---|---|
-| AG-UI (`@ag-ui/client`, `@ag-ui/core`) | 0.0.x | 0.0.59 |
+| AG-UI (`@ag-ui/client`, `@ag-ui/core`) | 1.0.x | 1.0.1 |
 | Vercel AI SDK (`ai`, `@ai-sdk/react`) | 7.x / 4.x | 7.0.98 / 4.0.101 |
 | CopilotKit (`@copilotkit/react-core`, `@copilotkit/runtime`, v2 API) | 1.x | 1.71.0 |
 | Pusher (`pusher-js`) | 8.x | 8.6.0 |
@@ -123,11 +123,12 @@ Pusher's service; transport-level checks also live in `tests/Workflow/Channel`.
 
 ## Verified behaviour and client limitations
 
-- **AG-UI error field.** Neuron adds `error` to `TOOL_CALL_RESULT` for failed results.
-  The AG-UI core schema for that event is passthrough, so the field reaches
-  subscribers on the frame, but the official client's reducer builds message state
-  from `content` alone: `agent.messages` carries no `error`. A rejection is stamped as
-  a plain instruction string and carries no `error` on purpose.
+- **AG-UI error field.** AG-UI defines `error` on the tool message, not on the
+  `TOOL_CALL_RESULT` event, and the official client removes fields the protocol does
+  not define. A failed result therefore streams its error text as `content`, and
+  `agent.messages` carries no `error`; the marker appears only on the tool message of
+  a `MESSAGES_SNAPSHOT` or a reload. A rejection is stamped as a plain instruction
+  string and carries no `error` on purpose.
 - **Structured results.** Vercel passes `false`, `0`, `null` and structured values, which
   Neuron normalizes to their JSON text. AG-UI tool messages are text by protocol, so
   the client sends JSON text. CopilotKit serializes handler values itself: objects and

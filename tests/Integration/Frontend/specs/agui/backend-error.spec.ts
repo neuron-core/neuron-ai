@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { observe, toolResultsSentToProvider } from "../../support/backend";
 import { openThread, run } from "../../support/agui";
 
-test("AG-UI error representation: a backend tool failure is marked on the wire but the official client keeps only its content", async ({ request }) => {
+test("AG-UI error representation: a backend tool failure reaches the client as the content of its result", async ({ request }) => {
   const { threadId, agent } = await openThread(request, "backend-error", "Fail on purpose.");
 
   const first = await run(agent);
@@ -11,10 +11,9 @@ test("AG-UI error representation: a backend tool failure is marked on the wire b
 
   const frame = first.resultFrames.call_fail_1;
   expect(frame.content).toBe("clock unavailable");
-  expect(frame.error).toBe("clock unavailable");
+  expect(frame.error).toBeUndefined();
 
-  // The client's event reducer builds the tool message from `content` alone; the
-  // `error` marker survives the frame (schema passthrough) but not the message state.
+  // AG-UI defines no `error` on the result event, so the failure travels as content.
   const toolMessage = agent.messages.find((message) => message.role === "tool" && message.toolCallId === "call_fail_1");
   expect(toolMessage?.content).toBe("clock unavailable");
   expect((toolMessage as { error?: string } | undefined)?.error).toBeUndefined();

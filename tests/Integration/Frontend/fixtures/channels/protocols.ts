@@ -1,5 +1,6 @@
 import { AbstractAgent } from '@ag-ui/client';
-import { EventSchemas, type BaseEvent, type RunAgentInput } from '@ag-ui/core';
+import type { BaseEvent, RunAgentInput } from '@ag-ui/core';
+import { EventSchemas } from '@ag-ui/core/schemas';
 import { Observable } from 'rxjs';
 import { readUIMessageStream, uiMessageChunkSchema } from 'ai';
 import { createChannelConsumer, createProtocolStream, type ChannelConsumer } from '@neuron-core/streaming';
