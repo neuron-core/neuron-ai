@@ -149,13 +149,14 @@ class FrontendToolAdapterTest extends TestCase
         $this->assertSame([], $this->decode($adapter->transform(new ToolResultChunk($call))));
     }
 
-    public function test_agui_errors_have_an_error_marker_and_original_call_id(): void
+    public function test_agui_error_frames_carry_the_text_as_content_under_the_original_call_id(): void
     {
         $call = (new ToolCall('browser', 'failed'))->setResult(ToolOutput::error('Not available'));
         $events = $this->decode((new AGUIAdapter('thread'))->transform(new ToolResultChunk($call)));
-        $result = $events[array_key_last($events)];
-        $this->assertSame('failed', $result['toolCallId']);
-        $this->assertSame('Not available', $result['error']);
+        $this->assertSame(
+            ['type' => 'TOOL_CALL_RESULT', 'messageId' => 'result_failed', 'role' => 'tool', 'toolCallId' => 'failed', 'content' => 'Not available'],
+            $events[array_key_last($events)],
+        );
     }
 
     public function test_agui_custom_wait_requires_explicit_resume(): void

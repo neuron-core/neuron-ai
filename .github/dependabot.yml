@@ -4,7 +4,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: "weekly"
+    cooldown:
+      default-days: 5
     groups:
       github-actions:
         patterns:
@@ -13,8 +15,16 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: monthly
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+    ignore:
+      # @ag-ui/client pins rxjs to an exact version; a second copy breaks the Observable types.
+      - dependency-name: rxjs
     groups:
       npm:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch

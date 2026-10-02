@@ -367,7 +367,8 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         $id = $message['id'];
         $this->messages[$id] = $message;
         $this->knownResults[$toolCallId] = true;
-        unset($message['id']);
+        // AG-UI defines `error` on the tool message, not on the result event.
+        unset($message['id'], $message['error']);
         yield new ProtocolEvent('TOOL_CALL_RESULT', ['messageId' => $id, ...$message]);
     }
 

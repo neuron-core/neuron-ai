@@ -19,7 +19,7 @@ In 3.x, `McpConnector::invokeTool()` returned the MCP server's `content` array, 
 | A result with `isError: true` is an ordinary result | `isError()` is `true` |
 | A result without `content` is `''`, and one with `content: []` is `"[]"` | An empty `ToolOutput` |
 | The serialized `result` of an MCP tool call (`jsonSerialize()`, stored messages) is that JSON string | A block list such as `[{"type":"text","content":"...","meta":[]}]`, or `{"is_error":true,"blocks":[...]}` for an error result |
-| Vercel AI `tool-output-available.output` and AG-UI `TOOL_CALL_RESULT.content` carry that JSON string | Plain text: the text blocks only, without images or audio. An error result arrives as Vercel `tool-output-error` (`errorText`) or as AG-UI `TOOL_CALL_RESULT` with an `error` field |
+| Vercel AI `tool-output-available.output` and AG-UI `TOOL_CALL_RESULT.content` carry that JSON string | Plain text: the text blocks only, without images or audio. An error result arrives as Vercel `tool-output-error` (`errorText`) or as AG-UI `TOOL_CALL_RESULT` with the error text as `content` |
 
 **Stored data:** MCP results that 3.x wrote to chat history stay JSON strings. 4.x reads them back as-is, as plain string results, never as a `ToolOutput`, and without an error flag, because 3.x never recorded one. Do not rewrite stored rows or `.chat` files. Code that reads history written before the upgrade keeps a decode branch for these strings (Case 1, step 4, and Case 4).
 
@@ -253,7 +253,7 @@ const text = part.output;
 ```
 
 1. Remove `JSON.parse` of MCP tool output: Vercel `output`, AG-UI `content`, and the `result` of tool entries read from serialized history. For history, read blocks as in Case 4. Guide 34 shows the client version.
-2. Handle error results in the frames that carry them: Vercel `tool-output-error` with `errorText` (tool part state `output-error`), or AG-UI `TOOL_CALL_RESULT` with an `error` field. Guide 37 covers the other frame changes.
+2. Handle error results in the frames that carry them: Vercel `tool-output-error` with `errorText` (tool part state `output-error`), or AG-UI `TOOL_CALL_RESULT`, whose `content` is the error text. Guide 37 covers the other frame changes.
 3. The adapters no longer send MCP images or audio. If the frontend displayed them, tell the developer. The blocks are still in the `ToolResultMessage` and its serialized form (Case 4). Ask how the frontend should receive them.
 
 ## Checklist

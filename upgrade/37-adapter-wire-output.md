@@ -31,7 +31,7 @@ In 3.x a paused or failed run stopped the stream with an exception, and the endp
 | `REASONING_*` `messageId` | the provider chunk's ID, a vendor ID or `null` | `reasoning_{messageId}`, built from the stored message ID |
 | `TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_END` | sent when the tool started, before it ran. `TOOL_CALL_ARGS` was left out when the call had no arguments. `parentMessageId` was present only when text preceded the call | sent right before the call's `TOOL_CALL_RESULT`, after the tool ran. `TOOL_CALL_ARGS` is always sent: the provider's argument fragments, or one JSON string (`{}` without arguments). `parentMessageId` is always present: the stored ID of the message holding the call |
 | `toolCallId` | the provider's call ID | unchanged |
-| `TOOL_CALL_RESULT` | `{toolCallId, content, role: "tool", messageId: <random msg_…>}` | `{messageId: "result_{toolCallId}", role: "tool", toolCallId, content}`, plus `error` (the error text) when the result is an error `ToolOutput`. `content` is a string |
+| `TOOL_CALL_RESULT` | `{toolCallId, content, role: "tool", messageId: <random msg_…>}` | `{messageId: "result_{toolCallId}", role: "tool", toolCallId, content}`. `content` is a string: the error text when the result is an error `ToolOutput` |
 | Approval pause | none: the stream threw | `STATE_SNAPSHOT {snapshot}`, `MESSAGES_SNAPSHOT {messages}`, then `RUN_FINISHED {threadId, runId, outcome: {type: "interrupt", interrupts: [...]}}`. Gated calls get no `TOOL_CALL_*` frames until the run continues after the decision |
 | Approval interrupt | none | `{id: <tool call ID>, reason: "confirmation", message, responseSchema: {type: "object", properties: {approved: {type: "boolean"}, reason: {type: "string"}}, required: ["approved"]}, metadata: <the action: id, name, description, decision, feedback, reason, inputs>, expiresAt?}` |
 | Other pause (a node's `interrupt()`) | none | the same three frames, with interrupts `{id: "<interrupt ID>", reason: "neuron:wait_for_event" or "neuron:sleep_until", message, metadata: <InterruptRequest JSON>, expiresAt?}` |
@@ -66,7 +66,7 @@ Follow the hits:
 - Searches 1 and 2 find `useChat` users (Case 1), custom Vercel parsers (Case 2), AG-UI clients (Case 3), and PHP tests or PHP code that pin frames (Case 4). Correctly migrated code still matches them, because many frame names did not change.
 - Find the frame types the 3.x endpoint wrote itself in its `catch (WorkflowInterrupt ...)` or `catch (Throwable ...)` blocks, which guides 29 and 36 deleted: read the endpoint's pre-upgrade version (`git show HEAD:<path>` or the VCS history), then grep the client code for those type names.
 - Hits in compiled bundles (for example `public/js/app.js`): change the sources, and report to the developer that the assets must be rebuilt.
-- Search 3: Neuron verifies these frames with `ai` 7.x and `@ai-sdk/react` 4.x, `@ag-ui/client` 0.0.x, and CopilotKit 1.x. The `tool-approval-request` part needs an AI SDK release that supports tool approval. If the application pins an older major line, report it to the developer and ask whether to upgrade. Do not change the versions yourself.
+- Search 3: Neuron verifies these frames with `ai` 7.x and `@ai-sdk/react` 4.x, `@ag-ui/client` 1.0.x, and CopilotKit 1.x. The `tool-approval-request` part needs an AI SDK release that supports tool approval. If the application pins an older major line, report it to the developer and ask whether to upgrade. Do not change the versions yourself.
 - If the client is not in this repository (a mobile app, a separate SPA), report the two tables above and the Cases below to the developer.
 
 If nothing is found, this guide does not apply.
@@ -181,7 +181,7 @@ for await (const payload of payloads(response)) { // the text after each "data: 
 This covers `@ag-ui/client` (`HttpAgent`), CopilotKit and custom parsers.
 
 1. Use the IDs the frames carry. Remove code that parses ID prefixes (`msg_`, `call_`), generates its own IDs for these messages, or re-keys messages after a reload.
-2. Tool frames arrive after the tool ran. Do not show a tool as running from `TOOL_CALL_START`. `TOOL_CALL_ARGS` always arrives, and a failed tool's `TOOL_CALL_RESULT` carries `error`.
+2. Tool frames arrive after the tool ran. Do not show a tool as running from `TOOL_CALL_START`. `TOOL_CALL_ARGS` always arrives, and a failed tool's `TOOL_CALL_RESULT` carries the error text as `content`.
 3. On `RUN_FINISHED`, check the outcome before treating the turn as complete: `params.outcome === 'interrupt'` in an `@ag-ui/client` subscriber, `event.outcome?.type === 'interrupt'` in a raw parser. Then render the interrupts. Answer every interrupt of the pause in one request, in one of two ways:
    - With AG-UI `resume` entries `{interruptId, status: 'resolved' | 'cancelled', payload: {approved, reason?}}`. The endpoint forwards them with `AGUIInputTranslator` (guide 36).
    - Through an application endpoint that calls `submitApprovalDecisions([$id => 'approve' | 'reject' | ['reject', $reason]])` (guide 29). A confirmation's `id` is the tool call ID.

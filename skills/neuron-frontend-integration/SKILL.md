@@ -285,7 +285,7 @@ Rules the suite enforces:
 
 ## AG-UI official client (`@ag-ui/client`)
 
-Tested with `@ag-ui/client` 0.0.x. The protocol is what CopilotKit speaks underneath; use the client directly for contract tests or a custom frontend.
+Tested with `@ag-ui/client` 1.0.x. The protocol is what CopilotKit speaks underneath; use the client directly for contract tests or a custom frontend.
 
 ```ts
 import { HttpAgent } from "@ag-ui/client";
@@ -332,7 +332,7 @@ Facts the suite established:
 - An ordinary frontend handoff ends with `RUN_FINISHED` without an outcome; the tool messages on the next request continue it. Only approvals and other waits produce `outcome.type === "interrupt"`.
 - Tool message content is text. Send structured values as JSON text; Neuron passes the text through unchanged.
 - `runAgent` **resolves** on `RUN_ERROR` and reports it through `onRunErrorEvent`; it rejects only on HTTP failures before the stream (the error message carries the status and JSON body).
-- Neuron marks failed results with `error` on `TOOL_CALL_RESULT`. The event schema is passthrough, so subscribers see it on the frame, but the client builds message state from `content` alone: `agent.messages` never carries `error`. A rejected approval is a plain instruction string with no `error` marker at all.
+- A failed result streams its error text as the `content` of `TOOL_CALL_RESULT`. AG-UI defines `error` on the tool message, not on that event, so the frame has no `error` field and `agent.messages` built from the stream never carries one; the marker appears only on tool messages in a `MESSAGES_SNAPSHOT` or a reload. A rejected approval is a plain instruction string with no `error` marker at all.
 - Two calls of the same tool in one batch stay distinct by call ID across requests.
 - **Reload.** Seed a fresh client from the reload endpoint. `runAgent` refuses to run while a pending interrupt is not addressed by `resume`, so the reloaded page answers the persisted approval or frontend wait before anything else. After the run completes, another reload rebuilds exactly the message IDs the client holds.
 
