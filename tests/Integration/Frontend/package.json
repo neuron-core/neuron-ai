@@ -8,15 +8,15 @@
   "dependencies": {
     "@ag-ui/client": "~1.0.0",
     "@ag-ui/core": "~1.0.0",
-    "@ai-sdk/react": "^4.0.101",
-    "@copilotkit/react-core": "^1.71.0",
-    "@copilotkit/runtime": "^1.71.0",
+    "@ai-sdk/react": "^4.0.121",
+    "@copilotkit/react-core": "^1.74.0",
+    "@copilotkit/runtime": "^1.74.0",
     "@neuron-core/streaming": "0.2.0",
     "ai": "^7.0.98",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "rxjs": "7.8.1",
-    "zod": "^4.6.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -24,6 +24,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "pusher-js": "^8.6.0",
-    "vite": "^8.3.0"
+    "vite": "^8.3.1"
   }
 }
