@@ -12,6 +12,7 @@ use Throwable;
 
 use function array_key_first;
 use function array_keys;
+use function array_merge_recursive;
 use function array_pop;
 use function array_shift;
 use function array_values;
@@ -255,12 +256,18 @@ class MakeCommand extends Command
         }
 
         $composerData = json_decode($composerContent, true);
-        if (!is_array($composerData) || !is_array($composerData['autoload']['psr-4'] ?? null)) {
+        if (!is_array($composerData)) {
             return [];
         }
 
+        // Production prefixes come first: they provide the default namespace and directory
+        $psr4 = array_merge_recursive(
+            $composerData['autoload']['psr-4'] ?? [],
+            $composerData['autoload-dev']['psr-4'] ?? [],
+        );
+
         $prefixes = [];
-        foreach ($composerData['autoload']['psr-4'] as $prefix => $directories) {
+        foreach ($psr4 as $prefix => $directories) {
             $directories = array_values((array) $directories);
 
             if ($directories !== []) {

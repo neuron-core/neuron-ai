@@ -148,7 +148,7 @@ class InputTranslatorTest extends TestCase
     /** @return iterable<string, array{array<string, mixed>, string}> */
     public static function invalidAguiApprovals(): iterable
     {
-        yield 'missing coverage' => [['resume' => []], 'AG-UI resume must address every published interrupt.'];
+        yield 'empty resume' => [['resume' => []], 'Pending AG-UI interrupts require an explicit resume array.'];
         yield 'unknown ID' => [['resume' => [['interruptId' => 'other', 'status' => 'cancelled']]], 'The resume entry does not identify an active interrupt.'];
         yield 'invalid decision' => [['resume' => [['interruptId' => 'a', 'status' => 'resolved', 'payload' => ['approved' => 'yes']]]], 'An approval response requires a boolean approved field.'];
         yield 'cancelled payload' => [['resume' => [['interruptId' => 'a', 'status' => 'cancelled', 'payload' => null]]], 'A cancelled resume must omit payload.'];

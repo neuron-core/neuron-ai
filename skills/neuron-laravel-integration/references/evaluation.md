@@ -336,6 +336,6 @@ Observed with eight items, `--concurrency=4`, MySQL 8.4, and a parent process th
 | keep the inherited PDOs, then `DB::purge()` | all passed, each on its own connection | same session and connection ID as before |
 | `afterChild` disconnecting | — | MySQL counted no aborted clients (eight without it) |
 
-`spatie/fork` ends every child with `SIGKILL` when `ext-posix` is loaded, so the PDOs kept in `$inherited` are never destroyed there. Without `ext-posix` a child ends with `exit()`, which destroys them: the items still passed, but the parent's session was closed as with `DB::purge()` only.
+`spatie/fork` ends every child with `SIGKILL`, so the PDOs kept in `$inherited` are never destroyed there. That takes `ext-posix`: without it a child would end with `exit()` and destroy them, so the runner does not fork and `--concurrency` runs sequentially.
 
 The hooks replace the connections Laravel's `DB` manager holds, not a PDO an object captured in the parent. The container's `DatabasePersistence` is one: kept on an evaluator's agent, all eight items failed ("MySQL server has gone away", "Premature end of data", "Packets out of order") and the parent's connection was left answering wrong (`Schema::hasTable()` returned false for an existing table). Built inside `run()`, in the child, the same persistence passed. Evaluators keep `InMemoryPersistence`.

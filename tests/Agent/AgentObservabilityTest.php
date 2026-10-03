@@ -259,8 +259,8 @@ class AgentObservabilityTest extends TestCase
 
     public function test_parallel_tool_calls_are_flagged_as_forked(): void
     {
-        if (!extension_loaded('pcntl') || !class_exists(Fork::class)) {
-            $this->markTestSkipped('Concurrent tool execution requires pcntl and spatie/fork.');
+        if (!extension_loaded('pcntl') || !extension_loaded('posix') || !class_exists(Fork::class)) {
+            $this->markTestSkipped('Concurrent tool execution requires pcntl, posix and spatie/fork.');
         }
 
         $agent = Agent::make(workflowId: 'thread_1')

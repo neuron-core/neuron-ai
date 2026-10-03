@@ -23,9 +23,12 @@ use RuntimeException;
 use function array_keys;
 use function array_map;
 use function array_unique;
+use function escapeshellarg;
 use function file;
 use function file_put_contents;
 use function getmypid;
+use function json_decode;
+use function shell_exec;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
@@ -33,6 +36,7 @@ use function usleep;
 
 use const FILE_APPEND;
 use const FILE_IGNORE_NEW_LINES;
+use const PHP_BINARY;
 use const PHP_EOL;
 
 class EvaluatorRunnerTest extends TestCase
@@ -362,10 +366,32 @@ class EvaluatorRunnerTest extends TestCase
         $this->assertNull($results[0]->getOutput());
     }
 
+    public function test_items_run_in_the_calling_process_without_posix_kill(): void
+    {
+        // Without it a child ends with exit(), closing the connections it inherited for the parent too
+        $script = <<<'PHP'
+            require $argv[1];
+            $runner = new NeuronAI\Evaluation\Runner\EvaluatorRunner(beforeChild: static function (): void {
+                NeuronAI\Tests\Evaluation\Stub\ChildProcessEvaluator::$preparedBy = getmypid();
+            });
+            $results = $runner->run(new NeuronAI\Tests\Evaluation\Stub\ChildProcessEvaluator(), 2)->getResults();
+            echo json_encode([
+                'supportsConcurrency' => NeuronAI\Evaluation\Runner\EvaluatorRunner::supportsConcurrency(),
+                'preparedBy' => array_map(static fn ($result): ?int => $result->getOutput(), $results),
+            ]);
+            PHP;
+        $command = escapeshellarg(PHP_BINARY) . ' -d disable_functions=posix_kill -r ' . escapeshellarg($script)
+            . ' ' . escapeshellarg(__DIR__ . '/../../../vendor/autoload.php') . ' 2>&1';
+
+        $output = json_decode((string) shell_exec($command), true);
+
+        $this->assertSame(['supportsConcurrency' => false, 'preparedBy' => [null, null]], $output);
+    }
+
     protected function requireForking(): void
     {
         if (!EvaluatorRunner::supportsConcurrency()) {
-            $this->markTestSkipped('Child hooks run in forked processes, which require pcntl and spatie/fork.');
+            $this->markTestSkipped('Child hooks run in forked processes, which require pcntl, posix and spatie/fork.');
         }
     }
 

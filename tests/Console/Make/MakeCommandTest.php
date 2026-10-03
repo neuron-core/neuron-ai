@@ -149,6 +149,16 @@ class MakeCommandTest extends TestCase
         );
     }
 
+    public function test_agent_provider_reads_its_key_and_model_from_the_environment(): void
+    {
+        $this->make('make:agent', 'App\\Agents\\MyAgent');
+
+        $this->assertStringContainsString(
+            "key: \$_ENV['ANTHROPIC_API_KEY'],\n            model: \$_ENV['ANTHROPIC_MODEL'],",
+            (string) file_get_contents($this->workDir . '/src/Agents/MyAgent.php')
+        );
+    }
+
     public function test_fails_when_file_already_exists(): void
     {
         mkdir($this->workDir . '/src/Agents', 0o755, true);
@@ -326,6 +336,37 @@ class MakeCommandTest extends TestCase
         $this->assertFileExists($this->workDir . '/src/MyTool.php');
     }
 
+    public function test_a_development_prefix_receives_its_classes(): void
+    {
+        $this->writeComposerAutoload(['App\\' => 'src/'], ['App\\Evaluators\\' => 'evaluators/']);
+
+        [$exitCode, $output] = $this->make('make:evaluators', 'App\\Evaluators\\SentimentEvaluator');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame("Success: Created Evaluator: {$this->workDir}/evaluators/SentimentEvaluator.php" . PHP_EOL, $output);
+        $this->assertDirectoryDoesNotExist($this->workDir . '/src');
+    }
+
+    public function test_a_bare_name_prefers_a_production_prefix_over_a_development_one(): void
+    {
+        $this->writeComposerAutoload(['App\\' => 'src/'], ['Tests\\' => 'tests/']);
+
+        [$exitCode] = $this->make('make:tool', 'MyTool');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . '/src/MyTool.php');
+    }
+
+    public function test_a_prefix_declared_in_both_sections_writes_to_the_production_directory(): void
+    {
+        $this->writeComposerAutoload(['App\\' => 'src/'], ['App\\' => 'tests/']);
+
+        [$exitCode] = $this->make('make:agent', 'App\\Agents\\MyAgent');
+
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($this->workDir . '/src/Agents/MyAgent.php');
+    }
+
     /**
      * @return iterable<string, array{string, string}>
      */
@@ -376,10 +417,14 @@ class MakeCommandTest extends TestCase
 
     /**
      * @param array<string, string|list<string>> $psr4
+     * @param array<string, string|list<string>> $devPsr4
      */
-    protected function writeComposerAutoload(array $psr4): void
+    protected function writeComposerAutoload(array $psr4, array $devPsr4 = []): void
     {
-        file_put_contents($this->workDir . '/composer.json', json_encode(['autoload' => ['psr-4' => $psr4]]));
+        file_put_contents($this->workDir . '/composer.json', json_encode([
+            'autoload' => ['psr-4' => $psr4],
+            'autoload-dev' => ['psr-4' => $devPsr4],
+        ]));
     }
 
     /**

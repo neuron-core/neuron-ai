@@ -18,8 +18,8 @@ class [classname] extends Agent
         // return an instance of Anthropic, OpenAI, Gemini, Ollama, etc...
         // https://docs.neuron-ai.dev/providers/ai-provider
         return new Anthropic(
-            key: 'ANTHROPIC_KEY',
-            model: 'ANTHROPIC_MODEL',
+            key: $_ENV['ANTHROPIC_API_KEY'],
+            model: $_ENV['ANTHROPIC_MODEL'],
         );
     }
 

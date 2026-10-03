@@ -286,7 +286,7 @@ class EvaluationFixtures extends Fixture implements FixtureGroupInterface
 - **Registration.** The default `App\: resource: '../src/'` registers every evaluator as an autowired service, and the `_instanceof` entry in `config/services.yaml` tags it `neuron.evaluation`: `debug:container --tag=neuron.evaluation` listed both evaluators, in every environment.
 - **Discovery.** `neuron:evaluate` without a path scans that directory; any other directory works as an argument, relative to where the command is launched.
 
-An `evaluators/` directory under `autoload-dev` (the layout **neuron-evaluation** shows for plain PHP projects) does not fit a Symfony app: `make:evaluators` reads only `autoload.psr-4`, so `App\Evaluators\ProbeEvaluator` landed in `src/Evaluators/` under the `App\` prefix, and the directory would need its own service resource, restricted to dev and test.
+An `evaluators/` directory under `autoload-dev` (the layout **neuron-evaluation** shows for plain PHP projects) does not fit a Symfony app: the directory would need its own service resource, restricted to dev and test.
 
 Registered in every environment, evaluators are still built only when the command runs: the service locator is lazy.
 

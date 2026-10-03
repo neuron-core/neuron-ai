@@ -23,6 +23,7 @@ use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function extension_loaded;
@@ -46,9 +47,9 @@ class ParallelToolsTest extends TestCase
 {
     public function setUp(): void
     {
-        // Check if pcntl extension is available for parallel execution
-        if (!extension_loaded('pcntl')) {
-            $this->markTestSkipped('pcntl extension is not available. Skipping parallel tool tests.');
+        // Check if the pcntl and posix extensions are available for parallel execution
+        if (!extension_loaded('pcntl') || !extension_loaded('posix')) {
+            $this->markTestSkipped('pcntl or posix extension is not available. Skipping parallel tool tests.');
         }
 
         // Check if spatie/fork package is installed for parallel execution
@@ -108,9 +109,20 @@ class ParallelToolsTest extends TestCase
         }
     }
 
-    public function test_tools_run_in_the_calling_process_where_forking_is_disabled(): void
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function functionsForkingNeeds(): iterable
     {
         // PHP-FPM on Debian and Ubuntu keeps pcntl loaded but disables its functions
+        yield 'pcntl_fork' => ['pcntl_fork'];
+        // Without it a child ends with exit(), closing the connections it inherited for the parent too
+        yield 'posix_kill' => ['posix_kill'];
+    }
+
+    #[DataProvider('functionsForkingNeeds')]
+    public function test_tools_run_in_the_calling_process_where_forking_is_disabled(string $disabledFunction): void
+    {
         $script = <<<'PHP'
             require $argv[1];
             $agent = NeuronAI\Agent\Agent::make()->setThreadId('thread_1')->parallelToolCalls(true)
@@ -133,7 +145,7 @@ class ParallelToolsTest extends TestCase
             }
             echo json_encode(['process' => (string) getmypid(), 'answer' => $answer, 'results' => $results]);
             PHP;
-        $command = escapeshellarg(PHP_BINARY) . ' -d disable_functions=pcntl_fork -r ' . escapeshellarg($script)
+        $command = escapeshellarg(PHP_BINARY) . " -d disable_functions={$disabledFunction} -r " . escapeshellarg($script)
             . ' ' . escapeshellarg(__DIR__ . '/../../vendor/autoload.php') . ' 2>&1';
 
         $output = json_decode((string) shell_exec($command), true);

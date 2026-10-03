@@ -94,7 +94,7 @@
         "ext-sodium": "End-to-end encryption for Pusher streaming channels.",
         "psr/log": "Logging observability events through LogListener.",
         "pusher/pusher-php-server": "Pusher-compatible streaming channels, including encrypted channels (requires >=7.2.4 for HTTP timeout propagation).",
-        "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl)."
+        "spatie/fork": "Parallel evaluation runs via the --concurrency option (requires ext-pcntl and ext-posix)."
     },
     "config": {
         "sort-packages": true,

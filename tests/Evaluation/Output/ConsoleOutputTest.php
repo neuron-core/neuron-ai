@@ -24,8 +24,7 @@ class ConsoleOutputTest extends TestCase
     public function test_summary_is_exact(): void
     {
         $this->assertSame(
-            "Neuron AI Evaluation Runner\n\n"
-            . "\n\n"
+            "\n\n"
             . "There were 2 failure(s):\n\n"
             . "1) SupportEvaluator #1\n"
             . "   Evaluation failed\n"
@@ -56,7 +55,7 @@ class ConsoleOutputTest extends TestCase
     {
         $output = $this->render(new ConsoleOutput(verbose: true), EvaluationReportFixture::mixed());
 
-        $this->assertStringStartsWith("Neuron AI Evaluation Runner\n\nThere were 2 failure(s):\n\n", $output);
+        $this->assertStringStartsWith("There were 2 failure(s):\n\n", $output);
         $this->assertStringContainsString(
             "1) SupportEvaluator #1\n"
             . "   Evaluation failed\n"

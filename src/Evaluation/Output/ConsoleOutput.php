@@ -36,7 +36,6 @@ class ConsoleOutput implements EvaluationOutputInterface
 
     public function output(EvaluationReport $report): void
     {
-        $this->printHeader();
         $this->printSummary($report);
     }
 

@@ -277,7 +277,7 @@ automatically, reusing completed steps and memoized operations.
 Use `run(ExecutionRequest::resume())` for explicit inputless continuation, including due timers,
 recovery of a process that died without recording failure, and retained outcomes.
 Use `run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt))` for fenced delivery.
-All staging methods are inert. A retried reserved start or fenced resume is refused, never executed twice; a reserved start with `recoverFailed: true` recovers its own failed or abandoned run instead.
+All staging methods are inert. A retried reserved start or fenced resume is refused while its run is still persisted, never executed twice; a reserved start with `recoverFailed: true` recovers its own failed or abandoned run instead. A clean completion deletes the run by default, so a reserved start redelivered after it runs again unless the workflow uses `retainCompletionUntilAcknowledged()`.
 Configure context-aware resource factories on the definition before invoking the terminal.
 
 ### Persistence Backends

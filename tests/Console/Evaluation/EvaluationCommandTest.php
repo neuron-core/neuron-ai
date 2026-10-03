@@ -12,6 +12,7 @@ use NeuronAI\Evaluation\Cache\FileEvaluationCache;
 use NeuronAI\Evaluation\Config\ConfigLoader;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\EvaluatorDiscovery;
+use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
@@ -166,7 +167,7 @@ class EvaluationCommandTest extends TestCase
     public function test_parallel_runs_report_every_dataset_item(): void
     {
         if (!EvaluatorRunner::supportsConcurrency()) {
-            $this->markTestSkipped('Parallel evaluation requires the pcntl extension and spatie/fork.');
+            $this->markTestSkipped('Parallel evaluation requires the pcntl and posix extensions and spatie/fork.');
         }
 
         $reports = $this->recordedReports();
@@ -209,6 +210,19 @@ class EvaluationCommandTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame("Neuron AI Evaluation Runner\n\n..", $output);
+    }
+
+    public function test_the_console_driver_does_not_repeat_the_header(): void
+    {
+        $command = new EvaluationCommand(
+            configLoader: $this->config(outputDrivers: [ConsoleOutput::class]),
+            discovery: $this->discovering(RunCountingEvaluator::class),
+            runner: $this->runnerReturning($this->results(true, true)),
+        );
+
+        [, $output] = $this->execute($command, __DIR__ . '/Stub');
+
+        $this->assertStringStartsWith("Neuron AI Evaluation Runner\n\n..\n\nStarted: ", $output);
     }
 
     public function test_verbose_names_each_evaluator_instead_of_printing_progress(): void

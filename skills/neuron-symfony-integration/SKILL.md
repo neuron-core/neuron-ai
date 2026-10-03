@@ -38,7 +38,7 @@ composer require neuron-core/neuron-ai
 composer require --dev spatie/fork
 ```
 
-`spatie/fork` (with `ext-pcntl` and `ext-sockets`, plus `ext-posix` so forked children end with `SIGKILL`) runs evaluation items in parallel; without it `--concurrency` prints a notice and runs sequentially. `--dev` is enough for evaluations; workers that use `parallelToolCalls()` need it without `--dev`, or their tool calls run one after another. The features below also use `doctrine/doctrine-bundle` and `doctrine/doctrine-migrations-bundle` with a `pdo_*` driver, `symfony/security-bundle`, `symfony/uid` (thread and run IDs), `symfony/messenger` with a transport (`symfony/redis-messenger` here), and for delivery `ext-redis` or `symfony/mercure-bundle`. They assume a Doctrine `App\Entity\User` with an integer ID behind the firewall: `php bin/console make:user`, then `#[ORM\Table(name: 'app_user')]` on the entity (`user` is reserved on PostgreSQL).
+`spatie/fork` (with `ext-pcntl` and `ext-sockets`, plus `ext-posix` so forked children end with `SIGKILL`) runs evaluation items in parallel; without any of them `--concurrency` prints a notice and runs sequentially. `--dev` is enough for evaluations; workers that use `parallelToolCalls()` need it without `--dev`, or their tool calls run one after another. The features below also use `doctrine/doctrine-bundle` and `doctrine/doctrine-migrations-bundle` with a `pdo_*` driver, `symfony/security-bundle`, `symfony/uid` (thread and run IDs), `symfony/messenger` with a transport (`symfony/redis-messenger` here), and for delivery `ext-redis` or `symfony/mercure-bundle`. They assume a Doctrine `App\Entity\User` with an integer ID behind the firewall: `php bin/console make:user`, then `#[ORM\Table(name: 'app_user')]` on the entity (`user` is reserved on PostgreSQL).
 
 ### 2. Layout and generators
 
@@ -50,7 +50,7 @@ vendor/bin/neuron make:tool 'App\Neuron\Tools\OrderStatusTool'
 vendor/bin/neuron make:evaluators 'App\Neuron\Evaluators\SupportAgentEvaluator'
 ```
 
-Pass the fully qualified name: without it the class lands in `src/`. The generated `provider()` hard-codes `key: 'ANTHROPIC_KEY'`; replace it as The Agent shows.
+Pass the fully qualified name: without it the class lands in `src/`. The generated `provider()` reads the key and the model from `$_ENV`; replace it as The Agent shows.
 
 ### 3. Keys
 
@@ -140,10 +140,12 @@ doctrine:
 ```php
 namespace App\Neuron;
 
+use Doctrine\DBAL\Exception as DbalException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowException;
+use PDOException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -160,10 +162,13 @@ class NeuronExceptionListener
     public function __invoke(ExceptionEvent $event): void
     {
         $e = $event->getThrowable();
+        // Database errors are not Neuron's classes: they are mapped on the agent routes only.
+        $databaseFailed = ($e instanceof PDOException || $e instanceof DbalException)
+            && str_starts_with($event->getRequest()->getPathInfo(), '/chat');
 
         $response = match (true) {
             $e instanceof InputTranslationException => new JsonResponse(['error' => $e->getMessage()], 400),
-            $e instanceof PersistenceException => new JsonResponse(['error' => 'The conversation store is unavailable.'], 503),
+            $e instanceof PersistenceException, $databaseFailed => new JsonResponse(['error' => 'The conversation store is unavailable.'], 503),
             $e instanceof RunInFlightException => new JsonResponse(
                 ['error' => 'The conversation is busy.', 'status' => $e->status->value],
                 409,
@@ -183,6 +188,7 @@ class NeuronExceptionListener
 ```
 
 - The most specific class comes first: `PersistenceException` and `RunInFlightException` extend `WorkflowException`. Only `InputTranslationException`'s message is written for clients; every mapped exception is logged with its real message, 4xx at notice and 5xx at error (a 409 during a pending approval logged `[notice] Cannot ignite a new run for workflow ID …`).
+- **A database failure needs both classes.** `DatabasePersistence` and `SQLMessageStore` pass driver errors on as they are: a run on a locked database threw `PDOException`. An unreachable server threw DBAL's `ConnectionException` from the `neuron.pdo` factory, before any store existed, and that is not a `PDOException`. Neither class is Neuron's, so the `/chat` check leaves the rest of the app to Symfony: the same errors on `/orders` passed through unmapped.
 - `Retry-After` is the lease expiry, an upper bound: a turn still streaming gave `Retry-After: 598`. A suspended run holds no lease, so no header.
 - `framework.exceptions` is not enough: it matched the first `instanceof` in config order (a `RunInFlightException` listed after `WorkflowException` got the latter's status), and in prod it rendered the HTML error page with no message and no `Retry-After`.
 

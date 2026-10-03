@@ -403,7 +403,7 @@ $agent->subscribe(ObservabilityEvent::class, new LogListener($logger));
 Use **neuron-monitoring** for event selection, external dispatchers, and Neuron Cloud integration.
 
 ### Parallel Tool Calls
-Execute local tools in parallel (requires `pcntl` and `spatie/fork`):
+Execute local tools in parallel (requires `pcntl`, `posix` and `spatie/fork`):
 
 ```php
 $agent->parallelToolCalls(true);

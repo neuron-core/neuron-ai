@@ -33,7 +33,7 @@ Rules that decide correctness:
 
 When the app has no Neuron integration yet, lay these foundations before building the feature the user asked for, in this order, and skip each one that already exists. Check first: in an integrated app `grep -rlsE 'NeuronServiceProvider|workflow_store|RunInFlightException|neuron:evaluate' bootstrap/app.php bootstrap/providers.php database/migrations app/Console` lists `bootstrap/app.php`, `bootstrap/providers.php`, the migration and the command (in a fresh app, nothing), `app/Neuron` holds the agents and `config/services.php` their provider's key.
 
-**1. Install.** `spatie/fork` lets evaluations run items in parallel; without it `--concurrency` runs sequentially. It needs `ext-pcntl` and `ext-sockets`, and the evaluation command's child hooks need `ext-posix`. A `--dev` install is enough for evaluations; queue workers that use `parallelToolCalls()` need it without `--dev`, or their tool calls run one after another.
+**1. Install.** `spatie/fork` lets evaluations run items in parallel; without it `--concurrency` runs sequentially. It needs `ext-pcntl` and `ext-sockets`, and Neuron forks only when `ext-posix` is loaded too. A `--dev` install is enough for evaluations; queue workers that use `parallelToolCalls()` need it without `--dev`, or their tool calls run one after another.
 
 ```bash
 composer require neuron-core/neuron-ai
@@ -116,6 +116,10 @@ use NeuronAI\Exceptions\WorkflowException;
     // The first callback whose type matches wins: the most specific class goes first.
     $exceptions->render(fn (InputTranslationException $e) => response()->json(['message' => $e->getMessage()], 400));
     $exceptions->render(fn (PersistenceException $e) => response()->json(['message' => 'Conversations are unavailable. Retry later.'], 503));
+    // A database error is not a Neuron exception; null leaves the application's other routes to Laravel.
+    $exceptions->render(fn (PDOException $e, Request $request) => $request->is('chat/*')
+        ? response()->json(['message' => 'Conversations are unavailable. Retry later.'], 503)
+        : null);
     $exceptions->render(fn (RunInFlightException $e) => response()->json(
         ['message' => 'The conversation is busy.', 'status' => $e->status->value],
         409,
@@ -132,7 +136,8 @@ use NeuronAI\Exceptions\WorkflowException;
 | Exception | Status | When |
 |---|---|---|
 | `InputTranslationException` | 400 | Malformed or stale input: no persisted run, unknown call ID, bad AG-UI seed or tool. Its message is safe for clients |
-| `PersistenceException` | 503 | A corrupted record, MySQL without strict mode, a Redis persistence error. A database error through `DatabasePersistence` surfaces as a plain `PDOException` (500) |
+| `PersistenceException` | 503 | A corrupted record, MySQL without strict mode, a Redis persistence error |
+| `PDOException` on `chat/*` | 503 | The database is unreachable or a query fails: `DatabasePersistence` and `EloquentMessageStore` pass driver errors on as they are, and Laravel's `QueryException` is a `PDOException`. The application's own queries on the agent routes are covered too; every other route keeps Laravel's handling |
 | `RunInFlightException` | 409 | An approval is pending (`status: suspended`), or a turn is executing (`status: running`, with `Retry-After` from the lease) |
 | other `WorkflowException` | 409 | A stale continuation or a race between two tabs; its message carries internals, keep it off the wire |
 
@@ -148,7 +153,7 @@ use NeuronAI\Exceptions\WorkflowException;
 
 ## The Agent
 
-Replace the generated body: the stub hard-codes `key: 'ANTHROPIC_KEY'`. Stores arrive through the constructor, the provider is built from config in its hook.
+Replace the generated body: the stub reads the key and the model from `$_ENV`. Stores arrive through the constructor, the provider is built from config in its hook.
 
 ```php
 namespace App\Neuron\Agents;
@@ -640,7 +645,7 @@ Laravel's dispatcher is not PSR-14: forward Neuron's events through a small brid
 
 ## Evaluation
 
-Evaluators are Neuron classes: `App\Neuron\Evaluators` in `app/Neuron/Evaluators`, their JSON datasets in `app/Neuron/Evaluators/datasets`. `vendor/bin/neuron make:evaluators 'App\Neuron\Evaluators\OrderAnswerEvaluator'` writes the class there; replace its body. `App\` already autoloads them and the command finds them by directory, so `composer.json` needs no entry. The generator reads only the `autoload` section of `composer.json`: in a Laravel app an `autoload-dev` layout (`evaluators/`, `tests/Evaluators`) never receives the file.
+Evaluators are Neuron classes: `App\Neuron\Evaluators` in `app/Neuron/Evaluators`, their JSON datasets in `app/Neuron/Evaluators/datasets`. `vendor/bin/neuron make:evaluators 'App\Neuron\Evaluators\OrderAnswerEvaluator'` writes the class there; replace its body. `App\` already autoloads them and the command finds them by directory, so `composer.json` needs no entry.
 
 `neuron:evaluate` (Setup, step 7) builds each evaluator through the container, so an evaluator receives the app's agent in its constructor and evaluates it as deployed, minus the conversation tables: it sets in-memory stores on it, `$this->agent->setMessageStore(new InMemoryMessageStore())->setPersistence(new InMemoryPersistence())`, and `run()` binds a fresh thread per item named like the app's own, `$this->agent->for("user-{$datasetItem['customer']}-".Str::uuid())->chat(...)`, so the tools act for the dataset's customer. Read [references/evaluation.md](references/evaluation.md) for the complete evaluators and their datasets.
 

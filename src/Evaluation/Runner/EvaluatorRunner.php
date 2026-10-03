@@ -108,11 +108,14 @@ class EvaluatorRunner
 
     /**
      * Whether parallel execution is available on this system.
-     * Requires the pcntl extension (not available on Windows) and spatie/fork.
+     * Requires the pcntl and posix extensions (not available on Windows) and
+     * spatie/fork. Without posix_kill, spatie/fork ends a child with exit(),
+     * which destroys the connections it inherited and closes them for the
+     * parent too.
      */
     public static function supportsConcurrency(): bool
     {
-        return function_exists('pcntl_fork') && class_exists(Fork::class);
+        return function_exists('pcntl_fork') && function_exists('posix_kill') && class_exists(Fork::class);
     }
 
     /**

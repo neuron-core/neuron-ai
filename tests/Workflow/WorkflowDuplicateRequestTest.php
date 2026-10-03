@@ -26,9 +26,10 @@ use ArrayObject;
 use function time;
 
 /**
- * A retried request never executes twice: a reserved run ID refuses a second
- * ignition, and the run and attempt a caller observed refuse a second answer.
- * A reserved start asking to recover finishes its own dead run instead.
+ * A retried request is refused while its run is still persisted: a reserved
+ * run ID refuses a second ignition, and the run and attempt a caller observed
+ * refuse a second answer. A reserved start asking to recover finishes its own
+ * dead run instead. After default cleanup, a redelivered start runs again.
  */
 class WorkflowDuplicateRequestTest extends TestCase
 {

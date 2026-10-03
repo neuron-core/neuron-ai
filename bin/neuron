@@ -35,8 +35,9 @@ if ($autoloadFile !== null) {
     require_once $autoloadFile;
 }
 
-// Find default autoloader
-$defaultAutoload = current(array_filter([
+// Composer's bin proxy names the project autoloader: the relative guesses only
+// serve a direct run, and miss it when the package is symlinked into vendor
+$defaultAutoload = $GLOBALS['_composer_autoload_path'] ?? current(array_filter([
     __DIR__ . '/../vendor/autoload.php',
     __DIR__ . '/../../../autoload.php',
     __DIR__ . '/../../../../autoload.php',

@@ -77,7 +77,7 @@ class Agent extends Workflow implements AgentInterface
      * Determines whether tools should be executed in parallel and optionally
      * configures callbacks to initialize and clean up resources in each child process.
      *
-     * Note: Parallel execution requires the pcntl extension and spatie/fork package.
+     * Note: Parallel execution requires the pcntl and posix extensions and the spatie/fork package.
      */
     public function parallelToolCalls(
         bool $enabled = true,

@@ -15,6 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       dist-tag: ${{ steps.release.outputs.dist-tag }}
     steps:

@@ -175,8 +175,8 @@ class ParallelToolNodeTest extends TestCase
      */
     protected function runParallel(array $calls, array $registry, ?callable $errorHandler = null): AgentState
     {
-        if (!extension_loaded('pcntl') || !class_exists(Fork::class)) {
-            $this->markTestSkipped('Concurrent tool execution requires pcntl and spatie/fork.');
+        if (!extension_loaded('pcntl') || !extension_loaded('posix') || !class_exists(Fork::class)) {
+            $this->markTestSkipped('Concurrent tool execution requires pcntl, posix and spatie/fork.');
         }
 
         $state = new AgentState();

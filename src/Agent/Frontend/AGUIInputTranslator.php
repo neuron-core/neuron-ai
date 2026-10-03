@@ -29,7 +29,7 @@ class AGUIInputTranslator extends ToolInputTranslator
 {
     public function translate(array $payload, InterruptRequest $request): array
     {
-        if (array_key_exists('resume', $payload)) {
+        if (array_key_exists('resume', $payload) && $payload['resume'] !== []) {
             // Explicit interrupt answers take precedence over mirrored chat history.
             return $this->translateResume($payload, $request);
         }

@@ -37,8 +37,8 @@ class ParallelToolHooksTest extends TestCase
 {
     protected function setUp(): void
     {
-        if (!extension_loaded('pcntl') || !class_exists(Fork::class)) {
-            $this->markTestSkipped('Parallel tool hooks require pcntl and spatie/fork.');
+        if (!extension_loaded('pcntl') || !extension_loaded('posix') || !class_exists(Fork::class)) {
+            $this->markTestSkipped('Parallel tool hooks require pcntl, posix and spatie/fork.');
         }
     }
 

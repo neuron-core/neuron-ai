@@ -91,6 +91,16 @@ class AGUIInputTranslatorTest extends TestCase
         $this->assertSame(['a' => ['result' => 'from resume']], $inputs);
     }
 
+    public function test_an_empty_resume_leaves_the_tool_messages_as_the_answer(): void
+    {
+        $inputs = (new AGUIInputTranslator())->translate([
+            'resume' => [],
+            'messages' => [['role' => 'tool', 'toolCallId' => 'a', 'content' => 'Page A']],
+        ], $this->deferredBatch());
+
+        $this->assertSame(['a' => ['result' => 'Page A']], $inputs);
+    }
+
     /** @return iterable<string, array{array<string, mixed>, string}> */
     public static function malformedResumes(): iterable
     {

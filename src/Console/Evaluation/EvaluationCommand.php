@@ -131,7 +131,7 @@ class EvaluationCommand extends Command
         echo "Neuron AI Evaluation Runner\n\n";
 
         if ($concurrency > 1 && !EvaluatorRunner::supportsConcurrency()) {
-            echo "Parallel execution requires the pcntl extension and spatie/fork. Running sequentially.\n\n";
+            echo "Parallel execution requires the pcntl and posix extensions and spatie/fork. Running sequentially.\n\n";
             $concurrency = 1;
         }
 
@@ -285,7 +285,7 @@ class EvaluationCommand extends Command
         echo "Arguments:\n";
         echo "  path                   Path to directory containing evaluators\n\n";
         echo "Options:\n";
-        echo "  --concurrency=N        Run dataset items in N parallel processes (requires pcntl and spatie/fork)\n";
+        echo "  --concurrency=N        Run dataset items in N parallel processes (requires pcntl, posix and spatie/fork)\n";
         echo "  --cache                Serve unchanged run() outputs from the evaluation cache (assertions always re-run)\n";
         echo "  --fresh                Re-run everything and overwrite the evaluation cache\n";
         echo "  --verbose, -v          Show verbose output\n";

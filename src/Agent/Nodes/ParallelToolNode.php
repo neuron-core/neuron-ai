@@ -72,9 +72,15 @@ class ParallelToolNode extends ToolNode
     protected function executeLocalTools(array $calls, string $messageId, AgentState $state, ToolRegistry $tools): Generator
     {
         // Sequential fallbacks: forking unavailable (Windows, or the pcntl functions
-        // PHP-FPM disables on Debian and Ubuntu), spatie/fork not installed, or a
-        // single call not worth forking for.
+        // PHP-FPM disables on Debian and Ubuntu), no posix_kill (spatie/fork then
+        // ends a child with exit(), which destroys the connections it inherited and
+        // closes them for the parent too), spatie/fork not installed, or a single
+        // call not worth forking for.
         if (!function_exists('pcntl_fork')) {
+            return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
+        }
+
+        if (!function_exists('posix_kill')) {
             return yield from parent::executeLocalTools($calls, $messageId, $state, $tools);
         }
 

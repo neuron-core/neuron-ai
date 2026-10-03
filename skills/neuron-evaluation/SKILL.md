@@ -600,7 +600,7 @@ vendor/bin/neuron evaluation --help
 ```
 
 **`--concurrency=N`** runs each evaluator's dataset items in N parallel processes.
-Requires the `pcntl` extension and `spatie/fork`; if unavailable, the runner prints a
+Requires the `pcntl` and `posix` extensions and `spatie/fork`; if unavailable, the runner prints a
 notice and falls back to sequential execution. The same option exists
 programmatically: `$runner->run($evaluator, concurrency: 4)`.
 
@@ -1066,7 +1066,7 @@ public function evaluate(mixed $output, array $datasetItem): void
 ## CLI Generation
 
 ```bash
-vendor/bin/neuron make:evaluators MyEvaluator
+vendor/bin/neuron make:evaluators 'App\Evaluators\MyEvaluator'
 ```
 
 ## Testing Evaluators

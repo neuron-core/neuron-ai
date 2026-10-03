@@ -72,7 +72,7 @@ The key (`Cache/CacheKey`) is a content fingerprint of what determines `run()`'s
 
 ## Concurrency
 
-`--concurrency=N` forks dataset items into N child processes (`ext-pcntl` + `spatie/fork`, sequential fallback). Each child gets its own evaluator copy, so per-item side effects are invisible across items, and `run()` outputs must be serializable to cross the boundary (non-serializable outputs become a placeholder and are not cached; `Trajectory` serializes through the chat-history format).
+`--concurrency=N` forks dataset items into N child processes (`ext-pcntl` + `ext-posix` + `spatie/fork`, sequential fallback). Each child gets its own evaluator copy, so per-item side effects are invisible across items, and `run()` outputs must be serializable to cross the boundary (non-serializable outputs become a placeholder and are not cached; `Trajectory` serializes through the chat-history format).
 
 `EvaluatorRunner`'s `beforeChild` and `afterChild` hooks run in each child around its item, for the application's connections inherited from the parent; the command takes the runner from its constructor or the `runner` entry of `evaluation.php`, and applies `--cache`/`--fresh` to a copy through `withCache()`. A failing hook fails its item: a child that throws is killed before it writes its result, and the parent would receive an empty string.
 
