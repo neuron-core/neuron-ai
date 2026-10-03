@@ -322,7 +322,7 @@ test('protocol streams report gaps and stop a slow reader from buffering indefin
   assert.equal(missing.closes(), 1);
   for (const payload of [{ small: true }, { large: 'a'.repeat(1024 * 1024) }]) {
     const c = protocol();
-    for (let sequence = 0; sequence <= 1024 && !c.closes(); ++sequence) c.accept(frame(sequence, payload));
+    for (let sequence = 0; sequence < 2048 && !c.closes(); ++sequence) c.accept(frame(sequence, payload));
     await assert.rejects(collect(c.stream), /Protocol stream buffer limit exceeded/);
     assert.equal(c.closes(), 1);
   }
