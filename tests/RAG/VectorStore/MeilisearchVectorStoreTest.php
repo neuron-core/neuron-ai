@@ -66,6 +66,11 @@ class MeilisearchVectorStoreTest extends TestCase
         ];
     }
 
+    protected function noHits(): Response
+    {
+        return $this->jsonResponse(['hits' => []]);
+    }
+
     protected function schema(): DocumentSchema
     {
         return DocumentSchema::of(
@@ -75,9 +80,16 @@ class MeilisearchVectorStoreTest extends TestCase
         );
     }
 
-    public function test_configures_an_existing_index_with_the_embedder_and_filterable_attributes(): void
+    public function test_constructing_the_store_sends_no_request(): void
     {
-        $this->store(null, $this->schema());
+        $this->store();
+
+        $this->assertSame([], $this->sentTargets());
+    }
+
+    public function test_the_first_operation_configures_an_existing_index_with_the_embedder_and_filterable_attributes(): void
+    {
+        $this->store(null, $this->schema(), $this->noHits())->search(new SearchRequest([1.0]));
 
         $this->assertSame([
             'GET http://meili.test:7700/indexes/docs',
@@ -85,6 +97,7 @@ class MeilisearchVectorStoreTest extends TestCase
             'GET http://meili.test:7700/tasks/11',
             'PUT http://meili.test:7700/indexes/docs/settings/filterable-attributes',
             'GET http://meili.test:7700/tasks/12',
+            'POST http://meili.test:7700/indexes/docs/search',
         ], $this->sentTargets());
         $this->assertSame(
             ['custom' => ['dimensions' => 4, 'source' => 'userProvided', 'binaryQuantized' => false]],
@@ -93,18 +106,33 @@ class MeilisearchVectorStoreTest extends TestCase
         $this->assertSame(['sourceType', 'sourceName', 'tenant', 'year'], $this->sentJson(3));
     }
 
+    public function test_the_index_is_configured_by_the_first_operation_only(): void
+    {
+        $store = $this->store(null, null, $this->noHits(), $this->noHits());
+
+        $store->search(new SearchRequest([1.0]));
+        $store->search(new SearchRequest([1.0]));
+
+        $this->assertSame([
+            'POST http://meili.test:7700/indexes/docs/search',
+            'POST http://meili.test:7700/indexes/docs/search',
+        ], array_slice($this->sentTargets(), self::SETUP_REQUESTS));
+    }
+
     public function test_creates_the_index_when_it_cannot_be_retrieved(): void
     {
-        new MeilisearchVectorStore(
+        $store = new MeilisearchVectorStore(
             indexUid: 'docs',
             host: self::HOST,
             httpClient: $this->recordingClient(
                 $this->jsonResponse(['code' => 'index_not_found'], 404),
                 $this->jsonResponse(['taskUid' => 10]),
                 $this->jsonResponse(['status' => 'succeeded']),
-                ...$this->configurationResponses(),
+                ...[...$this->configurationResponses(), $this->noHits()],
             ),
         );
+
+        $store->search(new SearchRequest([1.0]));
 
         $this->assertSame([
             'GET http://meili.test:7700/indexes/docs',
@@ -116,12 +144,14 @@ class MeilisearchVectorStoreTest extends TestCase
 
     public function test_a_lookup_error_other_than_a_missing_index_is_raised(): void
     {
+        $store = new MeilisearchVectorStore(
+            indexUid: 'docs',
+            host: self::HOST,
+            httpClient: $this->recordingClient($this->jsonResponse(['code' => 'internal'], 500)),
+        );
+
         try {
-            new MeilisearchVectorStore(
-                indexUid: 'docs',
-                host: self::HOST,
-                httpClient: $this->recordingClient($this->jsonResponse(['code' => 'internal'], 500)),
-            );
+            $store->search(new SearchRequest([1.0]));
             $this->fail('A failed index lookup must not be taken for a missing index.');
         } catch (HttpException $exception) {
             $this->assertSame(500, $exception->response?->statusCode);
@@ -150,26 +180,29 @@ class MeilisearchVectorStoreTest extends TestCase
     #[DataProvider('unsuccessfulTasks')]
     public function test_an_unsuccessful_settings_task_is_raised(array $task, string $message): void
     {
-        $this->expectException(VectorStoreException::class);
-        $this->expectExceptionMessage($message);
-
-        new MeilisearchVectorStore(
+        $store = new MeilisearchVectorStore(
             indexUid: 'docs',
             host: self::HOST,
             httpClient: $this->recordingClient(new Response(200), $this->jsonResponse(['taskUid' => 11]), $this->jsonResponse($task)),
         );
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage($message);
+
+        $store->search(new SearchRequest([1.0]));
     }
 
     public function test_bearer_key_is_sent_on_every_request_only_when_configured(): void
     {
-        $this->store('meili-master-key');
+        $this->store('meili-master-key', null, $this->noHits())->search(new SearchRequest([1.0]));
 
+        $this->assertCount(self::SETUP_REQUESTS + 1, $this->sentRequests);
         foreach ($this->sentRequests as $entry) {
             $this->assertSame('Bearer meili-master-key', $entry['request']->getHeaderLine('Authorization'));
         }
 
         $this->sentRequests = [];
-        $this->store();
+        $this->store(null, null, $this->noHits())->search(new SearchRequest([1.0]));
 
         $this->assertFalse($this->sentRequest(0)->hasHeader('Authorization'));
     }
@@ -291,7 +324,7 @@ class MeilisearchVectorStoreTest extends TestCase
         try {
             $store->delete(Filter::eq('notes', 'x'));
         } finally {
-            $this->assertCount(self::SETUP_REQUESTS, $this->sentRequests);
+            $this->assertSame([], $this->sentTargets());
         }
     }
 

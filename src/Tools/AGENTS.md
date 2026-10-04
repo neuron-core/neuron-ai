@@ -39,7 +39,7 @@ class GetTranscriptionTool extends Tool
 }
 ```
 
-Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the system prompt; `only()` / `exclude()` / `with()` adjust the provided set per agent. Tool names must be unique among an agent's tools: `ToolRegistry` throws `ToolException` when it is built with two tools of the same name, as when the Tavily and Jina toolkits both provide `web_search` and `url_reader`, while `add()` ignores a tool already registered. Unnamed provider tools never clash. Tool runs are counted by `getRunKey()`, the tool name by default, so `toolMaxRuns()` applies per tool over the entire agent run, including interruptions; override it, or use the `TrackByInputs` trait, which keys runs by the declared inputs in declaration order, for parameter-aware limits.
+Toolkits (`AbstractToolkit`) group tools and contribute `guidelines()` to the system prompt; `add()` appends tools to the provided set, and `only()` / `exclude()` / `with()` adjust it per agent. Tool names must be unique among an agent's tools: `ToolRegistry` throws `ToolException` when it is built with two tools of the same name, as when the Tavily and Jina toolkits both provide `web_search` and `url_reader`, while `ToolRegistry::add()` ignores a tool already registered. Unnamed provider tools never clash. Tool runs are counted by `getRunKey()`, the tool name by default, so `toolMaxRuns()` applies per tool over the entire agent run, including interruptions; override it, or use the `TrackByInputs` trait, which keys runs by the declared inputs in declaration order, for parameter-aware limits.
 
 ## Deferred tools
 

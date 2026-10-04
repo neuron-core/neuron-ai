@@ -1,4 +1,4 @@
-# Upgrade: Tools are classes: Tool is abstract and ToolInterface changed
+# Upgrade: Tools are classes: Tool is abstract, ToolInterface and ToolkitInterface changed
 
 ## Summary
 
@@ -13,6 +13,7 @@
 | `implements HasRunKey` | interface removed: `getRunKey()` is part of `ToolInterface` |
 | `ToolInterface` | adds `getInputSchema()`, `hasResult()`, `setResult()`, `getRunKey()` and `requiresApproval()`; drops `setCallable()` |
 | — | `Tool` declares new members whose names app subclasses can no longer use freely (Case 10) |
+| `ToolkitInterface` | adds `add(ToolInterface ...$tools)`, which `AbstractToolkit` implements with a new `$added` property (Case 11) |
 
 This guide changes no stored data. Keep every tool name and description exactly as it was in 3.x. The model sees them, chat histories record tool names, and names must stay unique (guide 11).
 
@@ -96,6 +97,15 @@ Run these from the application root.
    ```
 
    Only hits inside classes that extend `Tool` (step 3) matter.
+
+9. Toolkit classes (Case 11):
+
+   ```bash
+   grep -rnE '(implements|extends)[^{]*[^A-Za-z0-9_]([A-Za-z0-9_]*Toolkit|ToolkitInterface|TodoPlanning)([^A-Za-z0-9_]|$)' --include='*.php' --exclude-dir=vendor .
+   grep -rnE 'function +add *[(]|(public|protected|private|var)[^;=(]*[$]added *[;=,)]' --include='*.php' --exclude-dir=vendor .
+   ```
+
+   The first command lists the toolkit classes. Use each class's `use` imports to check that its parent leads to `NeuronAI\Tools\Toolkits\AbstractToolkit`, a built-in toolkit or `ToolkitInterface`. If the parent is an app class or interface, grep for its own subclasses and implementers the same way. `extends TodoPlanning` hits count too: guide 10 turns those classes into toolkits. In the second command's output, only hits inside these classes matter.
 
 If none of these searches finds anything, this guide does not apply.
 
@@ -666,6 +676,65 @@ class TransferFundsTool extends Tool
 }
 ```
 
+### Case 11: A toolkit class: `ToolkitInterface` adds `add()`
+
+`ToolkitInterface` now declares `add(ToolInterface ...$tools): ToolkitInterface`. It appends tools to the ones the toolkit provides, and `only()`, `exclude()` and `with()` apply to them as they do to the provided ones. `AbstractToolkit` implements it and keeps the tools in a new `protected array $added`. No 3.x code calls `add()`, so there are no call sites to migrate.
+
+A class that extends `AbstractToolkit` or a built-in toolkit inherits the method and needs no change, unless it declares a member named `add` or `$added`. Such a member either fails at class load (incompatible signature or property declaration) or silently replaces the framework's. Rename the app's member and update its call sites. If the app's `add()` already appends tools to the toolkit, ask the developer before renaming it: the inherited method may be able to replace it.
+
+A class that implements `ToolkitInterface` directly fails to load until it declares the method. Keep the tools it receives and return them from `tools()`, after the class's own tools and before its `only()`/`exclude()`/`with()` handling. In the example, `filter()` stands for that handling.
+
+Before (3.x):
+
+```php
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
+
+class ReportingToolkit implements ToolkitInterface
+{
+    // ... guidelines(), exclude(), only(), with() ...
+
+    public function tools(): array
+    {
+        return $this->filter([
+            new SalesReportTool(),
+            new StockReportTool(),
+        ]);
+    }
+}
+```
+
+After (4.x):
+
+```php
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\Toolkits\ToolkitInterface;
+
+class ReportingToolkit implements ToolkitInterface
+{
+    /**
+     * @var ToolInterface[]
+     */
+    protected array $added = [];
+
+    // ... guidelines(), exclude(), only(), with() ...
+
+    public function add(ToolInterface ...$tools): ToolkitInterface
+    {
+        $this->added = [...$this->added, ...array_values($tools)];
+        return $this;
+    }
+
+    public function tools(): array
+    {
+        return $this->filter([
+            new SalesReportTool(),
+            new StockReportTool(),
+            ...$this->added,
+        ]);
+    }
+}
+```
+
 ## Checklist
 
 - Searches 1, 2 and 5 find only two kinds of hits: the items this guide leaves for guides 4, 28 and 50 (listed in your report), and `setCallable()` methods kept on direct `ToolInterface` implementers because app code calls them (Case 9).
@@ -676,4 +745,5 @@ class TransferFundsTool extends Tool
 - No `HasRunKey` remains. Tools with `getRunKey()` or `TrackByInputs` that never implemented `HasRunKey` are reported to the developer.
 - Every direct `ToolInterface` implementer has `getInputSchema()`, `hasResult()`, `setResult()`, `getRunKey()` and `requiresApproval()`.
 - No `Tool` subclass declares a Case 10 member, except a kept `getRunKey()`.
+- Every direct `ToolkitInterface` implementer has `add()` and returns the added tools from `tools()`. No class that extends `AbstractToolkit` or a built-in toolkit declares `add()` or `$added`, unless the developer chose to keep it.
 - Static analysis and tests report none of the following, apart from failures caused by the items left for guides 4, 28 and 50: `Cannot instantiate abstract class NeuronAI\Tools\Tool`, `Cannot call constructor`, `Call to undefined method ...::setCallable()`, `Call to undefined method ...::setMaxTries()`, `must not be accessed before initialization`, `Interface "NeuronAI\Tools\HasRunKey" not found`, `contains ... abstract method`.

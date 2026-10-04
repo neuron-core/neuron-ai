@@ -29,9 +29,8 @@ class QdrantVectorStore implements VectorStoreInterface
 
     protected string $baseUri;
 
-    /**
-     * @throws HttpException
-     */
+    protected bool $initialized = false;
+
     public function __construct(
         string $collectionUrl, // like http://localhost:6333/collections/neuron-ai/
         protected ?string $key = null,
@@ -47,24 +46,28 @@ class QdrantVectorStore implements VectorStoreInterface
             'Content-Type' => 'application/json',
             ...(!is_null($this->key) && $this->key !== '' ? ['api-key' => $this->key] : []),
         ];
-
-        $this->initialize();
     }
 
     /**
+     * Create the collection if it doesn't exist, the first time an operation needs it
+     *
      * @throws HttpException
      */
     protected function initialize(): void
     {
+        if ($this->initialized) {
+            return;
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::get(uri: rtrim($this->baseUri, '/') . '/exists', headers: $this->httpHeaders)
         )->json();
 
-        if ($response['result']['exists']) {
-            return;
+        if (!$response['result']['exists']) {
+            $this->createCollection();
         }
 
-        $this->createCollection();
+        $this->initialized = true;
     }
 
     /**
@@ -93,6 +96,7 @@ class QdrantVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
+        $this->initialize();
         $points = array_map(fn (Document $document): array => [
             // Qdrant ids are unsigned integers or UUIDs: an integer must stay one
             'id' => $document->getId(),
@@ -123,6 +127,7 @@ class QdrantVectorStore implements VectorStoreInterface
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
+        $this->initialize();
         $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . '/points/delete?wait=true',
@@ -159,6 +164,7 @@ class QdrantVectorStore implements VectorStoreInterface
             $body['filter'] = ['must' => (new QdrantFilterCompiler())->compile($request->filters)];
         }
 
+        $this->initialize();
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . '/points/query',

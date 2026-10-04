@@ -19,6 +19,7 @@ abstract class AbstractToolkit implements ToolkitInterface
     protected array $exclude = [];
     protected array $only = [];
     protected array $with = [];
+    protected array $added = [];
 
     public function guidelines(): ?string
     {
@@ -49,6 +50,12 @@ abstract class AbstractToolkit implements ToolkitInterface
         return $this;
     }
 
+    public function add(ToolInterface ...$tools): ToolkitInterface
+    {
+        $this->added = [...$this->added, ...array_values($tools)];
+        return $this;
+    }
+
     /**
      * @return ToolInterface[]
      */
@@ -56,11 +63,7 @@ abstract class AbstractToolkit implements ToolkitInterface
 
     public function tools(): array
     {
-        if ($this->exclude === [] && $this->only === [] && $this->with === []) {
-            return $this->provide();
-        }
-
-        $tools = $this->provide();
+        $tools = [...$this->provide(), ...$this->added];
 
         if ($this->exclude !== [] || $this->only !== []) {
             $tools = array_values(array_filter(

@@ -34,9 +34,6 @@ class ChromaVectorStore implements VectorStoreInterface
 
     protected string $collectionId;
 
-    /**
-     * @throws HttpException
-     */
     public function __construct(
         protected string $collection,
         string $host = 'http://localhost:8000',
@@ -54,17 +51,19 @@ class ChromaVectorStore implements VectorStoreInterface
             'Content-Type' => 'application/json',
             ...(!is_null($this->key) && $this->key !== '' ? ['Authorization' => 'Bearer '.$this->key] : []),
         ];
-
-        $this->initialize();
     }
 
     /**
-     * Create the collection if it doesn't exist
+     * Create the collection if it doesn't exist, the first time an operation needs it
      *
      * @throws HttpException
      */
     protected function initialize(): void
     {
+        if (isset($this->collectionId)) {
+            return;
+        }
+
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/'),
@@ -97,6 +96,7 @@ class ChromaVectorStore implements VectorStoreInterface
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
+        $this->initialize();
         $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/{$this->collectionId}/delete",
@@ -128,6 +128,7 @@ class ChromaVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
+        $this->initialize();
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
@@ -164,6 +165,7 @@ class ChromaVectorStore implements VectorStoreInterface
             $body['where'] = (new ChromaFilterCompiler())->compile($request->filters);
         }
 
+        $this->initialize();
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/{$this->collectionId}/query",

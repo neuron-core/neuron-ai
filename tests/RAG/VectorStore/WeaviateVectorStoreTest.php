@@ -43,6 +43,11 @@ class WeaviateVectorStoreTest extends TestCase
         );
     }
 
+    protected function noObjects(): Response
+    {
+        return $this->jsonResponse(['data' => ['Get' => ['Articles' => []]]]);
+    }
+
     protected function schema(): DocumentSchema
     {
         return DocumentSchema::of(
@@ -53,19 +58,43 @@ class WeaviateVectorStoreTest extends TestCase
         );
     }
 
-    public function test_existing_class_is_matched_case_insensitively_and_not_recreated(): void
+    public function test_constructing_the_store_sends_no_request(): void
     {
         $this->store();
 
-        $this->assertSame(['GET http://weaviate.test:8080/v1/schema'], $this->sentTargets());
+        $this->assertSame([], $this->sentTargets());
+    }
+
+    public function test_existing_class_is_matched_case_insensitively_and_not_recreated(): void
+    {
+        $this->store(null, null, $this->noObjects())->search(new SearchRequest([1, 0]));
+
+        $this->assertSame([
+            'GET http://weaviate.test:8080/v1/schema',
+            'POST http://weaviate.test:8080/v1/graphql',
+        ], $this->sentTargets());
+    }
+
+    public function test_the_class_is_checked_by_the_first_operation_only(): void
+    {
+        $store = $this->store(null, null, $this->noObjects(), $this->noObjects());
+
+        $store->search(new SearchRequest([1, 0]));
+        $store->search(new SearchRequest([1, 0]));
+
+        $this->assertSame([
+            'GET http://weaviate.test:8080/v1/schema',
+            'POST http://weaviate.test:8080/v1/graphql',
+            'POST http://weaviate.test:8080/v1/graphql',
+        ], $this->sentTargets());
     }
 
     public function test_missing_class_is_created_with_typed_schema_properties(): void
     {
-        new WeaviateVectorStore(
+        $store = new WeaviateVectorStore(
             collection: 'articles',
             host: self::HOST,
-            httpClient: $this->recordingClient($this->jsonResponse(['classes' => [['class' => 'Other']]]), new Response(200)),
+            httpClient: $this->recordingClient($this->jsonResponse(['classes' => [['class' => 'Other']]]), new Response(200), $this->noObjects()),
             schema: DocumentSchema::of(
                 DocumentField::string('tenant'),
                 DocumentField::integer('year'),
@@ -77,6 +106,8 @@ class WeaviateVectorStoreTest extends TestCase
                 DocumentField::booleans('flags'),
             ),
         );
+
+        $store->search(new SearchRequest([1, 0]));
 
         $this->assertSame('POST http://weaviate.test:8080/v1/schema', $this->sentTargets()[1]);
         $this->assertSame([
@@ -100,11 +131,12 @@ class WeaviateVectorStoreTest extends TestCase
 
     public function test_bearer_key_is_sent_only_when_configured(): void
     {
-        $this->store('weaviate-key');
+        $this->store('weaviate-key', null, $this->noObjects())->search(new SearchRequest([1, 0]));
         $this->assertSame('Bearer weaviate-key', $this->sentRequest(0)->getHeaderLine('Authorization'));
+        $this->assertSame('Bearer weaviate-key', $this->sentRequest(1)->getHeaderLine('Authorization'));
 
         $this->sentRequests = [];
-        $this->store('');
+        $this->store('', null, $this->noObjects())->search(new SearchRequest([1, 0]));
         $this->assertFalse($this->sentRequest(0)->hasHeader('Authorization'));
     }
 
@@ -308,15 +340,15 @@ class WeaviateVectorStoreTest extends TestCase
         try {
             $store->search(new SearchRequest([1.0], Filter::eq('year', 2026)));
         } finally {
-            $this->assertCount(1, $this->sentRequests);
+            $this->assertSame([], $this->sentTargets());
         }
     }
 
-    public function test_destroy_deletes_the_class_schema(): void
+    public function test_destroy_deletes_the_class_schema_without_checking_it(): void
     {
-        $this->store(null, null, new Response(200))->destroy();
+        (new WeaviateVectorStore('articles', self::HOST, httpClient: $this->recordingClient(new Response(200))))->destroy();
 
-        $this->assertSame('DELETE http://weaviate.test:8080/v1/schema/Articles', $this->sentTargets()[1]);
+        $this->assertSame(['DELETE http://weaviate.test:8080/v1/schema/Articles'], $this->sentTargets());
     }
 
     protected function storeRejectingInvalidInput(): VectorStoreInterface

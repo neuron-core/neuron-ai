@@ -123,9 +123,16 @@ class FileVectorStoreTest extends TestCase
         return $contents;
     }
 
-    public function test_creates_the_directory_and_an_empty_store_file(): void
+    public function test_constructing_the_store_creates_nothing(): void
     {
         new FileVectorStore($this->directory . '/nested/deeper');
+
+        $this->assertDirectoryDoesNotExist($this->directory);
+    }
+
+    public function test_the_first_operation_creates_the_directory_and_an_empty_store_file(): void
+    {
+        (new FileVectorStore($this->directory . '/nested/deeper'))->search(new SearchRequest([1, 0]));
 
         $this->assertFileExists($this->directory . '/nested/deeper/neuron.store');
         $this->assertSame('', file_get_contents($this->directory . '/nested/deeper/neuron.store'));
@@ -148,7 +155,7 @@ class FileVectorStoreTest extends TestCase
         $this->expectException(VectorStoreException::class);
         $this->expectExceptionMessage("Directory '{$this->directory}/a-file/store' does not exist and could not be created.");
 
-        new FileVectorStore($this->directory . '/a-file/store');
+        (new FileVectorStore($this->directory . '/a-file/store'))->search(new SearchRequest([1, 0]));
     }
 
     public function test_store_file_that_cannot_be_created_is_reported(): void
@@ -159,7 +166,7 @@ class FileVectorStoreTest extends TestCase
         $this->expectException(VectorStoreException::class);
         $this->expectExceptionMessage("Store file '{$this->directory}/{$name}.store' does not exist and could not be created.");
 
-        new FileVectorStore($this->directory, name: $name);
+        (new FileVectorStore($this->directory, name: $name))->search(new SearchRequest([1, 0]));
     }
 
     /**
@@ -211,7 +218,7 @@ class FileVectorStoreTest extends TestCase
     #[DataProvider('namesUsedAsGiven')]
     public function test_a_name_is_used_as_the_file_name_as_given(string $name, string $fileName): void
     {
-        new FileVectorStore($this->directory, name: $name);
+        (new FileVectorStore($this->directory, name: $name))->search(new SearchRequest([1, 0]));
 
         $this->assertSame(['.', '..', $fileName], scandir($this->directory));
     }
@@ -436,7 +443,7 @@ class FileVectorStoreTest extends TestCase
             $this->assertSame('Document missing must have an embedding before it can be stored.', $exception->getMessage());
         }
 
-        $this->assertSame('', file_get_contents($this->storeFile()));
+        $this->assertDirectoryDoesNotExist($this->directory);
     }
 
     public function test_an_empty_batch_writes_nothing(): void
@@ -474,7 +481,7 @@ class FileVectorStoreTest extends TestCase
             $this->assertSame("Document broken is not JSON serializable: {$reason}", $exception->getMessage());
         }
 
-        $this->assertSame('', file_get_contents($this->storeFile()));
+        $this->assertDirectoryDoesNotExist($this->directory);
     }
 
     #[RequiresPhpExtension('pcntl')]
@@ -546,6 +553,7 @@ class FileVectorStoreTest extends TestCase
     public function test_stored_rows_without_embedding_are_reported_on_search(string $row): void
     {
         $store = $this->store();
+        mkdir($this->directory);
         file_put_contents($this->storeFile(), $row . "\n");
 
         $this->expectException(VectorStoreException::class);

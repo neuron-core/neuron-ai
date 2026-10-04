@@ -29,4 +29,6 @@ interface ToolkitInterface
      * @param class-string $class
      */
     public function with(string $class, callable $callback): ToolkitInterface;
+
+    public function add(ToolInterface ...$tools): ToolkitInterface;
 }

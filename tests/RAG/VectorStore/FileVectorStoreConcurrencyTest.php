@@ -26,6 +26,7 @@ use function uniqid;
 use function usleep;
 use function unlink;
 use function json_decode;
+use function microtime;
 
 use const FILE_IGNORE_NEW_LINES;
 
@@ -86,6 +87,27 @@ class FileVectorStoreConcurrencyTest extends TestCase
         return pcntl_wexitstatus($status);
     }
 
+    public function test_stores_running_their_first_operation_at_once_all_find_the_directory(): void
+    {
+        $start = microtime(true) + 0.05;
+
+        $readers = [];
+        for ($r = 0; $r < 8; $r++) {
+            $readers[] = $this->spawn(function () use ($start): void {
+                $store = $this->store();
+                // Every process reaches the missing directory at the same moment
+                while (microtime(true) < $start) {
+                    usleep(10);
+                }
+                $store->search(new SearchRequest([1.0, 0.0]));
+            });
+        }
+
+        foreach ($readers as $pid) {
+            $this->assertSame(0, $this->wait($pid), 'a first operation failed');
+        }
+    }
+
     public function test_a_delete_matching_nothing_does_not_lose_documents_appended_concurrently(): void
     {
         $seed = [];
@@ -117,7 +139,6 @@ class FileVectorStoreConcurrencyTest extends TestCase
 
     public function test_concurrent_large_appends_never_produce_corrupted_lines(): void
     {
-        $this->store();
         $payload = str_repeat('x', 256 * 1024);
 
         $writers = [];

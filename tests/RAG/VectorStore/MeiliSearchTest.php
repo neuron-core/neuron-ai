@@ -106,7 +106,7 @@ class MeiliSearchTest extends TestCase
 
     public function test_a_settings_task_meilisearch_fails_is_raised(): void
     {
-        new MeilisearchVectorStore('neuron');
+        (new MeilisearchVectorStore('neuron'))->search(new SearchRequest($this->embedding));
         // Binary quantization cannot be turned off again, which the store's embedder settings would do
         $client = new Client();
         $this->awaitTask($client, $client->patch('http://localhost:7700/indexes/neuron/settings/embedders', ['json' => [
@@ -116,7 +116,7 @@ class MeiliSearchTest extends TestCase
         $this->expectException(VectorStoreException::class);
         $this->expectExceptionMessage('Cannot disable the binary quantization');
 
-        new MeilisearchVectorStore('neuron');
+        (new MeilisearchVectorStore('neuron'))->search(new SearchRequest($this->embedding));
     }
 
     public function test_meilisearch_delete_documents(): void

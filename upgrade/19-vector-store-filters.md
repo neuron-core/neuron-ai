@@ -360,9 +360,9 @@ Declaration rules (violations throw `DocumentSchemaException`, which extends `Ve
   `addDocument()` / `addDocuments()` throw for a missing required field or a wrongly typed declared field. Make the
   loaders and splitters set them.
 - Pass the same schema at every construction of the same index. `MeilisearchVectorStore` rewrites the index's
-  filterable attributes from the schema each time it is constructed: a construction without the schema removes them,
-  including attributes made filterable by hand for 3.x. Elasticsearch, OpenSearch, Typesense and Weaviate apply the
-  declared fields only when the store creates the index.
+  filterable attributes from the schema on the first operation of each instance: an instance constructed without the
+  schema removes them, including attributes made filterable by hand for 3.x. Elasticsearch, OpenSearch, Typesense and
+  Weaviate apply the declared fields only when the store creates the index.
 
 ### Case 5: Custom VectorStoreInterface implementations
 

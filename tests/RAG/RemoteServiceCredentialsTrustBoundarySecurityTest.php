@@ -15,6 +15,7 @@ use NeuronAI\RAG\Embeddings\VoyageEmbeddingsProvider;
 use NeuronAI\RAG\PostProcessor\LocalAIRerankerPostProcessor;
 use NeuronAI\RAG\VectorStore\MeilisearchVectorStore;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
+use NeuronAI\RAG\VectorStore\SearchRequest;
 use NeuronAI\RAG\VectorStore\WeaviateVectorStore;
 use NeuronAI\Tests\Support\AssertsApiKeyConfinement;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
@@ -54,15 +55,15 @@ class RemoteServiceCredentialsTrustBoundarySecurityTest extends TestCase
                 'Authorization',
             ],
             'meilisearch' => [
-                static fn (HttpClientInterface $client): MeilisearchVectorStore => new MeilisearchVectorStore('docs', 'http://meilisearch.internal:7700', self::SECRET, httpClient: $client),
+                static fn (HttpClientInterface $client): iterable => (new MeilisearchVectorStore('docs', 'http://meilisearch.internal:7700', self::SECRET, httpClient: $client))->search(new SearchRequest([1.0])),
                 'Authorization',
             ],
             'qdrant' => [
-                static fn (HttpClientInterface $client): QdrantVectorStore => new QdrantVectorStore('http://qdrant.internal:6333/collections/docs/', self::SECRET, httpClient: $client),
+                static fn (HttpClientInterface $client): iterable => (new QdrantVectorStore('http://qdrant.internal:6333/collections/docs/', self::SECRET, httpClient: $client))->search(new SearchRequest([1.0])),
                 'api-key',
             ],
             'weaviate' => [
-                static fn (HttpClientInterface $client): WeaviateVectorStore => new WeaviateVectorStore('docs', 'http://weaviate.internal:8080', self::SECRET, httpClient: $client),
+                static fn (HttpClientInterface $client): iterable => (new WeaviateVectorStore('docs', 'http://weaviate.internal:8080', self::SECRET, httpClient: $client))->search(new SearchRequest([1.0])),
                 'Authorization',
             ],
         ];

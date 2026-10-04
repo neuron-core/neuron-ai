@@ -54,31 +54,57 @@ class ChromaVectorStoreTest extends TestCase
         );
     }
 
+    public function test_constructing_the_store_sends_no_request(): void
+    {
+        $this->store();
+
+        $this->assertSame([], $this->sentTargets());
+    }
+
     public function test_the_key_is_sent_as_a_bearer_token_in_the_authorization_header(): void
     {
-        new ChromaVectorStore(
+        $store = new ChromaVectorStore(
             collection: 'docs',
             key: 'chroma-token',
-            httpClient: $this->recordingClient($this->jsonResponse(['id' => 'col-uuid'])),
+            httpClient: $this->recordingClient($this->jsonResponse(['id' => 'col-uuid']), $this->jsonResponse(['ids' => [[]]])),
         );
 
-        $this->assertSame('Bearer chroma-token', $this->sentRequest(0)->getHeaderLine('Authorization'));
-        $this->assertFalse($this->sentRequest(0)->hasHeader('Authentication'));
+        $store->search(new SearchRequest([1, 2]));
+
+        foreach ($this->sentRequests as $entry) {
+            $this->assertSame('Bearer chroma-token', $entry['request']->getHeaderLine('Authorization'));
+            $this->assertFalse($entry['request']->hasHeader('Authentication'));
+        }
     }
 
     public function test_no_authorization_header_is_sent_without_a_key(): void
     {
-        $this->store();
+        $this->store(null, $this->jsonResponse(['ids' => [[]]]))->search(new SearchRequest([1, 2]));
 
         $this->assertFalse($this->sentRequest(0)->hasHeader('Authorization'));
+        $this->assertFalse($this->sentRequest(1)->hasHeader('Authorization'));
     }
 
-    public function test_gets_or_creates_the_collection_in_the_configured_tenant_and_database(): void
+    public function test_the_first_operation_gets_or_creates_the_collection_in_the_configured_tenant_and_database(): void
     {
-        $this->store();
+        $this->store(null, $this->jsonResponse(['ids' => [[]]]))->search(new SearchRequest([1, 2]));
 
-        $this->assertSame(['POST ' . self::COLLECTIONS], $this->sentTargets());
+        $this->assertSame(['POST ' . self::COLLECTIONS, 'POST ' . self::COLLECTIONS . '/col-uuid/query'], $this->sentTargets());
         $this->assertSame(['name' => 'docs', 'get_or_create' => true, 'metadata' => ['hnsw:space' => 'cosine']], $this->sentJson(0));
+    }
+
+    public function test_the_collection_is_resolved_by_the_first_operation_only(): void
+    {
+        $store = $this->store(null, $this->jsonResponse(['ids' => [[]]]), $this->jsonResponse(['ids' => [[]]]));
+
+        $store->search(new SearchRequest([1, 2]));
+        $store->search(new SearchRequest([1, 2]));
+
+        $this->assertSame([
+            'POST ' . self::COLLECTIONS,
+            'POST ' . self::COLLECTIONS . '/col-uuid/query',
+            'POST ' . self::COLLECTIONS . '/col-uuid/query',
+        ], $this->sentTargets());
     }
 
     public function test_adds_documents_as_parallel_arrays_to_the_resolved_collection_id(): void
@@ -200,11 +226,19 @@ class ChromaVectorStoreTest extends TestCase
         }
     }
 
-    public function test_destroy_deletes_the_collection_by_name(): void
+    public function test_destroy_deletes_the_collection_by_name_without_resolving_it(): void
     {
-        $this->store(null, new Response(200))->destroy();
+        $store = new ChromaVectorStore(
+            collection: 'docs',
+            host: 'http://chroma.test:8000/',
+            tenant: 'acme',
+            database: 'prod',
+            httpClient: $this->recordingClient(new Response(200)),
+        );
 
-        $this->assertSame('DELETE ' . self::COLLECTIONS . '/docs', $this->sentTargets()[1]);
+        $store->destroy();
+
+        $this->assertSame(['DELETE ' . self::COLLECTIONS . '/docs'], $this->sentTargets());
     }
 
     protected function storeRejectingInvalidInput(): VectorStoreInterface

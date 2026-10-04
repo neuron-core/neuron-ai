@@ -518,6 +518,17 @@ JinaToolkit::make($key)
     ->with(JinaUrlReader::class, fn (ToolInterface $tool): ToolInterface => $tool->setName('jina_url_reader')),
 ```
 
+### Adding Tools to a Toolkit
+
+`add()` appends tools to the ones a toolkit provides, without subclassing it:
+
+```php
+MySQLToolkit::make($pdo)
+    ->add(new SalesReportTool($pdo), new ExportCsvTool($pdo)),
+```
+
+Added tools follow the provided ones and are covered by the toolkit's guidelines. `only()`, `exclude()` and `with()` apply to them too, so an `only()` list must name an added tool's class to keep it.
+
 ## MCP (Model Context Protocol) Integration
 
 MCP allows connecting to external tool servers. Each server tool becomes a regular Neuron tool whose result is a `ToolOutput`: text, image and audio content become content blocks, other content reaches the model as JSON text, and a result the server marks with `isError` is an error output.

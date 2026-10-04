@@ -39,9 +39,8 @@ class WeaviateVectorStore implements VectorStoreInterface
 
     protected string $baseUri;
 
-    /**
-     * @throws HttpException
-     */
+    protected bool $initialized = false;
+
     public function __construct(
         protected string $collection,
         string $host = 'http://localhost:8080',
@@ -57,20 +56,24 @@ class WeaviateVectorStore implements VectorStoreInterface
             'Content-Type' => 'application/json',
             ...(!is_null($this->key) && $this->key !== '' ? ['Authorization' => 'Bearer '.$this->key] : []),
         ];
-
-        $this->initialize();
     }
 
     /**
+     * Create the collection if it doesn't exist, the first time an operation needs it
+     *
      * @throws HttpException
      */
     protected function initialize(): void
     {
-        if ($this->collectionExists()) {
+        if ($this->initialized) {
             return;
         }
 
-        $this->createCollection();
+        if (!$this->collectionExists()) {
+            $this->createCollection();
+        }
+
+        $this->initialized = true;
     }
 
     /**
@@ -100,6 +103,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
+        $this->initialize();
         $objects = array_map(fn (Document $document): array => [
             'class' => ucfirst($this->collection),
             'id' => (string) $document->getId(),
@@ -135,6 +139,7 @@ class WeaviateVectorStore implements VectorStoreInterface
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
+        $this->initialize();
         $this->httpClient->request(
             HttpRequest::delete(
                 uri: rtrim($this->baseUri, '/') . '/v1/batch/objects',
@@ -192,6 +197,7 @@ class WeaviateVectorStore implements VectorStoreInterface
             $where,
         );
 
+        $this->initialize();
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . '/v1/graphql',

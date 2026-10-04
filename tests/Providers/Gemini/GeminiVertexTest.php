@@ -113,8 +113,9 @@ class GeminiVertexTest extends TestCase
 
     public function test_building_the_provider_fetches_no_token(): void
     {
-        new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro');
+        $provider = new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro');
 
+        $this->assertInstanceOf(GeminiVertex::class, $provider);
         $this->assertSame([], $this->tokenRequests);
     }
 

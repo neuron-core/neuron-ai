@@ -34,10 +34,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
 
     protected string $baseUri;
 
-    /**
-     * @throws HttpException
-     * @throws VectorStoreException
-     */
+    protected bool $initialized = false;
+
     public function __construct(
         protected string $indexUid,
         string $host = 'http://localhost:7700',
@@ -55,6 +53,19 @@ class MeilisearchVectorStore implements VectorStoreInterface
             'Content-Type' => 'application/json',
             ...(is_null($key) ? [] : ['Authorization' => "Bearer {$key}"]),
         ];
+    }
+
+    /**
+     * Create the index if it doesn't exist and configure it, the first time an operation needs it
+     *
+     * @throws HttpException
+     * @throws VectorStoreException
+     */
+    protected function initialize(): void
+    {
+        if ($this->initialized) {
+            return;
+        }
 
         try {
             $this->httpClient->request(HttpRequest::get(uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}", headers: $this->httpHeaders));
@@ -67,6 +78,8 @@ class MeilisearchVectorStore implements VectorStoreInterface
         }
 
         $this->configureIndex();
+
+        $this->initialized = true;
     }
 
     /**
@@ -85,6 +98,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
     public function addDocuments(array $documents): VectorStoreInterface
     {
         $this->validateDocuments($documents);
+        $this->initialize();
         $chunks = array_chunk($documents, 100);
 
         foreach ($chunks as $chunk) {
@@ -115,10 +129,12 @@ class MeilisearchVectorStore implements VectorStoreInterface
     /**
      * @throws HttpException
      * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
+        $this->initialize();
         $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/documents/delete",
@@ -156,6 +172,7 @@ class MeilisearchVectorStore implements VectorStoreInterface
             $body['filter'] = (new MeilisearchFilterCompiler())->compile($request->filters);
         }
 
+        $this->initialize();
         $response = $this->httpClient->request(
             HttpRequest::post(
                 uri: rtrim($this->baseUri, '/') . "/indexes/{$this->indexUid}/search",

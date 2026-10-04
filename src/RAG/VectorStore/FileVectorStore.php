@@ -66,7 +66,17 @@ class FileVectorStore implements VectorStoreInterface
         if (in_array($fileName, ['', '.', '..'], true) || strpbrk($fileName, "/\\\0") !== false) {
             throw new VectorStoreException("Store name '{$fileName}' must be a file name, not a path: put folders in \$directory.");
         }
-        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true)) {
+    }
+
+    /**
+     * Create the directory and the store file if they don't exist, the first time an operation needs them
+     *
+     * @throws VectorStoreException
+     */
+    protected function initialize(): void
+    {
+        // Checked again after a failed mkdir(): another process on its first operation may have just created it
+        if (!is_dir($this->directory) && !@mkdir($this->directory, 0o755, true) && !is_dir($this->directory)) {
             throw new VectorStoreException("Directory '{$this->directory}' does not exist and could not be created.");
         }
         if (!file_exists($this->getFilePath()) && !@touch($this->getFilePath())) {
@@ -93,6 +103,7 @@ class FileVectorStore implements VectorStoreInterface
         // Encoded outside the appendToFile() arguments: on PHP 8.1 a first-class callable that throws
         // while nested in a pending method call's arguments double-frees the documents (segfault)
         $rows = implode('', array_map($this->encodeRow(...), $documents));
+        $this->initialize();
         $this->appendToFile($rows);
         return $this;
     }
@@ -106,6 +117,7 @@ class FileVectorStore implements VectorStoreInterface
         $this->validateFilters($filters);
         (new FilterEvaluator())->assertEvaluable($filters);
 
+        $this->initialize();
         $this->exclusively(function () use ($filters): void {
             $this->rewriteWithout($filters);
         });
@@ -129,6 +141,7 @@ class FileVectorStore implements VectorStoreInterface
             $evaluator->assertEvaluable($filters);
         }
 
+        $this->initialize();
         foreach ($this->getLine($this->getFilePath()) as $document) {
             $document = json_decode((string) $document, true);
 

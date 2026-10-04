@@ -67,35 +67,63 @@ class QdrantVectorStoreTest extends TestCase
             ->setMetadata(['tenant' => 'acme', 'tags' => ['php']]);
     }
 
-    public function test_existing_collection_is_not_recreated(): void
+    public function test_constructing_the_store_sends_no_request(): void
     {
         $this->store();
 
-        $this->assertSame(['GET http://qdrant.test:6333/collections/docs/exists'], $this->sentTargets());
+        $this->assertSame([], $this->sentTargets());
+    }
+
+    public function test_existing_collection_is_not_recreated(): void
+    {
+        $this->store(null, null, new Response(200))->addDocument($this->document('a'));
+
+        $this->assertSame([
+            'GET http://qdrant.test:6333/collections/docs/exists',
+            'PUT http://qdrant.test:6333/collections/docs/points?wait=true',
+        ], $this->sentTargets());
+    }
+
+    public function test_the_collection_is_checked_by_the_first_operation_only(): void
+    {
+        $store = $this->store(null, null, new Response(200), new Response(200));
+
+        $store->addDocument($this->document('a'));
+        $store->addDocument($this->document('b'));
+
+        $this->assertSame([
+            'GET http://qdrant.test:6333/collections/docs/exists',
+            'PUT http://qdrant.test:6333/collections/docs/points?wait=true',
+            'PUT http://qdrant.test:6333/collections/docs/points?wait=true',
+        ], $this->sentTargets());
     }
 
     public function test_missing_collection_is_created_with_cosine_distance_and_dimension(): void
     {
-        new QdrantVectorStore(
+        $store = new QdrantVectorStore(
             collectionUrl: self::COLLECTION_URL,
             dimension: 768,
-            httpClient: $this->recordingClient($this->exists(false), new Response(200)),
+            httpClient: $this->recordingClient($this->exists(false), new Response(200), new Response(200)),
         );
+
+        $store->addDocument($this->document('a'));
 
         $this->assertSame([
             'GET http://qdrant.test:6333/collections/docs/exists',
             'PUT http://qdrant.test:6333/collections/docs',
+            'PUT http://qdrant.test:6333/collections/docs/points?wait=true',
         ], $this->sentTargets());
         $this->assertSame(['vectors' => ['size' => 768, 'distance' => 'Cosine']], $this->sentJson(1));
     }
 
     public function test_api_key_header_is_sent_only_when_configured(): void
     {
-        $this->store('qdrant-secret');
+        $this->store('qdrant-secret', null, new Response(200))->addDocument($this->document('a'));
         $this->assertSame('qdrant-secret', $this->sentRequest(0)->getHeaderLine('api-key'));
+        $this->assertSame('qdrant-secret', $this->sentRequest(1)->getHeaderLine('api-key'));
 
         $this->sentRequests = [];
-        $this->store('');
+        $this->store('', null, new Response(200))->addDocument($this->document('a'));
         $this->assertFalse($this->sentRequest(0)->hasHeader('api-key'));
     }
 
@@ -145,7 +173,7 @@ class QdrantVectorStoreTest extends TestCase
         try {
             $store->addDocuments([$this->document('a'), $this->document('b')->addMetadata('tags', [1, 2])]);
         } finally {
-            $this->assertCount(1, $this->sentRequests);
+            $this->assertSame([], $this->sentTargets());
         }
     }
 
@@ -225,15 +253,15 @@ class QdrantVectorStoreTest extends TestCase
         try {
             $store->delete(Filter::eq('tenant', 'acme'));
         } finally {
-            $this->assertCount(1, $this->sentRequests);
+            $this->assertSame([], $this->sentTargets());
         }
     }
 
-    public function test_destroy_deletes_the_collection(): void
+    public function test_destroy_deletes_the_collection_without_checking_it(): void
     {
-        $this->store(null, null, new Response(200))->destroy();
+        (new QdrantVectorStore(self::COLLECTION_URL, httpClient: $this->recordingClient(new Response(200))))->destroy();
 
-        $this->assertSame('DELETE http://qdrant.test:6333/collections/docs', $this->sentTargets()[1]);
+        $this->assertSame(['DELETE http://qdrant.test:6333/collections/docs'], $this->sentTargets());
     }
 
     protected function storeRejectingInvalidInput(): VectorStoreInterface

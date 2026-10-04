@@ -13,6 +13,8 @@ use NeuronAI\Tools\Toolkits\Calculator\VarianceTool;
 use NeuronAI\Tools\Toolkits\TodoPlanning\WriteTodosTool;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tests\Tools\Stub\AddTool;
+use NeuronAI\Tests\Tools\Stub\MultiplyTool;
 use PHPUnit\Framework\TestCase;
 
 use function array_is_list;
@@ -203,6 +205,38 @@ class ToolkitTest extends TestCase
         foreach ($tools as $tool) {
             $this->assertSame($tool instanceof VarianceTool && !$tool instanceof StandardDeviationTool ? 1 : null, $tool->getMaxRuns());
         }
+    }
+
+    public function test_added_tools_follow_the_provided_ones(): void
+    {
+        $add = new AddTool();
+        $multiply = new MultiplyTool();
+
+        $tools = CalculatorToolkit::make()->add($add)->add($multiply)->tools();
+
+        $this->assertCount(16, $tools);
+        $this->assertSame([$add, $multiply], [$tools[14], $tools[15]]);
+    }
+
+    public function test_filters_apply_to_added_tools(): void
+    {
+        $toolkit = CalculatorToolkit::make()
+            ->add(new AddTool(), new MultiplyTool())
+            ->only([MeanTool::class, AddTool::class, MultiplyTool::class])
+            ->exclude([AddTool::class])
+            ->with(MultiplyTool::class, fn (ToolInterface $tool): ToolInterface => $tool->setMaxRuns(1));
+
+        $this->assertSame(['mean', 'multiply'], $this->names($toolkit));
+        $this->assertSame(1, $toolkit->tools()[1]->getMaxRuns());
+        $this->assertSame(['mean'], $this->names(CalculatorToolkit::make()->add(new AddTool())->only([MeanTool::class])));
+    }
+
+    public function test_tools_added_from_a_keyed_array_keep_the_toolkit_a_list(): void
+    {
+        $toolkit = CalculatorToolkit::make()->add(...['sum' => new AddTool()]);
+
+        $this->assertTrue(array_is_list($toolkit->tools()));
+        $this->assertContains('add', $this->names($toolkit));
     }
 
     /**
