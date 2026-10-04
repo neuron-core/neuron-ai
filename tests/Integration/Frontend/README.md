@@ -3,7 +3,7 @@
 Executable evidence that Neuron's frontend-tool flow works with real clients:
 the official AG-UI client, Vercel AI SDK `useChat`, and CopilotKit's hooks through
 its runtime bridge. A dedicated Chromium project also verifies the broadcast
-channel wire contract using real Redis/Pusher encoders and in-memory transport fakes.
+channel wire contract using real Redis/Pusher/Mercure encoders and in-memory transport fakes.
 
 ## Layout
 
@@ -11,7 +11,7 @@ channel wire contract using real Redis/Pusher encoders and in-memory transport f
 |---|---|
 | `backend/router.php` | Example application endpoint for the built-in PHP server: `/agui`, the AG-UI reload route `/agui/threads/{id}`, `/vercel`, and test-only `/_test/*` routes |
 | `Stub/Fixture.php` | SQLite-backed application state: workflow persistence, chat history, thread→scenario binding, audit reads |
-| `Stub/ChannelFixture.php` | Real Redis/Pusher channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker |
+| `Stub/ChannelFixture.php` | Real Redis/Pusher/Mercure channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker or hub |
 | `Stub/ScenarioProvider.php` | Deterministic provider choosing replies from the inference input; every invocation is persisted |
 | `fixtures/vercel/` | React app on `useChat` with a browser-side `read_title` handler |
 | `fixtures/copilotkit/` | React app on `useFrontendTool` + `CopilotChat`, and `server.mjs`, the CopilotKit runtime bridge that drives `/agui` through `HttpAgent` |
@@ -97,7 +97,7 @@ multi-byte delivery, errors before and after the response headers, and a client 
 ## Broadcast channel coverage
 
 The `channels` project fetches envelopes from `POST /_test/channels`, which drives
-real `PusherChannel` and `RedisChannel` instances with transport I/O captured in
+real `PusherChannel`, `RedisChannel` and `MercureChannel` instances with transport I/O captured in
 memory. Chromium imports `@neuron-core/streaming` through its public exports.
 Normal development uses the workspace package; CI and releases use `test:packed`,
 which installs the archive in a temporary directory and points Vite at that installed
@@ -105,7 +105,10 @@ entry. The same command tests the archive's public declarations and consumer uni
 suite. Encryption cases exercise `subscribeToPusher` with the official browser SDK.
 Protocol cases generate events with the PHP AG-UI and Vercel adapters, fragment
 them through Pusher, and feed reordered duplicates through `createProtocolStream`
-into the official AG-UI agent and Vercel message-stream consumer.
+into the official AG-UI agent and Vercel message-stream consumer. Mercure cases pace the
+channel on a clock that never sleeps, so its updates hold several envelopes, and dispatch
+them as the `MessageEvent`s of an `EventSource`, each one twice as a reconnection replays
+them, through `subscribeToMercure` to the same consumers.
 
 Coverage includes reversed/interleaved fragments from two events of the same type,
 Unicode and structured payloads, duplicate delivery, isolation of concurrent stream
@@ -118,7 +121,7 @@ wrong subscriber keys. Authorization responses come from the real PHP SDK; socke
 frames are injected at the browser SDK boundary, without a live WebSocket server.
 
 These tests verify the PHP-to-browser wire contract and consumer behavior. They do
-not verify a live broker, subscriber authorization, or the HTTP signature against
+not verify a live broker or hub, subscriber authorization, or the HTTP signature against
 Pusher's service; transport-level checks also live in `tests/Workflow/Channel`.
 
 ## Verified behaviour and client limitations

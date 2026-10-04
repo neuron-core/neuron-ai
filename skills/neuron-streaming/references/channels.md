@@ -1,6 +1,6 @@
 # Channel wire contract
 
-`RedisChannel` publishes each envelope as JSON. `PusherChannel` passes the envelope to the injected official Pusher SDK as already-encoded event `data`, named by the envelope's `type`. On `private-encrypted-*` channels the SDK encrypts it, and the encryption-enabled browser SDK restores the envelope before invoking callbacks. `CallbackChannel` calls its configured closures directly and does not use this contract. Pull streaming and SSE remain protocol events; this envelope belongs only to broadcast channel delivery.
+`RedisChannel` publishes each envelope as JSON. `PusherChannel` passes the envelope to the injected official Pusher SDK as already-encoded event `data`, named by the envelope's `type`. On `private-encrypted-*` channels the SDK encrypts it, and the encryption-enabled browser SDK restores the envelope before invoking callbacks. `MercureChannel` publishes a JSON array of envelopes as the `data` of each update, with no SSE event type, so a single `message` listener receives every update. `CallbackChannel` calls its configured closures directly and does not use this contract. Pull streaming and SSE remain protocol events; this envelope belongs only to broadcast channel delivery.
 
 ```json
 {"streamId":"81d4f00e881563538f272ca26aa7a8d4","sequence":0,"type":"text-delta","data":{"id":"message-1","delta":"Hello"}}
@@ -19,7 +19,7 @@ An oversized event becomes one or more `stream.fragment` envelopes:
 
 All fragments of one logical event share `(streamId, sequence)`. Sort their zero-based `index` values, concatenate `part`, translate URL-safe base64 to standard base64, decode, and parse the resulting JSON to recover the original `data`. Unicode remains JSON-escaped, so decoded JSON is ASCII. `event` is the original type. The final fragment may contain base64 padding; earlier fragments do not.
 
-Ordering is a consumer responsibility. Pusher [guarantees order within a batch, not between batches](https://docs.bird.com/pusher/channels/channels/events/why-dont-channels-events-arrive-in-order). A terminal event can therefore arrive before earlier data. Do not close on its arrival until preceding sequences are complete, or declare a gap and reconcile from application history. Redis orders one publisher's messages, but different segments can share a destination and must still be distinguished.
+Ordering is a consumer responsibility. Pusher [guarantees order within a batch, not between batches](https://docs.bird.com/pusher/channels/channels/events/why-dont-channels-events-arrive-in-order). A terminal event can therefore arrive before earlier data. Do not close on its arrival until preceding sequences are complete, or declare a gap and reconcile from application history. Redis orders one publisher's messages, but different segments can share a destination and must still be distinguished. `MercureChannel` publishes one update after the other, so a hub delivers a segment's updates in stream order, and the envelopes inside an update are in stream order.
 
 ## Browser consumer
 
@@ -48,6 +48,31 @@ const consumer = createChannelConsumer({ onEvent, onGap }, streamId);
 consumer.accept(JSON.parse(message));
 consumer.close(); // on cleanup
 ```
+
+For a Mercure hub, open the `EventSource` with the hub's `match` parameter, once the application has set the subscriber cookie, and pass it to `subscribeToMercure`:
+
+```js
+import { subscribeToMercure } from '@neuron-core/streaming';
+
+const url = new URL('https://hub.example.com/.well-known/mercure');
+url.searchParams.append('match', `https://example.com/threads/${threadId}`);
+const source = new EventSource(url, { withCredentials: true });
+
+const subscription = subscribeToMercure(source, {
+  onEvent: ({ type, data }) => renderEvent(type, data),
+  onGap: (reason) => reloadConversation(reason),
+});
+
+// On cleanup:
+subscription.close();
+source.close();
+```
+
+A Mercure update holds a JSON array of envelopes, however many the channel packed into that request, and nothing in it announces the count. The adapter unwraps the array: `onEvent` receives one event at a time, in order, as with every other transport. A whole update passed to `createChannelConsumer().accept()` is refused as `Invalid channel envelope`; the core takes one envelope. The third argument selects one segment, as for Pusher, and `close()` leaves the `EventSource` open.
+
+Wait for the source's `open` event before starting backend execution. An `EventSource` reconnects with the ID of the last update it received, and a hub with history replays the updates published since: the consumer ignores the ones it already delivered, so a short interruption leaves no gap. History is the hub's: Mercure Cloud retains about a hundred updates for the whole hub, and a hub on the `local` transport none. When the source's `error` event finds its `readyState` `CLOSED`, the browser has given up: close the subscription and reconcile.
+
+The AG-UI `HttpAgent` and the default `useChat` transport read one SSE response from the application, so they cannot read a channel, whichever its transport. Give them a custom `AbstractAgent` or `ChatTransport` built on `createProtocolStream`, which turns one segment of a subscription into the validated protocol objects those clients expect: they then receive AG-UI or Vercel events one by one and never see envelopes, fragments or packed updates. The [package guide](../../../packages/streaming/README.md) has both. Where the stock client must stay, relay the run through `RedisChannelReader` instead.
 
 Reconcile late subscriptions and transport disconnections from authoritative history. A lost final event or silence before the first event requires an application run timeout/status check. The package cannot replay events. See the [package guide](../../../packages/streaming/README.md) for limits, lifecycle details, and TypeScript usage.
 
@@ -99,5 +124,7 @@ final class SocketServerChannel extends AbstractChannel
 ```
 
 Pusher's `batch()` stages already-encoded envelopes in `{"batch":[...]}` for the SDK. Its 10,000-byte event-data ceiling is independent of `maxRequestBytes`; increasing request capacity never permits larger individual events. Batch size defaults to ten events and accepts values from 1 to 50. Select a batch size supported by the configured server; byte limits may flush smaller batches. Configure timeouts, endpoint settings and encryption on the injected `Pusher\Pusher` client. The application owns private-channel authorization; encrypted channels also require the SDK master key and an encryption-enabled browser client. See the [Pusher setup example](../SKILL.md#pusherchannel).
+
+Mercure's `batch()` wraps the envelopes in a JSON array, and its `batchBytes()` measures the form-encoded request the SDK sends, where JSON punctuation takes three bytes. Pacing uses the same hooks: `batchSize()` answers 1 while the hub accepts a request and no limit while it does not, so the pending envelopes leave together when the slot opens, and `deliver()` waits for the slot before a delivery that cannot be put off (a full update, the end of the segment) and sends an update refused with 429 again. The wait is bounded at ten seconds the run has not worked off; past it `deliver()` throws and the segment's delivery stops.
 
 At termination, pending data is flushed separately from the terminal event so its failure cannot suppress the terminal attempt. If either fails, the failure propagates to Workflow's `ChannelError` reporting. Data delivery stops after the first transport failure for that segment; serialization and configuration errors are reported without classifying them as transport outages. A channel serves one segment: the Workflow builds a new one for every segment through the `setChannel()` factory or the `channel()` hook.

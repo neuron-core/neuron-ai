@@ -13,6 +13,7 @@ interface Frame extends Event {
 }
 interface Fixture {
   frames: Frame[];
+  updates: string[];
   wireEvents: Array<{ event: string; data: { nonce: string; ciphertext: string } }>;
   channel: string;
   authorization: { auth: string; shared_secret: string };
@@ -24,6 +25,7 @@ declare global {
   interface Window {
     createChannelConsumer: typeof import("@neuron-core/streaming")["createChannelConsumer"];
     subscribeToPusher: typeof import("@neuron-core/streaming")["subscribeToPusher"];
+    subscribeToMercure: typeof import("@neuron-core/streaming")["subscribeToMercure"];
     channelSubscription: { close(): void };
     channelEvents: Event[];
     channelGaps: string[];
@@ -62,16 +64,16 @@ async function deliver(page: Page, frames: Frame[]): Promise<void> {
   }, frames);
 }
 
-for (const transport of ["pusher", "redis"]) {
+for (const transport of ["pusher", "redis", "mercure"]) {
   for (const outcome of ["completed", "interrupted", "failed"]) {
     test(`${transport}: reordered events preserve payloads and ${outcome} follows preceding data`, async ({ page, request }) => {
       const { frames, expected, errors } = await fixture(request, transport, outcome);
       expect(errors).toBe(0);
       const fragments = frames.filter((frame) => frame.type === "stream.fragment");
-      if (transport === "pusher") {
-        expect(new Set(fragments.map((frame) => frame.sequence)).size).toBe(2);
-      } else {
+      if (transport === "redis") {
         expect(fragments).toHaveLength(0);
+      } else {
+        expect(new Set(fragments.map((frame) => frame.sequence)).size).toBe(2);
       }
       await openConsumer(page, frames[0].streamId);
       // The terminal arrives first; fragments from two same-type events interleave.
@@ -88,6 +90,34 @@ for (const transport of ["pusher", "redis"]) {
       expect(await page.evaluate(() => window.channelEvents.at(-1)?.data)).toEqual({ workflowId: "workflow-frontend" });
     });
   }
+}
+
+for (const outcome of ["completed", "interrupted", "failed"]) {
+  test(`mercure: subscribeToMercure unwraps every update and ${outcome} follows preceding data`, async ({ page, request }) => {
+    const { updates, frames, expected, errors } = await fixture(request, "mercure", outcome);
+    expect(errors).toBe(0);
+    expect(updates.flatMap((update) => JSON.parse(update))).toEqual(frames);
+    await page.goto(`${FRONTEND}/channels/`);
+    await page.waitForFunction(() => typeof window.subscribeToMercure === "function");
+    const received = await page.evaluate((messages) => {
+      const events: Event[] = [];
+      const gaps: string[] = [];
+      // What an EventSource dispatches for an update: a MessageEvent whose data is the JSON array.
+      const source = new EventTarget();
+      const subscription = window.subscribeToMercure(source as unknown as EventSource, {
+        onEvent: ({ type, data }) => events.push({ type, data } as Event),
+        onGap: (reason) => gaps.push(reason),
+      });
+      // A reconnecting EventSource replays updates: every one arrives twice.
+      for (const data of messages.flatMap((message) => [message, message])) {
+        source.dispatchEvent(new MessageEvent("message", { data }));
+      }
+      subscription.close();
+      return { events, gaps };
+    }, updates);
+    expect(received.events).toEqual(expected);
+    expect(received.gaps).toEqual([]);
+  });
 }
 
 test("independent streams sharing a destination cannot mix their fragments", async ({ page, request }) => {

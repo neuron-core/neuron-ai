@@ -1,6 +1,6 @@
 ---
 name: neuron-streaming
-description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE) or for Neuron's native vocabulary, and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket or Redis/Pusher, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, NativeAdapter, StreamingChannelInterface, AbstractChannel, CallbackChannel, RedisChannel, PusherChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
+description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE) or for Neuron's native vocabulary, and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket, Redis, Pusher or a Mercure hub, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, NativeAdapter, StreamingChannelInterface, AbstractChannel, CallbackChannel, RedisChannel, PusherChannel, MercureChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
 ---
 
 # Neuron AI Streaming
@@ -213,7 +213,7 @@ Implement `StreamAdapterInterface`: `start()`, `transform(object)`, `end()`, `in
 
 Pull iteration only works when the code driving the generator is also the consumer, typically an HTTP response. Often it is not:
 
-- A queue worker runs the agent and the browser is connected to a websocket or a Redis/Pusher stream.
+- A queue worker runs the agent and the browser is connected to a websocket, a Redis or Pusher stream, or a Mercure hub.
 - A run is resumed after an approval from a different process than the one the client is watching.
 - The application calls `run()` or `chat()` and still wants live output somewhere.
 
@@ -376,6 +376,41 @@ For encryption, configure a base64-encoded 32-byte master key on the SDK and use
 Pusher keeps `batchSize: 10` by default, with an independent 10,000-byte event-data limit and `maxRequestBytes: 10_000` request limit. Increasing the request limit does not increase the event limit. Encrypted channels conservatively reserve space for the authentication tag, nonce, base64 and both layers of JSON escaping; encrypted fragments may be smaller and batches may flush before ten events. Partial batches wait until another event fills the batch or the segment ends; choose `batchSize: 1` for immediate delivery.
 
 Use Pusher SDK 7.2.4 or later; earlier releases do not propagate the SDK timeout to HTTP requests. Neuron does not mutate the injected Pusher client or configure its timeouts. Set the SDK's `timeout` option explicitly (five seconds in the example); the SDK passes this timeout per request even when a custom Guzzle client is injected. Configure `connect_timeout` on that Guzzle client if needed.
+
+### MercureChannel
+
+`MercureChannel` publishes the segment to a [Mercure](https://mercure.rocks) hub, where a browser subscribes with a plain `EventSource`. It accepts an application-configured `Symfony\Component\Mercure\HubInterface` from the optional `symfony/mercure` package (`composer require symfony/mercure:^0.8`, the release that speaks the Mercure 1.0 protocol this channel is tested against). The hub object owns the publisher token and the HTTP delivery: it is the service the Symfony Mercure bundle autowires, and `Broadcast::connection('mercure')->getHub()` in a Laravel application that uses the Mercure broadcaster.
+
+```php
+use NeuronAI\Workflow\Streaming\Channel\MercureChannel;
+
+// Inside a queued job: the HTTP request already returned.
+$agent = MyAgent::make(workflowId: $threadId)
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): MercureChannel => new MercureChannel($hub, "https://example.com/threads/{$threadId}"));
+
+$state = $agent->chat(new UserMessage($message), stream: true);
+```
+
+The `data` of every update is a JSON array of envelopes, the same `{streamId, sequence, type, data}` as Redis and Pusher, sent without an SSE event type. Updates are private by default: the hub delivers them only to subscribers whose token grants `subscribe` on the topic, and the topic name protects nothing by itself. The application mints that token, after authorizing the thread. Pass `private: false` only for a hub that serves anonymous subscribers.
+
+A hub limits the size of a publish request, and a managed one (Mercure Cloud) also the requests it accepts per second. State both limits:
+
+```php
+// A plan of 4 requests per second and 512KB per message, shared by four concurrent runs.
+new MercureChannel($hub, $topic, maxRequestBytes: 512_000, maxRequestsPerSecond: 1.0);
+```
+
+- `maxRequestBytes` is the form-encoded request the hub receives: its `max_request_body_size`, 1 MiB by default, which is this parameter's default (`15KB` is exactly 15,000 bytes). Form encoding makes an envelope about 1.5 times its JSON size: a text delta takes about 220 bytes, so 15,000 bytes carry about 65 of them. A larger event is fragmented, one fragment per request.
+- `maxRequestsPerSecond` is the share of the hub's publish rate this run may use, null by default. The cap belongs to the hub, so every concurrent run and anything else the application publishes share it: divide the plan's rate by the runs that stream at the same time. The first event leaves at once; afterwards, what the segment produces while the slot is closed leaves in one update when it opens. With null every event is published as it is produced, which suits a hub without a rate limit.
+
+A paced channel waits for its slot when an update is full and at the end of the segment, and sends an update the hub refuses with 429 again after its `Retry-After` (one second when the header is missing). Waiting freezes the run, so it is bounded: once the hub would hold the run for more than ten seconds it has not worked off, the channel throws, the stream stops for that segment like any transport failure, and the run goes on. On a limit of 15,000 bytes and one request per second that is a single event of about 100 KB. A rate below three requests every ten seconds is refused when the channel is built: the end of a segment can need three requests in a row.
+
+PHP has no timer, so a partial update leaves only with the next event or at the end of the segment. The events produced just before a silent step, such as a tool executing, arrive when it ends, and so does the last fragment of a large event. Keep `maxRequestsPerSecond` null where the hub allows it.
+
+A publish blocks the run until the hub answers: configure timeouts on the HTTP client the hub was built with. Failures other than a 429 are not retried.
+
+In the browser, `subscribeToMercure` from `@neuron-core/streaming` takes the `EventSource`, unwraps every update and delivers its events one at a time. Read [Channel wire contract and consumers](references/channels.md) for it, and for driving the AG-UI client or `useChat` from a channel.
 
 ### Writing and consuming a channel
 

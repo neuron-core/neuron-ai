@@ -22,12 +22,16 @@ try {
   writeFileSync(join(directory, 'consumer.test.mjs'), unitTest);
   run(process.execPath, ['--test', 'consumer.test.mjs'], { cwd: directory });
   writeFileSync(join(directory, 'types.ts'), `
-import { createChannelConsumer, createProtocolStream, subscribeToPusher, type ChannelEvent, type PusherChannel } from '@neuron-core/streaming';
+import { createChannelConsumer, createProtocolStream, subscribeToMercure, subscribeToPusher, type ChannelEvent, type MercureSource, type PusherChannel } from '@neuron-core/streaming';
 const consume = (event: ChannelEvent): void => { console.log(event.streamId, event.sequence, event.type, event.data); };
 const consumer = createChannelConsumer({ onEvent: consume, onGap: console.error }, 'a'.repeat(32));
 consumer.accept({}); consumer.close();
 declare const channel: PusherChannel;
 subscribeToPusher(channel, { onEvent: consume, onGap: console.error }, 'a'.repeat(32)).close();
+declare const hub: EventSource;
+declare const source: MercureSource;
+subscribeToMercure(hub, { onEvent: consume, onGap: console.error }).close();
+subscribeToMercure(source, { onEvent: consume, onGap: console.error }, 'a'.repeat(32)).close();
 const stream: ReadableStream<string> = createProtocolStream(
   callbacks => createChannelConsumer(callbacks, 'a'.repeat(32)),
   async event => event.type,

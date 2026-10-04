@@ -3,12 +3,19 @@ import type { BaseEvent, RunAgentInput } from '@ag-ui/core';
 import { EventSchemas } from '@ag-ui/core/schemas';
 import { Observable } from 'rxjs';
 import { readUIMessageStream, uiMessageChunkSchema } from 'ai';
-import { createChannelConsumer, createProtocolStream, type ChannelConsumer } from '@neuron-core/streaming';
+import { createChannelConsumer, createProtocolStream, subscribeToMercure } from '@neuron-core/streaming';
 
-export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'vercel'): Promise<string> {
-  let consumer!: ChannelConsumer;
+/** Frames are envelopes handed to the core, or the data of Mercure updates dispatched as an EventSource does. */
+export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'vercel', transport: 'core' | 'mercure' = 'core'): Promise<string> {
+  let feed!: () => void;
   const subscribe = (callbacks: Parameters<typeof createChannelConsumer>[0]) => {
-    consumer = createChannelConsumer(callbacks);
+    if (transport === 'mercure') {
+      const source = new EventTarget();
+      feed = () => frames.forEach(data => source.dispatchEvent(new MessageEvent('message', { data })));
+      return subscribeToMercure(source as unknown as EventSource, callbacks);
+    }
+    const consumer = createChannelConsumer(callbacks);
+    feed = () => frames.forEach(frame => consumer.accept(frame));
     return consumer;
   };
   if (protocol === 'vercel') {
@@ -17,7 +24,7 @@ export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'ver
       if (!result.success) throw result.error;
       return result.value;
     });
-    frames.forEach(frame => consumer.accept(frame));
+    feed();
     let text = '';
     for await (const message of readUIMessageStream({ stream, terminateOnError: true })) {
       text = message.parts.filter(part => part.type === 'text').map(part => part.text).join('');
@@ -43,7 +50,7 @@ export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'ver
             reader.releaseLock();
           }
         })();
-        frames.forEach(frame => consumer.accept(frame));
+        feed();
         return () => { void reader.cancel().catch(() => {}); };
       });
     }

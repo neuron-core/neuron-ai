@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createChannelConsumer, createProtocolStream, subscribeToPusher } from '../dist/index.js';
+import { createChannelConsumer, createProtocolStream, subscribeToMercure, subscribeToPusher } from '../dist/index.js';
 
 const id = 'a'.repeat(32);
 const frame = (sequence, data = { value: sequence }, type = 'text-delta', streamId = id) => ({ streamId, sequence, type, data });
@@ -17,6 +17,17 @@ function pusher() {
     bind_global(callback) { listeners.add(callback); },
     unbind_global(callback) { listeners.delete(callback); },
     send(value, name = value.type) { for (const listener of [...listeners]) listener(name, value); },
+  };
+}
+function mercure() {
+  const listeners = new Set();
+  return {
+    listeners,
+    addEventListener(type, listener) { assert.equal(type, 'message'); listeners.add(listener); },
+    removeEventListener(type, listener) { assert.equal(type, 'message'); listeners.delete(listener); },
+    // One update, as an EventSource delivers it: the data line holds a JSON array of envelopes.
+    send(...envelopes) { this.raw(JSON.stringify(envelopes)); },
+    raw(data) { for (const listener of [...listeners]) listener({ data }); },
   };
 }
 
@@ -248,6 +259,66 @@ test('Pusher can select one segment before a protocol bridge consumes it', () =>
   channel.send(frame(0));
   assert.deepEqual(events, [frame(0)]);
   subscription.close();
+});
+
+test('Mercure unwraps every update in order and ignores a replayed one', () => {
+  const source = mercure(), events = [];
+  const subscription = subscribeToMercure(source, { onEvent: e => events.push(e), onGap: assert.fail });
+  const encoded = Buffer.from(JSON.stringify({ text: 'こんにちは 🌍' })).toString('base64url');
+  source.send(frame(0));
+  source.send(frame(1), fragment(2, encoded.slice(0, 4), 0, 2), frame(3, {}, 'stream.completed'));
+  assert.deepEqual(events.map(e => e.sequence), [0, 1]);
+  source.send(fragment(2, encoded.slice(4), 1, 2));
+  source.send(frame(0)); source.send(frame(1), fragment(2, encoded.slice(0, 4), 0, 2));
+  assert.deepEqual(events.map(e => [e.sequence, e.type, e.data]), [
+    [0, 'text-delta', { value: 0 }], [1, 'text-delta', { value: 1 }], [2, 'text-delta', { text: 'こんにちは 🌍' }], [3, 'stream.completed', {}],
+  ]);
+  subscription.close(); assert.equal(source.listeners.size, 0);
+});
+
+for (const [label, update] of [
+  ['text that is not JSON', 'not json'],
+  ['a single envelope', JSON.stringify(frame(0))],
+  ['an array holding something else', '[1]'],
+  ['no text at all', undefined],
+]) test(`Mercure rejects ${label} and detaches only its own listener`, () => {
+  const source = mercure(), gaps = [], unrelated = () => {};
+  source.addEventListener('message', unrelated);
+  subscribeToMercure(source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
+  source.raw(update); source.send(frame(0));
+  assert.deepEqual(gaps, ['Invalid channel envelope']);
+  assert.deepEqual([...source.listeners], [unrelated]);
+});
+
+test('Mercure routes simultaneous segments, selects one on request, and cleans up if the application throws', () => {
+  const source = mercure(), all = [], selected = [];
+  subscribeToMercure(source, { onEvent: e => all.push(e), onGap: assert.fail });
+  subscribeToMercure(source, { onEvent: e => selected.push(e), onGap: assert.fail }, id);
+  source.send(frame(0, {}, 'event', 'b'.repeat(32)), frame(0));
+  assert.equal(all.length, 2); assert.deepEqual(selected, [frame(0)]);
+
+  const failing = mercure();
+  subscribeToMercure(failing, { onEvent() { throw new Error('application'); }, onGap: assert.fail });
+  assert.throws(() => failing.send(frame(0), frame(1)), /application/); assert.equal(failing.listeners.size, 0);
+});
+
+test('Mercure gap closes the subscription and cancels its timers', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const source = mercure(), gaps = [];
+  subscribeToMercure(source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
+  source.send(frame(1), frame(1, {}, 'event', 'b'.repeat(32)));
+  t.mock.timers.tick(60_000);
+  assert.deepEqual(gaps, ['Missing channel events']);
+  assert.equal(source.listeners.size, 0);
+});
+
+test('Mercure feeds a protocol bridge, which releases the subscription at the terminal event', async () => {
+  const source = mercure();
+  const stream = createProtocolStream(callbacks => subscribeToMercure(source, callbacks), event => event);
+  source.send(frame(0, { delta: 'Hel' }), frame(1, { delta: 'lo' }));
+  source.send(frame(2, { workflowId: 'workflow' }, 'stream.completed'));
+  assert.deepEqual(await collect(stream), [{ type: 'text-delta', delta: 'Hel' }, { type: 'text-delta', delta: 'lo' }]);
+  assert.equal(source.listeners.size, 0);
 });
 
 function protocol(parse = event => event) {

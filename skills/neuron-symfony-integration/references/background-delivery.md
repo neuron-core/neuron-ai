@@ -5,9 +5,9 @@ The handler ([background-runs.md](background-runs.md)) runs the turn in a worker
 | Option | Fits | Browser side |
 |---|---|---|
 | Redis Pub/Sub relay | AG-UI clients that need one SSE response per request: the `HttpAgent`, or CopilotKit driving it in the browser | The same requests and frames as the synchronous endpoint: new turns, `resume`, trailing tool messages, browser tools. No `useChat` variant is shown |
-| Mercure | Pages that subscribe once and receive pushes | `EventSource` on the hub, envelopes fed to `@neuron-core/streaming` |
+| Mercure | Pages that subscribe once and receive pushes | `EventSource` on the hub, read with `subscribeToMercure` from `@neuron-core/streaming` |
 
-Both carry the channel envelope `{streamId, sequence, type, data}` and end each segment with `stream.completed`, `stream.interrupted` or `stream.failed` (**neuron-streaming**, `references/channels.md`).
+Both carry the channel envelope `{streamId, sequence, type, data}` (a Mercure update holds an array of them) and end each segment with `stream.completed`, `stream.interrupted` or `stream.failed` (**neuron-streaming**, `references/channels.md`).
 
 ## Redis relay
 
@@ -224,44 +224,214 @@ class PublishRunFailure
 
 ## Mercure
 
-A channel that publishes each envelope as a private update:
+The page opens an `EventSource` on the hub for its thread, then posts the turn. The controller dispatches and answers 202, and the worker publishes every AG-UI event through Neuron's `MercureChannel`, on the hub the bundle configures. Nothing waits for a subscriber. This ran with `symfony/mercure-bundle` 0.5.0 and `symfony/mercure` 0.8.0 against a `dunglas/mercure:v1.0.3` hub (Mercure protocol 1.0), Messenger on Redis with a real `messenger:consume` worker, and Chromium consuming with `subscribeToMercure` from `@neuron-core/streaming`.
+
+### The hub
+
+`composer require symfony/mercure-bundle` installs the bundle with `symfony/mercure` and `lcobucci/jwt`. Its recipe writes `MERCURE_URL`, `MERCURE_PUBLIC_URL` and `MERCURE_JWT_SECRET` to `.env`, and a configuration for the 0.x protocol. A hub speaking Mercure 1.0 needs three more keys:
+
+```yaml
+# config/packages/mercure.yaml
+mercure:
+    hubs:
+        default:
+            url: '%env(default::MERCURE_URL)%'
+            public_url: '%env(default::MERCURE_PUBLIC_URL)%'
+            protocol_version: '1.0'
+            # Plain-HTTP development only: over HTTPS the default __Secure-mercure_access_token applies.
+            cookie_name: mercure_access_token
+            jwt:
+                secret: '%env(MERCURE_JWT_SECRET)%'
+                publish: '*'
+                claims:
+                    iss: '%env(DEFAULT_URI)%'
+                    sub: support-app
+                    client_id: support-app
+```
+
+- **`protocol_version` defaults to `0.x`.** Left there against the 1.0 hub, every publish was refused with `401 Unauthorized` (the hub logged `invalid JWT: untrusted issuer ""`) while each turn still completed, and the subscriber cookie was the legacy `mercureAuthorization`.
+- **The claims are required.** Without them the container did not build: `The "mercure.hubs.default.jwt.claims" option must define the "iss", "sub", "client_id" claim(s): they are required by RFC 9068 access tokens when "protocol_version" is "1.0"`. The audience defaults to the hub's URL.
+- **The hub is the developer's to configure.** It must trust `iss` as a token issuer, with the same secret for publishers and subscribers, accept the page's origin (the page and the hub are different origins) and use the same cookie name. The hub of these runs, for an application served at `http://localhost:8124` (its `DEFAULT_URI`):
+
+```bash
+docker run -p 3721:80 -e SERVER_NAME=':80' \
+  -e MERCURE_PUBLISHER_JWT_KEY="$MERCURE_JWT_SECRET" -e MERCURE_SUBSCRIBER_JWT_KEY="$MERCURE_JWT_SECRET" \
+  -e MERCURE_TRUSTED_ISSUERS='http://localhost:8124' \
+  -e MERCURE_EXTRA_DIRECTIVES=$'cookie_name mercure_access_token\ncors_origins http://localhost:8124' \
+  dunglas/mercure:v1.0.3
+```
+
+### The channel
 
 ```php
-namespace App\Neuron\Channels;
+namespace App\Neuron;
 
-use NeuronAI\Workflow\Streaming\Channel\AbstractChannel;
+use NeuronAI\Workflow\Streaming\Channel\MercureChannel;
+use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use Symfony\Component\Mercure\HubInterface;
-use Symfony\Component\Mercure\Update;
 
 /**
- * Publishes each envelope of a run segment as a private Mercure update.
- * The hub throws on a failed publish, which Neuron reports as a ChannelError.
+ * A thread's stream on the Mercure hub: the worker publishes its runs there, the browser of its owner subscribes.
  */
-class MercureChannel extends AbstractChannel
+class MercureStream
 {
-    public function __construct(
-        protected HubInterface $hub,
-        protected string $topic,
-    ) {
+    public function __construct(protected HubInterface $hub)
+    {
     }
 
-    protected function deliver(string $batch): void
+    /** Worker side: a channel for one segment of a run. */
+    public function publisher(string $threadId): StreamingChannelInterface
     {
-        $this->hub->publish(new Update($this->topic, $batch, private: true));
+        return new MercureChannel($this->hub, $this->topic($threadId));
+    }
+
+    public function topic(string $threadId): string
+    {
+        return 'https://shop.example/threads/'.rawurlencode($threadId);
     }
 }
 ```
 
-In the handler, inject `HubInterface $hub` and replace the channel factory:
+`HubInterface` is the bundle's default hub: the publisher token and the HTTP client are its own. In the handler ([background-runs.md](background-runs.md)) and in `PublishRunFailure` above, inject `MercureStream $stream` in place of `RedisRelay $relay` and publish on the thread:
 
 ```php
-use App\Neuron\Channels\MercureChannel;
+// SupportAgentHandler::agent()
+->setChannel(fn (): StreamingChannelInterface => $this->stream->publisher($threadId))
 
-->setChannel(fn (): MercureChannel => new MercureChannel($this->hub, "https://shop.example/threads/{$threadId}"))
+// PublishRunFailure::__invoke()
+$channel = $this->stream->publisher($message->threadId);
 ```
 
-The controller then dispatches and answers 202; nothing waits for a subscriber, so the browser must be subscribed to the topic before it posts, and reconciles from the reload endpoint after a gap.
+The updates are private: the hub delivers them only to a subscriber whose token names the thread's topic. The topic is an identifier, not an address: any IRI the application owns will do.
 
-Proven with `symfony/mercure-bundle` 0.5 against a `dunglas/mercure:v0.21` hub, building the copy exactly as above on the container's agent: a streamed turn, a turn suspended on approval, and its continuation reached a subscriber as three segments, each with its own `streamId`, sequences from 0, and `stream.completed`, `stream.interrupted`, `stream.completed` at the end. While the hub answered 401, every turn still completed: a failed delivery never fails the run.
+### The endpoint
 
-Not run: a worker handling the message with this channel (the proof built the same copy in a script), the 202 controller, the browser side (the `mercure()` Twig helper or `Authorization::setCookie()` for the subscriber cookie, then `createChannelConsumer()` from `@neuron-core/streaming`, see **neuron-streaming**), and a hub speaking Mercure protocol 1.0. The current `dunglas/mercure` image does: it refused the bundle's default publisher token with `untrusted issuer ""`, so such a hub needs the bundle's `protocol_version` and `claims` options set to match it.
+The relay controller without its relay: it checks the input, dispatches and answers 202 with the run's ID.
+
+```php
+namespace App\Controller;
+
+use App\Message\ResumeSupportAgent;
+use App\Message\RunSupportAgent;
+use App\Neuron\Agents\SupportAgent;
+use App\Neuron\StopSignal;
+use NeuronAI\Agent\Adapters\AGUIAdapter;
+use NeuronAI\Agent\Frontend\AGUIInputTranslator;
+use NeuronAI\Exceptions\InputTranslationException;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsCsrfTokenValid;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Uid\Uuid;
+
+class BackgroundChatController extends AbstractController
+{
+    public function __construct(
+        protected SupportAgent $agent,
+        protected StopSignal $stopSignal,
+        protected MessageBusInterface $bus,
+    ) {
+    }
+
+    #[Route('/chat/{threadId}/runs', methods: ['POST'])]
+    #[IsCsrfTokenValid('chat', tokenKey: 'X-CSRF-Token', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
+    #[IsGranted('THREAD', subject: 'threadId')]
+    public function __invoke(string $threadId, Request $request): JsonResponse
+    {
+        $input = $request->toArray();
+        $translator = new AGUIInputTranslator();
+
+        // Checked here to refuse bad input with a 400/409 now; the worker seeds its adapter and stages the answers again.
+        new AGUIAdapter(threadId: $threadId, runId: $input['runId'] ?? null, messages: $input['messages'] ?? [], state: $input['state'] ?? []);
+        $agent = $this->agent->for($threadId)->addFrontendTools($translator->tools($input));
+        if ($this->isContinuation($input)) {
+            $agent->submitInputs($input, $translator);
+            // The suspended run's ID: a retry of this message recognises its own run.
+            $message = new ResumeSupportAgent($threadId, $agent->inspect()->runId, $input);
+        } else {
+            $message = new RunSupportAgent($threadId, (string) Uuid::v7(), $this->lastUserText($input), $input);
+        }
+
+        $this->stopSignal->clear($threadId);
+        $this->bus->dispatch($message);
+
+        return new JsonResponse(['runId' => $message->runId], 202);
+    }
+
+    // isContinuation() and lastUserText(): the same helpers as the synchronous AG-UI controller.
+}
+```
+
+- It accepts what the relay endpoint accepts, the AG-UI `RunAgentInput`: a trailing user message starts a turn, a `resume` array continues the suspended run, whose ID the answer returns.
+- A `resume` with no pending interrupt was a 400 (`There is no persisted run to continue.`) and nothing was queued.
+- Route the messages to an async transport, as for the relay.
+
+### The subscriber
+
+An endpoint authorizes the thread and sets the hub's cookie, here in the controller that mints and reloads threads:
+
+```php
+    /** Seconds the browser may read the thread's updates before it asks again. */
+    protected const SUBSCRIPTION_LIFETIME = 600;
+
+    #[Route('/chat/{threadId}/subscription', methods: ['POST'])]
+    #[IsCsrfTokenValid('chat', tokenKey: 'X-CSRF-Token', tokenSource: IsCsrfTokenValid::SOURCE_HEADER)]
+    #[IsGranted('THREAD', subject: 'threadId')]
+    public function subscribe(string $threadId, Request $request, Authorization $authorization, HubInterface $hub, MercureStream $stream): JsonResponse
+    {
+        $topic = $stream->topic($threadId);
+        // The bundle adds the hub's cookie to the response: its token grants this topic and nothing else.
+        $authorization->setCookie($request, [$topic], additionalClaims: ['exp' => new \DateTimeImmutable('+'.self::SUBSCRIPTION_LIFETIME.' seconds')]);
+
+        return new JsonResponse(['hub' => $hub->getPublicUrl(), 'topic' => $topic, 'expiresIn' => self::SUBSCRIPTION_LIFETIME]);
+    }
+```
+
+`Authorization` and `HubInterface` are the `Symfony\Component\Mercure` services the bundle autowires. It answered `{"hub":"http://localhost:3721/.well-known/mercure","topic":"https://shop.example/threads/user-1-e26de28c-…","expiresIn":600}` with `Set-Cookie: mercure_access_token=…; Max-Age=600; path=/.well-known/mercure; httponly; samesite=strict`. The token carries the configured claims and lets its bearer read that topic, and nothing else.
+
+- Another user asking for the thread got a 403 from the voter. Their `EventSource` on the topic, with the cookie of a thread of their own, received nothing while the owner received the whole turn.
+- Without an `exp` claim, `setCookie()` minted a token of one hour in a session cookie.
+
+```js
+import { subscribeToMercure } from "@neuron-core/streaming";
+
+const headers = { "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" };
+
+// The application authorizes the thread and sets the hub's cookie.
+const subscribe = () => fetch(`/chat/${threadId}/subscription`, { method: "POST", headers }).then((response) => response.json());
+const { hub, topic, expiresIn } = await subscribe();
+
+const url = new URL(hub);
+url.searchParams.append("match", topic);
+const source = new EventSource(url, { withCredentials: true });
+
+subscribeToMercure(source, {
+  // AG-UI events in order, each segment closed by stream.completed, stream.interrupted or stream.failed
+  onEvent: ({ type, data }) => render(type, data),
+  onGap: () => reloadConversation(),
+});
+
+// "open" fires again after every reconnection: post the turn once.
+source.addEventListener("open", async () => {
+  await fetch(`/chat/${threadId}/runs`, { method: "POST", headers, body: JSON.stringify(input) });
+}, { once: true });
+
+// The hub closes the connection before the token expires: a fresh cookie lets the browser reconnect.
+setInterval(subscribe, expiresIn * 500);
+```
+
+`input` is the AG-UI `RunAgentInput`: `{ runId, messages: [{ id, role: "user", content }], state: {}, tools: [] }` for a turn, `{ runId, messages: [], resume: [{ interruptId, status: "resolved", payload: { approved: true } }] }` for an approval.
+
+### What ran
+
+- **A turn**: `POST /chat/{threadId}/runs` answered 202 with the run's ID, and the page received `RUN_STARTED`, `TEXT_MESSAGE_START`, 29 `TEXT_MESSAGE_CONTENT`, `TEXT_MESSAGE_END`, `RUN_FINISHED`, then `stream.completed`.
+- **An approval**: the segment ended with `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` (the client's question and the assistant's sentence: the worker's adapter is seeded with the input), `RUN_FINISHED` carrying the interrupt, then `stream.interrupted`. The `resume` request answered 202 with the suspended run's ID; its segment arrived on the same topic under a new stream ID, with the tool call, its result and the answer, and the refund was executed once.
+- **A turn posted while the approval was pending** was a 202: Messenger gave the message up at once (`Another run holds the thread.`) and `PublishRunFailure` closed the stream with `RUN_ERROR` and `stream.failed`.
+- **The hub stopped**: the turn still completed and its answer was in history; the page received nothing. Each segment raised `ChannelError` twice, for its first event and for its terminal one. The hub's SDK reports every failure as `Failed to send an update.`, so the listener of SKILL.md logged only that; with `($event->exception->getPrevious() ?? $event->exception)->getMessage()` it logged `Failed to connect to localhost port 3721 after 0 ms: Connection refused for "http://localhost:3721/.well-known/mercure".`
+- **The token's expiry**: the hub closes the connection a few seconds before the token expires, and the browser reconnects three seconds later with the cookie it holds at that moment. With the renewal of the snippet, a page whose tokens lived 15 seconds stayed subscribed across four expiries: every reconnection was accepted, the hub replayed what it had published while the browser was away (a turn posted during a disconnection arrived whole, sequences 0 to 33) and `onGap` never fired. The replay comes from the hub's history, which its default transport keeps. `open` fired again after each reconnection: the `{ once: true }` handler posted the turn once.
+- **A hub with limits**: Mercure Cloud caps the requests it accepts per second and their size, for the whole hub. With `new MercureChannel($this->hub, $this->topic($threadId), maxRequestBytes: 15_000, maxRequestsPerSecond: 1.0)` against a hub limited to 15KB (`max_request_body_size 15KB`), a 2,600-character answer of 524 events arrived as 18 updates about a second apart, some 33 events in each, and the hub refused none. Every run streaming at the same time shares the hub's rate: give a run its share of the plan. What the channel does with a full request, a large event or a refused one: **neuron-streaming** ("MercureChannel").
+
+Not run: a hub over HTTPS with the default `__Secure-` cookie, the `mercure()` Twig helper in place of the subscription endpoint, and Mercure Cloud itself. The size limit was reproduced on the open-source hub; no hub here refused a request for its rate, so the channel only paced itself. Events published before the subscription are gone: reconcile from the reload endpoint on `onGap` and on page load.

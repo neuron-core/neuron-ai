@@ -14,39 +14,53 @@ use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use Pusher\Pusher;
+use NeuronAI\Tests\Workflow\Channel\Stub\ManualClockMercureChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
 use RuntimeException;
+use Symfony\Component\Mercure\Jwt\StaticTokenProvider;
+use Symfony\Component\Mercure\MockHub;
+use Symfony\Component\Mercure\Update;
 use Throwable;
 
 use function array_fill;
 use function array_map;
+use function array_merge;
 use function in_array;
 use function json_decode;
 use function str_repeat;
 use function count;
 use function base64_encode;
 
-/** Real channel encoders with in-memory I/O; no broker credentials or services. */
+/** Real channel encoders with in-memory I/O; no broker, hub, credentials or services. */
 final class ChannelFixture
 {
     /** @return array<string, mixed> */
     public static function run(string $transport, string $outcome, bool $failDelivery = false, ?string $protocol = null): array
     {
-        if (!in_array($transport, ['pusher', 'pusher-encrypted', 'redis'], true)
+        if (!in_array($transport, ['pusher', 'pusher-encrypted', 'redis', 'mercure'], true)
             || !in_array($outcome, ['completed', 'interrupted', 'failed'], true)) {
             throw new InvalidArgumentException('Unknown channel fixture transport or outcome.');
         }
 
         $sent = [];
+        $updates = [];
         $redis = null;
         $pusher = null;
         $encrypted = $transport === 'pusher-encrypted';
         $destination = $encrypted ? 'private-encrypted-frontend-test' : 'private-frontend-test';
-        if ($transport !== 'redis') {
+        if ($transport === 'mercure') {
+            $hub = new MockHub('https://hub.test/.well-known/mercure', new StaticTokenProvider('header.payload.signature'), static function (Update $update) use (&$updates): string {
+                $updates[] = $update->getData();
+
+                return 'urn:uuid:update';
+            });
+            // Paced on a clock that never sleeps: what follows the first event is packed into the next requests.
+            $channel = new ManualClockMercureChannel($hub, 'https://frontend.test/threads/1', maxRequestBytes: 2_000, maxRequestsPerSecond: 20.0);
+        } elseif ($transport !== 'redis') {
             $responses = array_fill(0, 1_000, new Response(200, [], '{}'));
             if ($failDelivery) {
                 $responses[0] = new Response(503, [], 'transport unavailable');
@@ -119,9 +133,13 @@ final class ChannelFixture
         if ($redis instanceof \NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis) {
             $frames = array_map(static fn (array $publication): array => json_decode($publication['message'], true), $redis->published);
         }
+        if ($updates !== []) {
+            $frames = array_merge(...array_map(static fn (string $data): array => json_decode($data, true), $updates));
+        }
 
         return [
             'frames' => $frames,
+            'updates' => $updates,
             'wireEvents' => $wireEvents,
             'channel' => $destination,
             'authorization' => $encrypted ? json_decode($pusher->authorizeChannel($destination, '123.456'), true) : null,

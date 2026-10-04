@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add `subscribeToMercure` and its `MercureSource` type, an input adapter for a Mercure hub: every update the backend's `MercureChannel` publishes holds a JSON array of envelopes, which the adapter unwraps for the core.
+
 ## 0.2.0
 
 - Introduce transport-neutral multi-segment reconciliation with `createChannelConsumer`, a thin `subscribeToPusher` input adapter, and a validated `createProtocolStream` output bridge.

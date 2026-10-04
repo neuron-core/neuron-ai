@@ -2,7 +2,7 @@
 
 Reconstruct Neuron AI events delivered through transports with message-size limits. The PHP backend splits oversized events into fragments; this package orders the envelopes, joins their fragments, suppresses duplicates, and reports gaps that require application recovery.
 
-The core is independent of transport, UI framework, and agent protocol. Use it with any source of Neuron envelopes: WebSockets, a Redis-to-browser bridge, Pusher, or an in-process callback. Consume the reconstructed events directly, update React/Vue state, or bridge them into AG-UI or the Vercel AI SDK.
+The core is independent of transport, UI framework, and agent protocol. Use it with any source of Neuron envelopes: WebSockets, a Redis-to-browser bridge, Pusher, a Mercure hub, or an in-process callback. Consume the reconstructed events directly, update React/Vue state, or bridge them into AG-UI or the Vercel AI SDK.
 
 ```sh
 npm install @neuron-core/streaming
@@ -24,7 +24,7 @@ Application callbacks / UI state / createProtocolStream
 
 The backend's `AbstractChannel` owns sequencing and fragmentation. Transport implementations such as `PusherChannel` supply delivery and byte budgets. The frontend core understands the shared Neuron envelope contract, without knowing which transport carried it or what the event payload means.
 
-`subscribeToPusher` is a thin input adapter around the same core. `createProtocolStream` is an optional output bridge. Neither is required for direct consumption.
+`subscribeToPusher` and `subscribeToMercure` are thin input adapters around the same core. `createProtocolStream` is an optional output bridge. Neither is required for direct consumption.
 
 ## Core: consume events from any source
 
@@ -145,6 +145,36 @@ An optional third argument selects one `streamId`. Without it, the same neutral 
 Subscribe before starting execution, and wait for Pusher's subscription success before triggering it. The destination should carry Neuron envelopes only; `pusher:*` control events are ignored. The adapter checks that Pusher's event name matches the envelope type.
 
 The SDK owns authentication, connection settings, and decryption. For `private-encrypted-*` channels use `pusher-js/with-encryption` and the corresponding backend encryption configuration. Compatible servers are configured on the same client. This package imports no Pusher SDK and opens no connections. Watch SDK connection failures yourself and reconcile after disconnection.
+
+## Mercure
+
+Pass an `EventSource` opened on the hub, or any object that dispatches the same `message` events:
+
+```ts
+import { subscribeToMercure } from '@neuron-core/streaming';
+
+const url = new URL('https://hub.example.com/.well-known/mercure');
+url.searchParams.append('match', `https://example.com/threads/${threadId}`);
+const source = new EventSource(url, { withCredentials: true });
+
+const subscription = subscribeToMercure(source, {
+  onEvent: ({ streamId, type, data }) => renderEvent(streamId, type, data),
+  onGap: reason => reloadConversation(reason),
+});
+
+subscription.close();
+source.close();
+```
+
+The backend's `MercureChannel` packs the envelopes it produces between two publish requests into one update, so the `data` of every update is a JSON array of envelopes, even when it holds a single one. The adapter unwraps the array and passes the envelopes to the core in order. Nothing in an update announces how many it carries, and none of this reaches your callbacks: they receive one reconstructed event at a time, exactly as with any other transport.
+
+An optional third argument selects one `streamId`. Without it, the core discovers and manages all segments. `close()` removes only this subscription's listener and clears its buffers and timers. It does not close the `EventSource`. A gap or thrown event callback also detaches the listener.
+
+The topic should carry Neuron updates only: text that is not JSON, a single envelope, or another publisher's payload is reported as a gap. Passing a whole update to `createChannelConsumer().accept()` is the same mistake; the core takes one envelope.
+
+Open the source before starting execution, and wait for its `open` event before triggering it. The browser owns the connection: it presents the subscriber cookie (`withCredentials`) and reconnects by itself with the ID of the last update it received. A hub that kept the updates published since then replays them, and the core ignores those it already delivered. Updates the hub no longer holds are missing events, which the core reports as a gap once later ones arrive. Watch the source's `error` event yourself: when its `readyState` is `CLOSED` the browser has given up, so close the subscription and reconcile. This package opens no connections and mints no tokens.
+
+To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStream` as shown below, on a topic or a `streamId` that carries one execution segment.
 
 ## React, Vue, and other UI frameworks
 

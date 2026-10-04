@@ -142,6 +142,7 @@ abstract class AbstractChannel implements StreamingChannelInterface
     /**
      * @throws RandomException
      * @throws JsonException
+     * @throws Throwable
      */
     final protected function enqueueEvent(ProtocolEvent $event): void
     {
