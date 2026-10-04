@@ -24,7 +24,7 @@ class AnthropicVertex extends Anthropic
      * @param array<string, mixed> $parameters
      */
     public function __construct(
-        string $pathJsonCredentials,
+        protected string $pathJsonCredentials,
         ?string $location,
         string $projectId,
         protected string $model,
@@ -36,8 +36,6 @@ class AnthropicVertex extends Anthropic
             ? "https://{$location}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$location}/publishers/anthropic/models"
             : "https://aiplatform.googleapis.com/v1/projects/{$projectId}/locations/global/publishers/anthropic/models";
 
-        $this->useServiceAccount($pathJsonCredentials);
-
         // Initialize the parent provider. The parent's x-api-key/anthropic-version
         // headers are replaced below; Vertex authenticates with a Bearer token
         // (see requestHeaders()) and reads the version from the body (see requestBody()).
@@ -45,6 +43,7 @@ class AnthropicVertex extends Anthropic
             key: $this->key,
             model: $model,
             version: 'vertex-2023-10-16',
+            parameters: $parameters,
         );
 
         // CurlHttpClient always suppresses "Expect: 100-continue", which Vertex rejects.

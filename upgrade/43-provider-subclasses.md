@@ -58,7 +58,7 @@ grep -rnE 'this->(url|version)([^A-Za-z0-9_(]|$)' --include='*.php' --exclude-di
 # 8. Case 9
 grep -rnE 'function (createAssistantMessage|processToolCallDelta)[[:space:]]*\(' --include='*.php' --exclude-dir=vendor .
 # 9. Case 10
-grep -rnE 'function (newToolCall|decodeToolArguments|earlyEndResponse|applyStreamMetadata|requestBody|attachSystemPrompt|createImageContent|handlePart|describeBlockedPrompt|useServiceAccount|accessToken|extractContent|contentBlocks|getToolCall|setStopReason|stopReason|decodeBase64|stripNullableTypes|prompt|voiceUri|audioFilePart|openAudioFile|decodeAudio|audioExtension)[[:space:]]*\(|(public|protected|private)[^;(]*\$(credentials|stopReason)([^A-Za-z0-9_]|$)|CONVERSE_FORMATS' --include='*.php' --exclude-dir=vendor .
+grep -rnE 'function (newToolCall|decodeToolArguments|earlyEndResponse|applyStreamMetadata|requestBody|attachSystemPrompt|createImageContent|handlePart|describeBlockedPrompt|credentials|accessToken|extractContent|contentBlocks|getToolCall|setStopReason|stopReason|decodeBase64|stripNullableTypes|prompt|voiceUri|audioFilePart|openAudioFile|decodeAudio|audioExtension)[[:space:]]*\(|(public|protected|private)[^;(]*\$(pathJsonCredentials|credentials|stopReason)([^A-Za-z0-9_]|$)|CONVERSE_FORMATS' --include='*.php' --exclude-dir=vendor .
 ```
 
 How to follow the hits:
@@ -605,7 +605,7 @@ Matching signatures silently replace the framework's method.
 | `applyStreamMetadata()` | `OpenAI` and its subclasses |
 | `requestBody()`, `attachSystemPrompt()`, `createImageContent()` | `OpenAIResponses`, `OpenAILikeResponses` |
 | `handlePart()`, `describeBlockedPrompt()` | `Gemini`, `GeminiVertex` |
-| `useServiceAccount()`, `accessToken()`, property `$credentials` | `AnthropicVertex`, `GeminiVertex` |
+| `credentials()`, `accessToken()`, properties `$pathJsonCredentials` and `$credentials` | `AnthropicVertex`, `GeminiVertex` |
 | `extractContent()` | `Mistral` |
 | `contentBlocks()` | `Ollama` |
 | `getToolCall()`, `setStopReason()`, `stopReason()`, property `$stopReason` | `BasicStreamState` and every provider `StreamState` except `Ollama\StreamState` |

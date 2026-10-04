@@ -16,8 +16,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
+use function file_get_contents;
 use function file_put_contents;
 use function iterator_to_array;
+use function json_decode;
 use function json_encode;
 use function openssl_pkey_export;
 use function openssl_pkey_new;
@@ -104,11 +106,40 @@ class AnthropicVertexCredentialsTest extends TestCase
         $this->assertFalse($request->hasHeader('anthropic-version'));
     }
 
+    public function test_parameters_are_sent_in_the_request_body(): void
+    {
+        $provider = new AnthropicVertex(
+            pathJsonCredentials: $this->credentialsFile,
+            location: 'us-east5',
+            projectId: 'test-project',
+            model: 'claude-test',
+            parameters: ['temperature' => 0.1],
+            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+        );
+
+        $provider->chat(new UserMessage('Hi'));
+
+        $body = json_decode((string) $this->sentRequests[0]['request']->getBody(), true);
+        $this->assertSame(0.1, $body['temperature']);
+    }
+
     public function test_building_the_provider_fetches_no_token(): void
     {
         $this->provider();
 
         $this->assertSame(1, $this->tokenEndpoint->count());
+    }
+
+    public function test_building_the_provider_reads_no_credentials_file(): void
+    {
+        $credentials = file_get_contents($this->credentialsFile);
+        unlink($this->credentialsFile);
+        $provider = $this->provider();
+
+        file_put_contents($this->credentialsFile, $credentials);
+        $provider->chat(new UserMessage('Hi'));
+
+        $this->assertSame(['Bearer ya29.vertex-token'], $this->sentAuthorizations());
     }
 
     public function test_a_valid_access_token_is_reused_across_requests(): void

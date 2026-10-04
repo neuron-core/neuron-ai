@@ -19,6 +19,7 @@ use Psr\Http\Message\ResponseInterface;
 
 use function base64_decode;
 use function explode;
+use function file_get_contents;
 use function file_put_contents;
 use function iterator_to_array;
 use function json_decode;
@@ -115,6 +116,24 @@ class GeminiVertexTest extends TestCase
         new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro');
 
         $this->assertSame([], $this->tokenRequests);
+    }
+
+    public function test_building_the_provider_reads_no_credentials_file(): void
+    {
+        $credentials = file_get_contents($this->credentialsPath);
+        unlink($this->credentialsPath);
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+        );
+
+        file_put_contents($this->credentialsPath, $credentials);
+        $provider->chat(new UserMessage('Hi'));
+
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
     }
 
     public function test_token_is_obtained_with_a_signed_service_account_assertion(): void
