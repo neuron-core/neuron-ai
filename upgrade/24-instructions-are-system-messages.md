@@ -13,14 +13,15 @@ Agent instructions and the provider system prompt are now a `NeuronAI\Chat\Messa
 | `AIProviderInterface::systemPrompt(?string $prompt)` | `systemPrompt(SystemMessage\|string\|null $prompt)`. The Agent passes a `SystemMessage` |
 | `Anthropic::systemPromptBlocks(array $blocks)`, `Anthropic::withPromptCaching(bool $enabled = true)`, protected `$systemBlocks` and `$promptCachingEnabled` | Removed |
 | `NeuronAI\Testing\RequestRecord::$systemPrompt` is `?string` | `?SystemMessage` |
-| `ContentBlockType` cases `TEXT`, `REASONING`, `IMAGE`, `FILE`, `AUDIO`, `VIDEO` | Adds `SYSTEM`, the type of `NeuronAI\Chat\Messages\ContentBlocks\SystemContent` (which extends `TextContent`) |
+| `ContentBlockType` cases `TEXT`, `REASONING`, `IMAGE`, `FILE`, `AUDIO`, `VIDEO` | Adds `SYSTEM`, the type of the deprecated `NeuronAI\Chat\Messages\ContentBlocks\SystemContent` (Case 11) |
+| RAG appends the retrieved documents to the instructions, in an `<EXTRA-CONTEXT>` block | RAG sends them in the question's message, after its content. The instructions no longer contain them (Case 12) |
 
 The `SystemMessage` API:
-- `new SystemMessage('text')` or `new SystemMessage([new SystemContent('a'), new SystemContent('b')])` creates one.
+- `new SystemMessage('text')` or `new SystemMessage([new TextContent('a'), new TextContent('b')])` creates one. The blocks are ordinary `NeuronAI\Chat\Messages\ContentBlocks\TextContent` blocks. Do not use `SystemContent`: it is deprecated.
 - `getContent()` joins the text blocks with a blank line, and returns `null` when there is no text.
 - `contains(string $text)` checks whether any block contains the text.
-- `addContent(new SystemContent('...'))` appends a block.
-- `cache()` marks every block cached. `SystemContent::cache()` marks a single block.
+- `addContent(new TextContent('...'))` appends a block.
+- `cache()` caches the whole message by marking its last block. `cache()` on a block marks that block.
 
 These need no change:
 - `instructions(): string` overrides that return their own text, `(string) new SystemPrompt(...)` included. The `SystemPrompt` class is unchanged.
@@ -56,6 +57,8 @@ grep -rnE 'systemPromptBlocks|withPromptCaching' --include='*.php' --exclude-dir
 grep -rnE '[-]>systemPrompt([^(A-Za-z0-9_]|$)|systemPrompt:' --include='*.php' --exclude-dir=vendor .
 # Case 11
 grep -rnE '(match|switch)[[:space:]]*\(.*getType\(\)|ContentBlockType::' --include='*.php' --exclude-dir=vendor .
+# Case 12: RAG agents, and prompts or code that name the context block
+grep -rnE 'extends ([\\A-Za-z0-9_]*\\)?RAG([^A-Za-z0-9_]|$)|RAG::make|EXTRA-CONTEXT' --include='*.php' --exclude-dir=vendor .
 ```
 
 How to follow the hits:
@@ -63,6 +66,7 @@ How to follow the hits:
 - Case 7 applies to classes that implement `AIProviderInterface` or extend a built-in provider.
 - In the Case 10 search, act only on `RequestRecord` reads and constructions. Other `systemPrompt:` named arguments are unrelated.
 - In the Case 11 search, act only on `match` or `switch` statements over a content block's `getType()`.
+- The Case 12 search lists the RAG agents. For each one, read its instructions, its tests and the middleware attached to it.
 
 Apply the cases in order. Cases 1 and 2 change method definitions that Case 6 would otherwise rewrite wrongly. If nothing is found, this guide does not apply.
 
@@ -142,7 +146,7 @@ After (4.x):
 
 ```php
 use NeuronAI\Agent\Agent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 
 class FrenchAgent extends Agent
@@ -151,7 +155,7 @@ class FrenchAgent extends Agent
     {
         $instructions = parent::instructions();
         $instructions = is_string($instructions) ? new SystemMessage($instructions) : $instructions;
-        $instructions->addContent(new SystemContent('Answer in French.'));
+        $instructions->addContent(new TextContent('Answer in French.'));
 
         return $instructions;
     }
@@ -321,7 +325,7 @@ class AcmeProvider implements AIProviderInterface
 
 - **Standalone provider:** store the text, as shown above.
 - **Subclass of a built-in provider:** widen the parameter the same way and keep handing the value to `parent::systemPrompt()`. Do not assign `$this->system` in the override. If the body edits the prompt as text, convert it first, for example: `$text = $prompt instanceof SystemMessage ? $prompt->getContent() : $prompt; return parent::systemPrompt($text . "\nTenant: acme");`.
-- **Provider whose API takes system blocks:** store `$this->system = is_string($prompt) ? new SystemMessage($prompt) : $prompt;` (typed `?SystemMessage`), and when building the request iterate `$this->system?->getTextBlocks() ?? []`, so that the toolkit guidelines block is included too. Add the vendor's cache marker when `$block instanceof SystemContent && $block->isCached()`.
+- **Provider whose API takes system blocks:** store `$this->system = is_string($prompt) ? new SystemMessage($prompt) : $prompt;` (typed `?SystemMessage`), and when building the request iterate `$this->system?->getTextBlocks() ?? []`, so that the toolkit guidelines block is included too. Add the vendor's cache marker when `$block->isCached()`.
 
 ### Case 8: `Anthropic::systemPromptBlocks()`
 
@@ -339,17 +343,17 @@ $provider = (new Anthropic(key: $key, model: $model))->systemPromptBlocks([
 After (4.x):
 
 ```php
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
 $provider = (new Anthropic(key: $key, model: $model))->systemPrompt(new SystemMessage([
-    (new SystemContent($static))->cache(),
-    new SystemContent($dynamic),
+    (new TextContent($static))->cache(),
+    new TextContent($dynamic),
 ]));
 ```
 
-1. A block that carried `cache_control` becomes `(new SystemContent($text))->cache()`. The other blocks become `new SystemContent($text)`.
+1. A block that carried `cache_control` becomes `(new TextContent($text))->cache()`. The other blocks become `new TextContent($text)`.
 2. 4.x always sends `cache_control: {"type": "ephemeral"}`. A block with a custom `ttl` (such as `'1h'`) cannot keep it. Keep the block cached and report the lost TTL to the developer.
 3. If an Agent uses this provider (it is returned from `provider()` or passed to `setAiProvider()`), the call never had an effect. The Agent replaced the system prompt before every inference in 3.x, and it still does in 4.x. Delete the call. Then ask the developer whether these blocks should become the agent's instructions. If they should, return the `SystemMessage` from the agent's `instructions()`, or pass it to `setInstructions()`.
 4. In a subclass of `Anthropic` or `AnthropicVertex`, leave reads of `$this->systemBlocks` and `$this->promptCachingEnabled` for guide 43.
@@ -450,7 +454,7 @@ $record = new RequestRecord(method: 'chat', messages: [], systemPrompt: new Syst
 
 ### Case 11: `match` or `switch` over `ContentBlockType`
 
-A `match` without a default arm throws `UnhandledMatchError` when it meets a `SystemContent` block. A `switch` without a default case skips it silently. System blocks reach code that iterates a `SystemMessage`, such as a custom provider's `systemPrompt()` or code reading `getInstructions()->getContentBlocks()`.
+`SYSTEM` is the type of the deprecated `SystemContent` block. The framework builds instructions from `TextContent` blocks, so only a block the application creates with that class has this type. A `match` over `ContentBlockType` without a default arm no longer covers every case: static analysis reports it, and it throws `UnhandledMatchError` if it meets such a block. A `switch` without a default case skips it silently.
 
 Before (3.x):
 
@@ -476,7 +480,45 @@ return match ($block->getType()) {
 };
 ```
 
-`SystemContent` extends `TextContent`, so mapping it as text is correct unless the code must treat instructions differently.
+`SystemContent` extends `TextContent`, so mapping it as text is correct.
+
+### Case 12: RAG no longer puts the retrieved documents in the instructions
+
+In 3.x the RAG's `InstructionsNode` appended the retrieved documents to the instructions, so they reached the model in the system prompt. In 4.x the instructions are left as the developer wrote them. The documents are sent with the question, in its own message, and are not stored in the chat history:
+
+```
+3.x   system   <instructions>
+               <EXTRA-CONTEXT> ...documents... </EXTRA-CONTEXT>
+      user     <question>
+
+4.x   system   <instructions>
+      user     <question>
+               <EXTRA-CONTEXT> ...documents... </EXTRA-CONTEXT>
+```
+
+The format inside the block is unchanged. When no document is retrieved, 4.x sends the question alone, where 3.x sent an empty block. Nothing fails to compile or run, but the model reads a different prompt.
+
+1. Instructions that point at the old position, such as "use the context below" or "the context in these instructions": tell the developer, and propose wording that fits the new one, such as "the context that follows the question". Do not rewrite a prompt on your own.
+2. Tests that expect the documents in the system prompt. Read them from the message the provider received:
+
+   Before (3.x):
+
+   ```php
+   $this->assertStringContainsString('Refunds take 14 days.', $provider->getRecorded()[0]->systemPrompt);
+   ```
+
+   After (4.x):
+
+   ```php
+   $question = $provider->getRecorded()[0]->messages[0];
+   $this->assertSame('How long do refunds take?', $question->getContentBlocks()[0]->getContent());
+   $this->assertStringContainsString('Refunds take 14 days.', $question->getContentBlocks()[1]->getContent());
+   ```
+
+   `getContent()` on that message now returns the question followed by the documents, so a test that compared it with the question alone reads the first block instead. The message stored in the chat history is still the question alone.
+3. Middleware and nodes that read the documents from the request's instructions (guide 27 moved those reads to `$state->request->instructions`) find them in `$state->request->context`, an array of content blocks.
+4. The context is part of the user's turn, so a user can type text that looks like it, which the system prompt did not allow. If the retrieved documents decide whether the agent acts, such as a policy that lets a refund tool run, tell the developer.
+5. If the developer needs the 3.x position, the last node of the retrieval chain can be replaced in `entryNodes()` (guide 26, Case 4) by one that appends a block to `$state->request->instructions`. Ask first: the instructions then change on every question again, which prevents a provider from caching the conversation.
 
 ## Checklist
 
@@ -492,3 +534,5 @@ return match ($block->getType()) {
 - Lost cache TTLs, uncacheable last tools and `systemPromptBlocks()` calls on agent providers have been reported to the developer.
 - Tests read `$record->systemPrompt` through `getContent()` or `contains()`, and build `RequestRecord` with a `SystemMessage`.
 - Every `match` over `ContentBlockType` handles `SYSTEM` or has a default arm.
+- For every RAG agent, the developer has been told about instructions that point at the old position of the documents, and about documents that decide whether the agent acts.
+- No test expects the retrieved documents in the system prompt, and no middleware reads them from the instructions.

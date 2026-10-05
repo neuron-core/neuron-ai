@@ -14,7 +14,17 @@ AgentStartEvent → PreProcessNode → RetrievalNode → PostProcessNode → Ins
 1. Pre-process the user question (query rewriting/expansion)
 2. Retrieve relevant documents from the vector store
 3. Post-process (re-rank, filter by score)
-4. Build document-enriched instructions and run the normal inference
+4. Send the documents with the question, as context of the turn, and run the normal inference
+
+The documents are not added to the instructions and not stored in the chat history. They reach the model in the question's own message, after the question, inside `<EXTRA-CONTEXT>` tags:
+
+```
+system   <your instructions>
+user     <the question>
+         <EXTRA-CONTEXT> ...retrieved documents... </EXTRA-CONTEXT>
+```
+
+Write instructions that fit this position, such as "answer from the context that follows the question". When nothing is retrieved, the question is sent alone. Because the instructions no longer change with each question, they and the conversation can be cached: see "Turn context" in the `neuron-agent` skill.
 
 ## Core Components
 

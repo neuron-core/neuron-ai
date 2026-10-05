@@ -6,12 +6,11 @@ namespace NeuronAI\Chat\Messages;
 
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 
 use function array_map;
+use function end;
 use function implode;
-use function is_string;
 use function str_contains;
 
 /**
@@ -30,19 +29,6 @@ class SystemMessage extends Message
     }
 
     /**
-     * @param string|ContentBlockInterface|ContentBlockInterface[] $content
-     */
-    public function setContents(string|ContentBlockInterface|array $content): Message
-    {
-        if (is_string($content)) {
-            $this->contents = [new SystemContent($content)];
-            return $this;
-        }
-
-        return parent::setContents($content);
-    }
-
-    /**
      * Render the instructions as plain text for providers
      * without native system block support.
      */
@@ -57,14 +43,15 @@ class SystemMessage extends Message
     }
 
     /**
-     * Mark all system content blocks as cached.
+     * Cache the whole message: one breakpoint after the last block covers every
+     * block before it, and leaves the provider's other breakpoints free.
      */
     public function cache(): static
     {
-        foreach ($this->contents as $block) {
-            if ($block instanceof SystemContent) {
-                $block->cache();
-            }
+        $blocks = $this->getTextBlocks();
+
+        if ($blocks !== []) {
+            end($blocks)->cache();
         }
 
         return $this;

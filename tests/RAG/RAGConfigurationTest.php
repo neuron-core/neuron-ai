@@ -23,11 +23,14 @@ use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Tests\RAG\Stub\LimitPostProcessor;
 use NeuronAI\Tests\RAG\Stub\SuffixPreProcessor;
 use NeuronAI\Workflow\Observability\WorkflowStart;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class RAGConfigurationTest extends TestCase
 {
+    use ReadsTurnContext;
+
     public function test_retrieval_dependencies_scope_and_processors_are_captured_per_segment(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('First'), new AssistantMessage('Second'));
@@ -63,7 +66,7 @@ class RAGConfigurationTest extends TestCase
         $firstStore->assertSearchCount(1);
         $firstStore->assertSearchedWithFilters($firstScope);
         $nextStore->assertSearchCount(0);
-        self::assertStringContainsString('Original context', $provider->getRecorded()[0]->systemPrompt->getContent());
+        self::assertStringContainsString('Original context', $this->turnContext($provider->getRecorded()[0]));
 
         $rag->chat(new UserMessage('Second question'));
         $firstEmbeddings->assertCallCount(1);
@@ -71,8 +74,8 @@ class RAGConfigurationTest extends TestCase
         $firstStore->assertSearchCount(1);
         $nextStore->assertSearchCount(1);
         $nextStore->assertSearchedWithFilters($nextScope);
-        self::assertStringContainsString('Processed context', $provider->getRecorded()[1]->systemPrompt->getContent());
-        self::assertStringNotContainsString('Original context', $provider->getRecorded()[1]->systemPrompt->getContent());
+        self::assertStringContainsString('Processed context', $this->turnContext($provider->getRecorded()[1]));
+        self::assertStringNotContainsString('Original context', $this->turnContext($provider->getRecorded()[1]));
     }
 
     public function test_explicit_retrieval_changes_apply_to_the_next_segment(): void
@@ -94,9 +97,9 @@ class RAGConfigurationTest extends TestCase
         $rag->chat(new UserMessage('Third question'));
 
         self::assertSame($next, $rag->resolveRetrieval());
-        self::assertStringContainsString('Original strategy', $provider->getRecorded()[0]->systemPrompt->getContent());
-        self::assertStringContainsString('Next strategy', $provider->getRecorded()[1]->systemPrompt->getContent());
-        self::assertStringContainsString('Next strategy', $provider->getRecorded()[2]->systemPrompt->getContent());
+        self::assertStringContainsString('Original strategy', $this->turnContext($provider->getRecorded()[0]));
+        self::assertStringContainsString('Next strategy', $this->turnContext($provider->getRecorded()[1]));
+        self::assertStringContainsString('Next strategy', $this->turnContext($provider->getRecorded()[2]));
     }
 
     public function test_configured_processors_win_over_the_declared_ones(): void

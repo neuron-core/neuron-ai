@@ -349,6 +349,18 @@ class MessageStoreContractTest extends TestCase
     }
 
     #[DataProvider('stores')]
+    public function test_a_cache_marker_is_stored_with_its_block(callable $make): void
+    {
+        $store = $make($this->directory);
+        $store->append('thread', new UserMessage([(new TextContent('A long contract'))->cache(), new TextContent('Summarise it.')]));
+
+        [$contract, $question] = $store->loadActive('thread')[0]->getContentBlocks();
+
+        $this->assertTrue($contract->isCached());
+        $this->assertFalse($question->isCached());
+    }
+
+    #[DataProvider('stores')]
     public function test_a_thread_holding_an_empty_attachment_loads(callable $make): void
     {
         $store = $make($this->directory);

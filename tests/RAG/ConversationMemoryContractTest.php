@@ -20,6 +20,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Tests\RAG\Nodes\Stub\ConversationAgent;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -41,6 +42,8 @@ use function unlink;
  */
 class ConversationMemoryContractTest extends TestCase
 {
+    use ReadsTurnContext;
+
     protected const KNOWLEDGE = 'Lockers are on the second floor.';
 
     protected const ALICE_MEMORY = "Source Type: conversation\nSource Name: alice-thread\n"
@@ -120,7 +123,7 @@ class ConversationMemoryContractTest extends TestCase
             ]))
             ->chat(new UserMessage('Where is my locker and what is its code?'));
 
-        return (string) $provider->getRecorded()[0]->systemPrompt?->getContent();
+        return $this->turnContext($provider->getRecorded()[0]);
     }
 
     /**
@@ -133,7 +136,7 @@ class ConversationMemoryContractTest extends TestCase
         $this->remember($openStore);
 
         $this->assertSame(
-            "Help the user.\n\n<EXTRA-CONTEXT>".self::ALICE_MEMORY
+            "<EXTRA-CONTEXT>".self::ALICE_MEMORY
             ."Source Type: manual\nSource Name: office.md\nContent: ".self::KNOWLEDGE."\n\n</EXTRA-CONTEXT>",
             $this->recall($openStore, 'alice-new-thread', ['alice-thread']),
         );

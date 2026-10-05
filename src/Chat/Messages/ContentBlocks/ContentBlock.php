@@ -12,8 +12,26 @@ abstract class ContentBlock implements ContentBlockInterface
 {
     use HasMetadata;
 
+    protected bool $cached = false;
+
     public function __construct(public string $content)
     {
+    }
+
+    /**
+     * Ask for a prompt cache breakpoint right after this block: the provider may
+     * reuse the request up to and including it. The marker is stored with the
+     * block, and a provider without cache breakpoints ignores it.
+     */
+    public function cache(): static
+    {
+        $this->cached = true;
+        return $this;
+    }
+
+    public function isCached(): bool
+    {
+        return $this->cached;
     }
 
     public function accumulateContent(string $content): void
@@ -44,5 +62,15 @@ abstract class ContentBlock implements ContentBlockInterface
     protected function withoutAbsentFields(array $fields): array
     {
         return array_filter($fields, fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    /**
+     * The cache marker as a serialized field, left out of a block that has none.
+     *
+     * @return array{cached?: true}
+     */
+    protected function cacheField(): array
+    {
+        return $this->cached ? ['cached' => true] : [];
     }
 }

@@ -39,7 +39,7 @@ class ChatNode extends InferenceNode
     public function __invoke(AIInferenceEvent $event, AgentState $state, AgentResources $resources): Generator|AgentOutputEvent|ToolCallEvent
     {
         $inbound = $state->request->messages;
-        $messages = $this->pendingConversation($resources->history, $inbound);
+        $messages = $this->withContext($this->pendingConversation($resources->history, $inbound), $state->request->context);
         $lastMessage = end($messages);
 
         $this->emit(new InferenceStart($lastMessage));

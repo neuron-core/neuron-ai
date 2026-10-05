@@ -12,7 +12,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Tools\ApprovalState;
@@ -246,7 +245,8 @@ class MessageDeserializer
                 content: $block['content'],
                 id: $block['id'] ?? null
             ),
-            ContentBlockType::SYSTEM => new SystemContent(
+            // The type of the deprecated SystemContent: a text block like any other
+            ContentBlockType::SYSTEM => new TextContent(
                 content: $block['content']
             ),
             ContentBlockType::IMAGE => new ImageContent(
@@ -274,6 +274,10 @@ class MessageDeserializer
 
         if (isset($block['meta'])) {
             $item->setMetadata($block['meta']);
+        }
+
+        if (($block['cached'] ?? false) === true) {
+            $item->cache();
         }
 
         return $item;

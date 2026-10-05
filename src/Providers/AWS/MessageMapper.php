@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\AWS;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -26,6 +27,7 @@ use function array_map;
 use function array_splice;
 use function ksort;
 use function array_filter;
+use function array_merge;
 use function array_values;
 use function base64_decode;
 use function end;
@@ -117,18 +119,28 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapMessageContent(Message $message, array $toolContents = []): array
     {
-        $contents = $this->mapBlocks($message->getContentBlocks());
+        // One group per block, so a cache point stays right after its block when
+        // the insertions below go back to their positions.
+        $contents = [];
+        foreach ($message->getContentBlocks() as $block) {
+            $mapped = $this->mapContentBlock($block);
+
+            if ($mapped !== null) {
+                $contents[] = $this->takesCachePoint($block) ? [$mapped, ['cachePoint' => ['type' => 'default']]] : [$mapped];
+            }
+        }
+
         $insertions = [];
         foreach ($message->getMetadata('aws_redacted_reasoning') ?? [] as $index => $data) {
-            $insertions[$index] = ['reasoningContent' => ['redactedContent' => base64_decode($data)]];
+            $insertions[$index] = [['reasoningContent' => ['redactedContent' => base64_decode($data)]]];
         }
 
         $toolPositions = $message->getMetadata('aws_tool_positions') ?? [];
         foreach ($toolContents as $index => $toolContent) {
             if (isset($toolPositions[$index])) {
-                $insertions[$toolPositions[$index]] = $toolContent;
+                $insertions[$toolPositions[$index]] = [$toolContent];
             } else {
-                $contents[] = $toolContent;
+                $contents[] = [$toolContent];
             }
         }
 
@@ -138,7 +150,16 @@ class MessageMapper implements MessageMapperInterface
             array_splice($contents, $index, 0, [$content]);
         }
 
-        return $contents;
+        return array_merge(...$contents);
+    }
+
+    /**
+     * Converse places a cache point as an entry of its own, after any block of a
+     * message but a reasoning one.
+     */
+    protected function takesCachePoint(ContentBlockInterface $block): bool
+    {
+        return $block instanceof ContentBlock && !$block instanceof ReasoningContent && $block->isCached();
     }
 
     protected function mapMessage(Message $message): array

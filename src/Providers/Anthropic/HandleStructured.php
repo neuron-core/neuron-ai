@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Exceptions\HttpException;
@@ -36,7 +36,7 @@ trait HandleStructured
 
             // Append the schema as a trailing block to keep cached blocks untouched.
             $blocks = $this->system instanceof SystemMessage ? $this->system->getContentBlocks() : [];
-            $this->system = new SystemMessage([...$blocks, new SystemContent($schemaText)]);
+            $this->system = new SystemMessage([...$blocks, new TextContent($schemaText)]);
 
             return $this->chat(...(is_array($messages) ? $messages : [$messages]));
         } finally {

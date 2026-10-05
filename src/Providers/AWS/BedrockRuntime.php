@@ -14,6 +14,9 @@ use NeuronAI\Providers\MessageMapperInterface;
 use NeuronAI\Providers\ToolMapperInterface;
 use NeuronAI\Tools\ToolCall;
 
+use function array_keys;
+use function array_reverse;
+use function array_values;
 use function count;
 
 class BedrockRuntime implements AIProviderInterface
@@ -22,6 +25,8 @@ class BedrockRuntime implements AIProviderInterface
     use HandleChat;
     use HandleStream;
     use HandleStructured;
+
+    protected const MAX_CACHE_POINTS = 4;
 
     protected ?string $system = null;
 
@@ -60,7 +65,7 @@ class BedrockRuntime implements AIProviderInterface
     {
         $payload = [
             'modelId' => $this->model,
-            'messages' => $this->messageMapper()->map($messages),
+            'messages' => $this->limitCachePoints($this->messageMapper()->map($messages)),
         ];
 
         // The SDK validates locally: an absent or empty text block is refused
@@ -79,6 +84,39 @@ class BedrockRuntime implements AIProviderInterface
         }
 
         return $payload;
+    }
+
+    /**
+     * Converse refuses a request with more cache points than it allows, and the
+     * markers stored with a conversation add up over a long thread: the most
+     * recent ones stay.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @return array<int, array<string, mixed>>
+     */
+    protected function limitCachePoints(array $messages): array
+    {
+        $slots = self::MAX_CACHE_POINTS;
+
+        foreach (array_reverse(array_keys($messages)) as $index) {
+            $content = $messages[$index]['content'];
+
+            foreach (array_reverse(array_keys($content)) as $position) {
+                if (!isset($content[$position]['cachePoint'])) {
+                    continue;
+                }
+
+                if ($slots > 0) {
+                    $slots--;
+                } else {
+                    unset($content[$position]);
+                }
+            }
+
+            $messages[$index]['content'] = array_values($content);
+        }
+
+        return $messages;
     }
 
     /**

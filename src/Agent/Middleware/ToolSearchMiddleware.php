@@ -8,7 +8,7 @@ use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -61,7 +61,7 @@ class ToolSearchMiddleware extends AgentMiddleware
         }
 
         if ($event instanceof AIInferenceEvent && !$state->request->instructions->contains($this->systemPrompt)) {
-            $state->request->instructions->addContent(new SystemContent($this->systemPrompt));
+            $state->request->instructions->addContent(new TextContent($this->systemPrompt));
         }
 
         $conversation = [...$resources->history->getMessages(), ...$state->request->messages];

@@ -7,6 +7,7 @@ namespace NeuronAI\Providers\Anthropic;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -48,6 +49,14 @@ class MessageMapper implements MessageMapperInterface
         return $mapping;
     }
 
+    protected function mapMessage(Message $message): array
+    {
+        return [
+            'role' => $message->getRole(),
+            'content' => $this->mapMessageContent($message),
+        ];
+    }
+
     protected function mapMessageContent(Message $message, array $toolContents = []): array
     {
         $contents = $this->mapBlocks($message->getContentBlocks());
@@ -74,14 +83,6 @@ class MessageMapper implements MessageMapperInterface
         return $contents;
     }
 
-    protected function mapMessage(Message $message): array
-    {
-        return [
-            'role' => $message->getRole(),
-            'content' => $this->mapMessageContent($message),
-        ];
-    }
-
     protected function mapBlocks(array $blocks): array
     {
         return array_values(array_filter(array_map($this->mapSingleBlock(...), $blocks)));
@@ -89,7 +90,7 @@ class MessageMapper implements MessageMapperInterface
 
     protected function mapSingleBlock(ContentBlockInterface $block): ?array
     {
-        return match ($block::class) {
+        $mapped = match ($block::class) {
             TextContent::class => [
                 'type' => 'text',
                 'text' => $block->content,
@@ -103,6 +104,13 @@ class MessageMapper implements MessageMapperInterface
             FileContent::class => $this->mapFileBlock($block),
             default => null,
         };
+
+        // A thinking block takes no cache breakpoint
+        if ($mapped !== null && $block instanceof ContentBlock && !$block instanceof ReasoningContent && $block->isCached()) {
+            $mapped['cache_control'] = ['type' => 'ephemeral'];
+        }
+
+        return $mapped;
     }
 
     protected function mapImageBlock(ImageContent $block): ?array

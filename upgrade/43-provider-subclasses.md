@@ -259,7 +259,7 @@ class TenantAnthropic extends Anthropic
 After (4.x):
 
 ```php
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -274,7 +274,7 @@ class TenantAnthropic extends Anthropic
 
     public function withTenantNote(string $note): self
     {
-        $this->system = new SystemMessage([...($this->system?->getContentBlocks() ?? []), new SystemContent($note)]);
+        $this->system = new SystemMessage([...($this->system?->getContentBlocks() ?? []), new TextContent($note)]);
         return $this;
     }
 
@@ -288,8 +288,8 @@ class TenantAnthropic extends Anthropic
 1. Delete a redeclared `$system`. If it had a default value, set that value with `$this->systemPrompt('...')` right after `parent::__construct()`. If the class has no constructor, add one that forwards the arguments the application passes.
 2. Read the text with `$this->system?->getContent()`. It joins the blocks with a blank line and returns null when there is no text.
 3. Replace `$this->system = $text` with `$this->systemPrompt($text)`.
-4. To append text, build a new message as shown, importing `SystemContent`. Do not call `addContent()` on `$this->system`, because it is the object the agent passed in.
-5. Replace reads of the removed `$this->systemBlocks` with `$this->system?->getTextBlocks()`. Each block has a `->content` string, and `SystemContent` blocks also have `->isCached()`. Delete uses of `$this->promptCachingEnabled` (guide 24 covers caching).
+4. To append text, build a new message as shown, importing `TextContent`. Do not call `addContent()` on `$this->system`, because it is the object the agent passed in.
+5. Replace reads of the removed `$this->systemBlocks` with `$this->system?->getTextBlocks()`. Each block has a `->content` string and `->isCached()`. Delete uses of `$this->promptCachingEnabled` (guide 24 covers caching).
 
 ### Case 5: Anthropic streaming internals
 

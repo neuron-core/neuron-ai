@@ -13,6 +13,7 @@ use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\ContentBlocks\VideoContent;
 use NeuronAI\Chat\Messages\Message;
@@ -215,9 +216,9 @@ class TokenCounterTest extends TestCase
         $counter = new TokenCounter();
         $text = str_repeat('a', 4000);
 
-        // The block JSON differs only by its type name, "system" instead of "text"
-        $this->assertSame(1012, $counter->count(new SystemMessage($text)));
-        $this->assertSame(1011, $counter->count(new SystemMessage([new TextContent($text)])));
+        $this->assertSame(1011, $counter->count(new SystemMessage($text)));
+        // The JSON of a deprecated system block differs only by its type name, "system" instead of "text"
+        $this->assertSame(1012, $counter->count(new SystemMessage([new SystemContent($text)])));
     }
 
     public function test_a_tool_call_counts_its_names_call_ids_and_arguments(): void

@@ -84,6 +84,8 @@ class MessageMapper implements MessageMapperInterface
         return [
             'type' => $forUser ? 'input_text' : 'output_text',
             'text' => $block->content,
+            // Input text is the one block OpenAI documents a cache breakpoint on
+            ...($forUser && $block->isCached() ? ['prompt_cache_breakpoint' => ['mode' => 'explicit']] : []),
         ];
     }
 

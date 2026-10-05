@@ -525,6 +525,7 @@ protected function resources(): AgentResources
         ),
         $resources->instructions,
         $resources->tools,
+        $resources->context,
     );
 }
 ```

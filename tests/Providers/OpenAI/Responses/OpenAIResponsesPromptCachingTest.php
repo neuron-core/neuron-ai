@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Providers\OpenAI\Responses;
 
 use NeuronAI\Tests\Providers\OpenAI\Responses\Stub\InspectableOpenAIResponses;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use PHPUnit\Framework\TestCase;
@@ -30,8 +30,8 @@ class OpenAIResponsesPromptCachingTest extends TestCase
             'prompt_cache_options' => ['ttl' => '30m'],
         ]);
         $provider->systemPrompt(new SystemMessage([
-            (new SystemContent('Stable instructions'))->cache(),
-            new SystemContent('Dynamic RAG context'),
+            (new TextContent('Stable instructions'))->cache(),
+            new TextContent('Dynamic RAG context'),
         ]));
 
         $body = $provider->buildRequestBody([new UserMessage('Question')]);

@@ -12,7 +12,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -91,14 +90,14 @@ class MessageTest extends TestCase
 
     public function test_clone_owns_its_content_blocks(): void
     {
-        $block = new SystemContent('Base instructions');
+        $block = new TextContent('Base instructions');
         $original = new SystemMessage($block);
 
         $copy = clone $original;
         [$copied] = $copy->getTextBlocks();
         $copied->content = 'Edited on the copy';
         $copy->cache();
-        $copy->addContent(new SystemContent('Added on the copy'));
+        $copy->addContent(new TextContent('Added on the copy'));
 
         $this->assertNotSame($block, $copied);
         $this->assertSame('Edited on the copy', $copied->content);

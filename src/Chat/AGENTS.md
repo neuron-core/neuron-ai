@@ -4,7 +4,7 @@ The messaging layer shared by Agent, RAG and Providers: messages, content blocks
 
 ## Messages are content blocks
 
-`Message` manages `ContentBlock[]` (`TextContent`, `ImageContent`, `FileContent`, `AudioContent`, `VideoContent`, `ReasoningContent`, `SystemContent`), so multimodality is native rather than bolted on. `getContent()` is the text-only view; `getContentBlocks()` is the truth.
+`Message` manages `ContentBlock[]` (`TextContent`, `ImageContent`, `FileContent`, `AudioContent`, `VideoContent`, `ReasoningContent`), so multimodality is native rather than bolted on. `getContent()` is the text-only view; `getContentBlocks()` is the truth.
 
 ```php
 new UserMessage([
@@ -13,7 +13,7 @@ new UserMessage([
 ]);
 ```
 
-`SystemMessage` carries `SystemContent` blocks; `->cache()` marks them for provider-side prompt caching. A cloned message owns copies of its blocks, so a copy can be edited in place without touching the original (the Agent entry nodes rely on this to isolate a run's instructions from the agent configuration). `ToolCallMessage` (an `AssistantMessage`) and `ToolResultMessage` (a `UserMessage`) carry the same `ToolCall[]`: pure conversation data, settled with results in the second. Executable tools never appear in messages (see `src/Tools/AGENTS.md`). Content blocks accept `string|MediaType` for the media type and normalize to string, so custom MIME types always work.
+Every block takes `->cache()`: it asks the provider for a prompt cache breakpoint right after that block, and the marker is stored with the block (a `cached` key, left out of a block that has none). `SystemMessage` carries the instructions as text blocks, and its own `cache()` marks the last one: a single breakpoint there covers the whole message. A cloned message owns copies of its blocks, so a copy can be edited in place without touching the original (the Agent entry nodes rely on this to isolate a run's instructions from the agent configuration). `ToolCallMessage` (an `AssistantMessage`) and `ToolResultMessage` (a `UserMessage`) carry the same `ToolCall[]`: pure conversation data, settled with results in the second. Executable tools never appear in messages (see `src/Tools/AGENTS.md`). Content blocks accept `string|MediaType` for the media type and normalize to string, so custom MIME types always work.
 
 ## Chat history
 

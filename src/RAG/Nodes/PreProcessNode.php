@@ -42,6 +42,7 @@ class PreProcessNode extends Node implements AgentNodeInterface
             instructions: clone $resources->instructions,
             messages: $event->messages,
             options: $event->options,
+            context: $resources->context,
         );
         $messages = $state->request->messages;
         $query = $messages === [] ? $resources->history->getLastMessage() : end($messages);

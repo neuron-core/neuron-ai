@@ -37,6 +37,10 @@ return RectorConfig::configure()
             // Runtime validation of a docblock-only type (list<string>) that callers can still violate.
             __DIR__ . '/src/Classifier/Score.php',
         ],
+        ClassPropertyAssignToConstructorPromotionRector::class => [
+            // A promoted default is not applied on unserialize: a run saved before $context existed must restore.
+            __DIR__ . '/src/Agent/InferenceRequest.php',
+        ],
         Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnNewRector::class => [
             // Fixtures deliberately declare invalid __invoke signatures to test node validation.
             __DIR__ . '/tests/Workflow/NodeSignatureTest.php',

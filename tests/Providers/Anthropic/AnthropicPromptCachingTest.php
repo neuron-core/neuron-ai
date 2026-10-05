@@ -9,18 +9,26 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
+use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\Guzzle\GuzzleHttpClient;
+use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\PropertyType;
+use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
+use function array_slice;
 use function implode;
 use function json_decode;
+use function range;
 
 class AnthropicPromptCachingTest extends TestCase
 {
@@ -40,8 +48,8 @@ class AnthropicPromptCachingTest extends TestCase
         $provider = (new Anthropic('', 'claude-3-7-sonnet-latest'))
             ->setHttpClient(new GuzzleHttpClient(handler: $stack))
             ->systemPrompt(new SystemMessage([
-                (new SystemContent('Static instructions'))->cache(),
-                new SystemContent('Dynamic context'),
+                (new TextContent('Static instructions'))->cache(),
+                new TextContent('Dynamic context'),
             ]));
 
         $response = $provider->chat(new UserMessage('Test'));
@@ -198,6 +206,115 @@ class AnthropicPromptCachingTest extends TestCase
         $this->assertSame(['type' => 'ephemeral'], $requestBody['cache_control']);
         $this->assertSame(['type' => 'ephemeral'], $requestBody['system'][0]['cache_control']);
         $this->assertCount(3, $requestBody['messages']);
+    }
+
+    public function test_a_prompt_with_more_than_four_cached_blocks_keeps_the_last_four(): void
+    {
+        $blocks = array_map(fn (int $number): TextContent => (new TextContent("Block {$number}"))->cache(), range(1, 5));
+
+        $body = $this->requestBody(
+            (new Anthropic('', 'claude-sonnet-5-5'))->systemPrompt(new SystemMessage($blocks)),
+            new UserMessage('Test'),
+        );
+
+        $this->assertSame([false, true, true, true, true], $this->breakpoints($body['system']));
+    }
+
+    public function test_the_conversation_takes_the_slots_the_instructions_and_tools_leave(): void
+    {
+        $tool = (new ToolStub('search', description: 'Search the web'))->setParameters(['cache_control' => ['type' => 'ephemeral']]);
+
+        $body = $this->requestBody(
+            (new Anthropic('', 'claude-sonnet-5-5'))
+                ->systemPrompt((new SystemMessage('Static instructions'))->cache())
+                ->setTools([$tool]),
+            ...$this->conversationWithCachedQuestions(4),
+        );
+
+        $this->assertSame([true], $this->breakpoints($body['system']));
+        $this->assertSame([true], $this->breakpoints($body['tools']));
+        // Four questions, each followed by its answer but the last: the latest two keep their breakpoint
+        $this->assertSame([false, false, false, false, true, false, true], $this->conversationBreakpoints($body));
+    }
+
+    public function test_the_automatic_breakpoint_takes_one_of_the_four_slots(): void
+    {
+        $body = $this->requestBody(
+            new Anthropic('', 'claude-sonnet-5-5', parameters: ['cache_control' => ['type' => 'ephemeral']]),
+            ...$this->conversationWithCachedQuestions(4),
+        );
+
+        $this->assertSame([false, false, true, false, true, false, true], $this->conversationBreakpoints($body));
+    }
+
+    public function test_a_tool_argument_named_cache_control_is_not_a_breakpoint(): void
+    {
+        $tool = (new ToolStub('configure', description: 'Configure a cache'))
+            ->addProperty(new ToolProperty('cache_control', PropertyType::STRING, 'The cache policy', true));
+        $call = new ToolCall('configure', 'toolu_1', ['cache_control' => 'private']);
+
+        $body = $this->requestBody(
+            (new Anthropic('', 'claude-sonnet-5-5'))->setTools([$tool]),
+            ...$this->conversationWithCachedQuestions(5),
+            ...[new ToolCallMessage(null, [$call]), new ToolResultMessage([(clone $call)->setResult('done')])],
+        );
+
+        $this->assertArrayHasKey('cache_control', $body['tools'][0]['input_schema']['properties']);
+        $this->assertSame(['cache_control' => 'private'], $body['messages'][9]['content'][0]['input']);
+    }
+
+    /**
+     * Questions that each carry a cache marker, every one but the last already answered.
+     *
+     * @return Message[]
+     */
+    protected function conversationWithCachedQuestions(int $questions): array
+    {
+        $messages = [];
+
+        for ($number = 1; $number <= $questions; $number++) {
+            $messages[] = new UserMessage((new TextContent("Question {$number}"))->cache());
+            $messages[] = new AssistantMessage("Answer {$number}");
+        }
+
+        return array_slice($messages, 0, -1);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $blocks
+     * @return bool[]
+     */
+    protected function breakpoints(array $blocks): array
+    {
+        return array_map(fn (array $block): bool => isset($block['cache_control']), $blocks);
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @return bool[] whether each message's only block carries a breakpoint
+     */
+    protected function conversationBreakpoints(array $body): array
+    {
+        return array_map(fn (array $message): bool => isset($message['content'][0]['cache_control']), $body['messages']);
+    }
+
+    /**
+     * @return array<string, mixed> the body of the request the provider sends for these messages
+     */
+    protected function requestBody(AIProviderInterface $provider, Message ...$messages): array
+    {
+        $sentRequests = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(
+                status: 200,
+                body: '{"model": "claude-sonnet-5-5","role": "assistant","stop_reason": "end_turn","content":[{"type": "text","text": "Response"}],"usage": {"input_tokens": 100,"output_tokens": 20}}',
+            ),
+        ]));
+        $stack->push(Middleware::history($sentRequests));
+
+        $provider->setHttpClient(new GuzzleHttpClient(handler: $stack))->chat(...$messages);
+
+        return json_decode((string) $sentRequests[0]['request']->getBody(), true);
     }
 
     public function test_stream_captures_cache_metrics(): void

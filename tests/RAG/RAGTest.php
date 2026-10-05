@@ -18,6 +18,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Tests\RAG\Stub\SuffixPreProcessor;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -26,6 +27,8 @@ use function substr_count;
 
 class RAGTest extends TestCase
 {
+    use ReadsTurnContext;
+
     public function test_chat_with_retrieved_documents(): void
     {
         $provider = new FakeAIProvider(
@@ -47,14 +50,16 @@ class RAGTest extends TestCase
         $provider->assertCallCount(1);
         $vectorStore->assertSearchCount(1);
         $request = $provider->getRecorded()[0];
-        $this->assertSame(
-            "You answer geography questions.\n\n<EXTRA-CONTEXT>"
+        $this->assertSame('You answer geography questions.', $request->systemPrompt?->getContent());
+        $this->assertCount(1, $request->messages);
+        // The documents travel with the question, after its own content
+        $this->assertSame([
+            'What is the capital of France?',
+            "<EXTRA-CONTEXT>"
             ."Source Type: file\nSource Name: europe.md\nContent: France is a country in Europe. Its capital is Paris.\n\n"
             ."</EXTRA-CONTEXT>",
-            $request->systemPrompt?->getContent(),
-        );
-        $this->assertCount(1, $request->messages);
-        $this->assertSame('What is the capital of France?', $request->messages[0]->getContent());
+        ], $this->blocks($request->messages[0]));
+        $this->assertSame(['What is the capital of France?'], $this->blocks($rag->getChatHistory()->getMessages()[0]));
     }
 
     public function test_retrieved_context_does_not_accumulate_across_turns(): void
@@ -69,11 +74,15 @@ class RAGTest extends TestCase
         $vectorStore->setSearchResults([new Document('Second context')]);
         $rag->chat(new UserMessage('Second question'));
 
-        $prompt = (string) $provider->getRecorded()[1]->systemPrompt?->getContent();
-        $this->assertSame(1, substr_count($prompt, '<EXTRA-CONTEXT>'));
-        $this->assertSame(1, substr_count($prompt, 'Base instructions'));
-        $this->assertStringContainsString('Second context', $prompt);
-        $this->assertStringNotContainsString('First context', $prompt);
+        $request = $provider->getRecorded()[1];
+        $this->assertSame('Base instructions', $request->systemPrompt?->getContent());
+        // The first question comes back as it was stored, without the documents of its turn
+        $this->assertSame(['First question'], $this->blocks($request->messages[0]));
+        [$question, $context] = $this->blocks($request->messages[2]);
+        $this->assertSame('Second question', $question);
+        $this->assertSame(1, substr_count($context, '<EXTRA-CONTEXT>'));
+        $this->assertStringContainsString('Second context', $context);
+        $this->assertStringNotContainsString('First context', $context);
     }
 
     public function test_a_rewritten_query_drives_retrieval_while_the_model_answers_the_original_question(): void
@@ -90,7 +99,9 @@ class RAGTest extends TestCase
         $rag->chat(new UserMessage('Original question'));
 
         $this->assertSame(['Original question with synonyms'], $embeddings->getRecorded());
-        $this->assertSame('Original question', $provider->getRecorded()[0]->messages[0]->getContent());
+        [$question, $context] = $this->blocks($provider->getRecorded()[0]->messages[0]);
+        $this->assertSame('Original question', $question);
+        $this->assertStringNotContainsString('with synonyms', $context);
         $this->assertSame('Original question', $rag->getChatHistory()->getMessages()[0]->getContent());
     }
 
@@ -128,10 +139,9 @@ class RAGTest extends TestCase
 
         $first->assertCallCount(1);
         $second->assertCallCount(1);
-        $prompt = $second->getRecorded()[0]->systemPrompt->getContent();
-        $this->assertStringContainsString('Updated instructions', $prompt);
-        $this->assertStringNotContainsString('Original instructions', $prompt);
-        $this->assertStringContainsString('Reference context', $prompt);
+        $request = $second->getRecorded()[0];
+        $this->assertSame('Updated instructions', $request->systemPrompt->getContent());
+        $this->assertStringContainsString('Reference context', $this->blocks($request->messages[2])[1]);
         $vectorStore->assertSearchCount(2);
     }
 
@@ -188,7 +198,7 @@ class RAGTest extends TestCase
         $definition->addDocuments([new Document('France is a country in Europe. Its capital is Paris.')]);
         $definition->for('thread_1')->chat(new UserMessage('What is the capital of France?'));
 
-        $this->assertStringContainsString('Its capital is Paris.', (string) $provider->getRecorded()[0]->systemPrompt?->getContent());
+        $this->assertStringContainsString('Its capital is Paris.', $this->blocks($provider->getRecorded()[0]->messages[0])[1]);
         $this->assertNull($definition->getThreadId());
     }
 
@@ -231,9 +241,10 @@ class RAGTest extends TestCase
 
         $this->assertSame('I don\'t have enough information.', $message->getContent());
         $vectorStore->assertSearchCount(1);
-        $prompt = (string) $provider->getRecorded()[0]->systemPrompt?->getContent();
-        $this->assertStringStartsWith('Base instructions', $prompt);
-        $this->assertStringNotContainsString('Content:', $prompt);
+        $request = $provider->getRecorded()[0];
+        $this->assertSame('Base instructions', $request->systemPrompt?->getContent());
+        // Nothing retrieved, nothing added: the question is sent as it is
+        $this->assertSame(['Tell me about quantum physics'], $this->blocks($request->messages[0]));
         $this->assertCount(2, $rag->getChatHistory()->getMessages());
     }
 

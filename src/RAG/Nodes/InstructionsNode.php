@@ -6,17 +6,19 @@ namespace NeuronAI\RAG\Nodes;
 
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AIInferenceEvent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
 use NeuronAI\Workflow\Node;
 
 use function preg_replace;
 
 /**
- * Enriches instructions with retrieved documents as context.
+ * Gives the model the retrieved documents as context of the turn.
  *
- * The base instruction blocks are left untouched (preserving prompt cache flags),
- * and documents are appended as a trailing block within <EXTRA-CONTEXT> tags.
+ * The documents join the request's context within <EXTRA-CONTEXT> tags: they are
+ * sent with the question, after its own content, and never stored. The instructions
+ * stay the same from one turn to the next, so a provider can cache them and the
+ * conversation.
  */
 class InstructionsNode extends Node
 {
@@ -26,7 +28,9 @@ class InstructionsNode extends Node
      */
     public function __invoke(DocumentsProcessedEvent $event, AgentState $state): AIInferenceEvent
     {
-        $state->request->instructions->addContent(new SystemContent($this->buildBlockContent($event->documents)));
+        if ($event->documents !== []) {
+            $state->request->context[] = new TextContent($this->buildBlockContent($event->documents));
+        }
 
         return AIInferenceEvent::fromRequest($state->request);
     }

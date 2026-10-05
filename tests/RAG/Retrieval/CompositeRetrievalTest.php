@@ -16,14 +16,16 @@ use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
-use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Tests\RAG\Nodes\Stub\ConversationAgent;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\TestCase;
 
 use function substr_count;
 
 class CompositeRetrievalTest extends TestCase
 {
+    use ReadsTurnContext;
+
     public function test_children_preserve_order_and_receive_the_same_query_and_mandatory_filters(): void
     {
         $first = new Document('First');
@@ -80,9 +82,9 @@ class CompositeRetrievalTest extends TestCase
 
         $rag->chat(new UserMessage('Where is my preferred city?'));
 
-        $provider->assertSent(static fn (RequestRecord $record): bool =>
-            $record->systemPrompt->contains('I prefer Paris.')
-            && $record->systemPrompt->contains('Paris is in France.'));
+        $context = $this->turnContext($provider->getRecorded()[0]);
+        $this->assertStringContainsString('I prefer Paris.', $context);
+        $this->assertStringContainsString('Paris is in France.', $context);
         $this->assertCount(1, $memoryRetrieval->retrieve(new UserMessage('Paris')));
         $this->assertCount(2, $rag->getChatHistory()->getMessages());
         $this->assertSame('Where is my preferred city?', $rag->getChatHistory()->getMessages()[0]->getContent());
@@ -98,6 +100,6 @@ class CompositeRetrievalTest extends TestCase
         $rag->setRetrieval(new CompositeRetrieval([$child, $child]));
         $rag->chat(new UserMessage('Question'));
 
-        $this->assertSame(1, substr_count($provider->getRecorded()[0]->systemPrompt->getContent(), 'Shared context'));
+        $this->assertSame(1, substr_count($this->turnContext($provider->getRecorded()[0]), 'Shared context'));
     }
 }

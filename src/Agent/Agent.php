@@ -20,7 +20,8 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\History\MessageStoreInterface;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -69,6 +70,11 @@ class Agent extends Workflow implements AgentInterface
     protected ?int $contextWindow = null;
 
     protected ?float $historyTrimRatio = null;
+
+    /**
+     * @var array<int|string, ContentBlockInterface>|null
+     */
+    protected ?array $context = null;
 
     protected bool $parallelToolCalls = false;
 
@@ -167,6 +173,29 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * What changes from one turn to the next and the model should know: the date,
+     * the page the user is on, their plan. A turn takes it when it starts and sends
+     * it with its question, after the question's own content, on every request of
+     * the turn. It is never stored, and it keeps such content out of the instructions,
+     * which a provider can then cache. An explicit setContext() wins over this hook.
+     *
+     * @return array<int|string, ContentBlockInterface>
+     */
+    protected function context(): array
+    {
+        return [];
+    }
+
+    /**
+     * @param array<int|string, ContentBlockInterface> $context
+     */
+    public function setContext(array $context): static
+    {
+        $this->context = $context;
+        return $this;
+    }
+
+    /**
      * A fresh view of the conversation on every call: every execution segment
      * opens its own. Nodes and middleware read the history of the node they wrap;
      * writing through this view while an execution is running is unsupported.
@@ -186,15 +215,21 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * The provider, the conversation, the instructions and the tools, built
-     * fresh for every execution segment. Toolkits are flattened into their
+     * The provider, the conversation, the instructions, the context of a turn
+     * and the tools, built fresh for every execution segment. Toolkits are flattened into their
      * tools and their guidelines join the instructions.
      */
     protected function resources(): AgentResources
     {
         [$instructions, $tools] = $this->resolveTools();
 
-        return new AgentResources($this->getProvider(), $this->getChatHistory(), $instructions, new ToolRegistry($tools));
+        // Copies: a run may edit its context without touching the configured blocks
+        $context = array_map(
+            static fn (ContentBlockInterface $block): ContentBlockInterface => clone $block,
+            $this->context ?? $this->context(),
+        );
+
+        return new AgentResources($this->getProvider(), $this->getChatHistory(), $instructions, new ToolRegistry($tools), $context);
     }
 
     /**
@@ -224,7 +259,7 @@ class Agent extends Workflow implements AgentInterface
         $blocks = unserialize(serialize($this->getInstructions()))->getContentBlocks();
 
         if ($guidelines !== []) {
-            $blocks[] = new SystemContent(
+            $blocks[] = new TextContent(
                 '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
             );
         }

@@ -59,7 +59,7 @@ class MessageDeserializerTest extends TestCase
             ])],
             'reasoning and text' => [new AssistantMessage([new ReasoningContent('thinking', 'rs_1'), new TextContent('Answer')])],
             'multibyte text' => [new UserMessage("Ciao 👋 — 日本語\n\t\"quoted\" \\ back")],
-            'system' => [new SystemMessage([new SystemContent('Be concise.'), new SystemContent('Answer in English.')])],
+            'system' => [new SystemMessage([new TextContent('Be concise.'), new TextContent('Answer in English.')])],
             'model role' => [new Message(MessageRole::MODEL, 'Hi')],
             'tool call with multimodal and error results' => [new ToolResultMessage([
                 (new ToolCall('chart', 'call-1', ['symbol' => 'AAPL']))->setResult(ToolOutput::image('aGVsbG8=', SourceType::BASE64, MediaType::PNG)),
@@ -88,18 +88,28 @@ class MessageDeserializerTest extends TestCase
 
     public function test_a_system_message_keeps_its_instruction_join(): void
     {
-        $restored = $this->roundTrip(new SystemMessage([new SystemContent('Be concise.'), new SystemContent('Answer in English.')]));
+        $restored = $this->roundTrip(new SystemMessage([new TextContent('Be concise.'), new TextContent('Answer in English.')]));
 
         $this->assertInstanceOf(SystemMessage::class, $restored);
         $this->assertSame("Be concise.\n\nAnswer in English.", $restored->getContent());
     }
 
-    public function test_system_blocks_come_back_as_system_blocks(): void
+    public function test_a_stored_system_block_loads_as_a_text_block(): void
     {
-        $restored = $this->roundTrip(new Message(MessageRole::SYSTEM, [new SystemContent('Be concise.')]));
+        // The shape a deprecated SystemContent block was, and still is, stored in
+        $restored = $this->roundTrip(new Message(MessageRole::SYSTEM, [(new SystemContent('Be concise.'))->cache()]));
 
-        $this->assertInstanceOf(SystemContent::class, $restored->getContentBlocks()[0]);
-        $this->assertSame('Be concise.', $restored->getContent());
+        $this->assertEquals([(new TextContent('Be concise.'))->cache()], $restored->getContentBlocks());
+    }
+
+    public function test_a_cache_marker_comes_back_on_its_block(): void
+    {
+        $message = new UserMessage([
+            (new FileContent('file_123', SourceType::ID, 'application/pdf', 'contract.pdf'))->cache(),
+            new TextContent('Summarise clause 4.'),
+        ]);
+
+        $this->assertEquals($message->getContentBlocks(), $this->roundTrip($message)->getContentBlocks());
     }
 
     public function test_tool_result_message_keeps_its_metadata(): void

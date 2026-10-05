@@ -14,6 +14,7 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -24,6 +25,8 @@ use PHPUnit\Framework\TestCase;
  */
 class RAGDurableTurnTest extends TestCase
 {
+    use ReadsTurnContext;
+
     protected function makeRag(
         FakeAIProvider $provider,
         FakeVectorStore $vectorStore,
@@ -75,8 +78,8 @@ class RAGDurableTurnTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
         $sent = $provider->getRecorded()[0]->messages;
         $this->assertCount(1, $sent);
-        $this->assertSame('Which city is the French capital?', $sent[0]->getContent());
-        $this->assertStringNotContainsString('What is the capital of France?', (string) $provider->getRecorded()[0]->systemPrompt?->getContent());
+        $this->assertSame('Which city is the French capital?', $this->blocks($sent[0])[0]);
+        $this->assertStringNotContainsString('What is the capital of France?', $this->turnContext($provider->getRecorded()[0]));
 
         $this->assertCount(2, $messageStore->loadActive('thread'));
         $this->assertNull($persistence->get($threadId, '__control'));

@@ -20,11 +20,11 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Testing\FakeVectorStore;
-use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\NodeInterface;
 use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -33,6 +33,8 @@ use PHPUnit\Framework\TestCase;
  */
 class RAGRetrievalFiltersTest extends TestCase
 {
+    use ReadsTurnContext;
+
     protected function schema(): DocumentSchema
     {
         return DocumentSchema::of(
@@ -107,7 +109,8 @@ class RAGRetrievalFiltersTest extends TestCase
 
         $rag->chat(new UserMessage('Show me everything'));
 
-        $provider->assertSent(static fn (RequestRecord $record): bool => $record->systemPrompt?->contains('Acme handbook') === true);
-        $provider->assertSent(static fn (RequestRecord $record): bool => $record->systemPrompt?->contains('Globex secrets') === false);
+        $context = $this->turnContext($provider->getRecorded()[0]);
+        $this->assertStringContainsString('Acme handbook', $context);
+        $this->assertStringNotContainsString('Globex secrets', $context);
     }
 }

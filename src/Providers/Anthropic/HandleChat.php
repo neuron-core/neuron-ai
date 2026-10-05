@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Providers\Anthropic;
 
+use JsonException;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
@@ -21,6 +22,7 @@ trait HandleChat
     /**
      * @throws ProviderException
      * @throws HttpException
+     * @throws JsonException
      */
     public function chat(Message ...$messages): ProviderResponse
     {

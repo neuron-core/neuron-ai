@@ -10,7 +10,7 @@ use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Events\DocumentsProcessedEvent;
@@ -71,7 +71,7 @@ class InstructionsNodeIntentTest extends TestCase
         $options = new AgentRunOptions(outputClass: stdClass::class, maxRetries: 3);
         $state = $this->enter($options);
         $request = $state->request;
-        $request->instructions->addContent(new SystemContent('Middleware context'));
+        $request->instructions->addContent(new TextContent('Middleware context'));
         $inference = (new InstructionsNode())($this->event(), $state);
 
         $this->assertInstanceOf(StructuredInferenceEvent::class, $inference);
@@ -79,7 +79,7 @@ class InstructionsNodeIntentTest extends TestCase
         $this->assertSame($options, $state->request->options);
         $this->assertSame(3, $state->request->options->maxRetries);
         $this->assertTrue($state->request->instructions->contains('Middleware context'));
-        $this->assertTrue($state->request->instructions->contains('Neuron is a PHP agent framework.'));
+        $this->assertStringContainsString('Neuron is a PHP agent framework.', $state->request->context[0]->getContent());
     }
 
 }

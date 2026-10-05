@@ -6,9 +6,14 @@ namespace NeuronAI\Agent\Nodes;
 
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Chat\History\ChatHistory;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Workflow\Node;
+
+use function count;
 
 /**
  * Base for nodes that perform AI provider inference (chat/stream transport
@@ -38,6 +43,37 @@ abstract class InferenceNode extends Node implements AgentNodeInterface
 
         if ($messages === []) {
             throw new ChatHistoryException('Cannot run inference on an empty conversation.');
+        }
+
+        return $messages;
+    }
+
+    /**
+     * The context of the turn travels with its question: the last user message
+     * that is not a tool result. It goes after the question's own content, on a
+     * copy, so every request of the turn carries it at the same place and the
+     * stored message never does.
+     *
+     * @param non-empty-list<Message> $messages
+     * @param array<int|string, ContentBlockInterface> $context
+     * @return non-empty-list<Message>
+     */
+    protected function withContext(array $messages, array $context): array
+    {
+        if ($context === []) {
+            return $messages;
+        }
+
+        for ($index = count($messages) - 1; $index >= 0; $index--) {
+            if ($messages[$index] instanceof UserMessage && !$messages[$index] instanceof ToolResultMessage) {
+                $messages[$index] = clone $messages[$index];
+
+                foreach ($context as $block) {
+                    $messages[$index]->addContent($block);
+                }
+
+                break;
+            }
         }
 
         return $messages;

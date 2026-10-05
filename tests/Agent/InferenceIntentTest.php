@@ -11,7 +11,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\AgentStartNode;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -57,7 +57,7 @@ class InferenceIntentTest extends TestCase
         $this->assertInstanceOf(AIInferenceEvent::class, $event);
         $this->assertSame($start->options, $request->options);
         $request->messages = [new UserMessage('Tool result')];
-        $request->instructions->addContent(new SystemContent('Additional context'));
+        $request->instructions->addContent(new TextContent('Additional context'));
 
         $this->assertSame('Original question', $start->messages[0]->getContent());
         $this->assertSame('Base instructions', $instructions->getContent());

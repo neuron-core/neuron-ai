@@ -100,16 +100,27 @@ new OpenAIResponses(key: $key, model: $model, parameters: ['reasoning' => ['effo
 new Ollama(url: $url, model: $model, parameters: ['options' => ['temperature' => 0.2, 'num_ctx' => 16384]]);
 ```
 
-`strict_response: true` on the OpenAI family turns on the vendor's strict JSON schema mode for `structured()`; the framework rewrites the schema to satisfy the strict-mode rules. Prompt caching follows the `cache()` marker on system blocks described in the skill: Anthropic turns each cached block into a `cache_control` breakpoint, the OpenAI Responses provider into a `prompt_cache_breakpoint`, and the other providers ignore the marker.
+`strict_response: true` on the OpenAI family turns on the vendor's strict JSON schema mode for `structured()`; the framework rewrites the schema to satisfy the strict-mode rules. Prompt caching follows the `cache()` marker described in the skill, on instruction blocks and on the blocks of conversation messages:
 
-The marker caches the instructions, not the conversation. OpenAI, Gemini and Deepseek cache the conversation on their own. `Anthropic` and `AnthropicVertex` cache it only when the request carries a top-level `cache_control`: Anthropic then places a breakpoint on the last message and moves it forward on every request.
+- `Anthropic` and `AnthropicVertex` turn each marked block into a `cache_control` breakpoint.
+- `OpenAIResponses` turns a marked instruction block or user text into a `prompt_cache_breakpoint`. OpenAI documents it for GPT-5.6 and later, so mark blocks only for those models; a marker on an image or a file is ignored.
+- `BedrockRuntime` adds a `cachePoint` after a marked block of the conversation. Mark blocks only for a model with prompt caching (Claude, Nova). A marker on the instructions is ignored.
+- The other providers ignore the marker.
+
+Anthropic and Bedrock allow four breakpoints in a request. Markers are stored with their messages and add up over a long thread, so beyond four the provider keeps the ones on the instructions and tools, then the most recent of the conversation.
+
+A marker is a fixed point. Marking the last block of each user message reuses the conversation from one turn to the next (see Turn Context in the skill). The growing end of a request, the steps of a tool loop, is cached without markers: OpenAI, Gemini and Deepseek do it on their own, `Anthropic` and `AnthropicVertex` only when the request carries a top-level `cache_control`. Anthropic then places a breakpoint on the last block of the request and moves it forward on every request.
 
 ```php
-// Anthropic: cache the conversation too, next to the cached system blocks
+// Anthropic: also cache the steps of a tool loop, next to the marked blocks
 new Anthropic(key: $key, model: $model, parameters: ['cache_control' => ['type' => 'ephemeral']]);
 ```
 
-A cache write costs 1.25 times the input price and a read 0.1 times, so this pays off when later requests reuse the conversation within five minutes, as in tool loops and multi-turn chats. An agent that answers in one request, or a RAG agent without tools, pays for the write and never reads it back. This breakpoint takes one of the four Anthropic allows per request, so mark at most three system blocks with `cache()`; a fourth fails the request. Add `'ttl' => '1h'` only when no system block is cached: `cache()` writes five-minute breakpoints, and Anthropic requires the longer TTL to come first.
+A cache write costs 1.25 times the input price and a read 0.1 times, so this breakpoint pays off when the next request follows within five minutes and reuses what was written, as the steps of a tool loop do. On a turn answered in one request it writes the turn context and reads nothing back: an agent without tools, RAG included, should rely on the marked user message alone. This breakpoint takes one of the four slots, leaving three for marked blocks. Add `'ttl' => '1h'` only when no block is marked: `cache()` writes five-minute breakpoints, and Anthropic requires the longer TTL to come first.
+
+Tool definitions are part of the start of a request, where a provider's cache begins, so a request reuses only what was cached with the same tool list. With a tool added, removed, reordered or reworded, it reads nothing from the cache and is written to it again, as Anthropic and OpenAI both document. Keep the tool list the same on every request of a thread. `ToolSearchMiddleware` changes it by design: the tools a search finds join the list for the rest of the turn, and the next user message starts without them. The request after a search that found new tools is a full cache write. The next turn goes back to the shorter list and reuses only what earlier requests wrote with that same list, typically the conversation up to the previous question.
+
+With every tool listed up front, the definitions are written once and read on each request after that. So with caching on, tool search costs less for a pool of hundreds of tools, and a few dozen usually cost less listed in full. Do not give a tool of the pool a `cache_control` of its own through `setParameters()`: tools keep their breakpoints before the conversation does, so the tools a search finds would take the slots of the marked messages.
 
 ## HTTP client
 

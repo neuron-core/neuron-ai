@@ -10,7 +10,7 @@ use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Nodes\PreProcessNode;
 use NeuronAI\Tests\RAG\Stub\SuffixPreProcessor;
@@ -78,7 +78,7 @@ class PreProcessNodeTest extends TestCase
         $this->assertNotSame($resources->instructions, $state->request->instructions);
         $this->assertSame('Base instructions', $state->request->instructions->getContent());
 
-        $state->request->instructions->addContent(new SystemContent('Retrieved context'));
+        $state->request->instructions->addContent(new TextContent('Retrieved context'));
 
         $this->assertSame('Base instructions', $resources->instructions->getContent());
     }

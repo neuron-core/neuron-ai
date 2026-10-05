@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Chat\Messages\ContentBlocks;
 use NeuronAI\Chat\Enums\ContentBlockType;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlock;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
@@ -126,6 +127,38 @@ class ContentBlockTest extends TestCase
         $block->accumulateContent('wörld 👋');
 
         $this->assertSame('Hello, wörld 👋', $block->getContent());
+    }
+
+    /**
+     * @return array<string, array{ContentBlockInterface}>
+     */
+    public static function cacheableBlocks(): array
+    {
+        return [
+            'text' => [new TextContent('Hello')],
+            'system' => [new SystemContent('Be concise.')],
+            'image' => [new ImageContent('aGVsbG8=', SourceType::BASE64, 'image/png')],
+            'file' => [new FileContent('file_123', SourceType::ID, 'application/pdf', 'report.pdf')],
+            'audio' => [new AudioContent('https://example.com/a.mp3', SourceType::URL)],
+            'video' => [new VideoContent('https://example.com/a.mp4', SourceType::URL)],
+        ];
+    }
+
+    #[DataProvider('cacheableBlocks')]
+    public function test_a_block_is_not_cached_until_asked(ContentBlock $block): void
+    {
+        $this->assertFalse($block->isCached());
+        $this->assertArrayNotHasKey('cached', $block->toArray());
+
+        $this->assertSame($block, $block->cache());
+
+        $this->assertTrue($block->isCached());
+        $this->assertTrue($block->toArray()['cached']);
+    }
+
+    public function test_system_content_can_be_built_cached(): void
+    {
+        $this->assertTrue((new SystemContent('Be concise.', true))->isCached());
     }
 
     public function test_system_content_is_not_cached_until_asked(): void

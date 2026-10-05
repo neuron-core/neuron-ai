@@ -89,7 +89,7 @@ class StructuredOutputNode extends InferenceNode
                     );
                 }
 
-                $messages = $this->pendingConversation($resources->history, $pending);
+                $messages = $this->withContext($this->pendingConversation($resources->history, $pending), $state->request->context);
 
                 $last = clone end($messages);
 

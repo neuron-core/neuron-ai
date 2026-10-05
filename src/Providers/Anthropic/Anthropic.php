@@ -6,7 +6,6 @@ namespace NeuronAI\Providers\Anthropic;
 
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -23,6 +22,8 @@ use NeuronAI\Tools\ToolCall;
 
 use function array_flip;
 use function array_diff_key;
+use function array_keys;
+use function array_reverse;
 use function rtrim;
 use function array_map;
 use function array_values;
@@ -38,6 +39,8 @@ class Anthropic implements AIProviderInterface
     use HandleChat;
     use HandleStream;
     use HandleStructured;
+
+    protected const MAX_CACHE_BREAKPOINTS = 4;
 
     /**
      * The main URL of the provider API.
@@ -128,7 +131,7 @@ class Anthropic implements AIProviderInterface
             // Each block marked as cached becomes a prompt caching breakpoint.
             $json['system'] = array_map(function (TextContent $block): array {
                 $mapped = ['type' => 'text', 'text' => $block->content];
-                if ($block instanceof SystemContent && $block->isCached()) {
+                if ($block->isCached()) {
                     $mapped['cache_control'] = ['type' => 'ephemeral'];
                 }
                 return $mapped;
@@ -139,7 +142,61 @@ class Anthropic implements AIProviderInterface
             $json['tools'] = $this->toolPayloadMapper()->map($this->tools);
         }
 
-        return $json;
+        return $this->limitCacheBreakpoints($json);
+    }
+
+    /**
+     * Anthropic refuses a request with more breakpoints than it allows, and the
+     * markers stored with a conversation add up over a long thread. The ones on the
+     * instructions and the tools keep their slot first, since that prefix outlives the
+     * conversation; the rest go to the most recent ones of the conversation.
+     *
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    protected function limitCacheBreakpoints(array $body): array
+    {
+        // A top-level cache_control is one more breakpoint, placed by Anthropic
+        $slots = self::MAX_CACHE_BREAKPOINTS - (isset($body['cache_control']) ? 1 : 0);
+
+        foreach (['system', 'tools', 'messages'] as $part) {
+            if (is_array($body[$part] ?? null)) {
+                $body[$part] = $this->keepLatestBreakpoints($body[$part], $slots);
+            }
+        }
+
+        return $body;
+    }
+
+    /**
+     * Walks the entries from the last one and removes the breakpoints left without
+     * a slot. Only block lists are entered, through their "content" key: a tool
+     * schema or a tool call may well have an argument named cache_control.
+     *
+     * @param array<int|string, mixed> $entries
+     * @return array<int|string, mixed>
+     */
+    protected function keepLatestBreakpoints(array $entries, int &$slots): array
+    {
+        foreach (array_reverse(array_keys($entries)) as $key) {
+            if (!is_array($entries[$key])) {
+                continue;
+            }
+
+            if (isset($entries[$key]['cache_control'])) {
+                if ($slots > 0) {
+                    $slots--;
+                } else {
+                    unset($entries[$key]['cache_control']);
+                }
+            }
+
+            if (is_array($entries[$key]['content'] ?? null)) {
+                $entries[$key]['content'] = $this->keepLatestBreakpoints($entries[$key]['content'], $slots);
+            }
+        }
+
+        return $entries;
     }
 
     /**

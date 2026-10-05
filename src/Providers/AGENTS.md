@@ -26,6 +26,12 @@ Every stream loop requires the vendor's closing event (Anthropic's `message_delt
 
 A tool result is `string|ToolOutput`. Mappers detect multimodality on the **value** (`$tool->getResult() instanceof ToolOutput`), never on the tool type, and map the blocks natively where the API accepts them (Anthropic, Bedrock, Gemini, OpenAI Chat and Responses, Mistral) by reusing the mapper's existing block mapping; block types an API does not support fall out through the same null-filtering, and text-only APIs (Ollama) fall back to `ToolOutput::getText()`. An error output (`ToolOutput::error()`) sets the vendor's native error flag where one exists (`is_error` on Anthropic, `status: "error"` on Bedrock); elsewhere the feedback text itself carries the semantics.
 
+## Cache markers
+
+`ContentBlock::cache()` asks for a prompt cache breakpoint right after a block. It is a request: a mapper translates it where the vendor has breakpoints and ignores it elsewhere. Anthropic sets `cache_control` on the block, in the instructions, the conversation and multimodal tool results. OpenAI Responses sets `prompt_cache_breakpoint` on input text, the one block its guide documents it on. Bedrock adds a `cachePoint` entry after a block of the conversation; its instructions are still sent as one text, so a marker on them is lost. A reasoning block never carries a breakpoint.
+
+Markers are stored with their messages, so they add up over a long thread, while Anthropic and Bedrock refuse more than four in a request. The provider trims them when it builds the request (`Anthropic::limitCacheBreakpoints()`, `BedrockRuntime::limitCachePoints()`): the ones on the instructions and the tools keep their slot first, then the most recent of the conversation. A top-level `cache_control` parameter is one more breakpoint and takes a slot.
+
 ## Wiring into an agent
 
 ```php

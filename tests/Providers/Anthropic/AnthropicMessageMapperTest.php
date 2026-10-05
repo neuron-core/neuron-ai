@@ -9,6 +9,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -38,6 +39,33 @@ class AnthropicMessageMapperTest extends TestCase
             ['type' => 'image', 'source' => ['type' => 'file', 'file_id' => 'file_img']],
             ['type' => 'document', 'source' => ['type' => 'file', 'file_id' => 'file_doc']],
         ], (new MessageMapper())->map([$message])[0]['content']);
+    }
+
+    public function test_a_cached_block_carries_a_cache_breakpoint(): void
+    {
+        $message = new UserMessage([
+            (new TextContent('The contract'))->cache(),
+            (new ImageContent('file_img', SourceType::ID))->cache(),
+            (new FileContent('file_doc', SourceType::ID))->cache(),
+            new TextContent('Summarise clause 4.'),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'text', 'text' => 'The contract', 'cache_control' => ['type' => 'ephemeral']],
+            ['type' => 'image', 'source' => ['type' => 'file', 'file_id' => 'file_img'], 'cache_control' => ['type' => 'ephemeral']],
+            ['type' => 'document', 'source' => ['type' => 'file', 'file_id' => 'file_doc'], 'cache_control' => ['type' => 'ephemeral']],
+            ['type' => 'text', 'text' => 'Summarise clause 4.'],
+        ], (new MessageMapper())->map([$message])[0]['content']);
+    }
+
+    public function test_a_cached_reasoning_block_carries_no_breakpoint(): void
+    {
+        $message = new AssistantMessage([(new ReasoningContent('thinking', 'sig'))->cache(), new TextContent('Answer')]);
+
+        $this->assertSame(
+            ['type' => 'thinking', 'thinking' => 'thinking', 'signature' => 'sig'],
+            (new MessageMapper())->map([$message])[0]['content'][0],
+        );
     }
 
     public function test_unsupported_blocks_are_dropped_and_the_list_is_reindexed(): void

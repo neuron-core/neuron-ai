@@ -37,6 +37,7 @@ class ImageContent extends ContentBlock
             'source_type' => $this->sourceType,
             'media_type' => $this->mediaType,
             'meta' => $this->meta,
+            ...$this->cacheField(),
         ]);
     }
 }

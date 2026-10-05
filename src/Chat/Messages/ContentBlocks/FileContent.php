@@ -39,6 +39,7 @@ class FileContent extends ContentBlock
             'media_type' => $this->mediaType,
             'filename' => $this->filename,
             'meta' => $this->meta,
+            ...$this->cacheField(),
         ]);
     }
 }

@@ -20,6 +20,7 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -40,6 +41,8 @@ use function unlink;
  */
 class RAGApprovalResumeContractTest extends TestCase
 {
+    use ReadsTurnContext;
+
     protected string $directory;
 
     protected function setUp(): void
@@ -101,9 +104,9 @@ class RAGApprovalResumeContractTest extends TestCase
 
         $state = $this->rag($pausing, $knowledgeBefore, $connect())->chat(new UserMessage('How long do refunds take?'));
         $this->assertTrue($state->isInterrupted());
-        $context = $pausing->getRecorded()[0]->systemPrompt?->getContent();
+        $context = $this->turnContext($pausing->getRecorded()[0]);
         $this->assertSame(
-            "Answer from the context.\n\n<EXTRA-CONTEXT>Source Type: policy\nSource Name: refunds.md\nContent: Refunds take 14 days.\n\n</EXTRA-CONTEXT>",
+            "<EXTRA-CONTEXT>Source Type: policy\nSource Name: refunds.md\nContent: Refunds take 14 days.\n\n</EXTRA-CONTEXT>",
             $context,
         );
 
@@ -115,7 +118,7 @@ class RAGApprovalResumeContractTest extends TestCase
 
         $this->assertSame('14 days.', $final->getMessage()?->getContent());
         $knowledgeAfter->assertSearchCount(0);
-        $this->assertSame($context, $resuming->getRecorded()[0]->systemPrompt?->getContent());
+        $this->assertSame($context, $this->turnContext($resuming->getRecorded()[0]));
         $this->assertSame(
             [UserMessage::class, ToolCallMessage::class, ToolResultMessage::class],
             array_map(static fn (object $message): string => $message::class, $resuming->getRecorded()[0]->messages),

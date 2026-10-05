@@ -7,7 +7,6 @@ namespace NeuronAI\Tests\Providers\Anthropic;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -230,7 +229,7 @@ class AnthropicChatTest extends TestCase
     public function test_structured_appends_the_schema_as_a_trailing_system_block(): void
     {
         $provider = $this->provider(['content' => [['type' => 'text', 'text' => '{"name":"Ada"}']]])
-            ->systemPrompt(new SystemMessage([(new SystemContent('Cached rules'))->cache(), new SystemContent('Context')]));
+            ->systemPrompt(new SystemMessage([(new TextContent('Cached rules'))->cache(), new TextContent('Context')]));
         $schema = ['type' => 'object', 'properties' => ['name' => ['type' => 'string']]];
 
         $response = $provider->structured(new UserMessage('Who?'), 'App\\Person', $schema);

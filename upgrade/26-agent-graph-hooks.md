@@ -691,7 +691,7 @@ class LoggedPreProcessNode extends PreProcessNode
 ```
 
 - A `PreProcessNode` override declares the third parameter and returns `QueryPreProcessedEvent`. Call `parent::__invoke($event, $state, $resources)`: it initializes `$state->request`, which inference needs. An override that does not call the parent must do the same (copy it from `vendor/neuron-core/neuron-ai/src/RAG/Nodes/PreProcessNode.php`), and must not write the incoming messages to the history as the 3.x node did: `ChatNode` writes them after the model answers.
-- An `InstructionsNode` subclass: `InstructionsNode` has no constructor, so remove the `parent::__construct($instructions, $tools)` call and those parameters. Custom formatting of the retrieved documents moves to an override of `protected function buildBlockContent(array $documents): string`. Edits of the returned event's instructions are guide 27.
+- An `InstructionsNode` subclass: `InstructionsNode` has no constructor, so remove the `parent::__construct($instructions, $tools)` call and those parameters. The node no longer writes the documents to the instructions: it adds them to `$state->request->context` (guide 24, Case 12), so an override that edited the instructions to change the documents edits that block instead. Custom formatting of the retrieved documents moves to an override of `protected function buildBlockContent(array $documents): string`. Edits of the returned event's instructions are guide 27.
 - Delete references to `NeuronAI\RAG\Events\QueryPreProcessEvent` (the class is removed). 3.x never emitted it, so a node handling it never ran: delete that node too, and tell the developer.
 - Register the subclass in `entryNodes()` (Case 2 or Case 4).
 

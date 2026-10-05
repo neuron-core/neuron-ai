@@ -10,7 +10,6 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Citation;
 use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
@@ -128,7 +127,7 @@ class OpenAIResponses implements AIProviderInterface
         $hasCacheBreakpoint = false;
 
         foreach ($blocks as $block) {
-            if ($block instanceof SystemContent && $block->isCached()) {
+            if ($block->isCached()) {
                 $hasCacheBreakpoint = true;
                 break;
             }
@@ -147,7 +146,7 @@ class OpenAIResponses implements AIProviderInterface
                 'text' => $block->content,
             ];
 
-            if ($block instanceof SystemContent && $block->isCached()) {
+            if ($block->isCached()) {
                 $mapped['prompt_cache_breakpoint'] = ['mode' => 'explicit'];
             }
 

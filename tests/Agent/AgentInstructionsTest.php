@@ -17,7 +17,7 @@ use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\ToolSearchMiddleware;
 use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -39,7 +39,7 @@ class AgentInstructionsTest extends TestCase
         $blocks = ($agent = Agent::make())->getInstructions()->getTextBlocks();
 
         $this->assertCount(1, $blocks);
-        $this->assertInstanceOf(SystemContent::class, $blocks[0]);
+        $this->assertInstanceOf(TextContent::class, $blocks[0]);
         $this->assertFalse($blocks[0]->isCached());
     }
 
@@ -52,7 +52,7 @@ class AgentInstructionsTest extends TestCase
         $middleware = new ToolSearchMiddleware([]);
         $state = new AgentState();
         $state->request = new InferenceRequest(
-            new SystemMessage([new SystemContent('Block one'), new SystemContent('Block two')]),
+            new SystemMessage([new TextContent('Block one'), new TextContent('Block two')]),
             []
         );
         $event = new AIInferenceEvent();
@@ -119,7 +119,7 @@ class AgentInstructionsTest extends TestCase
         $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions(new SystemMessage(
-            new SystemContent('You are a helpful assistant.'),
+            new TextContent('You are a helpful assistant.'),
         ));
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
 
@@ -131,7 +131,7 @@ class AgentInstructionsTest extends TestCase
         // The original block reaches the provider untouched
         $records = $provider->getRecorded();
         $firstBlock = $records[0]->systemPrompt->getContentBlocks()[0] ?? null;
-        $this->assertInstanceOf(SystemContent::class, $firstBlock);
+        $this->assertInstanceOf(TextContent::class, $firstBlock);
         $this->assertSame('You are a helpful assistant.', $firstBlock->content);
     }
 
@@ -300,8 +300,8 @@ class AgentInstructionsTest extends TestCase
         $agent = Agent::make()->setThreadId('thread_1');
         $agent->setAiProvider($provider);
         $agent->setInstructions(new SystemMessage([
-            new SystemContent('Base instructions'),
-            (new SystemContent('Cached instructions'))->cache(),
+            new TextContent('Base instructions'),
+            (new TextContent('Cached instructions'))->cache(),
         ]));
         $agent->addGlobalMiddleware(new ToolSearchMiddleware($toolPool));
 
@@ -315,7 +315,7 @@ class AgentInstructionsTest extends TestCase
             $blocks = $record->systemPrompt->getTextBlocks();
             $this->assertCount(3, $blocks);
             $this->assertSame('Base instructions', $blocks[0]->content);
-            $this->assertInstanceOf(SystemContent::class, $blocks[1]);
+            $this->assertInstanceOf(TextContent::class, $blocks[1]);
             $this->assertSame('Cached instructions', $blocks[1]->content);
             $this->assertTrue($blocks[1]->isCached());
         }

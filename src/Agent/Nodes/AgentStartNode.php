@@ -28,6 +28,7 @@ class AgentStartNode extends Node
             instructions: clone $resources->instructions,
             messages: $event->messages,
             options: $event->options,
+            context: $resources->context,
         );
 
         return AIInferenceEvent::fromRequest($state->request);

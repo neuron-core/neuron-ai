@@ -11,31 +11,31 @@ use PHPUnit\Framework\TestCase;
 
 class SystemMessageTest extends TestCase
 {
-    public function test_a_string_becomes_a_system_block(): void
+    public function test_a_string_becomes_a_text_block(): void
     {
         $message = new SystemMessage('Be concise.');
 
         $this->assertSame('system', $message->getRole());
         $this->assertCount(1, $message->getContentBlocks());
-        $this->assertSame(SystemContent::class, $message->getContentBlocks()[0]::class);
+        $this->assertSame(TextContent::class, $message->getContentBlocks()[0]::class);
     }
 
     public function test_setting_a_string_replaces_the_instructions(): void
     {
-        $message = new SystemMessage([new SystemContent('first'), new SystemContent('second')]);
+        $message = new SystemMessage([new TextContent('first'), new TextContent('second')]);
 
         $message->setContents('replaced');
 
         $this->assertSame('replaced', $message->getContent());
         $this->assertCount(1, $message->getContentBlocks());
-        $this->assertInstanceOf(SystemContent::class, $message->getContentBlocks()[0]);
+        $this->assertInstanceOf(TextContent::class, $message->getContentBlocks()[0]);
     }
 
     public function test_setting_a_list_of_blocks_replaces_the_instructions(): void
     {
-        $message = new SystemMessage([new SystemContent('first'), new SystemContent('second')]);
+        $message = new SystemMessage([new TextContent('first'), new TextContent('second')]);
 
-        $message->setContents([new SystemContent('replaced')]);
+        $message->setContents([new TextContent('replaced')]);
 
         $this->assertSame('replaced', $message->getContent());
         $this->assertCount(1, $message->getContentBlocks());
@@ -43,7 +43,7 @@ class SystemMessageTest extends TestCase
 
     public function test_the_text_view_separates_the_blocks_with_a_blank_line(): void
     {
-        $message = new SystemMessage([new SystemContent('Role'), new TextContent('Rules')]);
+        $message = new SystemMessage([new TextContent('Role'), new TextContent('Rules')]);
 
         $this->assertSame("Role\n\nRules", $message->getContent());
     }
@@ -54,30 +54,41 @@ class SystemMessageTest extends TestCase
         $this->assertNull((new SystemMessage(''))->getContent());
     }
 
-    public function test_cache_marks_every_system_block(): void
+    public function test_cache_marks_the_last_block_only(): void
     {
-        $first = new SystemContent('first');
-        $second = new SystemContent('second');
+        $first = new TextContent('first');
+        $second = new TextContent('second');
         $message = new SystemMessage([$first, $second]);
 
         $this->assertSame($message, $message->cache());
 
-        $this->assertTrue($first->isCached());
+        // One breakpoint after the last block covers the whole message
+        $this->assertFalse($first->isCached());
         $this->assertTrue($second->isCached());
     }
 
-    public function test_cache_leaves_non_system_blocks_untouched(): void
+    public function test_a_deprecated_system_block_is_still_a_text_block_of_the_message(): void
     {
-        $text = new TextContent('plain');
+        $block = new SystemContent('instructions');
+        $message = new SystemMessage([new TextContent('first'), $block]);
 
-        (new SystemMessage([$text]))->cache();
+        $message->cache();
 
-        $this->assertSame(['type' => $text->getType(), 'content' => 'plain', 'meta' => []], $text->toArray());
+        $this->assertSame("first\n\ninstructions", $message->getContent());
+        $this->assertTrue($block->isCached());
+    }
+
+    public function test_caching_an_empty_message_marks_nothing(): void
+    {
+        $message = new SystemMessage();
+
+        $this->assertSame($message, $message->cache());
+        $this->assertSame([], $message->getContentBlocks());
     }
 
     public function test_contains_searches_every_text_block(): void
     {
-        $message = new SystemMessage([new SystemContent('You are a helpful assistant.'), new TextContent('Answer in French.')]);
+        $message = new SystemMessage([new TextContent('You are a helpful assistant.'), new TextContent('Answer in French.')]);
 
         $this->assertTrue($message->contains('helpful'));
         $this->assertTrue($message->contains('in French'));

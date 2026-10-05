@@ -9,6 +9,7 @@ use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -46,6 +47,36 @@ class OpenAIResponsesMessageMapperTest extends TestCase
             new AssistantMessage('Answer'),
             new Message(MessageRole::USER, 'Generic user'),
         ]));
+    }
+
+    public function test_a_cached_input_text_carries_a_cache_breakpoint(): void
+    {
+        $items = $this->wire([new UserMessage([
+            (new TextContent('The contract'))->cache(),
+            new TextContent('Summarise clause 4.'),
+        ])]);
+
+        $this->assertSame([
+            ['type' => 'input_text', 'text' => 'The contract', 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
+            ['type' => 'input_text', 'text' => 'Summarise clause 4.'],
+        ], $items[0]['content']);
+    }
+
+    public function test_only_input_text_takes_a_cache_breakpoint(): void
+    {
+        $items = $this->wire([
+            new UserMessage([
+                (new ImageContent('file_img', SourceType::ID))->cache(),
+                (new FileContent('file_doc', SourceType::ID))->cache(),
+            ]),
+            new AssistantMessage((new TextContent('Answer'))->cache()),
+        ]);
+
+        $this->assertSame([
+            ['type' => 'input_image', 'file_id' => 'file_img'],
+            ['type' => 'input_file', 'file_id' => 'file_doc'],
+        ], $items[0]['content']);
+        $this->assertSame([['type' => 'output_text', 'text' => 'Answer']], $items[1]['content']);
     }
 
     public function test_images_and_files_map_for_every_source_type(): void

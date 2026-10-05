@@ -261,30 +261,62 @@ class WeatherTool extends Tool
 
 ## Agent Instructions
 
-Agent instructions are a `SystemMessage` (`instructions()` returns `SystemMessage|string` — a plain string is wrapped automatically). A `SystemMessage` carries one or more `SystemContent` blocks; mark a block with `->cache()` to enable provider prompt caching on it:
+Agent instructions are a `SystemMessage` (`instructions()` returns `SystemMessage|string` — a plain string is wrapped automatically). A `SystemMessage` carries one or more text blocks; mark a block with `->cache()` to enable provider prompt caching on it:
 
 ```php
 use NeuronAI\Chat\Messages\SystemMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 
 protected function instructions(): SystemMessage|string
 {
     return new SystemMessage([
         // Large static context: cache it to reduce cost and latency.
-        (new SystemContent("You are a data analyst expert in creating reports. ..."))->cache(),
-        // Dynamic part, left uncached.
-        new SystemContent("Today is " . date('Y-m-d')),
+        (new TextContent("You are a data analyst expert in creating reports. ..."))->cache(),
+        // Changes with the tenant, not with every turn: left out of the cached part.
+        new TextContent("Reports are written for {$this->tenant->name}."),
     ]);
 }
 ```
 
-`SystemMessage::cache()` marks all of the message's blocks as cached at once. The marker caches the instructions, not the conversation: on Anthropic the conversation needs a request parameter, see [references/providers.md](references/providers.md).
+`SystemMessage::cache()` caches the whole message: it marks the last block, and one breakpoint there covers every block before it. The blocks of a conversation message take the same marker (see Content Blocks), and [references/providers.md](references/providers.md) says how each provider treats it.
 
 Instructions can also be set fluently:
 
 ```php
 $agent->setInstructions('You are a helpful assistant.');
 ```
+
+## Turn Context
+
+Content that changes from one turn to the next does not belong in the instructions: it would change the start of every request, and a provider caches a request from its start. Return it from the `context()` hook, or pass it to `setContext()` when the Agent is configured from outside:
+
+```php
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+
+protected function context(): array
+{
+    return [new TextContent('Today is ' . date('Y-m-d') . '. The customer is on the Pro plan.')];
+}
+
+// Or, without a subclass:
+$agent->setContext([new TextContent("The user is viewing order {$orderId}.")]);
+```
+
+The context is read when a turn starts and sent in the user's message, after that message's own content, on every request of the turn. It is never stored in the chat history: the next turn sends the earlier message without it. A middleware adds to it through the state, with a key so that an entry written before every model call replaces itself:
+
+```php
+$state->request->context['page'] = new TextContent("The user is viewing: {$url}");
+```
+
+The context is part of the user's turn, so a user can type text that looks like it. When the context decides whether the agent acts, such as a policy that allows a refund tool to run, tell the developer.
+
+To have a provider with cache breakpoints (Anthropic, OpenAI GPT-5.6 and later, Bedrock) reuse the conversation from one turn to the next, mark the user's message. The context comes after the marker and is never written to the cache:
+
+```php
+$agent->chat(new UserMessage((new TextContent($input))->cache()));
+```
+
+A thread that never gets a second turn pays for a cache write nobody reads, so leave the marker out of agents that answer once per thread. [references/providers.md](references/providers.md) has the details for each provider.
 
 ## Chat History & Thread Identity
 
@@ -372,6 +404,20 @@ $message = new UserMessage([
 ```
 
 Use the `MediaType` enum for common MIME types (images, documents, audio, video). The `mediaType` parameter also accepts a plain string (`'image/x-custom'`) for types not covered by the enum.
+
+Any block takes `->cache()`. It asks the provider for a prompt cache breakpoint right after that block, so the requests that follow reuse everything up to it:
+
+```php
+use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
+
+// A long document discussed over several turns
+$message = new UserMessage([
+    (new FileContent($pdf, SourceType::BASE64, 'application/pdf', 'contract.pdf'))->cache(),
+    new TextContent('Summarise clause 4.'),
+]);
+```
+
+The marker covers everything up to its block. Put it on the last block of a message to reuse the conversation on later turns (see Turn Context). Put it on an earlier block, as above, when many conversations start with the same document and differ only in the question. The marker is stored with the message, so it still applies on later turns. It is a request: a provider without cache breakpoints ignores it, see [references/providers.md](references/providers.md).
 
 ## CLI Generation
 
@@ -564,7 +610,7 @@ When helping users build agents:
    - Multiple sessions should share history
    - Conversation context needs to be shared across agents
 
-4. **Use middleware** to edit the working request, such as summarization or tool selection. Target `InferenceNode::class` to cover both chat/stream and structured inference; matching is subclass-aware. `AgentMiddleware` offers typed hooks for nodes implementing `AgentNodeInterface`, with the segment's provider, history, instructions and tools in `AgentResources`. Register a middleware that adds tools, such as `ToolSearchMiddleware`, with `addGlobalMiddleware()`, so a continuation that starts at the tool node finds the tools the model was offered. Ordinary custom `Node`s and the boundary nodes need `WorkflowMiddleware` unless they implement that interface. Middleware `after()` returns `void` and cannot replace the routing event.
+4. **Use middleware** to edit the working request, such as summarization or tool selection. Target `InferenceNode::class` to cover both chat/stream and structured inference; matching is subclass-aware. `AgentMiddleware` offers typed hooks for nodes implementing `AgentNodeInterface`, with the segment's provider, history, instructions and tools in `AgentResources`. Register a middleware that adds tools, such as `ToolSearchMiddleware`, with `addGlobalMiddleware()`, so a continuation that starts at the tool node finds the tools the model was offered. `ToolSearchMiddleware` changes the tool list during a turn, and a changed tool list makes a provider's prompt cache start over: [references/providers.md](references/providers.md) says when that costs less than listing every tool. Ordinary custom `Node`s and the boundary nodes need `WorkflowMiddleware` unless they implement that interface. Middleware `after()` returns `void` and cannot replace the routing event.
 
 5. **Use workflow nodes** for I/O and flow control: speech providers, output processing, and interruptions. Tool approval already lives in `ToolNode`. Prefer `entryNodes()` / `exitNodes()` for boundary extensions and **neuron-workflow** for bespoke graphs.
 

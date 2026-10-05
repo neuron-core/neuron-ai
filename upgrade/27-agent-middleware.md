@@ -125,7 +125,7 @@ use NeuronAI\Agent\Events\AgentOutputEvent;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Middleware\AgentMiddleware;
 use NeuronAI\Agent\Nodes\AgentNodeInterface;
-use NeuronAI\Chat\Messages\ContentBlocks\SystemContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Workflow\Events\Event;
 
 class ReportingTools extends AgentMiddleware
@@ -145,7 +145,7 @@ class ReportingTools extends AgentMiddleware
         }
 
         if (!$state->request->instructions->contains(self::INSTRUCTIONS)) {
-            $state->request->instructions->addContent(new SystemContent(self::INSTRUCTIONS));
+            $state->request->instructions->addContent(new TextContent(self::INSTRUCTIONS));
         }
 
         $this->metrics->gauge('history.size', count($resources->history->getMessages()));
@@ -261,7 +261,7 @@ This applies inside agent middleware and inside nodes. In a node, `$resources` i
 |---|---|
 | `$state->getChatHistory()` | `$resources->history` |
 | `$state->getMessage()` (the history's last message) | `$resources->history->getLastMessage()` |
-| `$event->instructions .= $text;` | `if (!$state->request->instructions->contains($text)) { $state->request->instructions->addContent(new SystemContent($text)); }` |
+| `$event->instructions .= $text;` | `if (!$state->request->instructions->contains($text)) { $state->request->instructions->addContent(new TextContent($text)); }` |
 | `$event->instructions = $text;` | `$state->request->instructions = new SystemMessage($text);` |
 | reading `$event->instructions`, `str_contains($event->instructions, $text)` | `$state->request->instructions->getContent()`, `$state->request->instructions->contains($text)` |
 | `$event->tools[] = $tool;` | `$resources->tools->add($tool);` |
@@ -276,7 +276,7 @@ This applies inside agent middleware and inside nodes. In a node, `$resources` i
 | `$result instanceof StopEvent` in `after()` for `ChatNode`, `StreamingNode` or `StructuredOutputNode` | `$result instanceof AgentOutputEvent` |
 | `$result->getMessages()` in `after()` for `ToolNode` | `$state->request->messages` |
 
-Imports: `NeuronAI\Chat\Messages\ContentBlocks\SystemContent`, `NeuronAI\Chat\Messages\SystemMessage`, `NeuronAI\Agent\Events\AgentOutputEvent`.
+Imports: `NeuronAI\Chat\Messages\ContentBlocks\TextContent`, `NeuronAI\Chat\Messages\SystemMessage`, `NeuronAI\Agent\Events\AgentOutputEvent`.
 
 Rules:
 

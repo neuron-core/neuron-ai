@@ -22,6 +22,7 @@ class TextContent extends ContentBlock
             'type' => $this->getType(),
             'content' => $this->content,
             'meta' => $this->meta,
+            ...$this->cacheField(),
         ];
     }
 }

@@ -29,6 +29,7 @@ use NeuronAI\Tools\ToolProperty;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 
+use function array_pop;
 use function json_encode;
 
 use const PHP_EOL;
@@ -127,6 +128,25 @@ class BedrockPayloadTest extends TestCase
             ],
         ], $command['messages']);
         $this->assertSame('lookup', $command['toolConfig']['tools'][0]['toolSpec']['name']);
+    }
+
+    public function test_cache_points_pass_sdk_validation_and_only_the_latest_four_are_sent(): void
+    {
+        $this->answerText();
+        $messages = [];
+        for ($number = 1; $number <= 5; $number++) {
+            $messages[] = new UserMessage((new TextContent("Question {$number}"))->cache());
+            $messages[] = new AssistantMessage("Answer {$number}");
+        }
+        array_pop($messages);
+
+        (new BedrockRuntime($this->client(), 'anthropic.claude-v2'))->chat(...$messages);
+
+        $sent = $this->commands[0]['messages'];
+        $this->assertSame([['text' => 'Question 1']], $sent[0]['content']);
+        foreach ([2, 4, 6, 8] as $index) {
+            $this->assertSame(['cachePoint' => ['type' => 'default']], $sent[$index]['content'][1]);
+        }
     }
 
     public function test_optional_sections_are_omitted_when_not_configured(): void
