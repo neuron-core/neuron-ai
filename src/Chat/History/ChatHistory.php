@@ -10,6 +10,7 @@ use NeuronAI\Exceptions\ChatHistoryException;
 
 use function count;
 use function end;
+use function sprintf;
 
 use const PHP_INT_MAX;
 
@@ -22,19 +23,34 @@ use const PHP_INT_MAX;
  */
 class ChatHistory implements JsonSerializable
 {
-    public const DEFAULT_CONTEXT_WINDOW = 50_000;
+    public const DEFAULT_CONTEXT_WINDOW = 100_000;
+
+    /**
+     * The share of the context window a trim frees. Half the window leaves room
+     * for many turns before the first message moves again; 0 cuts just under it.
+     */
+    public const DEFAULT_HISTORY_TRIM_RATIO = 0.5;
 
     /**
      * @var Message[]|null the active messages, null until loaded
      */
     protected ?array $messages = null;
 
+    /**
+     * @throws ChatHistoryException
+     */
     public function __construct(
         protected MessageStoreInterface $store,
         protected string $threadId,
         protected int $contextWindow = self::DEFAULT_CONTEXT_WINDOW,
         protected HistoryTrimmerInterface $trimmer = new HistoryTrimmer(),
+        protected float $historyTrimRatio = self::DEFAULT_HISTORY_TRIM_RATIO,
     ) {
+        if ($historyTrimRatio < 0 || $historyTrimRatio >= 1) {
+            throw new ChatHistoryException(
+                sprintf('The history trim ratio must be at least 0 and lower than 1, got %s.', $historyTrimRatio)
+            );
+        }
     }
 
     public function getThreadId(): string
@@ -60,6 +76,13 @@ class ChatHistory implements JsonSerializable
 
         $messages[] = $message;
         $trimmed = $this->trimmer->trim($messages, $this->contextWindow);
+
+        // A cut goes on down to the trim ratio. The turns that follow then append
+        // without moving the first message, so a provider's prompt cache, which
+        // matches a request from its start, keeps serving the conversation.
+        if (count($trimmed) < count($messages)) {
+            $trimmed = $this->trimmer->trim($trimmed, (int) ($this->contextWindow * (1 - $this->historyTrimRatio)));
+        }
 
         // Once appended, the store's active messages equal $messages, so archiving
         // the oldest ones removes exactly what the trimmer dropped.

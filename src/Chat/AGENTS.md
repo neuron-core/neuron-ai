@@ -30,6 +30,8 @@ When the trimmer drops the oldest messages from the context, `ChatHistory` archi
 
 The window budgets the whole request. The provider's usage, recorded on each answer, covers the instructions and tools sent with it, so they count without the history knowing them; before the first answer the messages are estimated alone. A cut is priced by the messages it drops, the provider's output tokens for a measured answer and an estimate otherwise, since instructions and tools stay in the next request. The cut falls where the fewest messages go for the rest to fit the window, but a trimmed history must start with a plain `UserMessage`. When that point lands inside a turn, the trimmer keeps the whole turn if the history stays within 5% over the window (`HistoryTrimmer::OVERFLOW_TOLERANCE`), and otherwise cuts at the next user message, so a long tool chain is not dropped to save a few tokens. The latest turn is kept however large. Set the window at least 5% below the model's limit.
 
+A cut goes deeper than the window needs. Once the trimmer drops something, `ChatHistory` asks it again to fit `contextWindow × (1 − historyTrimRatio)`: the constructor's fifth argument, `DEFAULT_HISTORY_TRIM_RATIO` (half the window) by default, from 0 up to, not including, 1. A provider's prompt cache matches a request from its start, so a history that loses its oldest turn on every append is never served from it; after a deeper cut the first message stays in place for many turns. `0` keeps the smallest cut. A custom trimmer is therefore called a second time, on its own result and with the smaller size.
+
 `calculateTotalUsage()` measures the active messages on demand, so a freshly loaded history reports its real size.
 
 ### Invariants

@@ -160,14 +160,6 @@ class OpenAIResponses implements AIProviderInterface
             'content' => $content,
         ]);
         $body['input'] = $input;
-
-        $promptCacheOptions = is_array($body['prompt_cache_options'] ?? null)
-            ? $body['prompt_cache_options']
-            : [];
-        $body['prompt_cache_options'] = [
-            ...$promptCacheOptions,
-            'mode' => 'explicit',
-        ];
     }
 
     protected function messageMapper(): MessageMapperInterface

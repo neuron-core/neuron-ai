@@ -102,6 +102,15 @@ new Ollama(url: $url, model: $model, parameters: ['options' => ['temperature' =>
 
 `strict_response: true` on the OpenAI family turns on the vendor's strict JSON schema mode for `structured()`; the framework rewrites the schema to satisfy the strict-mode rules. Prompt caching follows the `cache()` marker on system blocks described in the skill: Anthropic turns each cached block into a `cache_control` breakpoint, the OpenAI Responses provider into a `prompt_cache_breakpoint`, and the other providers ignore the marker.
 
+The marker caches the instructions, not the conversation. OpenAI, Gemini and Deepseek cache the conversation on their own. `Anthropic` and `AnthropicVertex` cache it only when the request carries a top-level `cache_control`: Anthropic then places a breakpoint on the last message and moves it forward on every request.
+
+```php
+// Anthropic: cache the conversation too, next to the cached system blocks
+new Anthropic(key: $key, model: $model, parameters: ['cache_control' => ['type' => 'ephemeral']]);
+```
+
+A cache write costs 1.25 times the input price and a read 0.1 times, so this pays off when later requests reuse the conversation within five minutes, as in tool loops and multi-turn chats. An agent that answers in one request, or a RAG agent without tools, pays for the write and never reads it back. This breakpoint takes one of the four Anthropic allows per request, so mark at most three system blocks with `cache()`; a fourth fails the request. Add `'ttl' => '1h'` only when no system block is cached: `cache()` writes five-minute breakpoints, and Anthropic requires the longer TTL to come first.
+
 ## HTTP client
 
 Every HTTP-based provider builds a `CurlHttpClient` unless one is passed as `httpClient` or installed later with `setHttpClient()`. Use the client for proxies and CA bundles (`curlOptions`), for request and response taps (`onRequest()` / `onResponse()`), or to swap the transport:

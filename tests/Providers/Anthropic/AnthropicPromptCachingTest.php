@@ -173,6 +173,33 @@ class AnthropicPromptCachingTest extends TestCase
         $this->assertArrayNotHasKey('cache_control', $requestBody['tools'][0]);
     }
 
+    public function test_cache_control_parameter_enables_automatic_conversation_caching(): void
+    {
+        $sentRequests = [];
+        $history = Middleware::history($sentRequests);
+        $mockHandler = new MockHandler([
+            new Response(
+                status: 200,
+                body: '{"model": "claude-3-7-sonnet-latest","role": "assistant","stop_reason": "end_turn","content":[{"type": "text","text": "Response"}],"usage": {"input_tokens": 100,"output_tokens": 20}}',
+            ),
+        ]);
+        $stack = HandlerStack::create($mockHandler);
+        $stack->push($history);
+
+        $provider = (new Anthropic('', 'claude-3-7-sonnet-latest', parameters: ['cache_control' => ['type' => 'ephemeral']]))
+            ->setHttpClient(new GuzzleHttpClient(handler: $stack))
+            ->systemPrompt((new SystemMessage('Static instructions'))->cache());
+
+        $provider->chat(new UserMessage('First question'), new AssistantMessage('Answer'), new UserMessage('Second question'));
+
+        $requestBody = json_decode((string) $sentRequests[0]['request']->getBody(), true);
+
+        // Anthropic places the conversation breakpoint itself: the top-level field is all it needs
+        $this->assertSame(['type' => 'ephemeral'], $requestBody['cache_control']);
+        $this->assertSame(['type' => 'ephemeral'], $requestBody['system'][0]['cache_control']);
+        $this->assertCount(3, $requestBody['messages']);
+    }
+
     public function test_stream_captures_cache_metrics(): void
     {
         $sentRequests = [];

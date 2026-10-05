@@ -521,6 +521,7 @@ protected function resources(): AgentResources
             $resources->history->getThreadId(),
             $this->contextWindow ?? $this->contextWindow(),
             new KeepLastTurnsTrimmer(),
+            $this->historyTrimRatio ?? $this->historyTrimRatio(),
         ),
         $resources->instructions,
         $resources->tools,
@@ -530,7 +531,7 @@ protected function resources(): AgentResources
 
 - `KeepLastTurnsTrimmer` stands for the application's own trimmer class. Create a new instance for every history, as above.
 - When the trimmer was passed at a call site (`setChatHistory(new InMemoryChatHistory(100000, new KeepLastTurnsTrimmer()))`), add the override to the Agent class used there. If that class is `Agent` itself, or is also used without the trimmer, ask the developer whether to create a dedicated subclass.
-- The store still comes from `setMessageStore()` or `messageStore()`, and the window from `setContextWindow()` or `contextWindow()`.
+- The store still comes from `setMessageStore()` or `messageStore()`, the window from `setContextWindow()` or `contextWindow()`, and the trim ratio from `setHistoryTrimRatio()` or `historyTrimRatio()` (guide 32, Case 9).
 - `$agent->getChatHistory()` outside a run keeps the default trimmer.
 - A trimmer passed to a history used outside an Agent (Case 6) becomes the fourth argument: `new ChatHistory($store, $threadId, $contextWindow, new KeepLastTurnsTrimmer())`.
 - What a custom trimmer must do in 4.x is covered by guide 32.

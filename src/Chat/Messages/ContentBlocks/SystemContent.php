@@ -9,7 +9,10 @@ use Stringable;
 
 class SystemContent extends TextContent implements Stringable
 {
-    protected bool $cached = false;
+    public function __construct(string $content, protected bool $cached = false)
+    {
+        parent::__construct($content);
+    }
 
     public function getType(): ContentBlockType
     {

@@ -25,6 +25,7 @@ use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\AgentException;
+use NeuronAI\Exceptions\ChatHistoryException;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Agent\Interrupt\Action;
@@ -66,6 +67,8 @@ class Agent extends Workflow implements AgentInterface
     protected ?MessageStoreInterface $messageStore = null;
 
     protected ?int $contextWindow = null;
+
+    protected ?float $historyTrimRatio = null;
 
     protected bool $parallelToolCalls = false;
 
@@ -146,16 +149,39 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
+     * The share of the context window freed when the conversation outgrows it,
+     * from 0 up to, not including, 1. A larger share keeps less of the conversation
+     * after a cut but leaves the first message in place for more turns, which is
+     * what a provider's prompt cache needs; 0 makes the smallest cut that fits.
+     * An explicit setHistoryTrimRatio() wins over this hook.
+     */
+    protected function historyTrimRatio(): float
+    {
+        return ChatHistory::DEFAULT_HISTORY_TRIM_RATIO;
+    }
+
+    public function setHistoryTrimRatio(float $ratio): static
+    {
+        $this->historyTrimRatio = $ratio;
+        return $this;
+    }
+
+    /**
      * A fresh view of the conversation on every call: every execution segment
      * opens its own. Nodes and middleware read the history of the node they wrap;
      * writing through this view while an execution is running is unsupported.
+     *
+     * @throws AgentException
+     * @throws ChatHistoryException
+     * @throws WorkflowException
      */
     final public function getChatHistory(): ChatHistory
     {
         return new ChatHistory(
-            $this->resolveMessageStore(),
-            $this->requireWorkflowId(),
-            $this->contextWindow ?? $this->contextWindow()
+            store: $this->resolveMessageStore(),
+            threadId: $this->requireWorkflowId(),
+            contextWindow: $this->contextWindow ?? $this->contextWindow(),
+            historyTrimRatio: $this->historyTrimRatio ?? $this->historyTrimRatio(),
         );
     }
 
@@ -228,6 +254,7 @@ class Agent extends Workflow implements AgentInterface
      * call in the next inference's context.
      *
      * @throws AgentException
+     * @throws ChatHistoryException
      */
     public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
@@ -288,11 +315,17 @@ class Agent extends Workflow implements AgentInterface
         return [new AgentStartNode()];
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function getThreadId(): ?string
     {
         return $this->getWorkflowId();
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function setThreadId(string $threadId): static
     {
         return $this->setWorkflowId($threadId);
@@ -300,6 +333,7 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @throws AgentException
+     * @throws WorkflowException
      */
     protected function requireWorkflowId(): string
     {
@@ -383,7 +417,7 @@ class Agent extends Workflow implements AgentInterface
      * The tool calls still awaiting a human decision on the current interruption.
      *
      * @return Action[]
-     * @throws AgentException
+     * @throws WorkflowException
      */
     public function pendingApprovals(): array
     {

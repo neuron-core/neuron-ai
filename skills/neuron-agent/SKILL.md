@@ -278,7 +278,7 @@ protected function instructions(): SystemMessage|string
 }
 ```
 
-`SystemMessage::cache()` marks all of the message's blocks as cached at once.
+`SystemMessage::cache()` marks all of the message's blocks as cached at once. The marker caches the instructions, not the conversation: on Anthropic the conversation needs a request parameter, see [references/providers.md](references/providers.md).
 
 Instructions can also be set fluently:
 
@@ -315,6 +315,20 @@ $agent->setContextWindow(190_000);
 ```
 
 The window covers the whole request: instructions, tool definitions and messages, as the provider's usage reports them. Keep it at least 5% below the model's limit, as 190,000 is for a 200,000-token model: rather than drop a whole turn, the history may keep up to 5% more than the window.
+
+When the conversation outgrows the window, its oldest turns are archived until it fits half the window again. The cut is deep on purpose: providers cache a request from its start, so a history that drops its oldest turn at every message is never served from the prompt cache. The `historyTrimRatio()` hook, or `setHistoryTrimRatio()`, sets the share of the window a cut frees (`0.5` by default, from 0 up to, not including, 1):
+
+```php
+protected function historyTrimRatio(): float
+{
+    return 0.2;
+}
+
+// Or, without a subclass:
+$agent->setHistoryTrimRatio(0.2);
+```
+
+A lower ratio keeps more of the conversation after a cut and moves the first message more often; `0` makes the smallest cut that fits. On a very large window a low ratio is enough: `0.1` of 1,000,000 tokens already frees 100,000.
 
 `getChatHistory()->getMessages()` returns the model context. To render a whole conversation, read its transcript from the store; message IDs are stable, so they serve as UI keys and page cursors:
 

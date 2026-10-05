@@ -219,7 +219,7 @@ class ChatHistoryTest extends TestCase
 
     public function test_regular_messages_are_removed_when_context_window_exceeded(): void
     {
-        $history = $this->history(450);
+        $history = $this->history(450, 0);
 
         // 100 tokens of instructions and tools, then five turns of 50 + 50. The fourth answer brings the
         // request to 500, 11% over: the first turn goes, and the fifth answer makes the second one go.
@@ -236,7 +236,7 @@ class ChatHistoryTest extends TestCase
 
     public function test_find_trim_point_progressively_exceeds_context_window(): void
     {
-        $history = $this->history(500);
+        $history = $this->history(500, 0);
         $turns = [];
 
         // 100 tokens of instructions and tools, then turns of 100 + 100: 300 and 500 fit, 700 overflows.
@@ -271,6 +271,76 @@ class ChatHistoryTest extends TestCase
         // its tool call and result together.
         $this->assertSame($this->ids(array_slice($messages, 4)), $this->ids($history->getMessages()));
         $this->assertSame(175, $history->calculateTotalUsage());
+    }
+
+    public function test_a_trim_goes_down_to_the_history_trim_ratio(): void
+    {
+        $history = $this->history(450, 0.5);
+
+        // 100 tokens of instructions and tools, then five turns of 50 + 50. The fourth answer brings the
+        // request to 500: the cut goes on to half the window, 225, which only the fourth turn fits, and
+        // the fifth turn appends without moving the first message again.
+        for ($turn = 1; $turn <= 5; $turn++) {
+            $history->addMessage(new UserMessage(Conversation::text(50, "Question {$turn}")));
+            $history->addMessage((new AssistantMessage("Answer {$turn}"))->setUsage(Conversation::usage($history->getMessages(), 100, 50)));
+        }
+
+        $messages = $history->getMessages();
+        $this->assertCount(4, $messages);
+        $this->assertStringStartsWith('Question 4', (string) $messages[0]->getContent());
+        $this->assertSame(300, $history->calculateTotalUsage());
+    }
+
+    public function test_a_cut_asks_the_trimmer_again_for_the_trimmed_size(): void
+    {
+        $trimmer = new class () implements HistoryTrimmerInterface {
+            /**
+             * @var int[]
+             */
+            public array $contextWindows = [];
+
+            public function getTotalTokens(): int
+            {
+                return 0;
+            }
+
+            public function trim(array $messages, int $contextWindow): array
+            {
+                $this->contextWindows[] = $contextWindow;
+
+                // Keep the last two messages.
+                return array_slice($messages, -2);
+            }
+        };
+        $history = new ChatHistory(new InMemoryMessageStore(), 'thread', 1000, $trimmer, 0.25);
+
+        $history->addMessage(new UserMessage('1'));
+        $history->addMessage(new AssistantMessage('2'));
+        $this->assertSame([1000, 1000], $trimmer->contextWindows);
+
+        $history->addMessage(new UserMessage('3'));
+        $this->assertSame([1000, 1000, 1000, 750], $trimmer->contextWindows);
+    }
+
+    /**
+     * @return array<string, array{float}>
+     */
+    public static function invalidHistoryTrimRatios(): array
+    {
+        return [
+            'negative' => [-0.1],
+            'the whole window' => [1.0],
+            'more than the window' => [1.5],
+        ];
+    }
+
+    #[DataProvider('invalidHistoryTrimRatios')]
+    public function test_a_history_trim_ratio_outside_its_range_is_refused(float $ratio): void
+    {
+        $this->expectException(ChatHistoryException::class);
+        $this->expectExceptionMessage("The history trim ratio must be at least 0 and lower than 1, got {$ratio}.");
+
+        new ChatHistory(new InMemoryMessageStore(), 'thread', historyTrimRatio: $ratio);
     }
 
     public function test_loading_is_deferred_to_first_use(): void
@@ -384,7 +454,8 @@ class ChatHistoryTest extends TestCase
                 : new UserMessage("Message {$i}"));
         }
 
-        $this->assertCount(8, $history->getMessages());
+        // The tenth message overflows the window, and half of it only fits the last turn
+        $this->assertCount(2, $history->getMessages());
         $this->assertSame($this->ids($history->getMessages()), $this->ids($store->loadActive('thread')));
         $this->assertCount(10, $store->loadAll('thread'));
     }
@@ -408,7 +479,7 @@ class ChatHistoryTest extends TestCase
             }
         };
         $store = new InMemoryMessageStore();
-        $history = new ChatHistory($store, 'thread', 1234, $trimmer);
+        $history = new ChatHistory($store, 'thread', 1234, $trimmer, 0);
         $messages = [new UserMessage('1'), new AssistantMessage('2'), new UserMessage('3'), new AssistantMessage('4')];
 
         foreach ($messages as $message) {
@@ -527,9 +598,9 @@ class ChatHistoryTest extends TestCase
         $this->assertCount(1, $store->loadAll('thread'));
     }
 
-    protected function history(int $contextWindow = 50000): ChatHistory
+    protected function history(int $contextWindow = 50000, float $historyTrimRatio = ChatHistory::DEFAULT_HISTORY_TRIM_RATIO): ChatHistory
     {
-        return new ChatHistory(new InMemoryMessageStore(), 'thread', $contextWindow);
+        return new ChatHistory(new InMemoryMessageStore(), 'thread', $contextWindow, historyTrimRatio: $historyTrimRatio);
     }
 
     /**

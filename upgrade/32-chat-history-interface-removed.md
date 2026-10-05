@@ -10,6 +10,7 @@ public function __construct(
     string $threadId,
     int $contextWindow = ChatHistory::DEFAULT_CONTEXT_WINDOW, // 50000 tokens
     HistoryTrimmerInterface $trimmer = new HistoryTrimmer(),
+    float $historyTrimRatio = ChatHistory::DEFAULT_HISTORY_TRIM_RATIO, // 0.5
 )
 ```
 
@@ -27,7 +28,8 @@ No API accepts a custom history anymore. Storage is a `MessageStoreInterface`, t
 | `class X implements ChatHistoryInterface` | a `MessageStoreInterface` plus the context window (Cases 3 and 4) |
 | `$agent->getChatHistory()` returning `ChatHistoryInterface` | returns `ChatHistory`. Calls stay the same |
 | sequence validation in `addMessage()` | with the default trimmer, it also rejects a history that opens with a `ToolCallMessage`, and a `UserMessage` directly after a `ToolCallMessage` (Case 4) |
-| `HistoryTrimmerInterface` | the interface is unchanged, but implementations must follow two new rules (Case 6) |
+| `HistoryTrimmerInterface` | the interface is unchanged, but implementations must follow three new rules (Case 6) |
+| a history over its window loses the fewest oldest messages that make it fit | it is cut down to half the window. A history trim ratio of 0 keeps the 3.x cut (Case 9) |
 | `HistoryTrimmer` protected methods | new signatures (Case 7) |
 | `new TokenCounter($charsPerToken, $extraTokensPerMessage)` | `new TokenCounter($charsPerToken)` (Case 8) |
 
@@ -49,6 +51,7 @@ grep -rn 'getLastMessage' --include='*.php' --exclude-dir=vendor .
 grep -rnE '\bclone\s*\(?\s*\$' --include='*.php' --exclude-dir=vendor .
 grep -rnE 'ToolCallMessage|Invalid message sequence' --include='*.php' --exclude-dir=vendor .
 grep -rnE 'HistoryTrimmerInterface|extends\s+HistoryTrimmer\b|TokenCounter\b|extraTokensPerMessage' --include='*.php' --exclude-dir=vendor .
+grep -rnE 'setContextWindow[(]|function contextWindow[(]|new ChatHistory[(]' --include='*.php' --exclude-dir=vendor .
 ```
 
 How to follow the hits:
@@ -64,6 +67,7 @@ How to follow the hits:
 - **`clone`**: Case 5 applies when the cloned value is a message. Also look for one message object sent more than once: in loops, in retries, or kept in a property.
 - **`ToolCallMessage` / `Invalid message sequence`**: Case 4 applies where a `ToolCallMessage` is written into a history or store by hand in tests, fixtures, seeders or imports: `addMessage()` (including on `$agent->getChatHistory()`, as guide 31 seeds histories), `new ChatHistory(...)`, or a store's `append()`. A `ToolCallMessage` that is only queued as a `FakeAIProvider` response needs no change. Both sequences that 4.x newly rejects contain a `ToolCallMessage`.
 - **Trimmer and `TokenCounter` hits**: Cases 6 to 8.
+- **`setContextWindow(`, `contextWindow()` and `new ChatHistory(`**: Case 9, for every Agent or history whose context window the application sets.
 
 If nothing is found, this guide does not apply.
 
@@ -285,10 +289,11 @@ If the application removed duplicates before calling `addMessage()`, it no longe
 
 ### Case 6: Custom `HistoryTrimmerInterface` implementations
 
-The interface is unchanged: `getTotalTokens(): int` and `trim(array $messages, int $contextWindow): array`. Check every implementation against two rules:
+The interface is unchanged: `getTotalTokens(): int` and `trim(array $messages, int $contextWindow): array`. Check every implementation against three rules:
 
 1. `trim()` may only drop messages from the start. It must return the newest messages of its input as the same objects, in the same order. `ChatHistory` stores only the added message, then archives as many of the oldest stored messages as `trim()` dropped. Messages that the trimmer inserts, rewrites, reorders or removes from the middle never reach the store. 3.x `SQLChatHistory` and `FileChatHistory` saved whatever `trim()` returned. If the trimmer does more than drop the oldest messages, report it to the developer: that logic cannot stay in a trimmer. Summaries belong to the `Summarization` middleware.
 2. `ChatHistory::calculateTotalUsage()` now calls `trim($messages, PHP_INT_MAX)` and then `getTotalTokens()`. In 3.x it read the total left by the last trim. With `PHP_INT_MAX` as the window, `trim()` must return every message and set the total. Look for arithmetic on `$contextWindow` that overflows, such as `(int) ($contextWindow * 1.1)`.
+3. After a `trim()` that dropped messages, `ChatHistory` calls `trim()` again, on the messages it returned and with a smaller window (Case 9). A trimmer that ignores the window returns them unchanged. If a trimmer drops a fixed amount on every call, such as one turn, it now drops it twice: report it to the developer.
 
 Pass a new trimmer instance to each `ChatHistory`. Guide 31 covers a trimmer given to an Agent.
 
@@ -335,6 +340,8 @@ class EagerTrimmer extends HistoryTrimmer
 }
 ```
 
+A subclass that only cuts deeper, as this one does, now adds to the history's own deeper cut (Case 9): once over the window it is asked for 80% of the window, then for 80% of half of it. Ask the developer whether a trim ratio replaces the subclass.
+
 ### Case 8: `TokenCounter`
 
 The second constructor parameter, `$extraTokensPerMessage`, is removed. 3.x never used it. A named `extraTokensPerMessage:` argument now fails with "Unknown named parameter", and PHP silently ignores a positional second argument. Remove it, including from `parent::__construct()` calls in subclasses.
@@ -375,6 +382,29 @@ class PaddedTokenCounter extends TokenCounter
 
 4.x adds the protected method `handleToolCalls(ToolCallMessage $message): int`. Rename a subclass method that uses that name.
 
+### Case 9: How far a full history is cut
+
+In 3.x a history over its context window lost the fewest oldest messages that made it fit again, so once the window was full the first message changed at almost every turn. Providers cache a request from its start, and such a history is never read from the prompt cache. In 4.x a history over its window is cut down to a share of it: half by default (`ChatHistory::DEFAULT_HISTORY_TRIM_RATIO`, 0.5), which leaves the first message in place for many turns. Nothing fails to compile or run. The model sees less of the conversation right after a cut.
+
+1. Do not change the ratio on your own. Tell the developer about the new cut for each Agent or history found by the search, and ask whether to keep it.
+2. To keep the 3.x cut, set the ratio to 0. Any value from 0 up to, not including, 1 is accepted, and another value throws `NeuronAI\Exceptions\ChatHistoryException`. The ratio is the share of the window a cut frees, so 0.2 cuts a full history down to 80% of its window.
+
+```php
+// Agent
+$agent->setHistoryTrimRatio(0);
+
+// Agent or RAG subclass
+protected function historyTrimRatio(): float
+{
+    return 0.0;
+}
+
+// Application code: the fifth ChatHistory argument
+$history = new ChatHistory($store, $threadId, 30000, historyTrimRatio: 0);
+```
+
+An explicit `setHistoryTrimRatio()` wins over the hook.
+
 ## Checklist
 
 - [ ] No `ChatHistoryInterface` is left in application code, tests or configuration.
@@ -383,7 +413,8 @@ class PaddedTokenCounter extends TokenCounter
 - [ ] No application class implements the interface. Custom storage is a `MessageStoreInterface` that reads the rows the 3.x class wrote, and the developer decided on any custom dropping policy.
 - [ ] Hand-built histories open with a `UserMessage`, and every `ToolCallMessage` is followed by its `ToolResultMessage` before the next `UserMessage`.
 - [ ] Every message added again, or sent to an Agent again, is a new message or has a new ID.
-- [ ] Custom trimmers only drop the oldest messages, and return every message when the window is `PHP_INT_MAX`.
+- [ ] Custom trimmers only drop the oldest messages, return every message when the window is `PHP_INT_MAX`, and can be called again on their own result.
+- [ ] The developer decided whether each Agent and history with its own context window keeps the 4.x cut or a trim ratio of 0.
 - [ ] `HistoryTrimmer` subclasses use the 4.x signatures and override no removed member.
 - [ ] No `TokenCounter` is constructed with a second argument.
 - [ ] PHPStan reports no error about `ChatHistoryInterface`, `getLastMessage()`, `HistoryTrimmer` or `TokenCounter`.

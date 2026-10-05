@@ -377,6 +377,53 @@ class AgentConfigurationTest extends TestCase
         $this->assertCount(10, $messages->loadActive('thread'));
     }
 
+    public function test_a_full_history_is_cut_to_half_the_window_by_default(): void
+    {
+        $messages = new InMemoryMessageStore();
+        $agent = (new Agent('thread'))->setMessageStore($messages)->setContextWindow(1000);
+
+        $this->addConversation($agent->getChatHistory());
+
+        // The tenth message overflows the window, and half of it only fits the last turn
+        $this->assertCount(2, $messages->loadActive('thread'));
+    }
+
+    public function test_the_history_trim_ratio_hook_sizes_the_cut(): void
+    {
+        $messages = new InMemoryMessageStore();
+        $agent = $this->agentWithHistoryTrimRatioHook(0)->setMessageStore($messages)->setContextWindow(1000);
+
+        $this->addConversation($agent->getChatHistory());
+
+        // The smallest cut that fits the window: the first turn alone
+        $this->assertCount(8, $messages->loadActive('thread'));
+    }
+
+    public function test_an_explicit_history_trim_ratio_wins_over_the_hook(): void
+    {
+        $messages = new InMemoryMessageStore();
+        $agent = $this->agentWithHistoryTrimRatioHook(0)->setMessageStore($messages)->setContextWindow(1000)->setHistoryTrimRatio(0.5);
+
+        $this->addConversation($agent->getChatHistory());
+
+        $this->assertCount(2, $messages->loadActive('thread'));
+    }
+
+    protected function agentWithHistoryTrimRatioHook(float $ratio): Agent
+    {
+        return new class ($ratio) extends Agent {
+            public function __construct(protected float $ratio)
+            {
+                parent::__construct('thread');
+            }
+
+            protected function historyTrimRatio(): float
+            {
+                return $this->ratio;
+            }
+        };
+    }
+
     protected function agentWithContextWindowHook(int $tokens): Agent
     {
         return new class ($tokens) extends Agent {

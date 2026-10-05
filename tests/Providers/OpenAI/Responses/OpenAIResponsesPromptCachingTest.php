@@ -37,10 +37,7 @@ class OpenAIResponsesPromptCachingTest extends TestCase
         $body = $provider->buildRequestBody([new UserMessage('Question')]);
 
         $this->assertArrayNotHasKey('instructions', $body);
-        $this->assertSame([
-            'ttl' => '30m',
-            'mode' => 'explicit',
-        ], $body['prompt_cache_options']);
+        $this->assertSame(['ttl' => '30m'], $body['prompt_cache_options']);
         $this->assertSame('developer', $body['input'][0]['role']);
         $this->assertSame([
             'type' => 'input_text',
@@ -52,6 +49,17 @@ class OpenAIResponsesPromptCachingTest extends TestCase
             'text' => 'Dynamic RAG context',
         ], $body['input'][0]['content'][1]);
         $this->assertSame('user', $body['input'][1]['role']);
+    }
+
+    public function test_cached_system_block_keeps_the_automatic_conversation_breakpoint(): void
+    {
+        $provider = new InspectableOpenAIResponses('', 'gpt-5.6');
+        $provider->systemPrompt((new SystemMessage('Stable instructions'))->cache());
+
+        $body = $provider->buildRequestBody([new UserMessage('Question')]);
+
+        // Explicit mode would turn off the breakpoint OpenAI places on the latest message
+        $this->assertArrayNotHasKey('prompt_cache_options', $body);
     }
 
     public function test_streaming_uses_the_same_cached_prompt_payload(): void

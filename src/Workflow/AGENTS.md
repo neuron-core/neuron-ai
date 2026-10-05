@@ -168,8 +168,10 @@ The graph hook (`nodes()`) and the resource hooks (`resources()`, `streamAdapter
 `channel()`) take no argument; `setResources()`, `setStreamAdapter()` and `setChannel()`
 take factories. Hooks and factories run once per owned segment; saved outcomes and
 idle polls are passive. An adapter or channel holds the state of one segment's
-stream, so its factory returns a new one every time. The instance is bound before execution, so a resource needing the
-address reads `getWorkflowId()`.
+stream, so its factory returns a new one every time. The instance is bound before execution, so these hooks read
+the address from `getWorkflowId()`. A factory is a closure every `for()` copy shares, still bound to the
+instance it captured: it reads that instance's address, never the copy's. Set a factory that needs the
+address on the copy, capturing the ID itself.
 
 `getWorkflowId()` returns the instance address, or null before binding.
 `setWorkflowId()` binds an unbound instance and accepts the same ID again, but
