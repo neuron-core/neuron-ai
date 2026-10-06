@@ -58,6 +58,17 @@ class SystemMessage extends Message
     }
 
     /**
+     * Whether the whole message is cached: its last block carries the breakpoint.
+     * A block added afterwards leaves it uncached until cache() is called again.
+     */
+    public function isCached(): bool
+    {
+        $blocks = $this->getTextBlocks();
+
+        return $blocks !== [] && end($blocks)->isCached();
+    }
+
+    /**
      * Check if the given text appears in one of the content blocks.
      */
     public function contains(string $text): bool

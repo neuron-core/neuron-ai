@@ -42,9 +42,10 @@ class TavilySearchTool extends Tool
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = $httpClient ?? new CurlHttpClient();
-        $this->description = 'Use this tool to search the web for additional information '.
-            ($this->topics === [] ? '' : 'about '.implode(', ', $this->topics).', or ').
-            'if the question is outside the scope of the context you have.';
+        $this->description = 'Search the web and return the most relevant pages, each with its title, URL and a short description of its content. '.
+            'Use it '.($this->topics === [] ? '' : 'for questions about '.implode(', ', $this->topics).', or ').
+            'when the question is outside the scope of the context you have. '.
+            'A result describes its page and does not carry its full content.';
     }
 
     protected function properties(): array
@@ -53,13 +54,13 @@ class TavilySearchTool extends Tool
             new ToolProperty(
                 'search_query',
                 PropertyType::STRING,
-                'The search query to perform web search.',
+                'A concise query about a single subject, written as you would type it in a search engine. Run a separate search for each subject of a complex question.',
                 true
             ),
             new ToolProperty(
                 'topic',
                 PropertyType::STRING,
-                'Explicit the topic you want to perform the web search on.',
+                'The category of sources to search: news for current events covered by mainstream media, finance for financial information, general for anything else. Defaults to general.',
                 false,
                 ['general', 'news', 'finance']
             ),

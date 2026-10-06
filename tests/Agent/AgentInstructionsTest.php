@@ -340,6 +340,45 @@ class AgentInstructionsTest extends TestCase
         $this->assertSame('You are a helpful assistant.', $agent->getInstructions()->getContent(), 'The configured instructions stay untouched');
     }
 
+    public function test_toolkit_guidelines_are_cached_with_instructions_cached_to_their_end(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider);
+        $agent->setInstructions((new SystemMessage('You are a helpful assistant.'))->cache());
+        $agent->addTool(new WeatherToolkit());
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+
+        [$instructions, $guidelines] = $provider->getRecorded()[0]->systemPrompt->getTextBlocks();
+        $this->assertTrue($instructions->isCached(), 'The developer keeps the breakpoint they set');
+        $this->assertStringStartsWith('<TOOLS-GUIDELINES>', $guidelines->content);
+        $this->assertTrue($guidelines->isCached());
+        $this->assertCount(1, $agent->getInstructions()->getTextBlocks(), 'The configured instructions stay untouched');
+    }
+
+    /** @return array<string, array{SystemMessage}> */
+    public static function instructionsNotCachedToTheirEnd(): array
+    {
+        return [
+            'no marker' => [new SystemMessage('You are a helpful assistant.')],
+            'marker on an earlier block' => [new SystemMessage([(new TextContent('Static rules'))->cache(), new TextContent('Today is Tuesday')])],
+        ];
+    }
+
+    #[DataProvider('instructionsNotCachedToTheirEnd')]
+    public function test_toolkit_guidelines_after_an_uncached_block_take_no_breakpoint(SystemMessage $instructions): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)->setInstructions($instructions);
+        $agent->addTool(new WeatherToolkit());
+
+        $agent->chat(new UserMessage('Weather in Rome?'));
+
+        $systemPrompt = $provider->getRecorded()[0]->systemPrompt;
+        $this->assertStringContainsString('<TOOLS-GUIDELINES>', (string) $systemPrompt->getContent());
+        $this->assertFalse($systemPrompt->isCached());
+    }
+
     /** @return array<string, array{?string}> */
     public static function missingGuidelines(): array
     {

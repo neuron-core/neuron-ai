@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function json_decode;
+use function json_encode;
 
 class JinaUrlReaderTest extends TestCase
 {
@@ -72,15 +73,37 @@ class JinaUrlReaderTest extends TestCase
         $this->assertSame([], $this->sentRequests);
     }
 
+    public function test_a_page_jina_could_not_load_is_an_error_for_the_model(): void
+    {
+        $tool = new JinaUrlReader('jina-key', $this->recordingClient(new Response(422, [], json_encode([
+            'data' => null,
+            'code' => 422,
+            'name' => 'SubmittedDataMalformedError',
+            'message' => "Domain 'gone.example' could not be resolved",
+        ]))));
+
+        $this->assertToolError(
+            "Jina could not read 'https://gone.example/page': Domain 'gone.example' could not be resolved",
+            $tool('https://gone.example/page')
+        );
+    }
+
+    public function test_a_load_failure_without_a_message_reports_what_jina_answered(): void
+    {
+        $tool = new JinaUrlReader('jina-key', $this->recordingClient(new Response(422, [], 'Unprocessable')));
+
+        $this->assertToolError("Jina could not read 'https://example.com': Unprocessable", $tool('https://example.com'));
+    }
+
     public function test_an_error_response_raises_an_http_exception_without_the_api_key(): void
     {
-        $tool = new JinaUrlReader('secret-jina-key', $this->recordingClient(new Response(422, [], 'Unprocessable')));
+        $tool = new JinaUrlReader('secret-jina-key', $this->recordingClient(new Response(401, [], 'Unauthorized')));
 
         try {
             $tool('https://example.com');
-            $this->fail('Expected an HttpException for a 422 response.');
+            $this->fail('Expected an HttpException for a 401 response.');
         } catch (HttpException $exception) {
-            $this->assertSame(422, $exception->response?->statusCode);
+            $this->assertSame(401, $exception->response?->statusCode);
             $this->assertStringNotContainsString('secret-jina-key', $exception->getMessage());
         }
     }

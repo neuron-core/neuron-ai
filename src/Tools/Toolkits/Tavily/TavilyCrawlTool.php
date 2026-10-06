@@ -26,7 +26,9 @@ class TavilyCrawlTool extends Tool
 
     protected string $name = 'url_crawl';
 
-    protected ?string $description = 'Get the entire website in markdown format.';
+    protected ?string $description = 'Crawl a website starting from a URL: it follows the links from that page and returns the content of every page reached, in Markdown format. '.
+        'Use it when you need several pages of the same site, such as the sections of its documentation. '.
+        'It returns far more content than reading one page, so when you know which page you need, read that page alone.';
 
     protected array $options = [
         'include_images' => false,
@@ -49,7 +51,7 @@ class TavilyCrawlTool extends Tool
             new ToolProperty(
                 'url',
                 PropertyType::STRING,
-                'The URL to crawl.',
+                'The absolute http or https URL of the page the crawl starts from.',
                 true
             ),
         ];

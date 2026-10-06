@@ -49,8 +49,6 @@ use function array_values;
 use function end;
 use function implode;
 use function is_array;
-use function serialize;
-use function unserialize;
 
 use const PHP_EOL;
 
@@ -257,15 +255,23 @@ class Agent extends Workflow implements AgentInterface
         }
 
         // A copy: the guidelines must not reach the configured instructions.
-        $blocks = unserialize(serialize($this->getInstructions()))->getContentBlocks();
+        $instructions = clone $this->getInstructions();
 
         if ($guidelines !== []) {
-            $blocks[] = new TextContent(
+            // Instructions cached to their end stay cached to their end: behind the last
+            // breakpoint the guidelines would be billed in full on every request.
+            $cached = $instructions->isCached();
+
+            $instructions->addContent(new TextContent(
                 '<TOOLS-GUIDELINES>'.PHP_EOL.implode(PHP_EOL.PHP_EOL, $guidelines).PHP_EOL.'</TOOLS-GUIDELINES>'
-            );
+            ));
+
+            if ($cached) {
+                $instructions->cache();
+            }
         }
 
-        return [new SystemMessage($blocks), $tools];
+        return [$instructions, $tools];
     }
 
     /**

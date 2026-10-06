@@ -84,6 +84,27 @@ class SystemMessageTest extends TestCase
 
         $this->assertSame($message, $message->cache());
         $this->assertSame([], $message->getContentBlocks());
+        $this->assertFalse($message->isCached());
+    }
+
+    public function test_a_message_is_cached_while_its_last_block_carries_the_breakpoint(): void
+    {
+        $this->assertFalse((new SystemMessage('instructions'))->isCached());
+        $this->assertTrue((new SystemMessage('instructions'))->cache()->isCached());
+        $this->assertTrue((new SystemMessage([new TextContent('first'), (new TextContent('second'))->cache()]))->isCached());
+        $this->assertFalse((new SystemMessage([(new TextContent('first'))->cache(), new TextContent('second')]))->isCached());
+    }
+
+    public function test_a_block_added_to_a_cached_message_leaves_it_uncached_until_cached_again(): void
+    {
+        $message = (new SystemMessage('instructions'))->cache();
+
+        $message->addContent($added = new TextContent('added'));
+        $this->assertFalse($message->isCached());
+
+        $message->cache();
+        $this->assertTrue($message->isCached());
+        $this->assertTrue($added->isCached());
     }
 
     public function test_contains_searches_every_text_block(): void

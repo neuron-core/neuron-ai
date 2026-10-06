@@ -21,7 +21,7 @@ class JinaWebSearch extends Tool
     protected HttpClientInterface $httpClient;
 
     protected string $name = 'web_search';
-    protected ?string $description = 'Use this tool to search the web for additional information if the question is outside the scope of the context you have.';
+    protected ?string $description;
 
     public function __construct(
         protected string $key,
@@ -29,12 +29,10 @@ class JinaWebSearch extends Tool
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = $httpClient ?? new CurlHttpClient();
-
-        if ($topics !== []) {
-            $this->description = 'Use this tool to search the web for additional information '.
-                'about '.implode(', ', $topics).', or '.
-                'if the question is outside the scope of the context you have.';
-        }
+        $this->description = 'Search the web and return the most relevant pages, each with its title, URL and a short description of its content. '.
+            'Use it '.($topics === [] ? '' : 'for questions about '.implode(', ', $topics).', or ').
+            'when the question is outside the scope of the context you have. '.
+            'A result describes its page and does not carry its full content.';
     }
 
     protected function properties(): array
@@ -43,7 +41,7 @@ class JinaWebSearch extends Tool
             new ToolProperty(
                 'search_query',
                 PropertyType::STRING,
-                'The search query to perform web search.',
+                'A concise query about a single subject, written as you would type it in a search engine. Run a separate search for each subject of a complex question.',
                 true
             ),
         ];

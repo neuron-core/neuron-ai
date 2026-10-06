@@ -52,9 +52,9 @@ class JinaWebSearchTest extends TestCase
     {
         $tool = new JinaWebSearch('jina-key', httpClient: $this->recordingClient());
 
-        $this->assertSame(
-            'Use this tool to search the web for additional information if the question is outside the scope of the context you have.',
-            $tool->getDescription()
+        $this->assertStringContainsString(
+            'Use it when the question is outside the scope of the context you have.',
+            (string) $tool->getDescription()
         );
     }
 
@@ -62,9 +62,9 @@ class JinaWebSearchTest extends TestCase
     {
         $tool = new JinaWebSearch('jina-key', ['PHP', 'AI agents'], $this->recordingClient());
 
-        $this->assertSame(
-            'Use this tool to search the web for additional information about PHP, AI agents, or if the question is outside the scope of the context you have.',
-            $tool->getDescription()
+        $this->assertStringContainsString(
+            'Use it for questions about PHP, AI agents, or when the question is outside the scope of the context you have.',
+            (string) $tool->getDescription()
         );
     }
 

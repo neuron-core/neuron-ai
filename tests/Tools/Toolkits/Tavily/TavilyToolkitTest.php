@@ -62,4 +62,15 @@ class TavilyToolkitTest extends TestCase
             )
         );
     }
+
+    public function test_the_guidelines_name_the_tools_and_carry_no_source_indentation(): void
+    {
+        $toolkit = TavilyToolkit::make('tavily-key', $this->recordingClient());
+        $guidelines = (string) $toolkit->guidelines();
+
+        foreach ($toolkit->tools() as $tool) {
+            $this->assertStringContainsString($tool->getName(), $guidelines);
+        }
+        $this->assertDoesNotMatchRegularExpression('/^[ \t]/m', $guidelines);
+    }
 }

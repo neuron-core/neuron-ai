@@ -11,6 +11,7 @@ The web toolkits under `NeuronAI\Tools\Toolkits\{Tavily,Jina,Zep,Supadata}` no l
 | Toolkits take only the key (Zep: key and user ID) | They take an extra optional `?HttpClientInterface $httpClient` and hand it to every tool they provide |
 | HTTP failures throw `GuzzleHttp\Exception\*` | They throw `NeuronAI\Exceptions\HttpException` |
 | An invalid URL passed to `JinaUrlReader`, `TavilyExtractTool` or `TavilyCrawlTool` throws `ToolException('Invalid URL.')` | The tool returns `ToolOutput::error('Invalid URL: an absolute http or https URL is required.')` and the run continues |
+| `JinaUrlReader` throws a `ClientException` when Jina answers 422 for a page it cannot load, such as a dead link | The tool returns a `ToolOutput` error with Jina's reason and the run continues |
 
 4.x constructors. `make()` forwards the same arguments. When `$httpClient` is `null`, the tool creates a `CurlHttpClient`:
 
@@ -369,6 +370,8 @@ class YouTubeSearchTool extends Tool
 
 Providers and Neuron's other HTTP components (embeddings providers, HTTP vector stores, rerankers) also throw `HttpException`, as they did in 3.x. A `catch` around an agent run that must react only to toolkit failures has to check `$e->request?->uri` and rethrow anything else. The toolkits' hosts are `https://api.tavily.com/`, `https://r.jina.ai/`, `https://s.jina.ai/`, `https://api.getzep.com/` and `https://api.supadata.ai/`. If the same block also guards the app's own Guzzle calls, catch both types: `catch (HttpException|ClientException $e)`.
 
+A 422 from `https://r.jina.ai/` no longer reaches these blocks or the handler: `JinaUrlReader` returns it to the model (Case 6). Delete a branch that only handled it.
+
 Before (3.x):
 
 ```php
@@ -454,7 +457,7 @@ With `parallelToolCalls(true)`, a tool failure reaches the handler and the calle
 
 ### Case 6: Code that expects the `'Invalid URL.'` `ToolException`
 
-`JinaUrlReader`, `TavilyExtractTool` and `TavilyCrawlTool` now return a `ToolOutput` error for an invalid or non-http(s) URL. The model receives that error as the tool result and the run continues. `TavilyExtractTool` also returns a `ToolOutput` error when Tavily cannot extract the page.
+`JinaUrlReader`, `TavilyExtractTool` and `TavilyCrawlTool` now return a `ToolOutput` error for an invalid or non-http(s) URL. The model receives that error as the tool result and the run continues. `TavilyExtractTool` also returns a `ToolOutput` error when Tavily cannot extract the page, and `JinaUrlReader` when Jina answers 422 for a page it cannot load, which 3.x raised as a `ClientException`.
 
 1. Delete `toolErrorHandler` branches and `catch` blocks that only handle `ToolException('Invalid URL.')` (Case 5 shows one). Keep generic `ToolException` handling, which other errors still use.
 2. Code that calls `__invoke()` directly, or through `parent::__invoke()` in a subclass, must handle the new return types: `string|ToolOutput` for `JinaUrlReader`, `array|ToolOutput` for the two Tavily tools. To keep the 3.x behaviour, throw when the result is a `ToolOutput`:
@@ -527,7 +530,7 @@ grep -nE '"guzzlehttp/guzzle"' composer.json
 - [ ] Classes that `use` `Supadata\HttpClient` or `HandleZepClient` assign `$this->httpClient` in their constructor and have a `$key` property.
 - [ ] No code calls `getClient($key)` on a Supadata tool.
 - [ ] Every `catch`/`instanceof` on a `GuzzleHttp\Exception` type around runs of agents that use these tools, around direct calls to them, or in those agents' `toolErrorHandler`/`resolveToolErrorHandler()` now matches `HttpException`. A Guzzle type is kept only where the same code also guards the app's own Guzzle calls. `HttpException` checks that must ignore other failures test the request host (around runs) or the tool name (in handlers).
-- [ ] No code handles `ToolException('Invalid URL.')`. Direct callers of `JinaUrlReader`, `TavilyExtractTool` and `TavilyCrawlTool` handle a `ToolOutput` result.
+- [ ] No code handles `ToolException('Invalid URL.')` or a 422 from `https://r.jina.ai/`. Direct callers of `JinaUrlReader`, `TavilyExtractTool` and `TavilyCrawlTool` handle a `ToolOutput` result.
 - [ ] Tests that injected Guzzle mocks pass the mock through `GuzzleHttpClient(handler: ...)`.
 - [ ] `guzzlehttp/guzzle` is required only if code still references Guzzle.
 - [ ] Searches 1 to 4 find no remaining hit that this guide migrates.

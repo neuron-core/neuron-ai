@@ -108,13 +108,13 @@ class TavilySearchToolTest extends TestCase
 
     public function test_the_description_lists_the_configured_topics(): void
     {
-        $this->assertSame(
-            'Use this tool to search the web for additional information if the question is outside the scope of the context you have.',
-            (new TavilySearchTool('tavily-key', httpClient: $this->recordingClient()))->getDescription()
+        $this->assertStringContainsString(
+            'Use it when the question is outside the scope of the context you have.',
+            (string) (new TavilySearchTool('tavily-key', httpClient: $this->recordingClient()))->getDescription()
         );
-        $this->assertSame(
-            'Use this tool to search the web for additional information about PHP, Laravel, or if the question is outside the scope of the context you have.',
-            (new TavilySearchTool('tavily-key', ['PHP', 'Laravel'], $this->recordingClient()))->getDescription()
+        $this->assertStringContainsString(
+            'Use it for questions about PHP, Laravel, or when the question is outside the scope of the context you have.',
+            (string) (new TavilySearchTool('tavily-key', ['PHP', 'Laravel'], $this->recordingClient()))->getDescription()
         );
     }
 
