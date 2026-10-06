@@ -187,9 +187,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @param array<int|string, ContentBlockInterface> $context
+     * A named argument is the key of its block, as a string key is in the array
+     * context() returns: setContext(page: $block).
      */
-    public function setContext(array $context): static
+    public function setContext(ContentBlockInterface ...$context): static
     {
         $this->context = $context;
         return $this;

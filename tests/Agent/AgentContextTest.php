@@ -44,7 +44,7 @@ class AgentContextTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Monday.'));
         $store = new InMemoryMessageStore();
         $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->setMessageStore($store)
-            ->setContext([new TextContent('Today is Monday.')]);
+            ->setContext(new TextContent('Today is Monday.'));
 
         $agent->chat(new UserMessage('What day is it?'));
 
@@ -59,7 +59,7 @@ class AgentContextTest extends TestCase
             new AssistantMessage('Sunny.'),
         );
         $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->addTool(new GetWeatherTool())
-            ->setContext([new TextContent('The user is in Rome.')]);
+            ->setContext(new TextContent('The user is in Rome.'));
 
         $agent->chat(new UserMessage('How is the weather?'));
 
@@ -74,8 +74,8 @@ class AgentContextTest extends TestCase
         $provider = new FakeAIProvider(new AssistantMessage('Monday.'), new AssistantMessage('Tuesday.'));
         $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider);
 
-        $agent->setContext([new TextContent('Today is Monday.')])->chat(new UserMessage('What day is it?'));
-        $agent->setContext([new TextContent('Today is Tuesday.')])->chat(new UserMessage('And now?'));
+        $agent->setContext(new TextContent('Today is Monday.'))->chat(new UserMessage('What day is it?'));
+        $agent->setContext(new TextContent('Today is Tuesday.'))->chat(new UserMessage('And now?'));
 
         $this->assertSame(
             [['What day is it?'], ['Monday.'], ['And now?', 'Today is Tuesday.']],
@@ -95,16 +95,61 @@ class AgentContextTest extends TestCase
         $agent->setThreadId('thread')->setAiProvider($provider);
 
         $agent->chat(new UserMessage('First'));
-        $agent->setContext([new TextContent('From the setter')])->chat(new UserMessage('Second'));
+        $agent->setContext(new TextContent('From the setter'))->chat(new UserMessage('Second'));
 
         $this->assertSame(['First', 'From the hook'], $this->sent($provider, 0)[0]);
         $this->assertSame(['Second', 'From the setter'], $this->sent($provider, 1)[2]);
     }
 
+    public function test_the_setter_takes_any_number_of_blocks(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Monday.'));
+        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)
+            ->setContext(new TextContent('Today is Monday.'), new TextContent('The user is in Rome.'));
+
+        $agent->chat(new UserMessage('What day is it?'));
+
+        $this->assertSame([['What day is it?', 'Today is Monday.', 'The user is in Rome.']], $this->sent($provider, 0));
+    }
+
+    public function test_the_setter_called_without_blocks_leaves_the_turn_without_context(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Ok'));
+        $agent = new class () extends Agent {
+            protected function context(): array
+            {
+                return [new TextContent('From the hook')];
+            }
+        };
+        $agent->setThreadId('thread')->setAiProvider($provider)->setContext();
+
+        $agent->chat(new UserMessage('Hello'));
+
+        $this->assertSame([['Hello']], $this->sent($provider, 0));
+    }
+
+    public function test_a_named_argument_keys_its_block_for_a_middleware_to_replace(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Ok'));
+        $middleware = new class () extends AgentMiddleware {
+            protected function beforeAgentNode(AgentNodeInterface $node, Event $event, AgentState $state, AgentResources $resources): void
+            {
+                $state->request->context['page'] = new TextContent('The user views order 42.');
+            }
+        };
+        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)
+            ->setContext(page: new TextContent('The user views the home page.'))
+            ->addMiddleware(InferenceNode::class, $middleware);
+
+        $agent->chat(new UserMessage('Hello'));
+
+        $this->assertSame([['Hello', 'The user views order 42.']], $this->sent($provider, 0));
+    }
+
     public function test_a_run_started_with_its_own_start_event_carries_the_context_too(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('Monday.'));
-        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->setContext([new TextContent('Today is Monday.')]);
+        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->setContext(new TextContent('Today is Monday.'));
 
         // The way a queued job starts a turn, without going through chat()
         $agent->run(ExecutionRequest::start(new AgentStartEvent([new UserMessage('What day is it?')])));
@@ -115,7 +160,7 @@ class AgentContextTest extends TestCase
     public function test_a_structured_output_request_carries_the_context_too(): void
     {
         $provider = new FakeAIProvider(new AssistantMessage('{}'));
-        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->setContext([new TextContent('Context')]);
+        $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->setContext(new TextContent('Context'));
 
         $agent->structured(new UserMessage('Extract'), stdClass::class);
 
@@ -136,7 +181,7 @@ class AgentContextTest extends TestCase
             }
         };
         $agent = Agent::make()->setThreadId('thread')->setAiProvider($provider)->addTool(new GetWeatherTool())
-            ->setContext([new TextContent('Today is Monday.')])
+            ->setContext(new TextContent('Today is Monday.'))
             ->addMiddleware(InferenceNode::class, $middleware);
 
         $agent->chat(new UserMessage('Hello'));
@@ -156,7 +201,7 @@ class AgentContextTest extends TestCase
             }
         };
         $agent = Agent::make()->setThreadId('thread')->setAiProvider(new FakeAIProvider(new AssistantMessage('Ok')))
-            ->setContext([$configured])
+            ->setContext($configured)
             ->addMiddleware(InferenceNode::class, $middleware);
 
         $agent->chat(new UserMessage('Hello'));

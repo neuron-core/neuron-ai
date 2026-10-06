@@ -299,7 +299,7 @@ protected function context(): array
 }
 
 // Or, without a subclass:
-$agent->setContext([new TextContent("The user is viewing order {$orderId}.")]);
+$agent->setContext(new TextContent("The user is viewing order {$orderId}."));
 ```
 
 The context is read when a turn starts and sent in the user's message, after that message's own content, on every request of the turn. It is never stored in the chat history: the next turn sends the earlier message without it. A middleware adds to it through the state, with a key so that an entry written before every model call replaces itself:
@@ -307,6 +307,8 @@ The context is read when a turn starts and sent in the user's message, after tha
 ```php
 $state->request->context['page'] = new TextContent("The user is viewing: {$url}");
 ```
+
+`setContext()` takes any number of blocks (spread an array of them with `...`), and a named argument is the key of its block: `setContext(page: $block)` sets the entry the line above replaces.
 
 The context is part of the user's turn, so a user can type text that looks like it. When the context decides whether the agent acts, such as a policy that allows a refund tool to run, tell the developer.
 
