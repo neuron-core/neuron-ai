@@ -26,7 +26,9 @@ class FirecrawlScrapeTool extends Tool
 
     protected string $name = 'url_reader';
 
-    protected ?string $description = 'Get the content of a URL in markdown format.';
+    protected ?string $description = 'Read a single web page and return its content in Markdown format. '.
+        'Use it when you already have the address of the page: a URL the user gave you, or a search result whose description is not enough to answer. '.
+        'It reads that page only, without following its links.';
 
     protected array $options = [
         'onlyMainContent' => true,
@@ -46,7 +48,7 @@ class FirecrawlScrapeTool extends Tool
             new ToolProperty(
                 'url',
                 PropertyType::STRING,
-                'The URL to read.',
+                'The absolute http or https URL of the page to read.',
                 true
             ),
         ];

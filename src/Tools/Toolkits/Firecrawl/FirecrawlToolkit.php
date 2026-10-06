@@ -20,11 +20,10 @@ class FirecrawlToolkit extends AbstractToolkit
 
     public function guidelines(): ?string
     {
-        return "- The web search tool is your discovery mechanism for exploring topics and finding multiple sources.\n
-        - The URL reader returns the full content of a known page as Markdown, after you've identified
-        a page of interest through search or the user gave you its address.\n\n
-        Effective search queries should be specific and targeted, typically using two to four keywords rather than
-        broad terms. Read a page only when the search results do not already answer the question.";
+        return <<<GUIDELINES
+            When a question starts from a search, read a result with url_reader only if the web_search
+            descriptions do not already answer it.
+            GUIDELINES;
     }
 
     public function provide(): array
