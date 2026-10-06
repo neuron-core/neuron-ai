@@ -19,6 +19,7 @@
         "ext-pdo_pgsql": "*",
         "ext-mongodb": "*",
         "ext-bcmath": "*",
+        "ext-igbinary": "*",
         "ext-redis": "*",
         "ext-sodium": "*",
         "amphp/amp": "^3.1.1",

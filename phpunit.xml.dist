@@ -15,7 +15,13 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
-        <env name="INSPECTOR_API_KEY" value=""/>
+        <!-- Match the services started by docker-compose.yml -->
+        <env name="WORKFLOW_REDIS_HOST" value="127.0.0.1"/>
+        <env name="WORKFLOW_REDIS_PORT" value="6379"/>
+        <env name="WORKFLOW_MYSQL_DSN" value="mysql:host=127.0.0.1;dbname=neuron-ai"/>
+        <env name="WORKFLOW_MYSQL_USER" value="root"/>
+        <env name="WORKFLOW_PGSQL_DSN" value="pgsql:host=127.0.0.1;dbname=neuron-ai"/>
+        <env name="WORKFLOW_PGSQL_USER" value="postgres"/>
+        <env name="WORKFLOW_PGSQL_PASSWORD" value="workflow-test"/>
     </php>
 </phpunit>

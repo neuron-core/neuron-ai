@@ -16,14 +16,6 @@ services:
     network_mode: host
     # Non-root, so POSIX permission tests run and files written to the repo stay yours
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
-    environment:
-      WORKFLOW_REDIS_HOST: 127.0.0.1
-      WORKFLOW_REDIS_PORT: "6379"
-      WORKFLOW_MYSQL_DSN: "mysql:host=127.0.0.1;dbname=neuron-ai"
-      WORKFLOW_MYSQL_USER: root
-      WORKFLOW_PGSQL_DSN: "pgsql:host=127.0.0.1;dbname=neuron-ai"
-      WORKFLOW_PGSQL_USER: postgres
-      WORKFLOW_PGSQL_PASSWORD: workflow-test
     depends_on:
       redis:
         condition: service_healthy

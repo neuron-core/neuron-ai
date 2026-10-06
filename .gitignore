@@ -11,7 +11,7 @@ composer.lock
 .ai
 .env
 scripts
-phpunit.xml.local
+phpunit.xml
 DOCS_*
 
 /node_modules/
