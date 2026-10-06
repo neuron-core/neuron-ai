@@ -9,6 +9,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
+use NeuronAI\Tools\Toolkits\Firecrawl\FirecrawlToolkit;
 use NeuronAI\Tools\Toolkits\Jina\JinaToolkit;
 use NeuronAI\Tools\Toolkits\Supadata\SupadataYouTubeToolkit;
 use NeuronAI\Tools\Toolkits\Tavily\TavilyToolkit;
@@ -42,6 +43,7 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
         JinaToolkit::class => 'jina-SECRET-4e5f',
         ZepLongTermMemoryToolkit::class => 'zep-SECRET-6a7b',
         SupadataYouTubeToolkit::class => 'supadata-SECRET-8c9d',
+        FirecrawlToolkit::class => 'fc-SECRET-0e1f',
     ];
 
     /**
@@ -54,6 +56,7 @@ class ToolkitCredentialsTrustBoundarySecurityTest extends TestCase
             new JinaToolkit(self::TOOLKIT_KEYS[JinaToolkit::class]),
             new ZepLongTermMemoryToolkit(self::TOOLKIT_KEYS[ZepLongTermMemoryToolkit::class], 'user-1'),
             new SupadataYouTubeToolkit(self::TOOLKIT_KEYS[SupadataYouTubeToolkit::class]),
+            new FirecrawlToolkit(self::TOOLKIT_KEYS[FirecrawlToolkit::class]),
         ];
     }
 
