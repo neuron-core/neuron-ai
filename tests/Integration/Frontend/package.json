@@ -8,9 +8,9 @@
   "dependencies": {
     "@ag-ui/client": "~1.0.0",
     "@ag-ui/core": "~1.0.0",
-    "@ai-sdk/react": "^4.0.121",
-    "@copilotkit/react-core": "^1.74.0",
-    "@copilotkit/runtime": "^1.74.0",
+    "@ai-sdk/react": "^4.0.130",
+    "@copilotkit/react-core": "^1.76.0",
+    "@copilotkit/runtime": "^1.76.0",
     "@neuron-core/streaming": "0.3.0",
     "ai": "^7.0.98",
     "react": "^19.3.0",
@@ -24,6 +24,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "pusher-js": "^8.6.0",
-    "vite": "^8.3.1"
+    "vite": "^8.3.2"
   }
 }
