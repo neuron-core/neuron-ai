@@ -462,7 +462,7 @@ use NeuronAI\Observability\ObservabilityEvent;
 $agent->subscribe(ObservabilityEvent::class, new LogListener($logger));
 ```
 
-Use **neuron-monitoring** for event selection, external dispatchers, and Neuron Cloud integration.
+Use **neuron-monitoring** for event selection and external dispatchers.
 
 ### Parallel Tool Calls
 Execute local tools in parallel (requires `pcntl`, `posix` and `spatie/fork`):
@@ -625,5 +625,4 @@ When helping users build agents:
 - Use the **neuron-evaluation** skill to test agents with dataset-driven
   evaluations, assertions, AI judges, and multi-turn conversation testing.
 - Use the **neuron-monitoring** skill to debug and monitor agents with the
-  observability event system, from local logging to production tracing on
-  Neuron Cloud.
+  observability event system.

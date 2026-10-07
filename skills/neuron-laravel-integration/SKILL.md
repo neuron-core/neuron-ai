@@ -643,7 +643,7 @@ Tests: `FakeAIProvider` replaces the provider and its Stop client, so a faked tu
 
 ## Observability
 
-Laravel's dispatcher is not PSR-14: forward Neuron's events through a small bridge, `App\Neuron\LaravelEventDispatcher implements Psr\EventDispatcher\EventDispatcherInterface`, that resolves Laravel's dispatcher for every event (so `Event::fake()` applies whenever a test calls it) and calls it inside `try`/`catch` + `report()` (a throwing listener on an event a node emits would otherwise fail the run), and set it on every container-built agent with `$this->app->afterResolving(Workflow::class, …)` in `NeuronServiceProvider`. Listen to concrete classes such as `NeuronAI\Workflow\Observability\WorkflowEnd` or to the wildcard `'NeuronAI\*'`: `Event::listen(ObservabilityEvent::class)` never fires, because Laravel does not match parent classes. Never queue listeners on live Neuron events. Read [references/observability.md](references/observability.md) for the bridge, the wiring and `LogListener` on a `neuron` log channel defined in `config/logging.php`; redaction, tracing and Neuron Cloud: **neuron-monitoring**.
+Laravel's dispatcher is not PSR-14: forward Neuron's events through a small bridge, `App\Neuron\LaravelEventDispatcher implements Psr\EventDispatcher\EventDispatcherInterface`, that resolves Laravel's dispatcher for every event (so `Event::fake()` applies whenever a test calls it) and calls it inside `try`/`catch` + `report()` (a throwing listener on an event a node emits would otherwise fail the run), and set it on every container-built agent with `$this->app->afterResolving(Workflow::class, …)` in `NeuronServiceProvider`. Listen to concrete classes such as `NeuronAI\Workflow\Observability\WorkflowEnd` or to the wildcard `'NeuronAI\*'`: `Event::listen(ObservabilityEvent::class)` never fires, because Laravel does not match parent classes. Never queue listeners on live Neuron events. Read [references/observability.md](references/observability.md) for the bridge, the wiring and `LogListener` on a `neuron` log channel defined in `config/logging.php`; redaction and tracing: **neuron-monitoring**.
 
 ## Evaluation
 
@@ -743,4 +743,4 @@ Read [references/testing.md](references/testing.md) for the complete tests: the 
 - **neuron-evaluation** — evaluators, datasets, assertions and judges, `Conversation` and trajectories, output drivers, the run cache.
 - **neuron-tool** — writing tools and toolkits with dependencies.
 - **neuron-test** — `FakeAIProvider`, `FakeChannel` and the other fakes.
-- **neuron-monitoring** — events, `LogListener` redaction, Neuron Cloud for Laravel.
+- **neuron-monitoring** — events, `LogListener` redaction.

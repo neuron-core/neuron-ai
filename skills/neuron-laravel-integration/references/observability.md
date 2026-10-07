@@ -44,7 +44,7 @@ class LaravelEventDispatcher implements EventDispatcherInterface
 
 - Listen to concrete classes (`NeuronAI\Workflow\Observability\WorkflowEnd`, `NeuronAI\Agent\Observability\InferenceStop`, …) or the wildcard `Event::listen('NeuronAI\*', fn (string $name, array $payload) => ...)`. `Event::listen(ObservabilityEvent::class, …)` never fires: Laravel matches exact classes and interfaces, not parent classes.
 - Never queue listeners on live Neuron events: they reference the running agent and its state, and do not serialize (a captured `WorkflowEnd` failed with "Serialization of 'Pdo\Sqlite' is not allowed"). Listen synchronously and dispatch your own job with scalar data.
-- Log every event through a Laravel channel with Neuron's own matching: `$agent->subscribe(ObservabilityEvent::class, new LogListener(Log::channel('neuron')))` on the bound copy. Redaction, tracing and Neuron Cloud: **neuron-monitoring**.
+- Log every event through a Laravel channel with Neuron's own matching: `$agent->subscribe(ObservabilityEvent::class, new LogListener(Log::channel('neuron')))` on the bound copy. Redaction and tracing: **neuron-monitoring**.
 
 The `neuron` channel is the app's own, in `config/logging.php` (or pass an existing channel's name). An undefined channel does not fail: Laravel logs "Log [neuron] is not defined" and writes to the emergency logger instead.
 

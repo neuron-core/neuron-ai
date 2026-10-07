@@ -708,7 +708,7 @@ class AgentEventsListener
 
 - A Symfony listener on `NeuronAI\Observability\ObservabilityEvent` never fired. For every event, use Neuron's `subscribe()`, which matches by `instanceof`, on the agent when it is built (for example in its constructor): `subscribe(ObservabilityEvent::class, new LogListener($logger))` (`NeuronAI\Observability\LogListener`) on the container's agent logged `inference-stop`, `workflow-end` and the rest for every copy.
 - **Listeners must not throw.** On an event a node emits (`InferenceStop`, `ToolCalling`, `ToolCalled`, `MessageSaving`, …) a listener that threw turned the turn into a 500; on the engine's lifecycle events (`WorkflowStart`, `WorkflowNodeEnd`, `WorkflowEnd`) the turn completed and the failure was reported as a `WorkflowError`.
-- Only delivery failures are isolated: with the push hub answering 401 or the channel throwing on send, every turn still completed, and `NeuronAI\Workflow\Observability\ChannelError` carried the failure to the listener above. A channel factory that throws fails the run: `RedisRelay::publisher()` connects inside it, and a worker whose Redis was unreachable failed the run with `Redis connection failed: Connection refused`. Event catalog and Neuron Cloud: **neuron-monitoring**.
+- Only delivery failures are isolated: with the push hub answering 401 or the channel throwing on send, every turn still completed, and `NeuronAI\Workflow\Observability\ChannelError` carried the failure to the listener above. A channel factory that throws fails the run: `RedisRelay::publisher()` connects inside it, and a worker whose Redis was unreachable failed the run with `Redis connection failed: Connection refused`. Event catalog: **neuron-monitoring**.
 
 ## Evaluation
 
@@ -799,4 +799,4 @@ Read [references/testing.md](references/testing.md) for the base class (with the
 - **neuron-tool** — writing tools and toolkits with dependencies.
 - **neuron-evaluation** — evaluators, datasets, assertions and judges, `Conversation` and `Trajectory`, output drivers, `--cache`.
 - **neuron-test** — `FakeAIProvider`, `FakeChannel` and their assertions.
-- **neuron-monitoring** — observability events, logging, Neuron Cloud.
+- **neuron-monitoring** — observability events, logging.
