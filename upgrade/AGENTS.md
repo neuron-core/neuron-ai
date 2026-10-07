@@ -4,6 +4,19 @@ This directory contains the step-by-step guides for upgrading an application fro
 
 Your job is to upgrade the **application codebase** you are working in (the project that depends on `neuron-core/neuron-ai`), not the framework itself.
 
+## First-Party Packages
+
+Neuron's first-party packages release a new major version for Neuron 4.x. Their 3.x-compatible versions require `neuron-core/neuron-ai` `^3.0`, so Composer cannot install Neuron 4.x until they are upgraded too. If `composer.json` requires one of them, raise its constraint in the same `composer update` that moves Neuron to `^4.0`:
+
+| Package | Version for Neuron 3.x | Version for Neuron 4.x |
+|---|---|---|
+| [`neuron-core/router`](https://github.com/neuron-core/router) | `^1.0` | `^2.0` |
+| [`neuron-core/raptor-retrieval`](https://github.com/neuron-core/raptor-retrieval) | `^3.0` | `^4.0` |
+
+```
+grep -nE '"neuron-core/(router|raptor-retrieval)"' composer.json
+```
+
 ## Process
 
 Work through the guides **one at a time, in numeric order**. Do not read all the guides upfront and apply them in a single pass — complete each step fully before opening the next one.
