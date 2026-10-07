@@ -58,6 +58,15 @@ the same language as the system you are building today.
 
 **[Go to the official documentation](https://docs.neuron-ai.dev/)**
 
+## Our Social Channels
+
+- Newsletter: https://neuron-ai.dev
+- Inspector: https://inspector.dev
+- E-Book: https://www.amazon.it/dp/B0F1YX8KJB
+- Linkedin: https://www.linkedin.com/company/neuron-ai-php-framework
+- X: https://x.com/neuronai_php
+- Instagram: https://www.instagram.com/neuronai_p
+
 ## How To
 
 - [Getting Started](#start)
