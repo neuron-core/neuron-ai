@@ -26,6 +26,10 @@ jobs:
           extensions: mongodb-2.5.2
           coverage: none
 
+      # The PHP 8.1 parser rejects newer syntax that PHPStan rules can miss, such as DNF types.
+      - name: Lint PHP 8.1 syntax
+        run: find src -name '*.php' -print0 | xargs -0 -n1 -P4 php -d display_errors=stderr -l > /dev/null
+
       - name: Install dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 

@@ -15,8 +15,11 @@ parameters:
         - tests
 
 
-    # The level 9 is the highest level
+    # The level 10 is the highest level
     level: 5
+
+    # Analyse against the minimum version in composer.json, whatever PHP runs PHPStan.
+    phpVersion: 80100
 
     treatPhpDocTypesAsCertain: false
 
