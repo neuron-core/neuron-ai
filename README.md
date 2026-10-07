@@ -9,7 +9,7 @@
 
 > Before moving on, support the Neuron AI community giving a GitHub star ⭐️. Thank you!
 
-## What is Neuron?
+## What is Neuron
 
 Neuron is a PHP framework for creating and orchestrating AI Agents. It allows you to integrate AI entities into your
 PHP applications with a powerful and flexible architecture. We provide tools for the entire agentic application development lifecycle,
