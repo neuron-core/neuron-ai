@@ -50,22 +50,19 @@ It also means hiring becomes a solvable problem: as the community grows, so does
 know how to design, test, and run agentic applications on this architecture, so the people you bring in tomorrow speak
 the same language as the system you are building today.
 
-## Requirements
+## Our Official Channels
 
-- PHP: ^8.1
-
-## Official documentation
-
-**[Go to the official documentation](https://docs.neuron-ai.dev/)**
-
-## Our Social Channels
-
+- Documentation: https://docs.neuron-ai.dev/
 - Newsletter: https://neuron-ai.dev
 - Inspector: https://inspector.dev
 - E-Book: https://www.amazon.it/dp/B0F1YX8KJB
 - Linkedin: https://www.linkedin.com/company/neuron-ai-php-framework
 - X: https://x.com/neuronai_php
 - Instagram: https://www.instagram.com/neuronai_p
+
+## Requirements
+
+- PHP: ^8.1
 
 ## How To
 
