@@ -52,6 +52,8 @@ the same language as the system you are building today.
 
 ## Our Official Channels
 
+Follow the Neuron channels to stay up to date:
+
 - Documentation: https://docs.neuron-ai.dev/
 - Newsletter: https://neuron-ai.dev
 - Inspector: https://inspector.dev
