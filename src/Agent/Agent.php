@@ -478,7 +478,6 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @return PendingExecution<AgentState>
-     * @throws AgentException
      * @throws InputTranslationException
      * @throws WorkflowException
      */
@@ -489,7 +488,6 @@ class Agent extends Workflow implements AgentInterface
 
     /**
      * @return PendingExecution<AgentState>
-     * @throws AgentException
      * @throws InputTranslationException
      * @throws WorkflowException
      */
