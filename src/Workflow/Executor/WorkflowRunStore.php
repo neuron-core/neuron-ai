@@ -7,8 +7,10 @@ namespace NeuronAI\Workflow\Executor;
 use Closure;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
@@ -304,8 +306,9 @@ final class WorkflowRunStore
             $writes,
         )) {
             $current = $this->control();
-            throw new WorkflowException(
-                "Stale execution attempt {$current->executionAttempt} cannot write workflow ID '{$this->workflowId}'."
+            throw new WorkflowRefusedException(
+                "Stale execution attempt {$current->executionAttempt} cannot write workflow ID '{$this->workflowId}'.",
+                RefusalReason::StaleAttempt,
             );
         }
 

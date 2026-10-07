@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use JsonException;
-use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
+use NeuronAI\Workflow\RefusalReason;
 use stdClass;
 
 use function array_map;
@@ -37,8 +38,9 @@ final class ActiveInterrupt
                 $this->input->kind !== $input->kind
                 || self::canonical($this->input->payload) !== self::canonical($input->payload)
             ) {
-                throw new WorkflowException(
-                    "Interrupt {$this->request->getId()} already has an accepted input; its answer cannot change."
+                throw new WorkflowRefusedException(
+                    "Interrupt {$this->request->getId()} already has an accepted input; its answer cannot change.",
+                    RefusalReason::NotAwaited,
                 );
             }
 

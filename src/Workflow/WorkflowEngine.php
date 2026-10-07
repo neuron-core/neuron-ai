@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Executor\ActiveInterrupt;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
@@ -22,6 +23,7 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Persistence\Serializer;
 
+use function count;
 use function in_array;
 use function preg_match;
 use function time;
@@ -62,6 +64,8 @@ class WorkflowEngine
                     $control->interrupt?->request,
                     $workflowId,
                     $ignition->startEvent,
+                    $control->leaseExpiresAt,
+                    count($control->pendingSteps),
                 );
             }
 
@@ -105,13 +109,14 @@ class WorkflowEngine
         }
 
         if ($expectedExecutionAttempt !== null && $control->executionAttempt !== $expectedExecutionAttempt) {
-            throw new WorkflowException('Cannot abandon a different execution attempt.');
+            throw new WorkflowRefusedException('Cannot abandon a different execution attempt.', RefusalReason::StaleAttempt);
         }
 
         if ($control->status === WorkflowStatus::Completed) {
-            throw new WorkflowException(
+            throw new WorkflowRefusedException(
                 "Run '{$control->runId}' for workflow ID '{$workflowId}' completed: "
-                . 'release it with acknowledge() instead of abandoning it.'
+                . 'release it with acknowledge() instead of abandoning it.',
+                RefusalReason::Completed,
             );
         }
 
@@ -120,15 +125,17 @@ class WorkflowEngine
             && $control->leaseExpiresAt !== null
             && $control->leaseExpiresAt > time()
         ) {
-            throw new WorkflowException(
+            throw new WorkflowRefusedException(
                 "Run '{$control->runId}' for workflow ID '{$workflowId}' appears to be executing "
-                . "(lease expires at {$control->leaseExpiresAt}) and cannot be abandoned."
+                . "(lease expires at {$control->leaseExpiresAt}) and cannot be abandoned.",
+                RefusalReason::Executing,
             );
         }
 
         if (!$store->deleteIfOwned()) {
-            throw new WorkflowException(
-                "Abandoning workflow ID '{$workflowId}' conflicted with a concurrent change; retry."
+            throw new WorkflowRefusedException(
+                "Abandoning workflow ID '{$workflowId}' conflicted with a concurrent change; retry.",
+                RefusalReason::Conflict,
             );
         }
 
@@ -151,14 +158,16 @@ class WorkflowEngine
         }
 
         if ($control->status !== WorkflowStatus::Completed) {
-            throw new WorkflowException(
-                "Run '{$expectedRunId}' for workflow ID '{$workflowId}' is not completed."
+            throw new WorkflowRefusedException(
+                "Run '{$expectedRunId}' for workflow ID '{$workflowId}' is not completed.",
+                RefusalReason::NotCompleted,
             );
         }
 
         if (!$store->deleteIfOwned()) {
-            throw new WorkflowException(
-                "Completion acknowledgement conflicted for workflow ID '{$workflowId}'."
+            throw new WorkflowRefusedException(
+                "Completion acknowledgement conflicted for workflow ID '{$workflowId}'.",
+                RefusalReason::Conflict,
             );
         }
     }
@@ -243,9 +252,10 @@ class WorkflowEngine
                     interrupt: $current->interrupt?->request,
                     reservedRunId: $request->runId,
                 )
-                : new WorkflowException(
+                : new WorkflowRefusedException(
                     "Cannot ignite a new run for workflow ID '{$store->workflowId}': "
-                    . 'a concurrent process is changing it. Retry the ignition.'
+                    . 'a concurrent process is changing it. Retry the ignition.',
+                    RefusalReason::Conflict,
                 );
         }
 
@@ -298,9 +308,10 @@ class WorkflowEngine
             $request->executionAttempt !== null
             && $request->executionAttempt !== $control->executionAttempt
         ) {
-            throw new WorkflowException(
+            throw new WorkflowRefusedException(
                 "Stale continuation for workflow ID '{$workflowId}': expected execution attempt "
-                . "{$request->executionAttempt}, current attempt is {$control->executionAttempt}."
+                . "{$request->executionAttempt}, current attempt is {$control->executionAttempt}.",
+                RefusalReason::StaleAttempt,
             );
         }
 
@@ -318,8 +329,9 @@ class WorkflowEngine
 
         if ($control->status === WorkflowStatus::Completed) {
             if ($signalName !== null) {
-                throw new WorkflowException(
-                    "No active interruption for workflow ID '{$workflowId}' is waiting for signal '{$signalName}'."
+                throw new WorkflowRefusedException(
+                    "No active interruption for workflow ID '{$workflowId}' is waiting for signal '{$signalName}'.",
+                    RefusalReason::NotAwaited,
                 );
             }
 
@@ -329,17 +341,23 @@ class WorkflowEngine
         $active = $control->interrupt;
         if ($signalName !== null) {
             if (!$active?->request instanceof WaitForEventRequest || $active->request->getEventName() !== $signalName) {
-                throw new WorkflowException("The current interruption is not waiting for signal '{$signalName}'.");
+                throw new WorkflowRefusedException(
+                    "The current interruption is not waiting for signal '{$signalName}'.",
+                    RefusalReason::NotAwaited,
+                );
             }
         }
 
         $payload = $request->payload();
         if ($payload !== null) {
             if (!$active instanceof ActiveInterrupt) {
-                throw new WorkflowException('There is no current interruption to answer.');
+                throw new WorkflowRefusedException('There is no current interruption to answer.', RefusalReason::NotAwaited);
             }
             if (!in_array($control->status, [WorkflowStatus::Suspended, WorkflowStatus::Failed], true)) {
-                throw new WorkflowException("Run '{$runId}' is '{$control->status->value}', not suspended.");
+                throw new WorkflowRefusedException(
+                    "Run '{$runId}' is '{$control->status->value}', not suspended.",
+                    RefusalReason::Executing,
+                );
             }
             $input = ResumeInput::event($active->request, $payload);
         } else {
@@ -347,7 +365,12 @@ class WorkflowEngine
             $input = $this->dueInput($control);
         }
         if ($input instanceof ResumeInput) {
-            $active->request->validate($input);
+            try {
+                $active->request->validate($input);
+            } catch (WorkflowException $rejected) {
+                // Requests, custom ones included, reject an answer in their own words.
+                throw new WorkflowRefusedException($rejected->getMessage(), RefusalReason::NotAwaited, $rejected);
+            }
             $control = $control->withInput($input);
         }
 
@@ -394,9 +417,10 @@ class WorkflowEngine
             && $control->leaseExpiresAt !== null
             && $control->leaseExpiresAt > time()
         ) {
-            throw new WorkflowException(
+            throw new WorkflowRefusedException(
                 "The run for workflow ID '{$workflowId}' appears to be executing "
-                . "(lease expires at {$control->leaseExpiresAt}) — cannot continue without input."
+                . "(lease expires at {$control->leaseExpiresAt}) — cannot continue without input.",
+                RefusalReason::Executing,
             );
         }
     }
@@ -416,8 +440,9 @@ class WorkflowEngine
             throw new StaleWorkflowRunException($store->workflowId, $expectedRunId, null);
         }
 
-        throw new WorkflowException(
-            "No run in flight for workflow ID '{$store->workflowId}' — nothing to continue."
+        throw new WorkflowRefusedException(
+            "No run in flight for workflow ID '{$store->workflowId}' — nothing to continue.",
+            RefusalReason::NoRun,
         );
     }
 

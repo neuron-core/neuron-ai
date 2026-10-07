@@ -25,6 +25,7 @@ use NeuronAI\Exceptions\ToolException;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -60,8 +61,9 @@ class ExceptionHierarchyTest extends TestCase
         yield 'ToolRunsExceededException' => [ToolRunsExceededException::class, ToolException::class];
         yield 'WorkflowException' => [WorkflowException::class, NeuronException::class];
         yield 'PersistenceException' => [PersistenceException::class, WorkflowException::class];
-        yield 'RunInFlightException' => [RunInFlightException::class, WorkflowException::class];
-        yield 'StaleWorkflowRunException' => [StaleWorkflowRunException::class, WorkflowException::class];
+        yield 'WorkflowRefusedException' => [WorkflowRefusedException::class, WorkflowException::class];
+        yield 'RunInFlightException' => [RunInFlightException::class, WorkflowRefusedException::class];
+        yield 'StaleWorkflowRunException' => [StaleWorkflowRunException::class, WorkflowRefusedException::class];
     }
 
     /**

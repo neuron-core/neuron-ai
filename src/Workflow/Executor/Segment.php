@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow\Executor;
 use Closure;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\Events\BranchPausedEvent;
 use NeuronAI\Workflow\Events\Event;
@@ -32,6 +33,7 @@ use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 use NeuronAI\Workflow\Observability\WorkflowNodeEnd;
 use NeuronAI\Workflow\Observability\WorkflowNodeStart;
 use NeuronAI\Workflow\Observability\WorkflowStart;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\SegmentOutput;
@@ -232,8 +234,9 @@ final class Segment
         if ($this->retainCompletion) {
             $this->store->commitOutcome($this->state, $this->store->control()->completed());
         } elseif (!$this->store->deleteIfOwned()) {
-            throw new WorkflowException(
-                "Stale execution attempt {$this->context->executionAttempt} cannot complete workflow ID '{$this->context->workflowId}'."
+            throw new WorkflowRefusedException(
+                "Stale execution attempt {$this->context->executionAttempt} cannot complete workflow ID '{$this->context->workflowId}'.",
+                RefusalReason::StaleAttempt,
             );
         }
     }

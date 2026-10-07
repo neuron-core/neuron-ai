@@ -280,6 +280,35 @@ Use `run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecu
 All staging methods are inert. A retried reserved start or fenced resume is refused while its run is still persisted, never executed twice; a reserved start with `recoverFailed: true` recovers its own failed or abandoned run instead. A clean completion deletes the run by default, so a reserved start redelivered after it runs again unless the workflow uses `retainCompletionUntilAcknowledged()`.
 Configure context-aware resource factories on the definition before invoking the terminal.
 
+Whatever the engine refuses because of the state a run is in throws
+`WorkflowRefusedException`, and its `reason` says why. Route on the reason, never on
+the message:
+
+```php
+use NeuronAI\Exceptions\WorkflowRefusedException;
+use NeuronAI\Workflow\RefusalReason;
+
+try {
+    $state = $workflow->run($request);
+} catch (WorkflowRefusedException $refused) {
+    match ($refused->reason) {
+        RefusalReason::RunInFlight => ...,  // a start met a run that is not dead
+        RefusalReason::NoRun => ...,        // nothing to continue
+        RefusalReason::StaleRun => ...,     // the expected run is not the current one
+        RefusalReason::StaleAttempt => ..., // the expected, or owned, attempt is no longer current
+        RefusalReason::Executing => ...,    // a process is executing the run, or left it running
+        RefusalReason::NotAwaited => ...,   // the run is not waiting for this input
+        RefusalReason::Completed => ...,    // abandon() met a retained completion: acknowledge it
+        RefusalReason::NotCompleted => ..., // acknowledge() met a run that has not completed
+        RefusalReason::Conflict => ...,     // a concurrent change won: retry
+    };
+}
+```
+
+`RunInFlightException` and `StaleWorkflowRunException` are refusals that also describe
+the run they met. A corrupted record or a programming error stays a plain
+`WorkflowException`, and a node's own exception is a failure of the run, not a refusal.
+
 ### Persistence Backends
 
 ```php
@@ -419,7 +448,9 @@ abandons and acknowledges runs by ID with `abandon($workflowId, ...)` and
 `acknowledge($workflowId, $runId)`; an Agent's own verbs add their guards. Each read
 returns a fresh `WorkflowRunSnapshot` containing identity, status, execution
 attempt, the current interruption and the run's start event (`startEvent`), or
-null if there is no persisted control.
+null if there is no persisted control. It also carries `leaseExpiresAt`, the Unix
+time at which the lease on the run expires (null when it has none), and
+`deferredInterrupts`, how many interruptions wait behind the current one.
 Normal completion removes that control; retained completion remains inspectable
 until acknowledged. `$workflow->inspect()` remains available for an already
 configured workflow.

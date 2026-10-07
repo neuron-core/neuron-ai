@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Workflow\Executor;
 
+use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
 
 use function serialize;
 use function method_exists;
+use function time;
 
 class WorkflowInspectionTest extends TestCase
 {
@@ -49,6 +53,26 @@ class WorkflowInspectionTest extends TestCase
         $this->assertNotNull($run->interrupt);
         $workflow->acknowledge($run->runId);
         $this->assertNull($reader->inspect());
+    }
+
+    public function test_inspection_reports_the_lease_held_on_an_executing_run(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $seen = null;
+        $probe = FakeMiddleware::make()->setBeforeHandler(static function () use ($persistence, &$seen): void {
+            $seen = (new WorkflowEngine($persistence))->inspect('leased')?->leaseExpiresAt;
+        });
+        $workflow = KeyedWorkflow::make('leased')->setPersistence($persistence)
+            ->setLeaseTimeout(300)->addMiddleware(NodeOne::class, $probe);
+        $startedAt = time();
+
+        $workflow->run();
+
+        $this->assertGreaterThanOrEqual($startedAt + 300, $seen);
+        $this->assertLessThanOrEqual(time() + 300, $seen);
+        $suspended = $workflow->inspect();
+        $this->assertSame(WorkflowStatus::Suspended, $suspended?->status);
+        $this->assertNull($suspended->leaseExpiresAt);
     }
 
     public function test_inspection_rejects_conflicting_explicit_and_declared_workflow_ids(): void

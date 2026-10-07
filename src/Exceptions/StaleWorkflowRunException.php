@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Exceptions;
 
-class StaleWorkflowRunException extends WorkflowException
+use NeuronAI\Workflow\RefusalReason;
+
+class StaleWorkflowRunException extends WorkflowRefusedException
 {
     public function __construct(
         public readonly string $workflowId,
@@ -15,7 +17,8 @@ class StaleWorkflowRunException extends WorkflowException
 
         parent::__construct(
             "Stale continuation for workflow ID '{$this->workflowId}': "
-            . "expected run '{$this->expectedRunId}', current run is '{$actual}'."
+            . "expected run '{$this->expectedRunId}', current run is '{$actual}'.",
+            RefusalReason::StaleRun,
         );
     }
 }

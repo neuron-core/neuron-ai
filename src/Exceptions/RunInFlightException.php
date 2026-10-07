@@ -9,6 +9,7 @@ use DateTimeInterface;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
 
 use function date;
@@ -23,7 +24,7 @@ use function time;
  * carries the run ID it reserved, so the message can tell a redelivery of
  * that very run from a run started by someone else.
  */
-class RunInFlightException extends WorkflowException
+class RunInFlightException extends WorkflowRefusedException
 {
     public function __construct(
         public readonly string $workflowId,
@@ -35,7 +36,8 @@ class RunInFlightException extends WorkflowException
         public readonly ?string $reservedRunId = null,
     ) {
         parent::__construct(
-            "Cannot ignite a new run for workflow ID '{$this->workflowId}': " . $this->describeGeneration()
+            "Cannot ignite a new run for workflow ID '{$this->workflowId}': " . $this->describeGeneration(),
+            RefusalReason::RunInFlight,
         );
     }
 

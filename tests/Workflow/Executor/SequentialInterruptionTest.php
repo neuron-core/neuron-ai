@@ -86,6 +86,16 @@ class SequentialInterruptionTest extends TestCase
         $this->assertSame(['value' => 'B'], $last->get('results')['b']);
     }
 
+    public function test_inspection_counts_the_requests_deferred_behind_the_current_one(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $trace = (object) ['events' => []];
+        $this->workflow($persistence, $trace)->run();
+        $this->assertSame(1, $this->workflow($persistence, $trace)->inspect()?->deferredInterrupts);
+        $this->workflow($persistence, $trace)->run(ExecutionRequest::resume(['value' => 'A']));
+        $this->assertSame(0, $this->workflow($persistence, $trace)->inspect()?->deferredInterrupts);
+    }
+
     public function test_a_lost_deferred_step_record_fails_the_resume_by_name(): void
     {
         $persistence = new class () extends InMemoryPersistence {
