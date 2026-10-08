@@ -25,6 +25,8 @@ parameters:
 
     excludePaths:
         - tests/Integration/Frontend/node_modules (?)
+        # Dev dependencies install these polyfills, users of the package on PHP 8.1 don't get them.
+        - vendor/symfony/polyfill-php8*
 
     ignoreErrors:
         # Fixtures deliberately declare untyped __invoke signatures to test node validation.
