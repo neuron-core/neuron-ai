@@ -8,6 +8,7 @@ use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
 use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
@@ -63,34 +64,12 @@ trait HandleChat
     protected function processChatResult(array $result): AssistantMessage
     {
         $choice = $result['choices'][0];
+        $blocks = $this->extractContent($choice['message']['content'] ?? null);
 
         if ($choice['finish_reason'] === 'tool_calls') {
-            $response = $this->createToolCallMessage(
-                $choice['message']['tool_calls'],
-                new TextContent($choice['message']['content'])
-            );
-        } elseif (is_string($choice['message']['content'])) {
-            $response = new AssistantMessage($choice['message']['content']);
+            $response = $this->createToolCallMessage($choice['message']['tool_calls'], $blocks);
         } else {
-            $blocks = [];
-            foreach ($choice['content'] as $content) {
-                $blocks[] = match ($content['type']) {
-                    'text' => new TextContent($content['text'] ?? ''),
-                    'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
-                    'image_url' => new ImageContent(
-                        $content['image_url']['url'] ?? '',
-                        SourceType::BASE64
-                    ),
-                    'document_url' => new FileContent(
-                        content: $content['document_url'] ?? '',
-                        sourceType: SourceType::BASE64,
-                        filename: $content['document_name'] ?? null
-                    ),
-                    'input_audio' => new AudioContent($content['input_audio'], SourceType::BASE64),
-                    default => null
-                };
-            }
-            $response = new AssistantMessage(array_filter($blocks));
+            $response = new AssistantMessage($blocks);
         }
 
         if (isset($result['usage'])) {
@@ -102,5 +81,39 @@ trait HandleChat
         $response->setStopReason($choice['finish_reason']);
 
         return $response;
+    }
+
+    /**
+     * Content is a string, a list of chunks (reasoning models answer with thinking and text chunks) or null.
+     *
+     * @param string|array<int, array<string, mixed>>|null $content
+     * @return ContentBlockInterface[]
+     */
+    protected function extractContent(string|array|null $content): array
+    {
+        if (is_string($content)) {
+            return [new TextContent($content)];
+        }
+
+        $blocks = [];
+        foreach ($content ?? [] as $chunk) {
+            $blocks[] = match ($chunk['type']) {
+                'text' => new TextContent($chunk['text'] ?? ''),
+                'thinking' => new ReasoningContent(array_reduce(array_filter($chunk['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry . $item['text'], '')),
+                'image_url' => new ImageContent(
+                    $chunk['image_url']['url'] ?? '',
+                    SourceType::BASE64
+                ),
+                'document_url' => new FileContent(
+                    content: $chunk['document_url'] ?? '',
+                    sourceType: SourceType::BASE64,
+                    filename: $chunk['document_name'] ?? null
+                ),
+                'input_audio' => new AudioContent($chunk['input_audio'], SourceType::BASE64),
+                default => null
+            };
+        }
+
+        return array_filter($blocks);
     }
 }

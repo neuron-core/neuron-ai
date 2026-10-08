@@ -6,11 +6,7 @@ namespace NeuronAI\Providers\Mistral;
 
 use Generator;
 use NeuronAI\Chat\Enums\MessageRole;
-use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\ContentBlocks\AudioContent;
-use NeuronAI\Chat\Messages\ContentBlocks\FileContent;
-use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
 use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
 use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
@@ -22,10 +18,7 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Providers\OpenAI\StreamState;
 use NeuronAI\Providers\SSEParser;
 
-use function array_filter;
-use function array_reduce;
 use function array_unshift;
-use function is_array;
 use function array_key_exists;
 use function array_merge;
 
@@ -101,40 +94,23 @@ trait HandleStream
                 continue;
             }
 
-            // Process regular content
+            // The role and finish deltas carry an empty string: a text block opened for them would precede the thinking
             $content = $choice['delta']['content'] ?? '';
+            $blocks = $content === '' ? [] : $this->extractContent($content);
 
-            if (is_array($content)) {
-                $content = $content[0];
-                $block = match ($content['type']) {
-                    'text' => new TextContent($content['text'] ?? ''),
-                    'thinking' => new ReasoningContent(array_reduce(array_filter($content['thinking'], fn (array $item): bool => $item['type'] === 'text'), fn (string $carry, array $item): string => $carry .= $item['text'], '')),
-                    'image_url' => new ImageContent(
-                        $content['image_url']['url'] ?? '',
-                        SourceType::BASE64
-                    ),
-                    'document_url' => new FileContent(
-                        content: $content['document_url'] ?? '',
-                        sourceType: SourceType::BASE64,
-                        filename: $content['document_name'] ?? null
-                    ),
-                    'input_audio' => new AudioContent($content['input_audio'], SourceType::BASE64),
-                    default => new TextContent(''),
+            foreach ($blocks as $block) {
+                // A key of its own keeps the thinking apart from the answer's text block
+                $this->streamState->updateContentBlock($block instanceof ReasoningContent ? -1 : $choice['index'], $block);
+
+                $chunk = match ($block::class) {
+                    TextContent::class => new TextChunk($this->streamState->messageId(), $block->getContent()),
+                    ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $block->getContent()),
+                    default => null,
                 };
-            } else {
-                $block = new TextContent($content);
-            }
 
-            $this->streamState->updateContentBlock($choice['index'], $block);
-
-            $chunk = match ($block::class) {
-                TextContent::class => new TextChunk($this->streamState->messageId(), $block->getContent()),
-                ReasoningContent::class => new ReasoningChunk($this->streamState->messageId(), $block->getContent()),
-                default => null,
-            };
-
-            if ($chunk !== null) {
-                yield $chunk;
+                if ($chunk !== null) {
+                    yield $chunk;
+                }
             }
 
             if (array_key_exists('finish_reason', $choice)) {
