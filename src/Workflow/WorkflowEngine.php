@@ -315,17 +315,7 @@ class WorkflowEngine
             );
         }
 
-        $ignition = $store->loadIgnition();
-        if (!$ignition instanceof Ignition) {
-            throw new WorkflowException(
-                "Run '{$runId}' for workflow ID '{$workflowId}' has no ignition record."
-            );
-        }
-        if ($ignition->runId !== $runId) {
-            throw new WorkflowException(
-                "Workflow ID '{$workflowId}' has mismatched __control and __ignition generations."
-            );
-        }
+        $ignition = $this->loadIgnition($store, $runId);
 
         if ($control->status === WorkflowStatus::Completed) {
             if ($signalName !== null) {
@@ -443,6 +433,30 @@ class WorkflowEngine
         throw new WorkflowRefusedException(
             "No run in flight for workflow ID '{$store->workflowId}' — nothing to continue.",
             RefusalReason::NoRun,
+        );
+    }
+
+    /**
+     * @throws StaleWorkflowRunException
+     * @throws WorkflowException
+     */
+    protected function loadIgnition(WorkflowRunStore $store, string $runId): Ignition
+    {
+        $ignition = $store->loadIgnition();
+        if ($ignition instanceof Ignition && $ignition->runId === $runId) {
+            return $ignition;
+        }
+
+        // Only a run that ended or was replaced between the two reads may miss its ignition.
+        $current = $store->loadControl();
+        if ($current?->runId !== $runId) {
+            throw new StaleWorkflowRunException($store->workflowId, $runId, $current?->runId);
+        }
+
+        throw new WorkflowException(
+            $ignition instanceof Ignition
+                ? "Workflow ID '{$store->workflowId}' has mismatched __control and __ignition generations."
+                : "Run '{$runId}' for workflow ID '{$store->workflowId}' has no ignition record."
         );
     }
 

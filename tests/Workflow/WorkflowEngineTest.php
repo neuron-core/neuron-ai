@@ -16,6 +16,7 @@ use NeuronAI\Workflow\Executor\WorkflowControl;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Persistence\Serializer;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
@@ -352,6 +353,43 @@ class WorkflowEngineTest extends TestCase
         $this->expectExceptionMessage("Run 'run_a' for workflow ID 'corrupt' has no ignition record.");
 
         (new WorkflowEngine($persistence))->admit('corrupt', ExecutionRequest::resume([]), new WorkflowState(), null, false);
+    }
+
+    public function test_a_continuation_whose_run_ends_between_the_two_reads_is_stale(): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(3))->method('get')->willReturnOnConsecutiveCalls(
+            serialize(new WorkflowControl('run_a', WorkflowStatus::Suspended)),
+            null,
+            null,
+        );
+
+        try {
+            (new WorkflowEngine($persistence))->admit('racing', ExecutionRequest::resume(null, 'run_a'), new WorkflowState(), null, false);
+            self::fail('A continuation of a run that ended must be refused.');
+        } catch (StaleWorkflowRunException $stale) {
+            self::assertSame(RefusalReason::StaleRun, $stale->reason);
+            self::assertSame('run_a', $stale->expectedRunId);
+            self::assertNull($stale->actualRunId);
+        }
+    }
+
+    public function test_a_continuation_whose_run_is_replaced_between_the_two_reads_is_stale(): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(3))->method('get')->willReturnOnConsecutiveCalls(
+            serialize(new WorkflowControl('run_a', WorkflowStatus::Suspended)),
+            serialize(new Ignition('run_b', new StartEvent())),
+            serialize(new WorkflowControl('run_b', WorkflowStatus::Running)),
+        );
+
+        try {
+            (new WorkflowEngine($persistence))->admit('racing', ExecutionRequest::resume(null, 'run_a'), new WorkflowState(), null, false);
+            self::fail('A continuation of a run that was replaced must be refused.');
+        } catch (StaleWorkflowRunException $stale) {
+            self::assertSame('run_a', $stale->expectedRunId);
+            self::assertSame('run_b', $stale->actualRunId);
+        }
     }
 
     public function test_a_retained_completion_refuses_a_signal(): void
