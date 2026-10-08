@@ -12,6 +12,7 @@ composer.lock
 .env
 scripts
 phpunit.xml.local
+phpunit.xml
 CONTEXT.md
 docs/adr
 /tests/Integration/
