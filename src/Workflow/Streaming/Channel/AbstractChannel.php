@@ -9,7 +9,6 @@ use JsonException;
 use LengthException;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
 use NeuronAI\Workflow\WorkflowState;
-use Random\RandomException;
 use Throwable;
 
 use function base64_encode;
@@ -140,7 +139,6 @@ abstract class AbstractChannel implements StreamingChannelInterface
     }
 
     /**
-     * @throws RandomException
      * @throws JsonException
      * @throws Throwable
      */

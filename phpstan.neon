@@ -15,13 +15,18 @@ parameters:
         - tests
 
 
-    # The level 9 is the highest level
+    # The level 10 is the highest level
     level: 5
+
+    # Analyse against the minimum version in composer.json, whatever PHP runs PHPStan.
+    phpVersion: 80100
 
     treatPhpDocTypesAsCertain: false
 
     excludePaths:
         - tests/Integration/Frontend/node_modules (?)
+        # Dev dependencies install these polyfills, users of the package on PHP 8.1 don't get them.
+        - vendor/symfony/polyfill-php8*
 
     ignoreErrors:
         # Fixtures deliberately declare untyped __invoke signatures to test node validation.
