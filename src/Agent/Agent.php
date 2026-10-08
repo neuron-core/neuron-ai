@@ -297,6 +297,7 @@ class Agent extends Workflow implements AgentInterface
      *
      * @throws AgentException
      * @throws ChatHistoryException
+     * @throws WorkflowException
      */
     public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
@@ -340,14 +341,6 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * @return Node[]
-     */
-    protected function exitNodes(): array
-    {
-        return [new AgentEndNode()];
-    }
-
-    /**
      * Hook method for child classes.
      *
      * @return Node[]
@@ -355,6 +348,16 @@ class Agent extends Workflow implements AgentInterface
     protected function entryNodes(): array
     {
         return [new AgentStartNode()];
+    }
+
+    /**
+     * Hook method for child classes.
+     *
+     * @return Node[]
+     */
+    protected function exitNodes(): array
+    {
+        return [new AgentEndNode()];
     }
 
     /**
