@@ -6,6 +6,11 @@ namespace NeuronAI\Tests\Providers\Mistral;
 
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ContentBlockInterface;
+use NeuronAI\Chat\Messages\ContentBlocks\ReasoningContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
+use NeuronAI\Chat\Messages\Stream\Chunks\ReasoningChunk;
+use NeuronAI\Chat\Messages\Stream\Chunks\StreamChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolArgumentChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -18,6 +23,7 @@ use NeuronAI\Tests\Tools\Stub\ToolStub;
 use PHPUnit\Framework\TestCase;
 
 use function array_filter;
+use function array_map;
 use function array_values;
 use function iterator_to_array;
 use function json_decode;
@@ -47,6 +53,14 @@ class MistralStreamTest extends TestCase
     protected static function delta(array $delta, ?string $finishReason = null): array
     {
         return ['id' => 'x', 'choices' => [['index' => 0, 'delta' => $delta, 'finish_reason' => $finishReason]]];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function thinking(string $text): array
+    {
+        return ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => $text]]];
     }
 
     public function test_request_enables_streaming_with_usage_even_when_parameters_disable_it(): void
@@ -83,6 +97,54 @@ class MistralStreamTest extends TestCase
         $this->assertSame('Bonjour', $message->getContent());
         $this->assertSame('stop', $message->stopReason());
         $this->assertSame([5, 2], [$message->getUsage()->inputTokens, $message->getUsage()->outputTokens]);
+    }
+
+    public function test_thinking_and_answer_end_in_separate_blocks(): void
+    {
+        // The phases Mistral documents: thinking lists, a list closing the thinking and opening the answer, plain strings
+        $provider = $this->provider(self::sseBody([
+            self::delta(['role' => 'assistant', 'content' => '']),
+            self::delta(['content' => [self::thinking('17 times 20 is 340, ')]]),
+            self::delta(['content' => [self::thinking('plus 51 is 391.')]]),
+            self::delta(['content' => [self::thinking(''), ['type' => 'text', 'text' => '17 * 23']]]),
+            self::delta(['content' => ' = ']),
+            self::delta(['content' => '391.'], 'stop'),
+        ])."data: [DONE]\n\n");
+
+        [$chunks, $message] = $this->consumeStream($provider->stream(new UserMessage('What is 17 * 23?')));
+
+        $this->assertSame(['17 times 20 is 340, ', 'plus 51 is 391.'], $this->contentsOf(
+            ReasoningChunk::class,
+            array_filter($chunks, static fn (StreamChunk $chunk): bool => $chunk instanceof ReasoningChunk)
+        ));
+        $this->assertSame(['17 * 23', ' = ', '391.'], $this->contentsOf(
+            TextChunk::class,
+            array_filter($chunks, static fn (StreamChunk $chunk): bool => $chunk instanceof TextChunk)
+        ));
+        $this->assertInstanceOf(AssistantMessage::class, $message);
+        $this->assertSame(
+            [ReasoningContent::class, TextContent::class],
+            array_map(static fn (ContentBlockInterface $block): string => $block::class, $message->getContentBlocks())
+        );
+        $this->assertSame('17 times 20 is 340, plus 51 is 391.', $message->getReasoning()?->content);
+        $this->assertSame('17 * 23 = 391.', $message->getContent());
+        $this->assertSame('stop', $message->stopReason());
+    }
+
+    public function test_streamed_tool_call_keeps_the_thinking(): void
+    {
+        $provider = $this->provider(self::sseBody([
+            self::delta(['role' => 'assistant', 'content' => '']),
+            self::delta(['content' => [self::thinking('Need a lookup')]]),
+            self::delta(['tool_calls' => [['id' => 'call_1', 'index' => 0, 'function' => ['name' => 'lookup', 'arguments' => '{"q":"rome"}']]]], 'tool_calls'),
+        ])."data: [DONE]\n\n");
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Where?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame('Need a lookup', $message->getReasoning()?->content);
+        $this->assertNull($message->getContent());
+        $this->assertSame(['q' => 'rome'], $message->getToolCalls()[0]->getInputs());
     }
 
     public function test_tool_call_arguments_across_chunks_build_the_tool_call_message(): void
