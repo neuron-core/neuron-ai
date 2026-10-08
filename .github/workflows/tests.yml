@@ -104,10 +104,10 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Login to Docker Hub
-              uses: docker/login-action@v4
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
               # This condition skips the step if the event is a Pull Request
               if: github.event_name != 'pull_request'
               with:
@@ -123,7 +123,7 @@ jobs:
                 run: pdftotext -v
 
             - name: Setup PHP
-              uses: shivammathur/setup-php@v2
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
               with:
                   php-version: ${{ matrix.php }}
                   extensions: pdo_mysql, pdo_pgsql, pdo_sqlite, mongodb-2.5.2, redis, igbinary, bcmath, sodium
@@ -183,7 +183,7 @@ jobs:
                   echo "Typesense healthcheck elapsed: ${elapsed}s"
 
             - name: Install PHP dependencies
-              uses: ramsey/composer-install@v4
+              uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
               with:
                   dependency-versions: ${{ matrix.dependency-version }}
 
@@ -196,20 +196,20 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Setup PHP
-              uses: shivammathur/setup-php@v2
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
               with:
                   php-version: '8.4'
                   extensions: pdo_sqlite, redis, sodium, mongodb, bcmath
                   coverage: none
 
             - name: Install PHP dependencies
-              uses: ramsey/composer-install@v4
+              uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
             - name: Setup Node
-              uses: actions/setup-node@v7
+              uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: '22'
                   cache: npm
@@ -234,7 +234,7 @@ jobs:
 
             - name: Upload Playwright traces
               if: failure()
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
                   name: playwright-traces
                   path: tests/Integration/Frontend/test-results

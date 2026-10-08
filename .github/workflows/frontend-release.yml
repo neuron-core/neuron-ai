@@ -19,20 +19,20 @@ jobs:
     outputs:
       dist-tag: ${{ steps.release.outputs.dist-tag }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: npm
       - name: Validate release tag
         id: release
         run: node packages/streaming/tools/release.mjs >> "$GITHUB_OUTPUT"
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.4'
           extensions: pdo_sqlite, redis, sodium, mongodb, bcmath
           coverage: none
-      - uses: ramsey/composer-install@v4
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
@@ -40,12 +40,12 @@ jobs:
       - run: npm run pack:streaming
       - name: Test the archive against the PHP backend
         run: npm run test:packed
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: streaming-package
           path: artifacts/streaming.tgz
           if-no-files-found: error
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: frontend-release-traces
@@ -59,11 +59,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: streaming-package
           path: artifacts
