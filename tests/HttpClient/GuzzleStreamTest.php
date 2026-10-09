@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\HttpClient;
 
 use Closure;
+use GuzzleHttp\Psr7\FnStream;
 use GuzzleHttp\Psr7\Utils;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Guzzle\GuzzleStream;
@@ -100,6 +101,25 @@ class GuzzleStreamTest extends TestCase
             );
             $this->assertNull($exception->response);
         }
+    }
+
+    public function test_a_connection_closing_after_the_last_read_throws_a_network_error(): void
+    {
+        // A socket reports its end only once the close arrives, which may be after the last bytes were read.
+        $endChecks = 0;
+        $psrStream = FnStream::decorate(Utils::streamFor('partial'), [
+            'eof' => static function () use (&$endChecks): bool {
+                return $endChecks++ > 0;
+            },
+        ]);
+        $stream = new GuzzleStream($psrStream, HttpRequest::get('https://example.com/sse'), 1000);
+
+        $this->assertSame('partial', $stream->read(8192));
+
+        $this->expectException(HttpException::class);
+        $this->expectExceptionMessage('Response body ended after 7 of the 1000 bytes declared by Content-Length');
+
+        $stream->eof();
     }
 
     /**

@@ -38,7 +38,7 @@ class GuzzleStream implements StreamInterface
     public function eof(): bool
     {
         // A closed body is detached, and asking it anything throws: it has ended
-        return $this->buffer === '' && (!$this->stream->isReadable() || $this->stream->eof());
+        return $this->buffer === '' && (!$this->stream->isReadable() || $this->bodyEnded());
     }
 
     public function read(int $length): string
@@ -84,24 +84,35 @@ class GuzzleStream implements StreamInterface
         $this->stream->close();
     }
 
-    /**
-     * Guzzle streams through PHP's stream reader, which ends quietly when the connection
-     * drops: a body shorter than its Content-Length is the only cut it lets us see.
-     *
-     * @throws HttpException
-     */
     protected function pull(int $length): string
     {
         $chunk = $this->stream->read($length);
         $this->received += strlen($chunk);
+        $this->bodyEnded();
 
-        if ($this->contentLength !== null && $this->received < $this->contentLength && $this->stream->eof()) {
+        return $chunk;
+    }
+
+    /**
+     * Guzzle streams through PHP's stream reader, which ends quietly when the connection
+     * drops: a body shorter than its Content-Length is the only cut it lets us see. The
+     * close can arrive after the last bytes were read, so every look at the end checks it.
+     *
+     * @throws HttpException
+     */
+    protected function bodyEnded(): bool
+    {
+        if (!$this->stream->eof()) {
+            return false;
+        }
+
+        if ($this->contentLength !== null && $this->received < $this->contentLength) {
             throw HttpException::networkError(
                 $this->request,
                 "Response body ended after {$this->received} of the {$this->contentLength} bytes declared by Content-Length",
             );
         }
 
-        return $chunk;
+        return true;
     }
 }

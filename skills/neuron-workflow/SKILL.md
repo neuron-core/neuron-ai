@@ -451,7 +451,7 @@ attempt, the current interruption and the run's start event (`startEvent`), or
 null if there is no persisted control. It also carries `leaseExpiresAt`, the Unix
 time at which the lease on the run expires (null when it has none),
 `deferredInterrupts`, how many interruptions wait behind the current one, and
-`tag`, the label given with `ExecutionRequest::start(tag:)` (null when none was).
+`tag`, the label of 1 to 255 characters given with `ExecutionRequest::start(tag:)` (null when none was).
 Normal completion removes that control; retained completion remains inspectable
 until acknowledged. `$workflow->inspect()` remains available for an already
 configured workflow.

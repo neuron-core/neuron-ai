@@ -174,6 +174,7 @@ class ExecutionRequestTest extends TestCase
             'a line feed' => ["order\nfulfilment"],
             'a trailing line feed' => ["order-fulfilment\n"],
             'a NUL byte' => ["order\x00fulfilment"],
+            'a unit separator' => ["order\x1Ffulfilment"],
             'the DEL character' => ["order\x7Ffulfilment"],
             'bytes that are not UTF-8' => ["order\xFFfulfilment"],
         ];

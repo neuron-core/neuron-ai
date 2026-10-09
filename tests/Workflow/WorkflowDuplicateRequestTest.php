@@ -17,6 +17,7 @@ use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\TestCase;
@@ -213,5 +214,22 @@ class WorkflowDuplicateRequestTest extends TestCase
         self::assertCount(1, $invocations);
         self::assertSame('delivery-1', $make()->inspect()->runId);
         self::assertSame(WorkflowStatus::Failed, $make()->inspect()->status);
+    }
+
+    public function test_a_start_that_recovers_a_run_leaves_the_tag_it_was_started_with(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $persistence->initializeIfAbsent(
+            'order',
+            '__control',
+            $serializer->serialize(new WorkflowControl('delivery-1', WorkflowStatus::Running, leaseExpiresAt: time() - 1)),
+            ['__ignition' => $serializer->serialize(new Ignition('delivery-1', new StartEvent(), 'order-fulfilment@2'))],
+        );
+
+        KeyedWorkflow::make('order')->setPersistence($persistence)
+            ->run(ExecutionRequest::start(runId: 'delivery-1', recoverFailed: true, tag: 'order-fulfilment@3'));
+
+        self::assertSame('order-fulfilment@2', (new WorkflowEngine($persistence))->inspect('order')?->tag);
     }
 }
