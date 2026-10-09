@@ -191,7 +191,7 @@ protected function tools(): array
 }
 ```
 
-`FileSystemToolkit` is the exact class spelling and namespace. The scope directory must already exist when the tools are built; provision the example directory or supply an existing application workspace. `scope` confines file-tool paths to a directory; `null` leaves them unrestricted. `BashTool` validates its working directory but cannot confine the command itself. Configure process isolation when shell confinement is required, or exclude `BashTool` when shell execution is not needed.
+`FileSystemToolkit` is the exact class spelling and namespace. The scope directory must already exist when the tools are built; provision the example directory or supply an existing application workspace. `scope` confines file-tool paths to a directory; `null` leaves them unrestricted. `BashTool` validates its working directory but cannot confine the command itself. Configure process isolation when shell confinement is required, or exclude `BashTool` when shell execution is not needed. `BashTool` runs commands with `bash`, which must be on the `PATH`. It kills a command after 120 seconds and gives the model the first 30,000 bytes of its output: `setTimeout()` (seconds) and `setOutputLimit()` (bytes) change either, as do the constructor's `timeout` and `outputLimit` arguments.
 
 Toolkits contribute their `guidelines()` to Agent instructions. `only()` and `exclude()` take arrays of tool class names; `with()` customizes a provided tool instance:
 

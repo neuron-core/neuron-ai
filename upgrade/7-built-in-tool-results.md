@@ -2,7 +2,7 @@
 
 ## Summary
 
-This guide applies only to application code that calls these built-in tools directly, subclasses them, or reads their results: tests, evaluations, middleware, and code that reads conversation history. Registering the tools or `FileSystemToolkit::make()` on an agent needs no change.
+This guide applies only to application code that calls these built-in tools directly, subclasses them, or reads their results: tests, evaluations, middleware, and code that reads conversation history. Registering the tools or `FileSystemToolkit::make()` on an agent needs no change, unless the agent runs shell commands through `BashTool` (Case 7).
 
 | Tool | 3.x | 4.x |
 |---|---|---|
@@ -10,8 +10,11 @@ This guide applies only to application code that calls these built-in tools dire
 | `WriteFileTool`, `EditFileTool`, `DeleteFileTool`: failure | array `['status' => 'error', 'operation' => ..., 'file_path' => ..., 'message' => ...]` | `ToolOutput` error whose `getText()` is the 3.x `message`. Return type `array\|ToolOutput` |
 | `BashTool`: non-zero exit | status array with `'status' => 'error'`, `exit_code`, and `output` (stdout, then stderr) | `ToolOutput` error: `Command exited with code N.`, followed by a blank line and the output only when the command printed something. stdout and stderr are interleaved, with no separator added. Return type `array\|ToolOutput` |
 | `BashTool`: missing working directory, process failed to start | status array | `ToolOutput` error with the 3.x message |
+| `BashTool`: the shell | `/bin/sh -c` (`cmd.exe` on Windows) | `bash -c`, so `bash` must be on the `PATH` |
+| `BashTool`: command running longer than 120 seconds | waited for, however long it took | killed. `ToolOutput` error: `Command killed: it exceeded the 120-second timeout.`, followed by a blank line and the output when there is any. `setTimeout()` changes the limit |
+| `BashTool`: more than 30,000 bytes of output | returned whole | the first 30,000 bytes, a blank line, then `[Output truncated: only the first 30000 bytes are shown.]`. The command still runs to its end. `setOutputLimit()` changes the limit |
 | `EditFileTool`: search text occurs more than once | every occurrence replaced | `ToolOutput` error, file left untouched |
-| Successful results | success array or text | unchanged, except: bash `output` interleaves stderr with stdout; `glob_path` text repeats the pattern as passed (3.x dropped a leading `**/`, e.g. `pattern '*.php'`) and a `**` segment in any position is recursive (`src/**/*.php` now also lists files directly in `src/`); `grep_file_content` line numbers are correct in files with multibyte characters (3.x could report `line 0`) |
+| Successful results | success array or text | unchanged, except: bash `output` interleaves stderr with stdout and is cut past 30,000 bytes; `glob_path` text repeats the pattern as passed (3.x dropped a leading `**/`, e.g. `pattern '*.php'`) and a `**` segment in any position is recursive (`src/**/*.php` now also lists files directly in `src/`); `grep_file_content` line numbers are correct in files with multibyte characters (3.x could report `line 0`) |
 | `RetrievalTool::__invoke()` | `NeuronAI\RAG\Document[]` | list of arrays with the keys `content`, `sourceType`, `sourceName`, `score` (`?float`) and `metadata`. No `id` and no `embedding` |
 | `SESTool::__invoke()` | last parameter `?string $reply_to = null`, which was ignored | `reply_to` removed. `cc` and `bcc` are validated like `to` |
 
@@ -44,7 +47,7 @@ grep -rnE "SESTool|reply_to|[\"']send_email[\"']" --include='*.php' --exclude-di
 
 Follow the hits:
 - For each tool hit, follow the variable that holds the result, find classes that `extends` the tool (Case 2), and find tests that assert on it.
-- A hit that only registers a tool or toolkit on an agent (`tools()`, `addTool()`, `FileSystemToolkit::make()`) needs no change.
+- A hit that only registers a tool or toolkit on an agent (`tools()`, `addTool()`, `FileSystemToolkit::make()`) needs no change, unless it provides `BashTool`, as `FileSystemToolkit` does: see Case 7.
 - Hits from search 1 on other tools' results, including the application's own tools, are out of scope for this guide. SQL tool results belong to guide 9. Calendar and to-do tools still return `Error: ...` strings, and SESTool's `'sent'`/`'failed'` result array is unchanged.
 
 If nothing is found, this guide does not apply.
@@ -151,7 +154,7 @@ class AuditedBashTool extends BashTool
 
 1. Widen the return type: `array|ToolOutput` for `BashTool`, `WriteFileTool`, `EditFileTool` and `DeleteFileTool`, and `string|ToolOutput` for `ReadFileTool`, `GrepFileContentTool`, `GlobPathTool` and `ParseFileTool`.
 2. Replace status and `Error:` checks on the parent's result as in Case 1.
-3. FileSystem tools now extend `NeuronAI\Tools\Toolkits\FileSystem\FileSystemTool`. It declares `protected ?string $scope` and the protected methods `resolve()`, `isAbsolute()`, `canonicalize()`, `contains()`, `splitDrive()` and `segments()`. `GlobPathTool` also declares `globstar()` and `tree()`, and `FileSystemToolkit` declares `protected ?string $scope`. If a subclass declares a member with one of these names, rename it and update its call sites. Otherwise the class fails to load (for example `Type of MyTool::$scope must be ?string`) or replaces the framework's path handling. If the subclass confined paths to a directory, ask the developer whether to keep that code under the new name or replace it with the built-in scope (`new ReadFileTool('/path')`, `FileSystemToolkit::make('/path')`).
+3. FileSystem tools now extend `NeuronAI\Tools\Toolkits\FileSystem\FileSystemTool`. It declares `protected ?string $scope` and the protected methods `resolve()`, `isAbsolute()`, `canonicalize()`, `contains()`, `splitDrive()` and `segments()`. `GlobPathTool` also declares `globstar()` and `tree()`, `BashTool` declares `$timeout`, `$outputLimit`, `setTimeout()`, `setOutputLimit()`, `wait()` and `clip()`, and `FileSystemToolkit` declares `protected ?string $scope`. If a subclass declares a member with one of these names, rename it and update its call sites. Otherwise the class fails to load (for example `Type of MyTool::$scope must be ?string`) or replaces the framework's path handling. If the subclass confined paths to a directory, ask the developer whether to keep that code under the new name or replace it with the built-in scope (`new ReadFileTool('/path')`, `FileSystemToolkit::make('/path')`).
 
 ### Case 3: Code that reads FileSystem results after the agent ran the tool
 
@@ -313,14 +316,53 @@ $result = $sendEmail(
 
 `SESTool` is deprecated in 4.x but still works, so it needs no further migration.
 
+### Case 7: Agents that run shell commands through BashTool
+
+3.x passed the command to `/bin/sh -c` (`cmd.exe` on Windows), waited for it however long it took, and returned all its output. 4.x runs it with `bash -c`, kills it after 120 seconds, and gives the model the first 30,000 bytes of its output.
+
+Before (3.x):
+
+```php
+use NeuronAI\Tools\Toolkits\FileSystem\FileSystemToolkit;
+
+protected function tools(): array
+{
+    return [FileSystemToolkit::make()];
+}
+```
+
+After (4.x), for an agent whose commands need more time or more output:
+
+```php
+use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Tools\Toolkits\FileSystem\BashTool;
+use NeuronAI\Tools\Toolkits\FileSystem\FileSystemToolkit;
+
+protected function tools(): array
+{
+    return [
+        FileSystemToolkit::make()->with(
+            BashTool::class,
+            fn (BashTool $tool): ToolInterface => $tool->setTimeout(600)->setOutputLimit(100_000)
+        ),
+    ];
+}
+```
+
+1. Ask the developer whether the agent runs commands that take longer than 120 seconds (builds, test suites, installs), or whose output the model needs beyond 30,000 bytes. If it does not, leave the code as it is. Otherwise set the limits the developer gives: `setTimeout()` takes seconds and `setOutputLimit()` bytes. A tool built directly takes them in the constructor: `new BashTool(timeout: 600, outputLimit: 100_000)`.
+2. If the toolkit already has a `with()` for `BashTool`, as after guide 28, set the limits inside that callback and type its parameter as `BashTool`: a second `with()` for the same class replaces the first.
+3. `bash` must be on the `PATH` of the process that runs the agent, and Alpine-based images do not ship it. If the project's Dockerfile or deployment files show an image without `bash`, tell the developer. Do not change the image yourself.
+4. Commands written for `cmd.exe`, in prompts, tests or direct calls, must be rewritten for bash.
+
 ## Checklist
 
 - [ ] No FileSystem tool result is checked through `['status']`, `['exit_code']` or an `Error:` prefix. Hits from search 1 that remain are on other tools.
 - [ ] FileSystem failures are detected with `instanceof ToolOutput` (plus `->isError()` on `getResult()` values), and their text is read with `getText()`.
 - [ ] Every app override of a FileSystem tool's `__invoke()` returns `array|ToolOutput` or `string|ToolOutput`.
-- [ ] No subclass of a FileSystem tool declares a member named `scope`, `resolve`, `isAbsolute`, `canonicalize`, `contains`, `splitDrive` or `segments`, no `GlobPathTool` subclass declares `globstar` or `tree`, and no `FileSystemToolkit` subclass declares `scope`.
+- [ ] No subclass of a FileSystem tool declares a member named `scope`, `resolve`, `isAbsolute`, `canonicalize`, `contains`, `splitDrive` or `segments`, no `GlobPathTool` subclass declares `globstar` or `tree`, no `BashTool` subclass declares `timeout`, `outputLimit`, `setTimeout`, `setOutputLimit`, `wait` or `clip`, and no `FileSystemToolkit` subclass declares `scope`.
 - [ ] The developer has answered whether code that reads history still reads results recorded by 3.x, and the string fallback is kept or left out to match.
 - [ ] Test, fixture and dataset expectations use the 4.x texts: no `Error: ` prefix and no failure status arrays.
 - [ ] `RetrievalTool` results are read as arrays, and nothing reads `id` or `embedding` from them.
 - [ ] No `SESTool` call passes `reply_to`, and `cc`/`bcc` hold bare addresses.
+- [ ] The developer has answered whether the agent's shell commands need more than 120 seconds or 30,000 bytes of output, the limits are set to match, and the developer knows `bash` must be on the `PATH`.
 - [ ] Searches 1 to 5 return only hits that were reviewed and left as they are.

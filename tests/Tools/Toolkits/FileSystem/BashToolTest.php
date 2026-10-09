@@ -14,6 +14,8 @@ use PHPUnit\Framework\TestCase;
 use function array_map;
 use function file_put_contents;
 use function getcwd;
+use function mb_check_encoding;
+use function microtime;
 use function mkdir;
 use function str_repeat;
 
@@ -67,7 +69,7 @@ class BashToolTest extends TestCase
     public function test_a_command_writing_more_than_a_pipe_buffer_to_stderr_completes(): void
     {
         // The outer timeout turns a deadlock into a failure: without it the tool would never return
-        $result = (new BashTool())("timeout 5 sh -c 'head -c 200000 /dev/zero | tr \"\\\\0\" x >&2; echo done'");
+        $result = (new BashTool(outputLimit: 300000))("timeout 5 sh -c 'head -c 200000 /dev/zero | tr \"\\\\0\" x >&2; echo done'");
 
         $this->assertIsArray($result);
         $this->assertSame(str_repeat('x', 200000) . "done\n", $result['output']);
@@ -90,6 +92,100 @@ class BashToolTest extends TestCase
         $result = (new BashTool())('timeout 2 cat; echo "cat exited with $?"');
 
         $this->assertSame("cat exited with 0\n", $result['output']);
+    }
+
+    public function test_command_runs_under_bash(): void
+    {
+        $result = (new BashTool())('set -o pipefail; [[ -n $BASH_VERSION ]] && echo bash');
+
+        $this->assertSame("bash\n", $result['output']);
+    }
+
+    public function test_command_with_a_nul_byte_is_refused_before_running(): void
+    {
+        $result = (new BashTool())("touch {$this->tempDir}/ran\0-never");
+
+        $this->assertToolError('The command contains a NUL byte, which no shell command can carry. Remove it and try again.', $result);
+        $this->assertFileDoesNotExist($this->tempDir . '/ran');
+    }
+
+    public function test_command_running_past_the_timeout_is_killed_and_reports_its_output(): void
+    {
+        $start = microtime(true);
+
+        $result = (new BashTool(timeout: 1))('echo started; sleep 10');
+
+        $this->assertToolError("Command killed: it exceeded the 1-second timeout.\n\nstarted\n", $result);
+        $this->assertLessThan(5, microtime(true) - $start);
+    }
+
+    public function test_command_ignoring_sigterm_is_killed_at_the_timeout(): void
+    {
+        $start = microtime(true);
+
+        $result = (new BashTool(timeout: 1))('trap "" TERM; sleep 10');
+
+        $this->assertToolError('Command killed: it exceeded the 1-second timeout.', $result);
+        $this->assertLessThan(5, microtime(true) - $start);
+    }
+
+    public function test_process_left_in_the_background_does_not_keep_the_tool_waiting(): void
+    {
+        $start = microtime(true);
+
+        $result = (new BashTool())('sleep 10 & echo started');
+
+        $this->assertSame("started\n", $result['output']);
+        $this->assertLessThan(5, microtime(true) - $start);
+    }
+
+    public function test_output_past_the_limit_is_truncated_and_the_command_still_completes(): void
+    {
+        // More than a pipe holds: a command left unread past the limit would never reach the touch
+        $result = (new BashTool(outputLimit: 10))("head -c 200000 /dev/zero | tr '\\0' x; touch {$this->tempDir}/completed");
+
+        $this->assertSame("xxxxxxxxxx\n\n[Output truncated: only the first 10 bytes are shown.]", $result['output']);
+        $this->assertFileExists($this->tempDir . '/completed');
+    }
+
+    public function test_output_of_exactly_the_limit_is_returned_whole(): void
+    {
+        $result = (new BashTool(outputLimit: 6))('echo hello');
+
+        $this->assertSame("hello\n", $result['output']);
+    }
+
+    public function test_truncated_output_of_a_failing_command_keeps_the_exit_code(): void
+    {
+        $this->assertToolError(
+            "Command exited with code 3.\n\n01234\n\n[Output truncated: only the first 5 bytes are shown.]",
+            (new BashTool(outputLimit: 5))('echo 0123456789; exit 3')
+        );
+    }
+
+    public function test_setters_replace_the_limits_given_to_the_constructor(): void
+    {
+        $tool = (new BashTool(timeout: 60, outputLimit: 1000))->setTimeout(1)->setOutputLimit(5);
+
+        $this->assertToolError(
+            "Command killed: it exceeded the 1-second timeout.\n\n01234\n\n[Output truncated: only the first 5 bytes are shown.]",
+            $tool('echo 0123456789; sleep 10')
+        );
+    }
+
+    public function test_invalid_utf8_printed_by_a_failing_command_is_replaced(): void
+    {
+        $result = (new BashTool())("printf 'caf\\351 au lait'; exit 1");
+
+        $this->assertInstanceOf(ToolOutput::class, $result);
+        $this->assertTrue(mb_check_encoding($result->getText(), 'UTF-8'));
+        $this->assertStringStartsWith("Command exited with code 1.\n\ncaf", $result->getText());
+        $this->assertStringEndsWith(' au lait', $result->getText());
+    }
+
+    public function test_command_ended_by_a_signal_reports_the_shell_exit_code(): void
+    {
+        $this->assertToolError('Command exited with code 137.', (new BashTool())('kill -9 $$'));
     }
 
     public function test_defaults_to_current_working_directory_without_scope(): void
