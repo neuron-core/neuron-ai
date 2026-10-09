@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Chat\History\Stub;
 
 use NeuronAI\Chat\History\SQLMessageStore;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\TestCase;
 
 use function getenv;
@@ -29,7 +30,11 @@ class PostgresMessageStore extends SQLMessageStore
             TestCase::markTestSkipped('Set WORKFLOW_PGSQL_DSN, WORKFLOW_PGSQL_USER and WORKFLOW_PGSQL_PASSWORD for PostgreSQL integration tests.');
         }
 
-        $pdo = new PDO($dsn, getenv('WORKFLOW_PGSQL_USER') ?: null, getenv('WORKFLOW_PGSQL_PASSWORD') ?: null);
+        try {
+            $pdo = new PDO($dsn, getenv('WORKFLOW_PGSQL_USER') ?: null, getenv('WORKFLOW_PGSQL_PASSWORD') ?: null);
+        } catch (PDOException $exception) {
+            TestCase::markTestSkipped("No PostgreSQL server at {$dsn}: {$exception->getMessage()}");
+        }
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $table = uniqid('neuron_chat_messages_');
         $pdo->exec("CREATE TABLE {$table} (

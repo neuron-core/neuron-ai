@@ -9,6 +9,7 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\EloquentPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\TestCase;
 
 use function getenv;
@@ -32,7 +33,11 @@ class SqlPersistenceFactory
             TestCase::markTestSkipped("Set {$prefix}_DSN, {$prefix}_USER and {$prefix}_PASSWORD for SQL integration tests.");
         }
 
-        return new PDO($dsn, getenv($prefix . '_USER') ?: null, getenv($prefix . '_PASSWORD') ?: null);
+        try {
+            return new PDO($dsn, getenv($prefix . '_USER') ?: null, getenv($prefix . '_PASSWORD') ?: null);
+        } catch (PDOException $exception) {
+            TestCase::markTestSkipped("No {$driver} server at {$dsn}: {$exception->getMessage()}");
+        }
     }
 
     /**

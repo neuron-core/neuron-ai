@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\Workflow\Persistence\Stub;
 
 use PHPUnit\Framework\TestCase;
 use Redis;
+use RedisException;
 
 use function extension_loaded;
 use function getenv;
@@ -25,7 +26,11 @@ class RedisPersistenceFactory
 
         $port = getenv('WORKFLOW_REDIS_PORT');
         $client = new Redis();
-        $client->connect($host, $port === false ? 6379 : (int) $port, 5);
+        try {
+            $client->connect($host, $port === false ? 6379 : (int) $port, 5);
+        } catch (RedisException $exception) {
+            TestCase::markTestSkipped("No Redis server at {$host}: {$exception->getMessage()}");
+        }
 
         return $client;
     }

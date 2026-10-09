@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Tools\Toolkits\PGSQL\Stub;
 
 use PDO;
+use PDOException;
 use PHPUnit\Framework\TestCase;
 
 use function getenv;
@@ -37,7 +38,13 @@ class PostgresSandbox
             TestCase::markTestSkipped('Set WORKFLOW_PGSQL_DSN, WORKFLOW_PGSQL_USER and WORKFLOW_PGSQL_PASSWORD for PostgreSQL integration tests.');
         }
 
-        return new self(new PDO($dsn, getenv('WORKFLOW_PGSQL_USER') ?: null, getenv('WORKFLOW_PGSQL_PASSWORD') ?: null));
+        try {
+            $pdo = new PDO($dsn, getenv('WORKFLOW_PGSQL_USER') ?: null, getenv('WORKFLOW_PGSQL_PASSWORD') ?: null);
+        } catch (PDOException $exception) {
+            TestCase::markTestSkipped("No PostgreSQL server at {$dsn}: {$exception->getMessage()}");
+        }
+
+        return new self($pdo);
     }
 
     public function drop(): void
