@@ -66,6 +66,7 @@ class WorkflowEngine
                     $ignition->startEvent,
                     $control->leaseExpiresAt,
                     count($control->pendingSteps),
+                    $ignition->tag,
                 );
             }
 
@@ -215,7 +216,11 @@ class WorkflowEngine
             status: WorkflowStatus::Running,
             leaseExpiresAt: $this->leaseExpiry($leaseTimeout),
         );
-        $ignition = new Ignition($control->runId, $request->event() ?? throw new WorkflowException('A start request needs its start event.'));
+        $ignition = new Ignition(
+            $control->runId,
+            $request->event() ?? throw new WorkflowException('A start request needs its start event.'),
+            $request->tag,
+        );
 
         $ignited = $store->initialize($control, $ignition);
         $current = $ignited ? null : $store->loadControl();

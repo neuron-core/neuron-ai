@@ -331,7 +331,7 @@ class Workflow implements WorkflowInterface
         $request ??= ExecutionRequest::start($this->getStartEvent(), recoverFailed: true);
 
         if ($request->starting && !$request->event() instanceof \NeuronAI\Workflow\Events\Event) {
-            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->recoverFailed);
+            $request = ExecutionRequest::start($this->getStartEvent(), $request->runId, $request->recoverFailed, $request->tag);
         }
 
         $maxSteps = $this->getMaxSteps();

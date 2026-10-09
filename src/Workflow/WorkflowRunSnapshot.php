@@ -13,6 +13,7 @@ final class WorkflowRunSnapshot
     /**
      * @param int|null $leaseExpiresAt     Unix time at which the lease on the run expires; null when it has none.
      * @param int      $deferredInterrupts Interruptions waiting behind the current one.
+     * @param string|null $tag             The label its caller gave the run at the start; null when it gave none.
      */
     public function __construct(
         public readonly string $runId,
@@ -23,6 +24,7 @@ final class WorkflowRunSnapshot
         public readonly Event $startEvent,
         public readonly ?int $leaseExpiresAt = null,
         public readonly int $deferredInterrupts = 0,
+        public readonly ?string $tag = null,
     ) {
     }
 }

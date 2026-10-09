@@ -8,6 +8,7 @@ use NeuronAI\Testing\FakeMiddleware;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
@@ -44,7 +45,7 @@ class WorkflowInspectionTest extends TestCase
         $this->assertSame(WorkflowStatus::Suspended, $run->status);
         $this->assertSame($before, serialize($persistence));
         $this->assertFalse(method_exists($reader, 'getRunId'));
-        $workflow->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume([], $run->runId, $run->executionAttempt));
+        $workflow->run(ExecutionRequest::resume([], $run->runId, $run->executionAttempt));
         $completed = $reader->inspect();
         $this->assertNotNull($completed);
         $this->assertSame(WorkflowStatus::Completed, $completed->status);
@@ -83,4 +84,36 @@ class WorkflowInspectionTest extends TestCase
         $workflow->inspect();
     }
 
+    public function test_inspection_shows_the_tag_a_run_was_started_with(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        KeyedWorkflow::make('tagged')->setPersistence($persistence)->run(ExecutionRequest::start(tag: 'order-fulfilment@2'));
+
+        $this->assertSame('order-fulfilment@2', (new WorkflowEngine($persistence))->inspect('tagged')?->tag);
+    }
+
+    public function test_inspection_shows_no_tag_for_a_run_started_without_one(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        KeyedWorkflow::make('untagged')->setPersistence($persistence)->run();
+
+        $run = (new WorkflowEngine($persistence))->inspect('untagged');
+        $this->assertNotNull($run);
+        $this->assertNull($run->tag);
+    }
+
+    public function test_the_tag_of_a_run_is_the_same_after_it_was_continued(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $workflow = KeyedWorkflow::make('continued')->setPersistence($persistence)->retainCompletionUntilAcknowledged();
+        $suspended = $workflow->run(ExecutionRequest::start(tag: 'order-fulfilment@2'));
+
+        $workflow->run(ExecutionRequest::resume([], $suspended->getRunId(), $suspended->getExecutionAttempt()));
+
+        $completed = $workflow->inspect();
+        $this->assertSame(WorkflowStatus::Completed, $completed?->status);
+        $this->assertSame('order-fulfilment@2', $completed->tag);
+    }
 }

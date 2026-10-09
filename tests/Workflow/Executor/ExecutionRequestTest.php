@@ -130,4 +130,58 @@ class ExecutionRequestTest extends TestCase
         $this->assertSame('run-1', $request->runId);
         $this->assertSame(2, $request->executionAttempt);
     }
+
+    public function test_a_start_carries_the_tag_it_was_given(): void
+    {
+        $this->assertSame('order-fulfilment@2', ExecutionRequest::start(tag: 'order-fulfilment@2')->tag);
+        $this->assertNull(ExecutionRequest::start()->tag);
+    }
+
+    #[DataProvider('validTags')]
+    public function test_a_start_accepts_a_well_formed_tag(string $tag): void
+    {
+        $this->assertSame($tag, ExecutionRequest::start(tag: $tag)->tag);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function validTags(): array
+    {
+        return [
+            'a single character' => ['a'],
+            'a name and a version' => ['order-fulfilment@2'],
+            'spaces and punctuation' => ['Order fulfilment (v2): eu/west'],
+            'multibyte characters' => ['commande-réglée'],
+            '255 characters' => [str_repeat('a', 255)],
+            '255 multibyte characters' => [str_repeat('é', 255)],
+        ];
+    }
+
+    #[DataProvider('invalidTags')]
+    public function test_a_start_rejects_a_malformed_tag(string $tag): void
+    {
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage('Invalid run tag: use 1-255 characters without control characters.');
+
+        ExecutionRequest::start(tag: $tag);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function invalidTags(): array
+    {
+        return [
+            'empty' => [''],
+            '256 characters' => [str_repeat('a', 256)],
+            'a line feed' => ["order\nfulfilment"],
+            'a trailing line feed' => ["order-fulfilment\n"],
+            'a NUL byte' => ["order\x00fulfilment"],
+            'the DEL character' => ["order\x7Ffulfilment"],
+            'bytes that are not UTF-8' => ["order\xFFfulfilment"],
+        ];
+    }
+
+    public function test_only_a_start_carries_a_tag(): void
+    {
+        $this->assertNull(ExecutionRequest::resume([], 'run_a', 1)->tag);
+        $this->assertNull(ExecutionRequest::signal('paid', [], 'run_a', 1)->tag);
+    }
 }

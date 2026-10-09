@@ -8,6 +8,7 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionStartEvent;
 use NeuronAI\Tests\Workflow\Executor\Stub\IgnitionWaitNode;
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\SequentialBranchRunner;
 use NeuronAI\Workflow\Persistence\FilePersistence;
@@ -15,6 +16,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
 use function is_dir;
 use function mkdir;
@@ -155,5 +157,36 @@ class IgnitionTest extends TestCase
         }
 
         rmdir($dir);
+    }
+
+    public function test_the_tag_of_a_start_is_written_with_the_ignition_record(): void
+    {
+        $persistence = new InMemoryPersistence();
+
+        $this->workflow('ign_tag', $persistence)->run(ExecutionRequest::start(new IgnitionStartEvent('hello'), tag: 'order-fulfilment@2'));
+
+        $ignition = (new PhpSerializer())->unserialize((string) $persistence->get('ign_tag', '__ignition'));
+        $this->assertInstanceOf(Ignition::class, $ignition);
+        $this->assertSame('order-fulfilment@2', $ignition->tag);
+    }
+
+    public function test_an_ignition_record_saved_before_tags_existed_restores_without_one(): void
+    {
+        $ignition = (new ReflectionClass(Ignition::class))->newInstanceWithoutConstructor();
+
+        $ignition->__unserialize(['runId' => 'run_a', 'startEvent' => new IgnitionStartEvent('hello')]);
+
+        $this->assertSame('run_a', $ignition->runId);
+        $this->assertNull($ignition->tag);
+    }
+
+    public function test_an_ignition_record_keeps_its_tag_through_serialization(): void
+    {
+        $serializer = new PhpSerializer();
+
+        $restored = $serializer->unserialize($serializer->serialize(new Ignition('run_a', new IgnitionStartEvent('hello'), 'order-fulfilment@2')));
+
+        $this->assertInstanceOf(Ignition::class, $restored);
+        $this->assertSame('order-fulfilment@2', $restored->tag);
     }
 }
