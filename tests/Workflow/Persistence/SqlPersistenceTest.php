@@ -11,6 +11,7 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use PDO;
 use PDOException;
+use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -293,6 +294,47 @@ class SqlPersistenceTest extends TestCase
         $this->expectException(PDOException::class);
         $this->expectExceptionMessage('deadlock victim');
         $store->initializeIfAbsent('workflow', '__control', 'owner');
+    }
+
+    public function test_database_prepares_the_statements_of_a_repeated_operation_once(): void
+    {
+        $pdo = new class ('sqlite:' . $this->sqliteFile) extends PDO {
+            public int $prepared = 0;
+
+            public function prepare(string $query, array $options = []): PDOStatement|false
+            {
+                $this->prepared++;
+
+                return parent::prepare($query, $options);
+            }
+        };
+        $this->pdo = $pdo;
+        SqlPersistenceFactory::createTable($pdo, $this->table, false);
+        $store = new DatabasePersistence($pdo, $this->table);
+
+        self::assertTrue($store->initializeIfAbsent('workflow', '__control', 'attempt-1'));
+        self::assertTrue($store->writeIfUnchanged('workflow', '__control', 'attempt-1', ['step-0' => 'state', '__control' => 'attempt-2']));
+        self::assertSame('state', $store->get('workflow', 'step-0'));
+        $prepared = $pdo->prepared;
+
+        // What a run asks for at every step.
+        self::assertTrue($store->writeIfUnchanged('workflow', '__control', 'attempt-2', ['step-1' => 'state', '__control' => 'attempt-3']));
+        self::assertSame('state', $store->get('workflow', 'step-1'));
+
+        self::assertSame($prepared, $pdo->prepared);
+    }
+
+    public function test_a_database_read_locks_no_other_connection_out_of_writing(): void
+    {
+        $store = $this->backend('sqlite', false);
+        self::assertTrue($store->initializeIfAbsent('workflow', '__control', 'owner'));
+        self::assertSame('owner', $store->get('workflow', '__control'));
+
+        // The store keeps the statement of its read: a cursor left open on it
+        // would hold SQLite's shared lock for as long as the store lives.
+        $other = new DatabasePersistence(new PDO('sqlite:' . $this->sqliteFile, options: [PDO::ATTR_TIMEOUT => 1]), $this->table);
+        self::assertTrue($other->writeIfUnchanged('workflow', '__control', 'owner', ['__control' => 'other']));
+        self::assertSame('other', $store->get('workflow', '__control'));
     }
 
     public function test_database_rejects_a_silent_pdo_without_changing_its_error_mode(): void

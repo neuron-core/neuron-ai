@@ -191,7 +191,7 @@ class ToolRunLimitTest extends TestCase
         }
 
         $restored = clone $initial;
-        $this->runNode($restored, $event, 'batch', 2, [$crashing]);
+        $this->runNode($restored, $event, 'batch', 2, [new CountingTool(), $crashing]);
         $this->assertSame(2, $restored->getToolRuns('lookup'));
         $this->assertSame(1, $restored->getToolRuns('search'));
         $this->assertSame(1, CountingTool::$executions);
@@ -202,35 +202,47 @@ class ToolRunLimitTest extends TestCase
         $this->runNode($restored, $next, 'next-batch', 2, [new CountingTool()]);
     }
 
-    public function test_replaying_a_batch_does_not_lower_or_increment_recorded_counts(): void
+    public function test_replaying_a_batch_counts_it_again_from_the_state_its_step_started_with(): void
     {
-        $state = new AgentState();
-        $state->request = new InferenceRequest('Test');
+        $initial = new AgentState();
+        $initial->request = new InferenceRequest('Test');
+        $initial->incrementToolRun('lookup');
         $event = new ToolCallEvent(new ToolCallMessage(null, [
             new ToolCall('lookup', 'a', ['query' => 'PHP']),
             new ToolCall('lookup', 'b', ['query' => 'Rust']),
         ]));
-        $this->runNode($state, $event, 'completed-batch', 2, [new CountingTool()]);
-        $this->assertSame(2, $state->getToolRuns('lookup'));
 
-        $this->runNode($state, $event, 'completed-batch', 2, []);
-        $this->assertSame(2, $state->getToolRuns('lookup'));
-        $this->assertSame(2, CountingTool::$executions);
+        // The engine hands a replayed step the state the step before it committed.
+        foreach ([1, 2] as $pass) {
+            $state = clone $initial;
+            $this->runNode($state, $event, 'completed-batch', 3, [new CountingTool()]);
+            $this->assertSame(3, $state->getToolRuns('lookup'), "Pass {$pass} must end on the same count");
+        }
+
+        $this->assertSame(2, CountingTool::$executions, 'The recorded results are not executed again');
     }
 
-    public function test_over_limit_decision_is_preserved_on_replay(): void
+    public function test_a_refused_call_is_decided_again_under_the_current_limit(): void
     {
+        $this->messages->append('tool-run-limit', new UserMessage('Open the page'));
         $event = new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('browser', 'a', deferred: true)]));
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            $state = new AgentState();
-            $state->request = new InferenceRequest('Test');
-            try {
-                $this->runNode($state, $event, 'denied', $attempt === 0 ? 0 : 10, [new FrontendTool('browser')]);
-                $this->fail('The recorded limit must still reject the call on replay.');
-            } catch (ToolRunsExceededException) {
-                $this->assertSame(1, $state->getToolRuns('browser'));
-            }
+
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Test');
+        try {
+            $this->runNode($state, $event, 'denied', 0, [new FrontendTool('browser')]);
+            $this->fail('A zero limit refuses the call.');
+        } catch (ToolRunsExceededException) {
+            $this->assertSame(1, $state->getToolRuns('browser'));
         }
+
+        // The run is recovered after the limit was raised: no record pins the refusal.
+        $state = new AgentState();
+        $state->request = new InferenceRequest('Test');
+        $this->runNode($state, $event, 'denied', 10, [new FrontendTool('browser')]);
+
+        $this->assertSame(1, $state->getToolRuns('browser'));
+        $this->assertInstanceOf(ToolCallMessage::class, $this->messages->loadActive('tool-run-limit')[1]);
     }
 
     public function test_a_tool_limit_overrides_the_agent_limit(): void

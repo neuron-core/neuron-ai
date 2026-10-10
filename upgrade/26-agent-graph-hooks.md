@@ -19,7 +19,7 @@ In 3.x each Agent verb passed its inference node to `compose()`, which added a `
 | `ToolNode::handleError(Throwable, ToolInterface): void` | `handleError(Throwable $e, ToolCall $call): void` |
 | `PreProcessNode::__invoke(AgentStartEvent, AgentState): AIInferenceEvent\|QueryPreProcessedEvent` | `__invoke(AgentStartEvent, AgentState, AgentResources): QueryPreProcessedEvent` |
 | Provider, instructions, tools passed to a node's constructor; `$state->getChatHistory()` in a node | `$resources->provider`, `->instructions`, `->tools`, `->history` |
-| `addToChatHistory($state, $messages)`, `pendingConversation($state, $inbound)` | `addToChatHistory($resources->history, $state, $messages, 'history.<name>')`, `pendingConversation($resources->history, $inbound)` |
+| `addToChatHistory($state, $messages)`, `pendingConversation($state, $inbound)` | `addToChatHistory($resources->history, $state, $messages)`, `pendingConversation($resources->history, $inbound)` |
 | `resolveProvider()` (public, overridable) | `getProvider()` (final); overrides move to `provider()` |
 | `bootstrapTools()`, `$toolsBootstrapCache` | Removed |
 | `NeuronAI\RAG\Events\QueryPreProcessEvent` | Removed |
@@ -594,6 +594,7 @@ After (4.x):
 use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 
@@ -605,12 +606,12 @@ class SummaryNode extends Node
     {
         $messages = $resources->history->getMessages();
 
-        $summary = $resources->provider
+        $summary = $this->memoize('summary', fn (): Message => $resources->provider
             ->systemPrompt($resources->instructions)
             ->chat(...$messages)
-            ->message();
+            ->message());
 
-        $this->addToChatHistory($resources->history, $state, $summary, 'history.summary');
+        $this->addToChatHistory($resources->history, $state, $summary);
 
         return new StopEvent();
     }
@@ -627,7 +628,7 @@ new SummaryNode();
    - `$this->resolveInstructions()` (or `$this->getInstructions()->getContent()`) → `$resources->instructions`, a `SystemMessage` that already contains the toolkit guidelines. Use `->getContent()` where text is needed.
    - `$this->bootstrapTools()` → `$resources->tools`, a `ToolRegistry`: `->all()` for the array, `->find($name)` for one tool.
    - `$state->getChatHistory()` → `$resources->history` (`NeuronAI\Chat\History\ChatHistory`).
-4. `$this->addToChatHistory($state, $messages)` becomes `$this->addToChatHistory($resources->history, $state, $messages, 'history.<name>')`. Give each write in the node its own stable name. The node must extend `NeuronAI\Workflow\Node`.
+4. `$this->addToChatHistory($state, $messages)` becomes `$this->addToChatHistory($resources->history, $state, $messages)`. The history skips a message it already holds, so a node that runs again after a failure must write the same message: take it from the state or the event, or build it inside `$this->memoize('<name>', fn () => ...)`, as the example does with the provider's answer. A message built outside a memo gets a new ID on every run and is stored again. The node must extend `NeuronAI\Workflow\Node`.
 5. In `ChatNode`/`StructuredOutputNode` subclasses, `$this->pendingConversation($state, $inbound)` becomes `$this->pendingConversation($resources->history, $inbound)`, and an override declares `protected function pendingConversation(ChatHistory $history, array $inbound): array`.
 6. Inside a node, `$state->getMessage()` now returns the run's last model response, or null before the first one; in 3.x it returned the last message of the history. Where the history's last message was meant, use `$resources->history->getLastMessage()`.
 
@@ -806,6 +807,6 @@ $lines = $collector->lines();
 - No built-in node subclass declares `inference(`, `executeTools(`, or a 3.x signature of `executeSingleTool(`, `handleError(`, `pendingConversation(` or `__invoke(`; subclasses replace the built-in node through `instanceof` mapping instead of being added next to it.
 - Built-in nodes are constructed with the 4.x arguments.
 - No code configures or asserts on the result of `getProvider()` when the agent's provider comes from the `provider()` hook.
-- App nodes read the provider, instructions, tools and history from `AgentResources`, and every `addToChatHistory()` call passes the history and a distinct memo name.
+- App nodes read the provider, instructions, tools and history from `AgentResources`, and every `addToChatHistory()` call passes the history and a message that stays the same when the node runs again.
 - No middleware key names `StreamingNode::class`, and no middleware is listed twice for the same node.
 - The graph builds: run the tests that exercise each agent. The errors name duplicate handlers (`Node for event ... already exists`), a missing entry node (`No nodes found that handle ...`), invalid middleware keys and nodes asking for resources the workflow does not provide.

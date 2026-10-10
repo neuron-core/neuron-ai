@@ -122,7 +122,7 @@ class ParallelToolNode extends ToolNode
         // a call the accounting refuses is settled here, as in sequential mode.
         foreach ($runnable as $index => $call) {
             try {
-                $this->checkToolRuns($call, $index, $state, $tools);
+                $this->checkToolRuns($call, $state, $tools);
             } catch (Throwable $e) {
                 $this->handleError($e, $call);
                 $executedCalls[$index] = $call;

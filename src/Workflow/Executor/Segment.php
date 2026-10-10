@@ -51,8 +51,9 @@ use function time;
  * One admitted execution of a run. From admission until it settles, it owns
  * the run's execution attempt: it replays or runs every step from the run's
  * start event, commits each one fenced by that attempt, and settles the
- * outcome. Whatever fails inside it, building its graph and output included,
- * fails the run before the output reports it.
+ * outcome, which stands in for the commit of the step that ends the run.
+ * Whatever fails inside it, building its graph and output included, fails the
+ * run before the output reports it.
  */
 final class Segment
 {
@@ -421,6 +422,13 @@ final class Segment
         }
 
         $result = new StepResult(stepId: $stepId, event: $terminal, state: $state);
+
+        // The step that ends the run is settled at once, and settling is the
+        // durable write that follows it: a record of its own would be written
+        // only to be deleted or superseded by the outcome.
+        if ($terminal instanceof StopEvent && $branchId === null) {
+            return $result;
+        }
 
         if ($this->leaseTimeout !== null) {
             // The commit carries the lease renewal for the node that runs

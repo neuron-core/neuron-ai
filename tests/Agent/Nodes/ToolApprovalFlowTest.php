@@ -36,6 +36,7 @@ use RuntimeException;
 
 use function array_keys;
 use function array_map;
+use function implode;
 use function iterator_to_array;
 use function json_encode;
 use function spl_object_id;
@@ -44,8 +45,8 @@ use const JSON_PRETTY_PRINT;
 
 /**
  * The tool approval flow owned by ToolNode: the node gates by asking
- * the LIVE registry tool, writes the annotated ToolCallMessage once
- * (memoized), and accumulates decisions across interrupt() deliveries.
+ * the LIVE registry tool, writes the annotated ToolCallMessage once,
+ * and accumulates decisions across interrupt() deliveries.
  */
 class ToolApprovalFlowTest extends TestCase
 {
@@ -122,13 +123,20 @@ class ToolApprovalFlowTest extends TestCase
     }
 
     /**
+     * A replay restores the step's recorded event, so the same calls arrive in
+     * the same message.
+     *
      * @param ToolCall[] $calls
      */
     private function createToolCallEvent(array $calls): ToolCallEvent
     {
-        return new ToolCallEvent(
-            new ToolCallMessage(null, $calls)
-        );
+        $message = new ToolCallMessage(null, $calls);
+        $message->setId('msg_' . implode('_', array_map(
+            static fn (ToolCall $call): string => (string) $call->getCallId(),
+            $calls
+        )));
+
+        return new ToolCallEvent($message);
     }
 
     private function stepStore(): InMemoryPersistence
@@ -555,8 +563,8 @@ class ToolApprovalFlowTest extends TestCase
         $this->assertEquals(ActionDecision::Approved, $byId['call_a']->decision, 'call_a decision reflected on the outbound request');
         $this->assertEquals(ActionDecision::Pending, $byId['call_b']->decision);
 
-        // The history keeps the suspend-time pending snapshot: the
-        // memoized write ran once, and final outcomes travel on the ToolResultMessage.
+        // The history keeps the suspend-time pending snapshot: the write
+        // happened once, and final outcomes travel on the ToolResultMessage.
         $last = $this->lastToolCall($node);
         foreach ($last->getToolCalls() as $call) {
             $this->assertEquals(ApprovalState::Pending, $call->getApprovalState());
@@ -822,9 +830,9 @@ class ToolApprovalFlowTest extends TestCase
 
     public function test_distinct_tool_cycles_write_their_own_messages(): void
     {
-        // Two gated tool cycles in one run = two node steps: the memoized
-        // pre-suspend write is scoped per step, so each cycle records its own
-        // ToolCallMessage (the non-gated path writes nothing here at all).
+        // Two gated tool cycles in one run = two node steps, each with its own
+        // message: every cycle records its ToolCallMessage before suspending
+        // (the non-gated path writes nothing here at all).
         $store = $this->stepStore();
         $history = $this->conversation();
         $node = $this->node([$this->gatedTool('first'), $this->gatedTool('second')], $history);

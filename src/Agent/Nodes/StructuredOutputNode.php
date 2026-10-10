@@ -83,10 +83,12 @@ class StructuredOutputNode extends InferenceNode
         do {
             try {
                 if (trim($error) !== '') {
-                    $pending[] = new UserMessage(
+                    // Recorded, so a replay writes the same correction to the
+                    // history instead of a new message beside the first one.
+                    $pending[] = $this->memoize("correction.{$attempt}", fn (): UserMessage => new UserMessage(
                         "There was a problem in your previous response that generated the following error:\n\n{$error}\n\n".
                         "Try to generate the correct JSON structure based on the provided schema."
-                    );
+                    ));
                 }
 
                 $messages = $this->withContext($this->pendingConversation($resources->history, $pending), $state->request->context);
@@ -110,16 +112,14 @@ class StructuredOutputNode extends InferenceNode
                 $message = $providerResponse->message();
                 $this->emit(new InferenceStop($last, $providerResponse));
 
-                $this->addToChatHistory($resources->history, $state, $pending, "history.inbound.{$attempt}");
+                $this->addToChatHistory($resources->history, $state, $pending);
                 $pending = [];
 
                 if ($message instanceof ToolCallMessage) {
                     return new ToolCallEvent($message);
                 }
 
-                // The response memo is attempt-indexed too: a shared name would
-                // silently skip the write of every retry's corrected response.
-                $this->addToChatHistory($resources->history, $state, $message, "history.response.{$attempt}");
+                $this->addToChatHistory($resources->history, $state, $message);
 
                 $output = $this->processResponse($message, $schema, $outputClass);
 

@@ -14,7 +14,6 @@ use function array_map;
 use function count;
 use function end;
 use function get_object_vars;
-use function max;
 
 /**
  * Extends WorkflowState with agent-specific state management.
@@ -73,13 +72,6 @@ class AgentState extends WorkflowState
         }
 
         return $attempts[$toolName] ?? 0;
-    }
-
-    public function restoreToolRunCount(string $toolName, int $count): void
-    {
-        $attempts = $this->get('__tool_runs', []);
-        $attempts[$toolName] = max($attempts[$toolName] ?? 0, $count);
-        $this->set('__tool_runs', $attempts);
     }
 
     public function resetToolRuns(): void

@@ -169,32 +169,6 @@ class AgentStateTest extends TestCase
         $this->assertFalse($state->has('__tool_runs'));
     }
 
-    public function test_restoring_a_run_count_never_lowers_it(): void
-    {
-        // Recovery restores a recorded count onto a possibly newer state: a
-        // stale record must not hand back slots that were already consumed.
-        $state = new AgentState();
-        $state->incrementToolRun('search');
-        $state->incrementToolRun('search');
-        $state->incrementToolRun('search');
-
-        $state->restoreToolRunCount('search', 1);
-
-        $this->assertSame(3, $state->getToolRuns('search'));
-    }
-
-    public function test_restoring_a_run_count_raises_an_older_snapshot(): void
-    {
-        $state = new AgentState();
-        $state->incrementToolRun('search');
-
-        $state->restoreToolRunCount('search', 4);
-        $state->restoreToolRunCount('lookup', 2);
-
-        $this->assertSame(4, $state->getToolRuns('search'));
-        $this->assertSame(2, $state->getToolRuns('lookup'));
-    }
-
     public function test_the_final_message_is_read_from_the_recorded_response(): void
     {
         $state = new AgentState();

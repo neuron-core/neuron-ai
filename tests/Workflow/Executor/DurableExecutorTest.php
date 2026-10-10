@@ -12,6 +12,7 @@ use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeA;
 use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeB;
 use NeuronAI\Tests\Workflow\Executor\Stub\DurableNodeC;
 use NeuronAI\Tests\Workflow\Executor\Stub\MemoizingNode;
+use NeuronAI\Tests\Workflow\Persistence\Stub\RecordingPersistence;
 use NeuronAI\Tests\Workflow\Stub\NodeOne;
 use NeuronAI\Tests\Workflow\Stub\NodeThree;
 use NeuronAI\Tests\Workflow\Stub\NodeTwo;
@@ -188,6 +189,84 @@ class DurableExecutorTest extends TestCase
         $this->assertNull($persistence->get($workflowId, $this->stepKey($workflow, DurableNodeA::class . '-0')));
         $this->assertNull($persistence->get($workflowId, $this->stepKey($workflow, DurableNodeB::class . '-1')));
         $this->assertNull($persistence->get($workflowId, $this->stepKey($workflow, DurableNodeC::class . '-2')));
+    }
+
+    public function test_the_step_that_ends_the_run_writes_no_record(): void
+    {
+        $persistence = new RecordingPersistence();
+        $workflow = Workflow::make(workflowId: 'durable_last_step_test')
+            ->addNodes([new DurableNodeA(), new DurableNodeB(), new DurableNodeC()]);
+
+        $runId = $this->execute($workflow, $persistence)->getRunId();
+
+        // Deleting the run is the durable write that follows the last step.
+        $this->assertSame([
+            ['__control', '__ignition'],
+            ["{$runId}/" . DurableNodeA::class . '-0'],
+            ["{$runId}/" . DurableNodeB::class . '-1'],
+            [],
+        ], $persistence->writes);
+    }
+
+    public function test_a_retained_completion_commits_the_outcome_in_place_of_the_last_step(): void
+    {
+        $persistence = new RecordingPersistence();
+        $workflow = Workflow::make(workflowId: 'durable_retained_last_step_test')
+            ->retainCompletionUntilAcknowledged()
+            ->addNodes([new DurableNodeA(), new DurableNodeB(), new DurableNodeC()]);
+
+        $runId = $this->execute($workflow, $persistence)->getRunId();
+
+        $this->assertSame([
+            ['__control', '__ignition'],
+            ["{$runId}/" . DurableNodeA::class . '-0'],
+            ["{$runId}/" . DurableNodeB::class . '-1'],
+            ["{$runId}/__outcome", '__control'],
+        ], $persistence->writes);
+
+        // A repeated delivery reads the outcome: no node runs for it.
+        CountableNode::resetExecutionCount();
+        $outcome = $this->resume($workflow, $persistence, null);
+
+        $this->assertSame(0, CountableNode::getExecutionCount());
+        $this->assertTrue($outcome->get('step_c_executed'));
+    }
+
+    public function test_a_run_whose_completion_was_not_committed_runs_its_last_step_again(): void
+    {
+        $workflowId = 'durable_lost_completion_test';
+        $persistence = new class () extends InMemoryPersistence {
+            public bool $failing = true;
+
+            public function deleteIfUnchanged(string $partition, string $conditionKey, string $expectedValue): bool
+            {
+                if ($this->failing) {
+                    throw new PersistenceException('Simulated storage failure.');
+                }
+
+                return parent::deleteIfUnchanged($partition, $conditionKey, $expectedValue);
+            }
+        };
+        $workflow = fn (): Workflow => Workflow::make(workflowId: $workflowId)
+            ->addNodes([new DurableNodeA(), new DurableNodeB(), new DurableNodeC()]);
+
+        try {
+            $this->execute($workflow(), $persistence);
+            $this->fail('Expected PersistenceException');
+        } catch (PersistenceException) {
+            $this->assertSame(3, CountableNode::getExecutionCount());
+        }
+
+        // The last step is the only one without a record, as any step is until
+        // the write that follows it lands.
+        $persistence->failing = false;
+        CountableNode::resetExecutionCount();
+        $recovered = $workflow();
+        $result = $this->execute($recovered, $persistence);
+
+        $this->assertSame(1, CountableNode::getExecutionCount());
+        $this->assertTrue($result->get('step_c_executed'));
+        $this->assertNull($recovered->inspect());
     }
 
     public function test_steps_not_cleaned_up_after_crash(): void

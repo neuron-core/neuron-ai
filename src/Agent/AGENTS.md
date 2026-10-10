@@ -140,7 +140,7 @@ The Agent receives a message store (`messageStore()` hook, `setMessageStore()`; 
 
 History is a resource of the segment (`AgentResources::$history`), never carried in `AgentState`, so per-step snapshots stay O(1) instead of embedding the conversation. Consequences:
 
-- Writes go through `addToChatHistory($resources->history, $state, $messages, $memo)`, a durable memo, so a crash-replay skips the write instead of duplicating the tail; the history also skips a message it already holds, covering a write whose memo was lost.
+- Writes go through `addToChatHistory($resources->history, $state, $messages)`. The history skips a message it already holds, so a step that runs again writes nothing twice as long as it writes the same message: one taken from the state, the event or a `memoize()` result. A message built anew on every run has a new ID and is stored again.
 - A message commits only when the step that consumes it succeeds: inference nodes commit their inbound after the provider call lands, and a non-gated tool cycle commits the call/result pair through the *next* inference's write. A tool crash or a failed follow-up call leaves the tail at the last committed message, never at a dangling tool call. Approval-gated and externally executed cycles write their `ToolCallMessage` early, pre-suspend.
 - Durable workflow persistence needs a comparably durable store: `InMemoryMessageStore` loses the thread across processes.
 - `AgentState::getSteps()` reports the current execution cycle's messages only (transient, available even on an interrupted state).
@@ -203,7 +203,7 @@ The persisted interruption is authoritative for the current UI request. The pre-
 
 `AgentState` persists `__tool_runs`. `AgentStartNode` and RAG's `PreProcessNode` reset counters when initializing a new run; completed entry steps are skipped on resume. Custom entry nodes that replace these should reset counters when starting their new run as well.
 
-`ToolNode::checkToolRuns()` records each call's run key, incremented count and effective limit in a step-scoped memo. It restores the count outside the memo using the maximum of the current and recorded values, then enforces the recorded limit. This repairs an older state snapshot after an incomplete step without consuming another slot. Accounting runs independently of execution-result memos, including before `ParallelToolNode` forks, so cached results still restore their counters. A recorded call keeps its limit on recovery; current configuration applies to new calls.
+`ToolNode::checkToolRuns()` counts each call under its tool's run key and enforces the effective limit, reading both from the live tool, and records nothing. A step that runs again counts its batch again from the state the step started with, so a call whose result is already recorded gets its count back without consuming another slot. Accounting runs independently of execution-result memos, including before `ParallelToolNode` forks, and needs the tools of the batch registered on every pass. Current configuration applies on recovery: a call refused under one limit is decided again under the limit in force when its step is replayed.
 
 ## Deferred execution
 

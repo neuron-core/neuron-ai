@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\ChatHistoryException;
+use NeuronAI\Tests\Chat\History\Stub\RecordingStatement;
 use NeuronAI\Tests\Chat\History\Stub\SqliteMessageStore;
 use PDO;
 use PDOException;
@@ -113,6 +114,21 @@ class SQLMessageStoreTest extends TestCase
             '__meta' => ['source' => 'web'],
         ], json_decode((string) $row['meta'], true));
         $this->assertNull($row['archived_at']);
+    }
+
+    public function test_append_stores_or_skips_a_message_in_a_single_statement(): void
+    {
+        $pdo = $this->database();
+        $pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [RecordingStatement::class]);
+        RecordingStatement::$executed = [];
+        $store = new SQLMessageStore($pdo);
+        $message = new UserMessage('Hello');
+
+        $store->append('thread', $message);
+        $store->append('thread', $message);
+
+        $this->assertCount(2, RecordingStatement::$executed);
+        $this->assertSame('1', (string) $pdo->query('SELECT COUNT(*) FROM chat_messages')->fetchColumn());
     }
 
     public function test_archival_marks_the_rows_instead_of_deleting_them(): void

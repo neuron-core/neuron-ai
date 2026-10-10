@@ -214,6 +214,29 @@ class AgentObservabilityTest extends TestCase
         $this->assertSame([], $this->eventsOf(ToolCalled::class));
     }
 
+    public function test_a_message_is_reported_saved_once_across_an_approval_pause(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $store = new InMemoryMessageStore();
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [ToolCall::make('search', 'call_1', ['query' => 'php'])]),
+            new AssistantMessage('Done'),
+        );
+        $agent = fn (): Agent => Agent::make(workflowId: 'observed-approval')
+            ->setPersistence($persistence)
+            ->setMessageStore($store)
+            ->setAiProvider($provider)
+            ->addTool((new SearchTool())->requireApproval());
+
+        $this->observe($agent())->chat(new UserMessage('Find php'));
+        // The tool step runs again from its top and writes its tool call message
+        // to a history that already holds it.
+        $this->observe($agent())->submitApprovalDecisions(['call_1' => 'approve'])->run();
+
+        $saved = array_map(static fn (MessageSaved $event): string => $event->message::class, $this->eventsOf(MessageSaved::class));
+        $this->assertSame([UserMessage::class, ToolCallMessage::class, ToolResultMessage::class, AssistantMessage::class], $saved);
+    }
+
     public function test_a_deferred_call_refused_by_its_limit_reports_the_handled_result(): void
     {
         $agent = Agent::make(workflowId: 'thread_1')

@@ -31,8 +31,8 @@ use function iterator_to_array;
  * chat() supersedes the failed generation instead of being refused.
  *
  * Also guards the structured-output retry loop's history writes: all attempts
- * share one node step, so memo names must be attempt-indexed or the retry's
- * correction and corrected response are silently skipped.
+ * share one node step, and the correction and corrected response of each
+ * retry must reach the history.
  */
 class InferenceFailureHistoryTest extends TestCase
 {

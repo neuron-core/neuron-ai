@@ -138,6 +138,8 @@ class StructuredOutputNodeTest extends TestCase
         $this->assertInstanceOf(AgentOutputEvent::class, $firstReturn);
         $provider->assertMethodCallCount('structured', 2);
         $this->assertInstanceOf(User::class, $state->get('structured_output'));
+        $written = $chatHistory->getMessages();
+        $this->assertCount(4, $written, 'Question, invalid answer, correction, valid answer');
 
         // Recovery: fresh engine + fresh state, same persistence. The retry inputs
         // (prior bad response + correction text) are reconstructed deterministically
@@ -158,6 +160,8 @@ class StructuredOutputNodeTest extends TestCase
         $recovered = $state2->get('structured_output');
         $this->assertInstanceOf(User::class, $recovered);
         $this->assertSame('Alice', $recovered->name);
+        // The correction is recorded with its identity, so the replay writes no second one.
+        $this->assertSame($written, $chatHistory->getMessages());
     }
 
     protected function structuredState(string $outputClass, int $maxRetries): AgentState

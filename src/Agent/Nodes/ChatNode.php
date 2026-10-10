@@ -56,7 +56,7 @@ class ChatNode extends InferenceNode
 
         $this->emit(new InferenceStop($lastMessage, $providerResponse));
 
-        $this->addToChatHistory($resources->history, $state, $inbound, 'history.inbound');
+        $this->addToChatHistory($resources->history, $state, $inbound);
         $state->setResponse($providerResponse);
         $message = $providerResponse->message();
 
@@ -65,7 +65,7 @@ class ChatNode extends InferenceNode
             return new ToolCallEvent($message);
         }
 
-        $this->addToChatHistory($resources->history, $state, $message, 'history.response');
+        $this->addToChatHistory($resources->history, $state, $message);
 
         return new AgentOutputEvent();
     }

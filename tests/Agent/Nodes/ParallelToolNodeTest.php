@@ -121,7 +121,7 @@ class ParallelToolNodeTest extends TestCase
         // The concurrent execution path (the Spatie fork fan-out) is wrapped in a
         // durable memo. On crash recovery — a fresh step engine sharing the same
         // persistence — the node restores the memoized batch without executing
-        // it again, and reconstructs its counters from an older state snapshot.
+        // it again, and counts it again from the state its step started with.
         $runId = 'parallel_recovery_test';
         $persistence = new InMemoryPersistence();
         $stepId = ParallelToolNode::class . '-0';
@@ -150,7 +150,7 @@ class ParallelToolNodeTest extends TestCase
         $this->assertSame(1, $state->getToolRuns('regular_tool'));
         $this->assertSame(1, $state->getToolRuns('another_tool'));
 
-        // Recovery starts with stale counters and no live registry for cached calls.
+        // Recovery starts from the counters the step started with.
         $state->resetToolRuns();
         $node2 = new ParallelToolNode(
             beforeChild: static function (): void {
@@ -161,7 +161,7 @@ class ParallelToolNodeTest extends TestCase
             },
         );
         $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node2($event, $state, AgentResourcesFactory::make()) as $_) {
+        foreach ($node2($event, $state, AgentResourcesFactory::make($registry)) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 

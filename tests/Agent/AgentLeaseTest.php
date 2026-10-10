@@ -97,8 +97,9 @@ class AgentLeaseTest extends TestCase
                 && $control->leaseExpiresAt >= $before + 600,
         );
 
-        // One renewal per node commit: StartNode, ChatNode, then EndNode.
-        $this->assertCount(3, $renewals);
+        // One renewal per node commit: StartNode, then ChatNode. EndNode ends the
+        // run, which settles without a commit of its own.
+        $this->assertCount(2, $renewals);
     }
 
     public function test_an_abandoned_stream_does_not_hold_the_thread_for_the_lease(): void

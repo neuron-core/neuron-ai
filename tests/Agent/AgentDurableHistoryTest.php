@@ -13,7 +13,6 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
@@ -27,10 +26,7 @@ use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
 
-use function array_keys;
-use function array_map;
 use function iterator_to_array;
-use function str_contains;
 use function strlen;
 
 /**
@@ -191,7 +187,7 @@ class AgentDurableHistoryTest extends TestCase
         $event = new \NeuronAI\Agent\Events\AIInferenceEvent();
         $state->request->messages = [new UserMessage('Hi')];
 
-        // Run 1: all memos commit but the step is never recorded (crash before the step boundary).
+        // Run 1: the inference memo commits but the step is never recorded (crash before the step boundary).
         $state1 = new \NeuronAI\Agent\AgentState();
         $state1->request = clone $state->request;
         $node1 = new ChatNode();
@@ -211,46 +207,6 @@ class AgentDurableHistoryTest extends TestCase
         $this->assertSame('Hi', $stored[0]->getContent());
         $this->assertSame('Hello back!', $stored[1]->getContent());
         $this->assertSame(1, $provider->getCallCount());
-    }
-
-    public function test_replaying_history_writes_whose_memos_were_lost_does_not_duplicate_them(): void
-    {
-        $workflowId = 'history_write_replay_test';
-        $stepId = ChatNode::class . '-0';
-        $messages = new InMemoryMessageStore();
-        $provider = new FakeAIProvider(new AssistantMessage('Hello back!'));
-        // Drops the history memos, as a crash between a history write and its memo commit would.
-        $persistence = new class () extends InMemoryPersistence {
-            public function writeIfUnchanged(string $partition, string $conditionKey, string $expectedValue, array $records): bool
-            {
-                foreach (array_keys($records) as $key) {
-                    if (str_contains($key, '::history.')) {
-                        unset($records[$key]);
-                    }
-                }
-
-                return parent::writeIfUnchanged($partition, $conditionKey, $expectedValue, $records);
-            }
-        };
-        $event = new \NeuronAI\Agent\Events\AIInferenceEvent();
-        // The replayed step restores its inbound message, identity included, from the checkpoint.
-        $inbound = new UserMessage('Hi');
-
-        foreach ([1, 2] as $attempt) {
-            $state = new AgentState();
-            $state->request = new InferenceRequest('Be helpful');
-            $state->request->messages = [clone $inbound];
-            $node = new ChatNode();
-            $node->setWorkflowContext(new NodeContext(null, false, \NeuronAI\Tests\Support\WorkflowTestStore::memoizer($persistence, $workflowId, $stepId)));
-            iterator_to_array($node($event, $state, AgentResourcesFactory::make([], new ChatHistory($messages, $workflowId), $provider)));
-        }
-
-        // The replay recalls the memoized response, so both writes repeat the same messages.
-        $this->assertSame(1, $provider->getCallCount());
-        $this->assertSame(['Hi', 'Hello back!'], array_map(
-            fn (Message $message): ?string => $message->getContent(),
-            $messages->loadAll($workflowId)
-        ));
     }
 
     public function test_resume_with_sql_history_across_agent_instances(): void

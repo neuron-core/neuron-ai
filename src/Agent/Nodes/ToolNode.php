@@ -89,12 +89,12 @@ class ToolNode extends Node implements AgentNodeInterface
         $deferred = $this->filterDeferredCalls($calls);
 
         if ($deferred !== []) {
-            // Record each dispatch's count before suspending. State preserves the
-            // run total across resumes; replay restores the recorded count without
-            // consuming another slot for the same call.
+            // Count each dispatch before suspending. State preserves the run total
+            // across resumes; a replay counts again from the state its step started
+            // with, so the same call consumes no other slot.
             foreach ($deferred as $index => $call) {
                 try {
-                    $this->checkToolRuns($call, $index, $state, $resources->tools);
+                    $this->checkToolRuns($call, $state, $resources->tools);
                 } catch (Throwable $e) {
                     $this->handleError($e, $call);
                     $executed[$index] = $call;
@@ -106,7 +106,7 @@ class ToolNode extends Node implements AgentNodeInterface
             }
 
             if ($deferred !== []) {
-                $this->addToChatHistory($resources->history, $state, $event->toolCallMessage, 'history.toolcall');
+                $this->addToChatHistory($resources->history, $state, $event->toolCallMessage);
                 foreach ($deferred as $call) {
                     $this->emit(new ToolCalling($call));
                     yield new ToolCallChunk($event->toolCallMessage->getId(), $call);
@@ -156,9 +156,9 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         // Written with pending states BEFORE any suspend, so a cold
-        // process renders pending approvals from history alone; the memo
-        // keeps a resume pass from duplicating the tail.
-        $this->addToChatHistory($resources->history, $state, $message, 'history.toolcall');
+        // process renders pending approvals from history alone; the history
+        // already holds the message when a resume pass writes it again.
+        $this->addToChatHistory($resources->history, $state, $message);
 
         // A tool runs if explicitly approved; silence is never consent.
         // An incomplete decision set loops and re-suspends with the
@@ -446,10 +446,8 @@ class ToolNode extends Node implements AgentNodeInterface
         $memoKey = 'tool.' . ($call->getCallId() ?? $call->getName()) . '.' . $index;
 
         try {
-            $this->checkToolRuns($call, $index, $state, $tools);
+            $this->checkToolRuns($call, $state, $tools);
             $result = $this->memoize($memoKey, function () use ($call, $tools): string|ToolOutput {
-                // Resolution happens inside the memo: on replay the recorded
-                // result is returned and the live registry is never consulted.
                 $tool = $this->resolveTool($call, $tools);
 
                 $tool->execute();
@@ -465,30 +463,24 @@ class ToolNode extends Node implements AgentNodeInterface
     }
 
     /**
-     * Accounting is independent of execution-result memos: a replay must restore
-     * counts even when a tool result is already cached. Record before enforcing
-     * the limit so a rejected attempt keeps the same decision on recovery.
+     * Accounting is independent of execution-result memos: a replay counts the
+     * batch again from the state its step started with, so a call whose result
+     * is already recorded gets its count back without consuming another slot.
+     * The live tool supplies the key and the limit on every pass, and the count
+     * is taken before the limit is enforced: a refused call consumed its attempt.
      *
      * @throws ToolRunsExceededException
      * @throws ToolException
      */
-    protected function checkToolRuns(ToolCall $call, int $index, AgentState $state, ToolRegistry $tools): void
+    protected function checkToolRuns(ToolCall $call, AgentState $state, ToolRegistry $tools): void
     {
-        $attempt = $this->memoize('tool_run.' . $index, function () use ($call, $state, $tools): array {
-            $tool = $this->resolveTool($call, $tools);
-            $key = $tool->getRunKey();
+        $tool = $this->resolveTool($call, $tools);
+        $key = $tool->getRunKey();
+        $limit = $tool->getMaxRuns() ?? $this->maxRuns;
 
-            return [
-                'key' => $key,
-                'count' => $state->getToolRuns($key) + 1,
-                'limit' => $tool->getMaxRuns() ?? $this->maxRuns,
-            ];
-        });
-
-        $state->restoreToolRunCount($attempt['key'], $attempt['count']);
-        $runs = $attempt['limit'];
-        if ($attempt['count'] > $runs) {
-            throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$runs}");
+        $state->incrementToolRun($key);
+        if ($state->getToolRuns($key) > $limit) {
+            throw new ToolRunsExceededException("Tool {$call->getName()} has been executed too many times - {$limit}");
         }
     }
 

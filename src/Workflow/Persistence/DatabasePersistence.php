@@ -8,11 +8,15 @@ use Closure;
 use NeuronAI\Exceptions\PersistenceException;
 use PDO;
 use PDOException;
+use PDOStatement;
 use Throwable;
 
+use function array_fill;
 use function base64_decode;
 use function base64_encode;
 use function bin2hex;
+use function count;
+use function implode;
 use function str_contains;
 use function str_replace;
 use function strlen;
@@ -55,6 +59,9 @@ class DatabasePersistence implements PersistenceInterface
     protected string $keyCol;
     protected string $valueCol;
 
+    /** @var array<string, PDOStatement> */
+    protected array $statements = [];
+
     /**
      * @throws PersistenceException
      */
@@ -78,11 +85,12 @@ class DatabasePersistence implements PersistenceInterface
 
     public function get(string $partition, string $key): ?string
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->execute(
             "SELECT {$this->valueCol} FROM {$this->table} WHERE {$this->partitionCol} = :partition AND {$this->keyCol} = :key",
+            ['partition' => $this->encodeKey($partition), 'key' => $this->encodeKey($key)],
         );
-        $stmt->execute(['partition' => $this->encodeKey($partition), 'key' => $this->encodeKey($key)]);
         $value = $stmt->fetchColumn();
+        $stmt->closeCursor();
         if ($value === false) {
             return null;
         }
@@ -152,47 +160,59 @@ class DatabasePersistence implements PersistenceInterface
                 // SQLite must acquire its writer lock before reading the condition;
                 // upgrading a deferred read transaction races with other writers.
                 if ($this->driver === 'sqlite') {
-                    $stmt = $this->pdo->prepare(
+                    $this->execute(
                         "UPDATE {$this->table} SET {$this->valueCol} = {$this->valueCol} "
                         . "WHERE {$this->partitionCol} = :partition AND {$this->keyCol} = :key",
+                        ['partition' => $partition, 'key' => $conditionKey],
                     );
-                    $stmt->execute(['partition' => $partition, 'key' => $conditionKey]);
                 }
                 $lock = $this->driver === 'sqlite' ? '' : ' FOR UPDATE';
-                $stmt = $this->pdo->prepare(
+                $stmt = $this->execute(
                     "SELECT {$this->valueCol} FROM {$this->table} "
                     . "WHERE {$this->partitionCol} = :partition AND {$this->keyCol} = :key{$lock}",
+                    ['partition' => $partition, 'key' => $conditionKey],
                 );
-                $stmt->execute(['partition' => $partition, 'key' => $conditionKey]);
                 $current = $stmt->fetchColumn();
+                $stmt->closeCursor();
                 if ($current === false || (string) $current !== base64_encode($expectedValue)) {
                     return false;
                 }
             }
 
             if ($deletePartition) {
-                $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->partitionCol} = :partition");
-                $stmt->execute(['partition' => $partition]);
-            } else {
-                foreach ($encoded as [$key, $value]) {
-                    $this->upsert($partition, $key, $value);
-                }
+                $this->execute(
+                    "DELETE FROM {$this->table} WHERE {$this->partitionCol} = :partition",
+                    ['partition' => $partition],
+                );
+            } elseif ($encoded !== []) {
+                $this->upsert($partition, $encoded);
             }
 
             return true;
         });
     }
 
-    protected function upsert(string $partition, string $key, string $value): void
+    /**
+     * The records of one write travel in one statement.
+     *
+     * @param non-empty-list<array{string, string}> $records Encoded keys with their encoded values.
+     */
+    protected function upsert(string $partition, array $records): void
     {
         $upsert = $this->mysql
             ? "ON DUPLICATE KEY UPDATE {$this->valueCol} = VALUES({$this->valueCol}), updated_at = CURRENT_TIMESTAMP"
             : "ON CONFLICT ({$this->partitionCol}, {$this->keyCol}) DO UPDATE SET {$this->valueCol} = excluded.{$this->valueCol}, updated_at = CURRENT_TIMESTAMP";
-        $stmt = $this->pdo->prepare(
+        $rows = implode(', ', array_fill(0, count($records), '(?, ?, ?, CURRENT_TIMESTAMP)'));
+        $parameters = [];
+        foreach ($records as [$key, $value]) {
+            $parameters = [...$parameters, $partition, $key, $value];
+        }
+
+        $this->execute(
             "INSERT INTO {$this->table} ({$this->partitionCol}, {$this->keyCol}, {$this->valueCol}, updated_at) "
-            . "VALUES (:partition, :key, :value, CURRENT_TIMESTAMP) {$upsert}",
+            . "VALUES {$rows} {$upsert}",
+            $parameters,
         );
-        $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
     }
 
     protected function insertIfAbsent(string $partition, string $key, string $value): bool
@@ -204,10 +224,7 @@ class DatabasePersistence implements PersistenceInterface
         }
 
         try {
-            $stmt = $this->pdo->prepare($insert);
-            $stmt->execute(['partition' => $partition, 'key' => $key, 'value' => $value]);
-
-            return $stmt->rowCount() === 1;
+            return $this->execute($insert, ['partition' => $partition, 'key' => $key, 'value' => $value])->rowCount() === 1;
         } catch (PDOException $e) {
             if ($this->mysql && ($e->errorInfo[1] ?? null) === 1062) {
                 return false;
@@ -234,6 +251,29 @@ class DatabasePersistence implements PersistenceInterface
         }
 
         $this->strictModeVerified = true;
+    }
+
+    /**
+     * A run repeats the same few queries at every step, so each is prepared once
+     * and kept. One that failed is prepared again at its next use: the SQLite
+     * driver cannot run a statement whose first execution failed. A caller that
+     * fetches closes the cursor, or the kept statement would hold its read open
+     * and, on SQLite, lock other connections out of writing.
+     *
+     * @param array<array-key, string> $parameters
+     */
+    protected function execute(string $query, array $parameters): PDOStatement
+    {
+        $statement = $this->statements[$query] ??= $this->pdo->prepare($query);
+
+        try {
+            $statement->execute($parameters);
+        } catch (Throwable $e) {
+            unset($this->statements[$query]);
+            throw $e;
+        }
+
+        return $statement;
     }
 
     protected function atomically(Closure $operation): bool

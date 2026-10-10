@@ -109,22 +109,25 @@ class SQLMessageStore implements MessageStoreInterface
     public function append(string $threadId, Message $message): void
     {
         $stmt = $this->pdo->prepare(
-            "SELECT 1 FROM {$this->table} WHERE thread_id = :thread_id AND message_id = :message_id"
-        );
-        $stmt->execute(['thread_id' => $threadId, 'message_id' => $message->getId()]);
-
-        if ($stmt->fetch() !== false) {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO {$this->table} (thread_id, message_id, role, content, meta) VALUES (:thread_id, :message_id, :role, :content, :meta)"
+            "INSERT INTO {$this->table} (thread_id, message_id, role, content, meta) VALUES (:thread_id, :message_id, :role, :content, :meta) {$this->skipDuplicateClause()}"
         );
         $stmt->execute([
             'thread_id' => $threadId,
             'message_id' => $message->getId(),
             ...$this->serializeMessage($message),
         ]);
+    }
+
+    /**
+     * The unique (thread_id, message_id) index detects a message already stored, and
+     * the conflict clause of the database skips it. The portable alternative, INSERT
+     * ... WHERE NOT EXISTS, deadlocks concurrent writers on MySQL and MariaDB.
+     */
+    protected function skipDuplicateClause(): string
+    {
+        return $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql'
+            ? 'ON DUPLICATE KEY UPDATE message_id = message_id'
+            : 'ON CONFLICT DO NOTHING';
     }
 
     public function archive(string $threadId, int $count): void
