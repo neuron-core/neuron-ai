@@ -160,6 +160,26 @@ class OpenAIStreamTest extends TestCase
         $this->assertSame([20, 9, 16, 5], [$usage->inputTokens, $usage->outputTokens, $usage->cachedInputTokens, $usage->reasoningTokens]);
     }
 
+    public function test_a_tool_call_reports_the_usage_that_follows_its_finish_reason(): void
+    {
+        $events = [
+            self::chunk(['tool_calls' => [['index' => 0, 'id' => 'call_a', 'type' => 'function', 'function' => ['name' => 'clock', 'arguments' => '{}']]]]),
+            self::chunk([], 'tool_calls'),
+            ['id' => 'chatcmpl-vendor', 'choices' => [], 'usage' => [
+                'prompt_tokens' => 20,
+                'completion_tokens' => 9,
+                'prompt_tokens_details' => ['cached_tokens' => 16],
+                'completion_tokens_details' => ['reasoning_tokens' => 5],
+            ]],
+        ];
+
+        [, $message] = $this->consumeStream($this->provider($events)->stream(new UserMessage('Time?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $usage = $message->getUsage();
+        $this->assertSame([20, 9, 16, 5], [$usage->inputTokens, $usage->outputTokens, $usage->cachedInputTokens, $usage->reasoningTokens]);
+    }
+
     public function test_a_stream_ending_without_finish_reason_was_cut(): void
     {
         $body = self::sseBody([self::chunk(['content' => 'Hel']), self::chunk(['content' => 'lo'])]);

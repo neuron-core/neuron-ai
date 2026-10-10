@@ -196,22 +196,24 @@ class CurlStream implements StreamInterface
     }
 
     /**
-     * Run one iteration of the curl event loop.
+     * Run one iteration of the curl event loop: wait for socket activity, then
+     * read. The wait comes first, so that what a read brings reaches the caller
+     * at once and not when the next event ends another wait.
      *
      * @throws HttpException on network failure
      */
     protected function pumpOnce(): void
     {
+        // Fall back to a short sleep when curl has no file descriptors to watch yet.
+        if (curl_multi_select($this->multiHandle, 1.0) === -1) {
+            usleep(1000);
+        }
+
         do {
             $status = curl_multi_exec($this->multiHandle, $stillRunning);
         } while ($status === CURLM_CALL_MULTI_PERFORM);
 
         if ($stillRunning > 0) {
-            // Wait for socket activity; fall back to a short sleep when
-            // curl has no file descriptors to watch yet.
-            if (curl_multi_select($this->multiHandle, 1.0) === -1) {
-                usleep(1000);
-            }
             return;
         }
 

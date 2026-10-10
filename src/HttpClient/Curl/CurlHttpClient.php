@@ -16,6 +16,7 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\HttpClient\MergesHttpHeaders;
 use NeuronAI\HttpClient\ResolvesHttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
+use WeakReference;
 
 use function basename;
 use function curl_error;
@@ -119,9 +120,16 @@ class CurlHttpClient implements HttpClientInterface
         $handle = $this->reusableHandle();
 
         $headers = new CurlHeaderCollector($this->redirectPolicy($request));
+
+        // The handle keeps its callback after the request, even through curl_reset(), and the
+        // redirect policy of the collector holds this client: a callback holding the collector
+        // would tie the client to its own handle in a cycle, and a released client would keep
+        // its connections open until the cycle collector runs.
+        $weakHeaders = WeakReference::create($headers);
+
         $options = $this->buildOptions($request) + [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADERFUNCTION => fn (CurlHandle $curlHandle, string $line): int => $headers->ingestLine($line),
+            CURLOPT_HEADERFUNCTION => static fn (CurlHandle $curlHandle, string $line): int => (int) $weakHeaders->get()?->ingestLine($line),
         ];
 
         curl_setopt_array($handle, $options);
@@ -155,9 +163,14 @@ class CurlHttpClient implements HttpClientInterface
         $multiHandle = curl_multi_init();
         $stream = new CurlStream($multiHandle, $handle, $request, new CurlHeaderCollector($this->redirectPolicy($request)));
 
+        // The handle keeps its callbacks, and the stream keeps the handle: callbacks holding
+        // the stream would tie the two in a cycle, and a released stream would keep its
+        // connection open until the cycle collector runs.
+        $weakStream = WeakReference::create($stream);
+
         $options = $this->buildOptions($request) + [
-            CURLOPT_WRITEFUNCTION => fn (CurlHandle $curlHandle, string $data): int => $stream->write($data),
-            CURLOPT_HEADERFUNCTION => fn (CurlHandle $curlHandle, string $line): int => $stream->writeHeader($line),
+            CURLOPT_WRITEFUNCTION => static fn (CurlHandle $curlHandle, string $data): int => (int) $weakStream->get()?->write($data),
+            CURLOPT_HEADERFUNCTION => static fn (CurlHandle $curlHandle, string $line): int => (int) $weakStream->get()?->writeHeader($line),
         ];
 
         curl_setopt_array($handle, $options);

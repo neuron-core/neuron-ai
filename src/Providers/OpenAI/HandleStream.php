@@ -101,27 +101,13 @@ trait HandleStream
             if (isset($choice['delta']['tool_calls'])) {
                 $this->streamState->composeToolCalls($line);
                 yield from $this->processToolCallDelta($choice);
-
-                if ($this->finishForToolCall($choice)) {
-                    goto toolcall;
-                }
-
                 continue;
             }
 
-            // Handle tool calls
+            // The finish of a turn that collected tool calls
             if ($this->finishForToolCall($choice)) {
                 yield from $this->processToolCallDelta($choice);
-                toolcall:
-                $message = $this->createToolCallMessage(
-                    $this->streamState->getToolCalls(),
-                    $this->streamState->getContentBlocks()
-                );
-                $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
-                $this->applyStreamMetadata($message);
-                $this->enrichMessage($message);
-
-                return new ProviderResponse(message: $message);
+                continue;
             }
 
             // Process provider-specific delta content and yield custom chunks
@@ -133,7 +119,11 @@ trait HandleStream
             return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
         }
 
-        $message = new AssistantMessage($this->streamState->getContentBlocks());
+        // The usage follows the finish reason in a frame of its own, so the message
+        // is built once the stream has been read to its end, tool calls included.
+        $message = $this->streamState->hasToolCalls()
+            ? $this->createToolCallMessage($this->streamState->getToolCalls(), $this->streamState->getContentBlocks())
+            : new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
         $this->applyStreamMetadata($message);
         $this->enrichMessage($message);

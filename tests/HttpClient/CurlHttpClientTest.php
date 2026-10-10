@@ -15,9 +15,12 @@ use NeuronAI\HttpClient\StreamInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
+use WeakReference;
 
 use function file_put_contents;
 use function fopen;
+use function gc_disable;
+use function gc_enable;
 use function implode;
 use function json_decode;
 use function microtime;
@@ -271,11 +274,12 @@ class CurlHttpClientTest extends TestCase
 
         $this->assertEquals(['data: chunk0', 'data: chunk1', 'data: chunk2'], $lines);
 
-        // The server sleeps 250ms between chunks. Buffered delivery would
-        // surface all lines at once (near-zero spread); live streaming
-        // spreads reads across the whole transfer.
-        $spread = $readTimes[2] - $readTimes[0];
-        $this->assertGreaterThan(0.2, $spread, 'SSE chunks arrived buffered, not incrementally');
+        // The server sleeps 250ms between chunks. Live streaming hands over each chunk as it
+        // arrives, so every read comes one pause after the previous one. Buffered delivery
+        // would surface the lines together, and so would a reader that hands over a chunk
+        // only when the next one wakes it: its last two reads come at the same time.
+        $this->assertGreaterThan(0.2, $readTimes[1] - $readTimes[0], 'The second SSE chunk arrived with the first one');
+        $this->assertGreaterThan(0.2, $readTimes[2] - $readTimes[1], 'The third SSE chunk arrived with the second one');
     }
 
     public function test_stream_error_status_throws_http_exception_with_body(): void
@@ -287,6 +291,49 @@ class CurlHttpClientTest extends TestCase
             $this->assertNotNull($exception->response);
             $this->assertEquals(422, $exception->response->statusCode);
             $this->assertEquals(['error' => 'invalid input'], $exception->response->json());
+        }
+    }
+
+    /**
+     * A stream nobody holds any more gives back its curl handles and its connection at once.
+     * Tied to its handle in a reference cycle it would wait for the cycle collector, and a
+     * long-running worker would keep the connections of its past requests open until then.
+     */
+    public function test_a_released_stream_is_freed_without_the_cycle_collector(): void
+    {
+        gc_disable();
+
+        try {
+            $stream = (new CurlHttpClient())->stream(HttpRequest::get(static::$baseUri . '/sse'));
+            $stream->readLine();
+            $released = WeakReference::create($stream);
+
+            unset($stream);
+
+            $this->assertNull($released->get());
+        } finally {
+            gc_enable();
+        }
+    }
+
+    /**
+     * The same goes for a client and the handle it reuses across buffered requests:
+     * released, it closes its connections at once.
+     */
+    public function test_a_released_client_is_freed_without_the_cycle_collector(): void
+    {
+        gc_disable();
+
+        try {
+            $client = new CurlHttpClient();
+            $client->request(HttpRequest::get(static::$baseUri . '/json'));
+            $released = WeakReference::create($client);
+
+            unset($client);
+
+            $this->assertNull($released->get());
+        } finally {
+            gc_enable();
         }
     }
 
