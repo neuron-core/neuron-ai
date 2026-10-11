@@ -9,6 +9,7 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\RAG\Nodes\ContextInjectionNode;
 use NeuronAI\RAG\Nodes\InstructionsNode;
 use NeuronAI\RAG\Nodes\PostProcessNode;
 use NeuronAI\RAG\Nodes\PreProcessNode;
@@ -31,6 +32,7 @@ class RAG extends Agent
     use ResolveVectorStore;
     use ResolveEmbeddingProvider;
     use ResolveRetrieval;
+    use ResolveContextInjector;
 
     /**
      * @var PreProcessorInterface[]
@@ -77,7 +79,13 @@ class RAG extends Agent
             new PreProcessNode($this->preProcessors()),
             new RetrievalNode($this->resolveRetrieval()),
             new PostProcessNode($this->postProcessors()),
-            new InstructionsNode($this->resolveInstructions(), $this->bootstrapTools()),
+            new ContextInjectionNode(
+                $this->resolveInstructions(),
+                $this->resolveContextInjector(),
+            ),
+            new InstructionsNode(
+                $this->bootstrapTools(),
+            ),
         ];
     }
 
