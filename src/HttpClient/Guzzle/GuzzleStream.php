@@ -8,6 +8,7 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\StreamInterface;
 use Psr\Http\Message\StreamInterface as PsrStreamInterface;
+use RuntimeException;
 
 use function strlen;
 use function strpos;
@@ -84,9 +85,17 @@ class GuzzleStream implements StreamInterface
         $this->stream->close();
     }
 
+    /**
+     * @throws HttpException
+     */
     protected function pull(int $length): string
     {
-        $chunk = $this->stream->read($length);
+        try {
+            $chunk = $this->stream->read($length);
+        } catch (RuntimeException $e) {
+            throw HttpException::networkError($this->request, $e->getMessage(), $e);
+        }
+
         $this->received += strlen($chunk);
         $this->bodyEnded();
 
