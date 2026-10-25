@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\RAG\Embeddings;
 
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Embeddings\CohereEmbeddingsProvider;
 use NeuronAI\Tests\RAG\Stub\RecordsJsonRequests;
@@ -116,6 +117,35 @@ class CohereEmbeddingsProviderTest extends TestCase
         foreach ($documents as $index => $document) {
             $this->assertSame([(float) $index], $document->getEmbedding());
         }
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function responsesNotEmbeddingEachDocument(): array
+    {
+        return [
+            'fewer embeddings than documents' => [['embeddings' => ['float' => [[0.0], [1.0]]]]],
+            'more embeddings than documents' => [['embeddings' => ['float' => [[0.0], [1.0], [2.0], [3.0]]]]],
+            'no float embeddings' => [['embeddings' => []]],
+        ];
+    }
+
+    /** @param array<string, mixed> $body */
+    #[DataProvider('responsesNotEmbeddingEachDocument')]
+    public function test_a_response_not_embedding_each_document_is_refused_before_any_embedding_is_set(array $body): void
+    {
+        $documents = [new Document('First'), new Document('Second'), new Document('Third')];
+        $provider = new CohereEmbeddingsProvider(key: 'cohere-key', model: 'embed-v4.0', httpClient: $this->recordingClient($this->jsonResponse($body)));
+
+        try {
+            $provider->embedDocuments($documents);
+            $this->fail('A response that does not embed each document must be refused.');
+        } catch (ProviderException $exception) {
+            $this->assertSame('The embeddings response does not have one embedding for each of the 3 documents sent.', $exception->getMessage());
+        }
+
+        $this->assertSame([null, null, null], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
     }
 
     public function test_embed_documents_without_documents_sends_nothing(): void
