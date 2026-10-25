@@ -13,7 +13,7 @@ use function get_object_vars;
 class ClassificationResult
 {
     /**
-     * @param array<string, ChoiceResult|ScoreResult|BooleanResult> $answers One answer per requested question.
+     * @param array<string, ChoiceResult|ScoreResult|BooleanResult|Refusal> $answers One answer or refusal per requested question.
      */
     public function __construct(
         ClassificationRequest $request,
@@ -26,6 +26,10 @@ class ClassificationResult
 
         foreach ($request->questions as $id => $question) {
             $answer = $answers[$id];
+
+            if ($answer instanceof Refusal) {
+                continue;
+            }
 
             if ((!$answer instanceof ChoiceResult && !$answer instanceof ScoreResult && !$answer instanceof BooleanResult)
                 || $answer->definition::class !== $question::class
@@ -68,9 +72,24 @@ class ClassificationResult
         return $answer;
     }
 
+    public function isRefused(string $id): bool
+    {
+        if (!isset($this->answers[$id])) {
+            throw new InvalidArgumentException("Classification answer '{$id}' does not exist.");
+        }
+
+        return $this->answers[$id] instanceof Refusal;
+    }
+
     protected function answer(string $id): ChoiceResult|ScoreResult|BooleanResult
     {
-        return $this->answers[$id]
+        $answer = $this->answers[$id]
             ?? throw new InvalidArgumentException("Classification answer '{$id}' does not exist.");
+
+        if ($answer instanceof Refusal) {
+            throw new InvalidArgumentException("Classification answer '{$id}' was refused by the provider.");
+        }
+
+        return $answer;
     }
 }

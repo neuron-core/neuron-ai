@@ -12,6 +12,7 @@ use NeuronAI\Classifier\ChoiceResult;
 use NeuronAI\Classifier\ClassificationRequest;
 use NeuronAI\Classifier\ClassificationResult;
 use NeuronAI\Classifier\ClassifierInterface;
+use NeuronAI\Classifier\Refusal;
 use NeuronAI\Classifier\Score;
 use NeuronAI\Classifier\ScoreResult;
 use NeuronAI\Exceptions\ProviderException;
@@ -31,7 +32,8 @@ class FakeClassifier implements ClassifierInterface
     protected array $recorded = [];
 
     /**
-     * @param list<array<string, int|float|array<array-key, int|float>>> $responses One answer map per call.
+     * @param list<array<string, int|float|array<array-key, int|float>|Refusal>> $responses One answer map per call;
+     *        a Refusal declines that question.
      */
     public function __construct(protected array $responses = [])
     {
@@ -117,8 +119,12 @@ class FakeClassifier implements ClassifierInterface
         );
     }
 
-    protected function answer(string $id, Choice|Score|Boolean $question, mixed $probabilities): ChoiceResult|ScoreResult|BooleanResult
+    protected function answer(string $id, Choice|Score|Boolean $question, mixed $probabilities): ChoiceResult|ScoreResult|BooleanResult|Refusal
     {
+        if ($probabilities instanceof Refusal) {
+            return $probabilities;
+        }
+
         try {
             if ($question instanceof Boolean) {
                 if (!is_int($probabilities) && !is_float($probabilities)) {

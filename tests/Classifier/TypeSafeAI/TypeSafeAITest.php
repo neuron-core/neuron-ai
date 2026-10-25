@@ -371,6 +371,39 @@ class TypeSafeAITest extends TestCase
         $classifier->classify(new ClassificationRequest('Input', ['check' => new Boolean('True?')]));
     }
 
+    public function test_a_subclass_base_uri_override_is_used(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, body: '{"answers":{"check":{"type":"noul","noul":0.5}}}'),
+        ]));
+        $stack->push(Middleware::history($history));
+        $classifier = new class ('test-key', httpClient: new GuzzleHttpClient(handler: $stack)) extends TypeSafeAI {
+            protected string $baseUri = 'https://proxy.test/v1';
+        };
+
+        $classifier->classify(new ClassificationRequest('Input', ['check' => new Boolean('True?')]));
+
+        self::assertSame('https://proxy.test/v1/systemone', (string) $history[0]['request']->getUri());
+        self::assertSame('Bearer test-key', $history[0]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_client_default_headers_reach_the_request(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, body: '{"answers":{"check":{"type":"noul","noul":0.5}}}'),
+        ]));
+        $stack->push(Middleware::history($history));
+        $client = (new GuzzleHttpClient(handler: $stack))->withHeaders(['TypeSafe-Danger-Zone-Long-Context' => 'true']);
+
+        (new TypeSafeAI('test-key', httpClient: $client))
+            ->classify(new ClassificationRequest('Input', ['check' => new Boolean('True?')]));
+
+        self::assertSame('true', $history[0]['request']->getHeaderLine('TypeSafe-Danger-Zone-Long-Context'));
+        self::assertSame('Bearer test-key', $history[0]['request']->getHeaderLine('Authorization'));
+    }
+
     protected function classifier(string $body): TypeSafeAI
     {
         return new TypeSafeAI('test-key', httpClient: new GuzzleHttpClient(

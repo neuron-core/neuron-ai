@@ -237,9 +237,10 @@ $this->assert(new AgentJudge(
 
 #### ClassifierJudge
 Use a classifier for explicit yes/no criteria or ordered grading rubrics. It depends on
-`ClassifierInterface`, so it works with TypeSafeAI or another implementation without an
-Agent. Use `AgentJudge` when generated reasoning is needed; compare judge quality,
-latency, and cost on representative labeled outputs before choosing a default.
+`ClassifierInterface`, so it works with `TypeSafeAI`, `Cloudflare\WorkersAI`,
+`SystemOne`, `OpenAIDecisions` or another implementation without an Agent. Use
+`AgentJudge` when generated reasoning is needed; compare judge quality, latency, and
+cost on representative labeled outputs before choosing a default.
 
 ```php
 use NeuronAI\Classifier\Boolean;
@@ -283,12 +284,14 @@ $this->assert(new ClassifierJudge(
   `probabilities`, and Score `levels`. Messages describe the value and threshold,
   without generated reasoning. The runner retains context for failed assertions;
   passing score records retain only the metric label, value, and verdict.
-- Invalid input and provider failures propagate as evaluation errors, not failed
+- Invalid input, provider failures, and refused judgments (a provider such as OpenAI
+  Decisions can decline the question) propagate as evaluation errors, not failed
   judgments. Separate assertions make separate classifier calls, including when
   `--cache` reuses the output of `run()`.
 
 For tests without network access, inject `FakeClassifier`. Queue one answer map per
-call using the `judgment` identifier; Score answers require the full distribution:
+call using the `judgment` identifier; Score answers require the full distribution, and
+`['judgment' => new Refusal()]` simulates a refused judgment:
 
 ```php
 use NeuronAI\Testing\FakeClassifier;

@@ -15,13 +15,14 @@ use function is_int;
 
 class ProbabilityDistribution
 {
-    protected const SUM_TOLERANCE = 1e-6;
+    // Decision models compute softmax in float32, whose sums drift past 1e-6 across hundreds of options.
+    protected const SUM_TOLERANCE = 1e-3;
 
     /** @var array<array-key, float> */
     public readonly array $probabilities;
 
     /**
-     * @param array<array-key, int|float> $probabilities Complete distribution, summing to one within 1e-6.
+     * @param array<array-key, int|float> $probabilities Complete distribution, summing to one within 1e-3.
      */
     public function __construct(array $probabilities)
     {

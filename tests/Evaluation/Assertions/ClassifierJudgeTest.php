@@ -11,6 +11,7 @@ use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Classifier\Boolean;
 use NeuronAI\Classifier\ClassificationRequest;
+use NeuronAI\Classifier\Refusal;
 use NeuronAI\Classifier\Score;
 use NeuronAI\Evaluation\Assertions\ClassifierJudge;
 use NeuronAI\Evaluation\Conversation\Trajectory;
@@ -187,5 +188,36 @@ class ClassifierJudgeTest extends TestCase
         self::assertStringContainsString('evaluates a string or a Trajectory', $results[3]->getError());
         self::assertSame(0, $results[3]->getAssertionsFailed());
         $classifier->assertCallCount(3);
+    }
+
+    public function test_refused_judgment_is_an_evaluation_error(): void
+    {
+        $classifier = new FakeClassifier([['judgment' => new Refusal()]]);
+        $judge = new ClassifierJudge($classifier, new Boolean('Is the response relevant?'));
+
+        $summary = (new EvaluatorRunner())->run(new ClassifierJudgeEvaluator($judge, [['output' => 'The response']]));
+
+        $result = $summary->getResults()[0];
+        self::assertStringContainsString("Classification answer 'judgment' was refused by the provider.", $result->getError());
+        self::assertSame(0, $result->getAssertionsFailed());
+        self::assertSame([], $result->getScoreRecords());
+        $classifier->assertCallCount(1);
+    }
+
+    #[DataProvider('judge_criteria')]
+    public function test_refused_judgment_throws_when_evaluated_directly(Boolean|Score $criteria): void
+    {
+        $judge = new ClassifierJudge(new FakeClassifier([['judgment' => new Refusal()]]), $criteria);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Classification answer 'judgment' was refused by the provider.");
+
+        $judge->evaluate('The response');
+    }
+
+    public static function judge_criteria(): iterable
+    {
+        yield 'boolean' => [new Boolean('Is the response relevant?')];
+        yield 'score' => [new Score('How complete?', ['None', 'Partial', 'Full'])];
     }
 }

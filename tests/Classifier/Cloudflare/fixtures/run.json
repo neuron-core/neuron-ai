@@ -1,0 +1,25 @@
+{
+    "result": {
+        "model": "clef",
+        "answers": {
+            "department": {
+                "type": "choice",
+                "choice": "shipping",
+                "confidence": 0.85,
+                "probabilities": {"billing": 0.05, "shipping": 0.9, "other": 0.05}
+            },
+            "severity": {
+                "type": "score",
+                "score": 1.2,
+                "confidence": 0.4,
+                "legend": {"0": "Cosmetic issue.", "1": "Workaround available.", "2": "Completely blocked."},
+                "probabilities": {"0": 0.1, "1": 0.6, "2": 0.3}
+            },
+            "refund": {"type": "noul", "noul": 0.97}
+        },
+        "usage": {"input_tokens": 175, "output_tokens": 0}
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+}

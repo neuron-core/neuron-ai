@@ -8,9 +8,11 @@ use InvalidArgumentException;
 use NeuronAI\Classifier\Boolean;
 use NeuronAI\Classifier\Choice;
 use NeuronAI\Classifier\ClassificationRequest;
+use NeuronAI\Classifier\Refusal;
 use NeuronAI\Classifier\Score;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Testing\FakeClassifier;
+use NeuronAI\Tests\Classifier\Stub\SupportTicket;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -168,9 +170,35 @@ class FakeClassifierTest extends TestCase
         self::assertSame([$request, $request], $classifier->getRecorded());
     }
 
+    public function test_queued_refusal_refuses_any_question_type(): void
+    {
+        $classifier = new FakeClassifier([[
+            'department' => new Refusal(),
+            'severity' => new Refusal(),
+            'refund' => new Refusal(),
+        ]]);
+
+        $result = $classifier->classify(SupportTicket::request());
+
+        foreach (['department', 'severity', 'refund'] as $id) {
+            self::assertInstanceOf(Refusal::class, $result->answers[$id]);
+            self::assertTrue($result->isRefused($id));
+        }
+    }
+
+    public function test_refused_response_is_recorded_and_consumed(): void
+    {
+        $classifier = new FakeClassifier([['check' => new Refusal()], ['check' => 0.8]]);
+        $request = new ClassificationRequest('Input', ['check' => new Boolean('True?')]);
+
+        self::assertTrue($classifier->classify($request)->isRefused('check'));
+        self::assertSame(0.8, $classifier->classify($request)->boolean('check')->probability);
+        self::assertSame([$request, $request], $classifier->getRecorded());
+    }
+
     public function test_queue_and_recordings_survive_serialization(): void
     {
-        $classifier = new FakeClassifier([['check' => 0.9], ['check' => 0.1]]);
+        $classifier = new FakeClassifier([['check' => 0.9], ['check' => 0.1], ['check' => new Refusal()]]);
         $request = new ClassificationRequest('Input', ['check' => new Boolean('True?')]);
         $classifier->classify($request);
 
@@ -179,7 +207,8 @@ class FakeClassifierTest extends TestCase
         self::assertInstanceOf(FakeClassifier::class, $restored);
         self::assertEquals([$request], $restored->getRecorded());
         self::assertSame(0.1, $restored->classify($request)->boolean('check')->probability);
-        $restored->assertCallCount(2);
+        self::assertTrue($restored->classify($request)->isRefused('check'));
+        $restored->assertCallCount(3);
     }
 
     public function test_unused_fake_has_no_recorded_calls(): void

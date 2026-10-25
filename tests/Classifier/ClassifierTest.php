@@ -13,8 +13,10 @@ use NeuronAI\Classifier\ChoiceResult;
 use NeuronAI\Classifier\ClassificationRequest;
 use NeuronAI\Classifier\ClassificationResult;
 use NeuronAI\Classifier\ProbabilityDistribution;
+use NeuronAI\Classifier\Refusal;
 use NeuronAI\Classifier\Score;
 use NeuronAI\Classifier\ScoreResult;
+use NeuronAI\Tests\Classifier\Stub\SupportTicket;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
@@ -101,7 +103,7 @@ class ClassifierTest extends TestCase
         yield 'above one' => [[1.1, 0.0], $range];
         yield 'not normalized' => [[0.2, 0.2], $sum];
         yield 'zero mass' => [[0.0, 0.0], $sum];
-        yield 'beyond the rounding tolerance' => [[0.5, 0.500002], $sum];
+        yield 'beyond the rounding tolerance' => [[0.5, 0.502], $sum];
         yield 'nan' => [[NAN, 0.5], $range];
         yield 'infinity' => [[INF, 0.5], $range];
         yield 'numeric strings' => [['0.5', '0.5'], $range];
@@ -120,7 +122,7 @@ class ClassifierTest extends TestCase
 
     public static function invalid_definitions(): iterable
     {
-        $options = 'Choice options require non-empty string identifiers and descriptions.';
+        $options = 'Choice options require non-empty string identifiers and non-empty string or null descriptions.';
         $levels = 'A score requires a list of at least two ordered levels.';
         $level = 'Score levels require non-empty string descriptions.';
 
@@ -270,6 +272,8 @@ class ClassifierTest extends TestCase
             'check' => new BooleanResult(new Boolean('True?'), 0.5),
             'extra' => new BooleanResult(new Boolean('True?'), 0.5),
         ], $identifiers];
+        yield 'unknown refusal' => [['other' => new Refusal()], $identifiers];
+        yield 'extra refusal' => [['check' => new Refusal(), 'extra' => new Refusal()], $identifiers];
         yield 'wrong primitive' => [['check' => new ScoreResult(new Score('True?', ['No', 'Yes']), [0.5, 0.5])], $definition];
         yield 'wrong definition' => [['check' => new BooleanResult(new Boolean('Different?'), 0.5)], $definition];
         yield 'invalid result' => [['check' => new stdClass()], $definition];
@@ -301,8 +305,8 @@ class ClassifierTest extends TestCase
 
     public function test_distribution_accepts_rounding_error_within_the_tolerance(): void
     {
-        $above = new ProbabilityDistribution(['a' => 0.5, 'b' => 0.5000009]);
-        $below = new ProbabilityDistribution(['a' => 0.5, 'b' => 0.4999991]);
+        $above = new ProbabilityDistribution(['a' => 0.5, 'b' => 0.5009]);
+        $below = new ProbabilityDistribution(['a' => 0.5, 'b' => 0.4991]);
 
         self::assertEqualsWithDelta(1.0, array_sum($above->probabilities), 1e-12);
         self::assertEqualsWithDelta(1.0, array_sum($below->probabilities), 1e-12);
@@ -372,11 +376,13 @@ class ClassifierTest extends TestCase
             'category' => $choice,
             'severity' => $score,
             'check' => $boolean,
+            'declined' => new Boolean('Declined?'),
         ]);
         $result = new ClassificationResult($request, [
             'category' => new ChoiceResult($choice, ['a' => 0.5, 'b' => 0.5]),
             'severity' => new ScoreResult($score, [0.5, 0.5]),
             'check' => new BooleanResult($boolean, 0.5),
+            'declined' => new Refusal(),
         ]);
 
         $this->expectException(InvalidArgumentException::class);
@@ -396,5 +402,68 @@ class ClassifierTest extends TestCase
         yield 'boolean as score' => ['score', 'check', 'is not a ScoreResult'];
         yield 'choice as boolean' => ['boolean', 'category', 'is not a BooleanResult'];
         yield 'score as boolean' => ['boolean', 'severity', 'is not a BooleanResult'];
+        yield 'refused as boolean' => ['boolean', 'declined', 'was refused by the provider'];
+        yield 'refused as choice' => ['choice', 'declined', 'was refused by the provider'];
+        yield 'refused as score' => ['score', 'declined', 'was refused by the provider'];
+    }
+
+    public function test_choice_options_may_omit_descriptions(): void
+    {
+        $options = ['billing' => null, 'shipping' => 'Delivery and tracking problems.'];
+
+        self::assertSame($options, (new Choice('Which department?', $options))->options);
+        self::assertSame(
+            ['billing' => null, 'shipping' => null],
+            (new Choice('Which department?', ['billing' => null, 'shipping' => null]))->options,
+        );
+    }
+
+    public function test_refusals_are_accepted_for_every_question_type(): void
+    {
+        $answers = [
+            'department' => new Refusal(),
+            'severity' => new Refusal(),
+            'refund' => new Refusal(),
+        ];
+
+        $result = new ClassificationResult(SupportTicket::request(), $answers);
+
+        self::assertSame($answers, $result->answers);
+    }
+
+    public function test_refusals_keep_the_other_answers_readable(): void
+    {
+        $request = SupportTicket::request();
+        $refusal = new Refusal();
+
+        $result = new ClassificationResult($request, [
+            'department' => new ChoiceResult($request->questions['department'], ['billing' => 0.1, 'shipping' => 0.8, 'other' => 0.1]),
+            'severity' => $refusal,
+            'refund' => new BooleanResult($request->questions['refund'], 0.9),
+        ]);
+
+        self::assertSame('shipping', $result->choice('department')->choice);
+        self::assertSame(0.9, $result->boolean('refund')->probability);
+        self::assertSame($refusal, $result->answers['severity']);
+    }
+
+    public function test_is_refused_reports_refusals_and_rejects_unknown_identifiers(): void
+    {
+        $request = new ClassificationRequest('Input', [
+            'check' => new Boolean('True?'),
+            'declined' => new Boolean('Declined?'),
+        ]);
+        $result = new ClassificationResult($request, [
+            'check' => new BooleanResult($request->questions['check'], 0.5),
+            'declined' => new Refusal(),
+        ]);
+
+        self::assertTrue($result->isRefused('declined'));
+        self::assertFalse($result->isRefused('check'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Classification answer 'missing' does not exist.");
+
+        $result->isRefused('missing');
     }
 }

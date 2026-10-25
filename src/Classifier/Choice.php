@@ -13,7 +13,8 @@ use function trim;
 class Choice
 {
     /**
-     * @param array<string, string> $options Mutually exclusive option identifiers and descriptions.
+     * @param array<string, string|null> $options Mutually exclusive option identifiers and their descriptions;
+     *        null leaves an option to be judged by its identifier alone.
      */
     public function __construct(
         public readonly string $instructions,
@@ -28,8 +29,11 @@ class Choice
         }
 
         foreach ($options as $id => $description) {
-            if (!is_string($id) || trim($id) === '' || !is_string($description) || trim($description) === '') {
-                throw new InvalidArgumentException('Choice options require non-empty string identifiers and descriptions.');
+            if (!is_string($id) || trim($id) === ''
+                || ($description !== null && (!is_string($description) || trim($description) === ''))) {
+                throw new InvalidArgumentException(
+                    'Choice options require non-empty string identifiers and non-empty string or null descriptions.'
+                );
             }
         }
     }

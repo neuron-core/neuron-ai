@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\Embeddings;
 
+use JsonException;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
@@ -30,6 +31,7 @@ class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     /**
      * @throws HttpException
+     * @throws JsonException
      */
     public function embedText(string $text): array
     {
