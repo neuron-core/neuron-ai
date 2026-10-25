@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\RAG\Embeddings;
 
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Embeddings\VoyageEmbeddingsProvider;
 use NeuronAI\Tests\RAG\Stub\RecordsJsonRequests;
@@ -111,6 +112,37 @@ class VoyageEmbeddingsProviderTest extends TestCase
         $provider->embedDocuments($documents);
 
         $this->assertSame([[1.0], [2.0], [3.0]], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
+    }
+
+    /**
+     * @return array<string, array{int[]}>
+     */
+    public static function indexesNotEmbeddingEachDocumentOnce(): array
+    {
+        return [
+            'a document left out' => [[0, 2]],
+            'a document embedded twice besides all others' => [[0, 0, 1, 2]],
+        ];
+    }
+
+    /** @param int[] $indexes */
+    #[DataProvider('indexesNotEmbeddingEachDocumentOnce')]
+    public function test_a_response_not_embedding_each_document_once_is_refused_before_any_embedding_is_set(array $indexes): void
+    {
+        $documents = [new Document('First'), new Document('Second'), new Document('Third')];
+        $provider = new VoyageEmbeddingsProvider(key: 'voyage-key', model: 'voyage-3', httpClient: $this->recordingClient($this->jsonResponse(['data' => array_map(
+            static fn (int $index): array => ['object' => 'embedding', 'index' => $index, 'embedding' => [(float) $index]],
+            $indexes,
+        )])));
+
+        try {
+            $provider->embedDocuments($documents);
+            $this->fail('A response that does not embed each document once must be refused.');
+        } catch (ProviderException $exception) {
+            $this->assertSame('The embeddings response does not have one embedding for each of the 3 documents sent.', $exception->getMessage());
+        }
+
+        $this->assertSame([null, null, null], array_map(static fn (Document $document): ?array => $document->getEmbedding(), $documents));
     }
 
     public function test_embed_documents_without_documents_sends_nothing(): void

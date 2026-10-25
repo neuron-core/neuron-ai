@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Embeddings;
 
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -30,6 +31,7 @@ class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     /**
      * @throws HttpException
+     * @throws ProviderException
      */
     public function embedText(string $text): array
     {
@@ -44,6 +46,10 @@ class OllamaEmbeddingsProvider extends AbstractEmbeddingsProvider
                 headers: $this->httpHeaders,
             )
         )->json();
+
+        if (!isset($response['embeddings'][0])) {
+            throw new ProviderException('Ollama returned no embedding, as it does when the text to embed is empty.');
+        }
 
         return $response['embeddings'][0];
     }

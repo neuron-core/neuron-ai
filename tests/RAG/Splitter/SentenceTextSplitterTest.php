@@ -356,6 +356,13 @@ class SentenceTextSplitterTest extends TestCase
         $this->assertSame(['One two.', 'Three four.', 'Five six.'], $this->contents($result));
     }
 
+    public function test_a_sentence_that_is_only_a_zero_is_kept(): void
+    {
+        $result = (new SentenceTextSplitter())->splitDocument(new Document("Intro.\n\n0\n\nEnd."));
+
+        $this->assertSame(['Intro. 0 End.'], $this->contents($result));
+    }
+
     /**
      * @param Document[] $documents
      * @return string[]

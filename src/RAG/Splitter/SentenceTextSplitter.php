@@ -136,7 +136,7 @@ class SentenceTextSplitter extends AbstractSplitter
     {
         $pattern = '/(?<=[.!?…])\s+(?=(?:[\"\'\""\'\'«»„""]?)\p{Lu})/u';
         $sentences = preg_split($pattern, trim($text));
-        return array_filter(array_map(trim(...), $sentences));
+        return array_filter(array_map(trim(...), $sentences), static fn (string $sentence): bool => $sentence !== '');
     }
 
     /**

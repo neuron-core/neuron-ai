@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\RAG\Embeddings;
 
 use NeuronAI\Exceptions\HttpException;
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HasHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -15,6 +16,7 @@ use function rtrim;
 use function array_chunk;
 use function array_map;
 use function array_merge;
+use function count;
 
 class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 {
@@ -58,6 +60,7 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
 
     /**
      * @throws HttpException
+     * @throws ProviderException
      */
     public function embedDocuments(array $documents): array
     {
@@ -76,10 +79,20 @@ class VoyageEmbeddingsProvider extends AbstractEmbeddingsProvider
                 )
             )->json();
 
+            $embeddings = [];
+
             // Each item names the input it embeds, whatever order the server returns them in
-            foreach ($response['data'] as $position => $item) {
-                $chunk[$item['index'] ?? $position]->setEmbedding($item['embedding']);
+            foreach ($response['data'] ?? [] as $position => $item) {
+                $index = $item['index'] ?? $position;
+
+                if (isset($embeddings[$index])) {
+                    throw new ProviderException('The embeddings response does not have one embedding for each of the '.count($chunk).' documents sent.');
+                }
+
+                $embeddings[$index] = $item['embedding'];
             }
+
+            $this->assignEmbeddings($chunk, $embeddings);
         }
 
         return array_merge(...$chunks);

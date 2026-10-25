@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\Embeddings;
 
+use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\RAG\Embeddings\OllamaEmbeddingsProvider;
 use NeuronAI\Tests\RAG\Stub\RecordsJsonRequests;
 use PHPUnit\Framework\Attributes\TestWith;
@@ -56,5 +57,20 @@ class OllamaEmbeddingsProviderTest extends TestCase
             ['model' => 'nomic-embed-text', 'input' => 'Hello', 'truncate' => false, 'keep_alive' => '5m'],
             $this->sentJson(),
         );
+    }
+
+    public function test_a_response_without_embeddings_is_reported(): void
+    {
+        $provider = new OllamaEmbeddingsProvider(
+            model: 'nomic-embed-text',
+            httpClient: $this->recordingClient($this->jsonResponse(['model' => 'nomic-embed-text', 'embeddings' => []])),
+        );
+
+        try {
+            $provider->embedText('');
+            $this->fail('A response without embeddings must be reported.');
+        } catch (ProviderException $exception) {
+            $this->assertSame('Ollama returned no embedding, as it does when the text to embed is empty.', $exception->getMessage());
+        }
     }
 }
