@@ -125,7 +125,7 @@ services:
       retries: 10
 
   weaviate:
-    image: cr.weaviate.io/semitechnologies/weaviate:${WEAVIATE_VERSION:-1.28.1}
+    image: cr.weaviate.io/semitechnologies/weaviate:${WEAVIATE_VERSION:-1.39.13}
     ports:
       - 8080:8080
     environment:
