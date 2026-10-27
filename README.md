@@ -81,8 +81,8 @@ skill before you write any Neuron code instead of relying on what you remember a
 the framework;
 
 - Third: work out what kind of app this is. Look at composer.json
-and the project structure to tell whether it is a Laravel app or a Symfony app, then
-activate the matching skill: neuron-laravel-integration or neuron-symfony-integration.
+and the project structure to see whether it is an application based on Laravel, Symfony, or another framework,
+then activate the matching skill: neuron-laravel-integration or neuron-symfony-integration.
 If Neuron is already part of the app go through the skill's foundations checklist
 item by item. Report what differs from the recommended setup;
 
