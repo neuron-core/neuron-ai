@@ -108,6 +108,18 @@ class DeepseekTest extends TestCase
         $this->assertArrayNotHasKey('reasoning_content', $mapped[2]);
     }
 
+    public function test_mapper_sends_an_empty_reasoning_content_as_the_model_returned_none(): void
+    {
+        $answer = (new AssistantMessage('Answer'))->addMetadata('reasoning_content', '');
+        $toolCall = (new ToolCallMessage(null, [new ToolCall('clock', 'call_1', [])]))->addMetadata('reasoning_content', '');
+
+        $mapped = (new MessageMapper())->map([$answer, $toolCall]);
+
+        $this->assertArrayHasKey('reasoning_content', $mapped[0]);
+        $this->assertSame('', $mapped[0]['reasoning_content']);
+        $this->assertSame('', $mapped[1]['reasoning_content']);
+    }
+
     public function test_reasoning_blocks_are_not_sent_as_message_content(): void
     {
         $message = new AssistantMessage([new ReasoningContent('Thinking'), new TextContent('Answer')]);

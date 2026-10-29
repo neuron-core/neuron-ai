@@ -12,23 +12,29 @@ class MessageMapper extends OpenAIMessageMapper
 {
     protected function mapMessage(Message $message): array
     {
-        $result = parent::mapMessage($message);
-
-        if ($message->getMetadata('reasoning_content')) {
-            $result['reasoning_content'] = $message->getMetadata('reasoning_content');
-        }
-
-        return $result;
+        return $this->withReasoningContent(parent::mapMessage($message), $message);
     }
 
     protected function mapToolCall(ToolCallMessage $message): array
     {
-        $result = parent::mapToolCall($message);
+        return $this->withReasoningContent(parent::mapToolCall($message), $message);
+    }
 
-        if ($message->getMetadata('reasoning_content')) {
-            $result['reasoning_content'] = $message->getMetadata('reasoning_content');
+    /**
+     * A reasoner turn must carry the field even when the model returned an empty
+     * string: DeepSeek rejects an assistant message without reasoning_content.
+     *
+     * @param array<string, mixed> $mapped
+     * @return array<string, mixed>
+     */
+    protected function withReasoningContent(array $mapped, Message $message): array
+    {
+        $reasoning = $message->getMetadata('reasoning_content');
+
+        if ($reasoning !== null) {
+            $mapped['reasoning_content'] = $reasoning;
         }
 
-        return $result;
+        return $mapped;
     }
 }
