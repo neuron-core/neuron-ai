@@ -70,6 +70,9 @@ class FileDataLoader extends AbstractDataLoader
         return $this;
     }
 
+    /**
+     * @throws Exception
+     */
     public function getDocuments(): array
     {
         // If it's a directory
@@ -78,7 +81,13 @@ class FileDataLoader extends AbstractDataLoader
         }
 
         // If it's a file
-        return $this->splitter->splitDocument($this->getDocument($this->getContentFromFile($this->path), $this->path));
+        $content = $this->getContentFromFile($this->path);
+
+        if ($content === '') {
+            return [];
+        }
+
+        return $this->splitter->splitDocument($this->getDocument($content, $this->path));
     }
 
     protected function getDocumentsFromDirectory(string $directory): array
@@ -96,7 +105,11 @@ class FileDataLoader extends AbstractDataLoader
                     if (is_dir($fullPath)) {
                         $documents = [...$documents, ...$this->getDocumentsFromDirectory($fullPath)];
                     } else {
-                        $documents[] = $this->getDocument($this->getContentFromFile($fullPath), $fullPath);
+                        $content = $this->getContentFromFile($fullPath);
+
+                        if ($content !== '') {
+                            $documents[] = $this->getDocument($content, $fullPath);
+                        }
                     }
                 }
             }

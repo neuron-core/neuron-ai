@@ -90,11 +90,6 @@ class DelimiterTextSplitterTest extends TestCase
         }
     }
 
-    public function test_empty_text_has_no_chunks(): void
-    {
-        $this->assertSame([], (new DelimiterTextSplitter(maxLength: 10))->splitDocument(new Document('')));
-    }
-
     /**
      * @return array<string, array{string}>
      */

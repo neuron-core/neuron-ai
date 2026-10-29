@@ -63,7 +63,6 @@ class SentenceTextSplitterTest extends TestCase
     public static function blankTexts(): array
     {
         return [
-            'empty' => [''],
             'spaces' => ['   '],
             'newlines and tabs' => ["\n\n\t\n  \r\n"],
         ];
@@ -351,7 +350,7 @@ class SentenceTextSplitterTest extends TestCase
     {
         $splitter = new SentenceTextSplitter(maxWords: 2);
 
-        $result = $splitter->splitDocuments([new Document('One two. Three four.'), new Document(''), new Document('Five six.')]);
+        $result = $splitter->splitDocuments([new Document('One two. Three four.'), new Document('Five six.')]);
 
         $this->assertSame(['One two.', 'Three four.', 'Five six.'], $this->contents($result));
     }

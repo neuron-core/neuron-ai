@@ -21,6 +21,7 @@ use NeuronAI\Evaluation\Runner\EvaluationResults;
 use ReflectionClass;
 use RuntimeException;
 use Throwable;
+use ReflectionMethod;
 
 use function addcslashes;
 use function array_shift;
@@ -242,7 +243,7 @@ class EvaluationCommand extends Command
     {
         $constructor = (new ReflectionClass($className))->getConstructor();
 
-        if ($constructor !== null && $constructor->getNumberOfRequiredParameters() > 0) {
+        if ($constructor instanceof ReflectionMethod && $constructor->getNumberOfRequiredParameters() > 0) {
             throw new RuntimeException(
                 "{$className} requires constructor arguments: build it with a resolver, "
                 . "such as the 'resolver' entry of evaluation.php."

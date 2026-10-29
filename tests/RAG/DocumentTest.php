@@ -21,14 +21,22 @@ class DocumentTest extends TestCase
 {
     public function test_a_new_document_has_manual_source_and_no_runtime_fields(): void
     {
-        $document = new Document();
+        $document = new Document('Hello!');
 
-        $this->assertSame('', $document->getContent());
+        $this->assertSame('Hello!', $document->getContent());
         $this->assertSame('manual', $document->getSourceType());
         $this->assertSame('manual', $document->getSourceName());
         $this->assertSame([], $document->getMetadata());
         $this->assertNull($document->getEmbedding());
         $this->assertNull($document->getScore());
+    }
+
+    public function test_empty_content_is_rejected(): void
+    {
+        $this->expectException(DocumentSchemaException::class);
+        $this->expectExceptionMessage('Document content cannot be empty.');
+
+        new Document('');
     }
 
     public function test_each_document_gets_its_own_generated_id(): void
@@ -42,8 +50,8 @@ class DocumentTest extends TestCase
 
     public function test_an_explicit_id_replaces_the_generated_one(): void
     {
-        $this->assertSame(42, (new Document())->setId(42)->getId());
-        $this->assertSame('doc-1', (new Document())->setId('doc-1')->getId());
+        $this->assertSame(42, (new Document('Hello!'))->setId(42)->getId());
+        $this->assertSame('doc-1', (new Document('Hello!'))->setId('doc-1')->getId());
     }
 
     public function test_runtime_fields_are_absent_until_produced(): void
@@ -68,7 +76,7 @@ class DocumentTest extends TestCase
 
     public function test_embedding_values_are_normalized_to_floats_in_order(): void
     {
-        $document = (new Document())->setEmbedding([3, -1, 0, 0.25]);
+        $document = (new Document('Hello!'))->setEmbedding([3, -1, 0, 0.25]);
 
         $this->assertSame([3.0, -1.0, 0.0, 0.25], $document->getEmbedding());
     }
@@ -78,7 +86,7 @@ class DocumentTest extends TestCase
         $this->expectException(DocumentSchemaException::class);
         $this->expectExceptionMessage('Document embedding cannot be empty.');
 
-        (new Document())->setEmbedding([]);
+        (new Document('Hello!'))->setEmbedding([]);
     }
 
     /** @return iterable<string, array{array<int, mixed>}> */
@@ -94,7 +102,7 @@ class DocumentTest extends TestCase
     #[DataProvider('nonNumericEmbeddings')]
     public function test_non_numeric_embedding_values_are_rejected(array $embedding): void
     {
-        $document = (new Document())->setEmbedding([1.0]);
+        $document = (new Document('Hello!'))->setEmbedding([1.0]);
 
         try {
             $document->setEmbedding($embedding);
@@ -127,14 +135,14 @@ class DocumentTest extends TestCase
 
     public function test_add_metadata_overwrites_an_existing_key(): void
     {
-        $document = (new Document())->addMetadata('lang', 'en')->addMetadata('lang', 'it');
+        $document = (new Document('Hello!'))->addMetadata('lang', 'en')->addMetadata('lang', 'it');
 
         $this->assertSame(['lang' => 'it'], $document->getMetadata());
     }
 
     public function test_set_metadata_replaces_the_whole_map(): void
     {
-        $document = (new Document())->addMetadata('old', 1)->setMetadata(['new' => 2]);
+        $document = (new Document('Hello!'))->addMetadata('old', 1)->setMetadata(['new' => 2]);
 
         $this->assertSame(['new' => 2], $document->getMetadata());
     }
@@ -160,13 +168,13 @@ class DocumentTest extends TestCase
         $this->expectException(DocumentSchemaException::class);
         $this->expectExceptionMessage("Document metadata field \"{$field}\" is reserved by the framework.");
 
-        (new Document())->addMetadata($field, 'forged');
+        (new Document('Hello!'))->addMetadata($field, 'forged');
     }
 
     #[DataProvider('reservedFields')]
     public function test_set_metadata_rejects_reserved_fields_without_partial_writes(string $field): void
     {
-        $document = (new Document())->setMetadata(['tenant' => 'acme']);
+        $document = (new Document('Hello!'))->setMetadata(['tenant' => 'acme']);
 
         try {
             $document->setMetadata(['lang' => 'en', $field => 'forged']);
@@ -180,7 +188,7 @@ class DocumentTest extends TestCase
 
     public function test_reserved_field_check_is_case_sensitive(): void
     {
-        $document = (new Document())->addMetadata('Content', 'allowed');
+        $document = (new Document('Hello!'))->addMetadata('Content', 'allowed');
 
         $this->assertSame(['Content' => 'allowed'], $document->getMetadata());
     }
@@ -190,7 +198,7 @@ class DocumentTest extends TestCase
         $this->expectException(DocumentSchemaException::class);
         $this->expectExceptionMessage('Document metadata field name cannot be empty.');
 
-        (new Document())->addMetadata('', 'value');
+        (new Document('Hello!'))->addMetadata('', 'value');
     }
 
     public function test_set_metadata_rejects_an_empty_key(): void
@@ -198,7 +206,7 @@ class DocumentTest extends TestCase
         $this->expectException(DocumentSchemaException::class);
         $this->expectExceptionMessage('Document metadata field name cannot be empty.');
 
-        (new Document())->setMetadata(['' => 'value']);
+        (new Document('Hello!'))->setMetadata(['' => 'value']);
     }
 
     public function test_set_metadata_rejects_a_list(): void
@@ -207,7 +215,7 @@ class DocumentTest extends TestCase
         $this->expectExceptionMessage('Document metadata must be an associative array with string keys.');
 
         /** @phpstan-ignore-next-line deliberately wrong type */
-        (new Document())->setMetadata(['first', 'second']);
+        (new Document('Hello!'))->setMetadata(['first', 'second']);
     }
 
     public function test_json_serialization_exposes_every_field(): void

@@ -132,10 +132,6 @@ class RAG extends Agent
         $schema = $this->resolveVectorStore()->getSchema();
 
         foreach ($documents as $document) {
-            if ($document->getContent() === '') {
-                throw new DocumentSchemaException("Document {$document->getId()} has no content to embed.");
-            }
-
             $schema->validate($document);
         }
     }
