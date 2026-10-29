@@ -49,7 +49,7 @@ class AgUIProtocolComplianceTest extends TestCase
     private const REQUIRED_FIELDS = [
         'STATE_SNAPSHOT' => ['snapshot'],
         'MESSAGES_SNAPSHOT' => ['messages'],
-        'RUN_STARTED' => ['runId', 'threadId'],
+        'RUN_STARTED' => ['runId', 'threadId', 'protocolVersion'],
         'RUN_FINISHED' => ['runId', 'threadId'],
         'STEP_STARTED' => ['stepName'],
         'STEP_FINISHED' => ['stepName'],
@@ -322,6 +322,7 @@ class AgUIProtocolComplianceTest extends TestCase
 
             switch ($type) {
                 case 'RUN_STARTED':
+                    $this->assertSame('1.0', $event['protocolVersion'], 'RUN_STARTED must declare the AG-UI version the adapter speaks');
                     $runId = $event['runId'];
                     $threadId = $event['threadId'];
                     break;

@@ -68,6 +68,8 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
 {
     use MapsStreamEvents;
 
+    protected const PROTOCOL_VERSION = '1.0';
+
     protected ?string $currentMessageId = null;
 
     protected bool $messageStarted = false;
@@ -471,6 +473,7 @@ class AGUIAdapter implements CustomizableStreamAdapterInterface
         yield new ProtocolEvent('RUN_STARTED', [
             'runId' => $this->runId,
             'threadId' => $this->threadId,
+            'protocolVersion' => self::PROTOCOL_VERSION,
         ]);
     }
 
