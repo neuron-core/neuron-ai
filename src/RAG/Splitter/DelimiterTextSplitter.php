@@ -7,6 +7,7 @@ namespace NeuronAI\RAG\Splitter;
 use InvalidArgumentException;
 use NeuronAI\RAG\Document;
 
+use NeuronAI\RAG\Schema\DocumentSchemaException;
 use function array_map;
 use function array_slice;
 use function count;
@@ -51,14 +52,11 @@ class DelimiterTextSplitter extends AbstractSplitter
 
     /**
      * @return Document[]
+     * @throws DocumentSchemaException
      */
     public function splitDocument(Document $document): array
     {
         $text = $document->getContent();
-
-        if ($text === '') {
-            return [];
-        }
 
         if (mb_strlen($text) <= $this->maxLength) {
             return [$document];

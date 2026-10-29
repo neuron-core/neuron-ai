@@ -36,8 +36,15 @@ final class Document implements JsonSerializable
      */
     protected array $metadata = [];
 
-    public function __construct(protected string $content = '')
+    /**
+     * @throws DocumentSchemaException
+     */
+    public function __construct(protected string $content)
     {
+        if ($content === '') {
+            throw new DocumentSchemaException('Document content cannot be empty.');
+        }
+
         $this->id = UniqueIdGenerator::generateUUID();
     }
 
@@ -61,6 +68,7 @@ final class Document implements JsonSerializable
 
     /**
      * @param array<int, int|float>|null $embedding
+     * @throws DocumentSchemaException
      */
     public function setEmbedding(?array $embedding): self
     {
@@ -137,6 +145,7 @@ final class Document implements JsonSerializable
 
     /**
      * @param array<string, mixed> $metadata
+     * @throws DocumentSchemaException
      */
     public function setMetadata(array $metadata): self
     {
@@ -153,6 +162,9 @@ final class Document implements JsonSerializable
         return $this;
     }
 
+    /**
+     * @throws DocumentSchemaException
+     */
     public function addMetadata(string $key, mixed $value): self
     {
         $this->guardMetadataKey($key);
@@ -160,6 +172,9 @@ final class Document implements JsonSerializable
         return $this;
     }
 
+    /**
+     * @throws DocumentSchemaException
+     */
     protected function guardMetadataKey(string $key): void
     {
         if ($key === '') {

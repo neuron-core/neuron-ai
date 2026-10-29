@@ -8,6 +8,7 @@
 |---|---|
 | Public properties `id`, `content`, `embedding`, `sourceType`, `sourceName`, `score`, `metadata` | Getters and setters (Case 1) |
 | `$document->content = $text` | No setter: content is set only through `new Document($text)` (Case 2) |
+| `new Document()` and `new Document('')`: content defaults to `''` | Content is required and cannot be empty. `new Document()` fails with `ArgumentCountError`, and `''` throws `DocumentSchemaException` (Case 2) |
 | `getEmbedding(): array`, `[]` until embedded | `getEmbedding(): ?array`, `null` until embedded. `setEmbedding(?array)` throws on `[]` and on non-numeric values (Case 3) |
 | `getScore(): float`, `0.0` until scored | `getScore(): ?float`, `null` until scored. `setScore(?float)` (Case 3) |
 | `json_encode($document)` writes `"embedding":[]` and `"score":0` when they are unset | Writes `"embedding":null` and `"score":null` (Case 3) |
@@ -18,7 +19,7 @@
 
 `NeuronAI\RAG\Schema\DocumentSchemaException` extends `NeuronAI\Exceptions\VectorStoreException`, so existing `catch (VectorStoreException $e)` blocks also catch it.
 
-Stored data: 4.x reads the documents that 3.x wrote to vector stores. Guide 19 covers store formats and re-indexing. The exception is metadata stored under a reserved or numeric key (see [Stored data](#stored-data)).
+Stored data: 4.x reads the documents that 3.x wrote to vector stores. Guide 19 covers store formats and re-indexing. The exceptions are metadata stored under a reserved or numeric key, and documents stored with empty content (see [Stored data](#stored-data)).
 
 PHPStan reports property access (`property.protected`) and subclasses (`class.extendsFinal`) only where it knows that a variable holds a `Document`. It misses untyped arrays, closures and Blade templates, so rely on the searches.
 
@@ -48,6 +49,9 @@ grep -rnE -e '->addDocuments?\(' --include='*.php' --exclude-dir=vendor .
 
 # 7. Properties read by name: array_column(), get_object_vars(), (array) casts, data_get(), Laravel collections
 grep -rnE "array_column\(|get_object_vars\(|\(array\) *\\\$|data_get\(|->(pluck|sortBy|sortByDesc|groupBy|keyBy|where|whereIn|firstWhere|sum|avg|max|min|unique)\( *['\"](id|content|embedding|sourceType|sourceName|score|metadata)" --include='*.php' --exclude-dir=vendor .
+
+# 8. Documents built without text, or from text that can be empty
+grep -rnE 'new +[A-Za-z0-9_\\]*Document([^A-Za-z0-9_]|$)' --include='*.php' --exclude-dir=vendor .
 ```
 
 How to follow the hits:
@@ -68,6 +72,7 @@ How to follow the hits:
   Guide 19 migrated custom vector stores. Convert any Document property access left in them here.
 - Stream chunks, observability events, messages, Eloquent models and other objects also have `->content`, `->id`, `->score` or `->metadata`. Leave those alone. Since guide 7, `RetrievalTool` results are arrays, not Documents.
 - Messages also have `addMetadata()` and `setMetadata()`. For search 5, only calls on Documents matter.
+- For search 8, check that every call passes text and that the text cannot be empty (Case 2). If search 1 shows an alias of `Document` that does not end in `Document`, also search for `new` followed by that alias.
 - In the files these searches found, check whether Documents are JSON-encoded: `json_encode()`, JSON API responses, cache or queue payloads. See Case 3, step 4.
 - Twig templates need no change, because `doc.content` resolves to `getContent()`.
 
@@ -159,7 +164,9 @@ class FaqBoostPostProcessor implements PostProcessorInterface
 }
 ```
 
-### Case 2: Code that changes a document's content
+### Case 2: Code that creates a document or changes its content
+
+Content is a required constructor argument and cannot be empty. `new Document()` fails with `ArgumentCountError`, and `new Document('')` throws `DocumentSchemaException` (`Document content cannot be empty.`). 3.x accepted both and let the code assign the content afterwards. Pass the text when the document is built. Where the text can be empty, such as an empty file or markup that `strip_tags()` removes entirely, skip it before building the document, as the built-in loaders do.
 
 There is no content setter, so build a copy with the new content. 3.x changed the shared object in place, so arrays and callers saw the new text. Put the copy everywhere the original was used: the array element, the return value, the caller's variable. The copy keeps the embedding and the score, as the 3.x in-place change did.
 
@@ -194,7 +201,15 @@ use NeuronAI\RAG\Document;
 function clean(array $documents): array
 {
     foreach ($documents as $index => $document) {
-        $documents[$index] = (new Document(strip_tags($document->getContent())))
+        $content = strip_tags($document->getContent());
+
+        // A document cannot be empty: one that was only markup is dropped
+        if ($content === '') {
+            unset($documents[$index]);
+            continue;
+        }
+
+        $documents[$index] = (new Document($content))
             ->setId($document->getId())
             ->setSourceType($document->getSourceType())
             ->setSourceName($document->getSourceName())
@@ -203,7 +218,7 @@ function clean(array $documents): array
             ->setScore($document->getScore());
     }
 
-    return $documents;
+    return array_values($documents);
 }
 ```
 
@@ -272,7 +287,7 @@ function prepare(Document $document, EmbeddingsProviderInterface $embeddings, ar
 3. Overridden methods (`addMetadata()`, getters, `jsonSerialize()`) cannot be kept. Widening the `addMetadata()` parameter to 4.x's `mixed` does not help, because the class is final. Move their behaviour into the factory or the call sites.
 4. The subclass may have behaviour beyond extra fields and construction, such as methods called across the app. In that case, ask the developer whether to wrap a `Document` in an app class instead (the app class holds the Document and hands it to framework APIs).
 
-Test doubles: PHPUnit's `createMock()`, `createStub()` and `getMockBuilder()` fail with `Class "NeuronAI\RAG\Document" is declared "final" and cannot be doubled`. Mockery also refuses final classes. Use a real `Document` configured with setters.
+Test doubles: PHPUnit's `createMock()`, `createStub()` and `getMockBuilder()` fail with `Class "NeuronAI\RAG\Document" is declared "final" and cannot be doubled`. Mockery also refuses final classes. Use a real `Document`, built with some text and configured with setters.
 
 Before (3.x):
 
@@ -528,6 +543,7 @@ function ingest(RAG $rag, array $documents, string $title): void
   - Numeric keys, such as `2024`: reading a document that has one throws a `TypeError` or a `DocumentSchemaException`.
 
   If the app wrote either kind of key, tell the developer that those sources must be re-ingested after the Case 5 rename, for example with `RAG::reindexBySource()` on the original sources. Do not re-ingest yourself.
+- Documents stored with empty content: a search whose results include one throws `DocumentSchemaException` (`Document content cannot be empty.`). This holds for the built-in stores and for custom stores that build results with `new Document($content)` (guide 19). 3.x could store them, for example with a hand-set embedding or an embeddings provider that accepted empty text. If the app may have stored such documents, tell the developer to delete them from the store. Do not delete them yourself.
 - JSON the app saved with `json_encode($document)`: see Case 3, step 4.
 
 ## Checklist
@@ -535,10 +551,11 @@ function ingest(RAG $rag, array $documents, string $title): void
 - Search 7 finds no Document property read by name.
 - Searches 2 and 3 find no Document property access, no class extending `Document`, no test double of `Document`, and no `formattedContent` except in an app embeddings provider that reads it and in the code that sets it for that provider (Case 7).
 - Every content change builds a new `Document` and puts it where the old one was used.
+- Every `new Document(...)` receives text that cannot be empty, and text that can be empty is skipped before the document is built.
 - Embedding and score checks handle `null`. No `setEmbedding([])` remains. Vectors read from storage are cast to floats.
 - Consumers of Document JSON accept `null` for `embedding` and `score`.
 - No empty, integer or reserved metadata key is written. Renamed keys are updated in every reader and filter, and the developer confirmed the new names.
 - Metadata values that reach a store are null, scalars, or arrays of those.
 - Every `addDocument()` and `addDocuments()` call on a store receives embedded documents.
-- The developer was told about renamed keys, sources to re-ingest, and any `formattedContent` that 3.x never embedded.
+- The developer was told about renamed keys, sources to re-ingest, stored documents with empty content, and any `formattedContent` that 3.x never embedded.
 - PHPStan shows no `property.protected` or `class.extendsFinal` error on `NeuronAI\RAG\Document`.

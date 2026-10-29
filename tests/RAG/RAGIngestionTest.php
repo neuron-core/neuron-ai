@@ -140,21 +140,6 @@ class RAGIngestionTest extends TestCase
         $this->store->assertNothingStored();
     }
 
-    public function test_a_document_without_content_is_rejected_before_any_chunk_is_stored(): void
-    {
-        $empty = new Document('');
-
-        try {
-            $this->rag()->addDocuments([new Document('Valid'), $empty], chunkSize: 1);
-            $this->fail('The document without content must be rejected.');
-        } catch (DocumentSchemaException $exception) {
-            $this->assertSame("Document {$empty->getId()} has no content to embed.", $exception->getMessage());
-        }
-
-        $this->embeddings->assertNothingEmbedded();
-        $this->store->assertNothingStored();
-    }
-
     public function test_reindexing_replaces_only_the_documents_of_the_given_sources(): void
     {
         $rag = $this->rag();
@@ -225,20 +210,6 @@ class RAGIngestionTest extends TestCase
         try {
             $rag->reindexBySource([$this->document('Missing tenant', 'file', 'a.md')]);
             $this->fail('The invalid replacement must be rejected.');
-        } catch (DocumentSchemaException) {
-        }
-
-        $this->assertSame(['Indexed'], $this->storedContents());
-    }
-
-    public function test_a_replacement_without_content_leaves_the_indexed_source_untouched(): void
-    {
-        $rag = $this->rag();
-        $rag->addDocuments([$this->document('Indexed', 'file', 'a.md')]);
-
-        try {
-            $rag->reindexBySource([$this->document('Replacement', 'file', 'a.md'), $this->document('', 'file', 'a.md')]);
-            $this->fail('The replacement without content must be rejected.');
         } catch (DocumentSchemaException) {
         }
 

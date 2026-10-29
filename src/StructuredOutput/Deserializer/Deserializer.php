@@ -20,6 +20,7 @@ use ReflectionProperty;
 use ReflectionType;
 use ReflectionUnionType;
 use UnitEnum;
+use ReflectionMethod;
 
 use function array_column;
 use function array_flip;
@@ -137,14 +138,14 @@ class Deserializer
             // property waits for it, since the constructor may assign that one too
             if ($property->isPromoted() && $property->class === $constructor?->class) {
                 $promotedArgs[ $propertyName ] = $value;
-            } elseif ($constructor !== null && $property->isReadOnly()) {
+            } elseif ($constructor instanceof ReflectionMethod && $property->isReadOnly()) {
                 $readonlyValues[] = [$property, $value];
             } else {
                 $property->setValue($instance, $value);
             }
         }
 
-        if ($constructor !== null) {
+        if ($constructor instanceof ReflectionMethod) {
             $constructor->invokeArgs($instance, $promotedArgs);
 
             foreach ($readonlyValues as [$property, $value]) {
@@ -163,6 +164,7 @@ class Deserializer
      * What the model left out gets its default, or null when it has none but can hold one.
      *
      * @param ReflectionProperty[] $properties
+     * @throws ReflectionException
      */
     protected function applyDefaults(object $instance, array $properties): void
     {
@@ -273,7 +275,6 @@ class Deserializer
     }
 
     /**
-     * @param 'integer'|'number'|'string'|'boolean' $type
      * @throws DeserializerException
      */
     protected function castScalar(mixed $value, string $type, ReflectionProperty $property): int|float|string|bool
@@ -408,6 +409,7 @@ class Deserializer
 
     /**
      * @throws DeserializerException
+     * @throws Exception
      */
     protected function createDateTimeImmutable(mixed $value): DateTimeImmutable
     {
@@ -433,6 +435,7 @@ class Deserializer
     /**
      * @param class-string<UnitEnum> $typeName
      * @throws DeserializerException
+     * @throws ReflectionException
      */
     protected function handleEnum(string $typeName, mixed $value): UnitEnum
     {

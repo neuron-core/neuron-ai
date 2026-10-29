@@ -15,6 +15,7 @@ use ReflectionProperty;
 use ReflectionUnionType;
 use stdClass;
 use UnitEnum;
+use ReflectionType;
 
 use function array_map;
 use function array_merge;
@@ -120,6 +121,7 @@ class JsonSchema
 
     /**
      * @throws ReflectionException
+     * @throws StructuredOutputException
      */
     protected function processProperty(ReflectionClass $class, ReflectionProperty $property): array
     {
@@ -211,7 +213,7 @@ class JsonSchema
         }
 
         // Nullability applies only to inline basic types, not $ref/allOf schemas
-        if ($type && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf']) && $type->allowsNull()) {
+        if ($type instanceof ReflectionType && isset($schema['type']) && !isset($schema['$ref']) && !isset($schema['allOf']) && $type->allowsNull()) {
             if (is_array($schema['type'])) {
                 if (!in_array('null', $schema['type'])) {
                     $schema['type'][] = 'null';

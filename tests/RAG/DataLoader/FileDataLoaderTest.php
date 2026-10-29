@@ -108,6 +108,13 @@ class FileDataLoaderTest extends TestCase
         $this->assertSame(['Content'], $this->sortedContents(FileDataLoader::for($this->sandbox)->getDocuments()));
     }
 
+    public function test_an_empty_single_file_produces_no_documents(): void
+    {
+        $path = $this->write('empty.txt', '');
+
+        $this->assertSame([], FileDataLoader::for($path)->getDocuments());
+    }
+
     public function test_directory_documents_are_split_with_the_configured_splitter(): void
     {
         $this->write('long.txt', 'alpha beta gamma delta');
