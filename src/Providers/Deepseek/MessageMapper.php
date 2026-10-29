@@ -15,14 +15,19 @@ class MessageMapper extends OpenAIMessageMapper
         return $this->withReasoningContent(parent::mapMessage($message), $message);
     }
 
+    /**
+     * Thinking mode refuses a tool call it has no reasoning for, one from another provider
+     * or from a turn with thinking off, unless the call carries reasoning_content: an empty
+     * one is accepted.
+     */
     protected function mapToolCall(ToolCallMessage $message): array
     {
-        return $this->withReasoningContent(parent::mapToolCall($message), $message);
+        return $this->withReasoningContent(parent::mapToolCall($message), $message) + ['reasoning_content' => ''];
     }
 
     /**
-     * A reasoner turn must carry the field even when the model returned an empty
-     * string: DeepSeek rejects an assistant message without reasoning_content.
+     * The reasoning goes back as the model returned it, an empty string included.
+     * A message that stored no reasoning has none to send.
      *
      * @param array<string, mixed> $mapped
      * @return array<string, mixed>
