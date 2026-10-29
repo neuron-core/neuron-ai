@@ -114,7 +114,7 @@ What the subscriber received in the run:
 
 ```
 POST /runs 202 {"runId":"772d8d73-…"}
-RUN_STARTED {"runId":"772d8d73-…","threadId":"user-1-ec5d29d6-…"}
+RUN_STARTED {"runId":"772d8d73-…","threadId":"user-1-ec5d29d6-…","protocolVersion":"1.0"}
 TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT "Hello!", " You", " said:", …   (one event per token, about 30 ms apart)
 TEXT_MESSAGE_END, RUN_FINISHED
 stream.completed {"workflowId":"user-1-ec5d29d6-…"}
