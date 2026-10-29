@@ -17,6 +17,8 @@ export async function openChat(page: Page, request: APIRequestContext, scenario:
 export async function send(page: Page, text: string): Promise<void> {
   const input = page.getByTestId("copilot-chat-textarea");
   await input.fill(text);
+  // Until the chat has connected to the runtime, Enter is ignored and the send button stays disabled
+  await expect(page.getByTestId("copilot-send-button")).toBeEnabled();
   await input.press("Enter");
 }
 

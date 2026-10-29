@@ -6,8 +6,8 @@ namespace NeuronAI\RAG\Splitter;
 
 use InvalidArgumentException;
 use NeuronAI\RAG\Document;
-
 use NeuronAI\RAG\Schema\DocumentSchemaException;
+
 use function array_map;
 use function array_slice;
 use function count;
