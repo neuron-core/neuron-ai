@@ -14,6 +14,7 @@ use NeuronAI\Workflow\NodeContext;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\ToolCallEvent;
 use NeuronAI\Agent\Nodes\ParallelToolNode;
+use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
@@ -34,11 +35,14 @@ use Throwable;
 
 use function array_map;
 use function class_exists;
+use function end;
 use function extension_loaded;
 use function iterator_to_array;
 
 class ParallelToolNodeTest extends TestCase
 {
+    protected ChatHistory $history;
+
     public function test_parameterized_tools_tracked_by_run_key_in_parallel(): void
     {
         $registry = [new TestParametrizedTool('parallel_tool')];
@@ -56,7 +60,7 @@ class ParallelToolNodeTest extends TestCase
 
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -83,7 +87,7 @@ class ParallelToolNodeTest extends TestCase
 
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -111,7 +115,7 @@ class ParallelToolNodeTest extends TestCase
         $this->expectException(ToolRunsExceededException::class);
         $this->expectExceptionMessage('Tool bounded_tool has been executed too many times - 1');
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
     }
@@ -143,7 +147,7 @@ class ParallelToolNodeTest extends TestCase
         // Run 1: the batch executes and its result is memoized mid-node.
         $node1 = new ParallelToolNode();
         $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node1($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($node1($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -161,7 +165,7 @@ class ParallelToolNodeTest extends TestCase
             },
         );
         $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node2($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($node2($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -183,8 +187,9 @@ class ParallelToolNodeTest extends TestCase
         $state->request = new InferenceRequest('Test');
         $node = new ParallelToolNode(errorHandler: $errorHandler);
         $node->setWorkflowContext(new NodeContext());
+        $this->history = AgentResourcesFactory::askedHistory();
 
-        iterator_to_array($node(new ToolCallEvent(new ToolCallMessage(null, $calls)), $state, AgentResourcesFactory::make($registry)), false);
+        iterator_to_array($node(new ToolCallEvent(new ToolCallMessage(null, $calls)), $state, AgentResourcesFactory::make($registry, $this->history)), false);
 
         return $state;
     }
@@ -192,9 +197,10 @@ class ParallelToolNodeTest extends TestCase
     /**
      * @return array<int, string|null>
      */
-    protected function resultCallIds(AgentState $state): array
+    protected function resultCallIds(): array
     {
-        $message = $state->request->messages[1];
+        $messages = $this->history->getMessages();
+        $message = end($messages);
         $this->assertInstanceOf(ToolResultMessage::class, $message);
 
         return array_map(static fn (ToolCall $call): ?string => $call->getCallId(), $message->getToolCalls());
@@ -210,7 +216,7 @@ class ParallelToolNodeTest extends TestCase
 
         $state = $this->runParallel($calls, [new SearchTool()]);
 
-        $this->assertSame(['call_1', 'call_2', 'call_3'], $this->resultCallIds($state));
+        $this->assertSame(['call_1', 'call_2', 'call_3'], $this->resultCallIds());
         $this->assertSame(
             ['Results for: first', 'Results for: second', 'Results for: third'],
             array_map(static fn (ToolCall $call): string|ToolOutput => $call->getResult(), $calls)
@@ -231,7 +237,7 @@ class ParallelToolNodeTest extends TestCase
 
         $state = $this->runParallel($calls, [new SearchTool()]);
 
-        $this->assertSame(['call_1', 'call_2', 'call_3'], $this->resultCallIds($state));
+        $this->assertSame(['call_1', 'call_2', 'call_3'], $this->resultCallIds());
         $this->assertSame('Results for: first', $calls[0]->getResult());
         $this->assertSame('TOOL NOT EXECUTED', $rejected->getResult());
         $this->assertSame('Results for: third', $calls[2]->getResult());

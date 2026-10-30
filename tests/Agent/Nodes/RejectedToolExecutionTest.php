@@ -55,7 +55,7 @@ class RejectedToolExecutionTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool])) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool], AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // consume the generator
         }
 
@@ -79,7 +79,7 @@ class RejectedToolExecutionTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool])) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool], AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null;
         }
 

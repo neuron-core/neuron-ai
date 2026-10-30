@@ -175,6 +175,7 @@ class ToolRunLimitTest extends TestCase
 
     public function test_failed_step_restores_accounting_for_cached_results_and_retries(): void
     {
+        $this->messages->append('tool-run-limit', new UserMessage('Search'));
         $crashing = new CrashSearchTool();
         $initial = new AgentState();
         $initial->request = new InferenceRequest('Test');
@@ -204,6 +205,7 @@ class ToolRunLimitTest extends TestCase
 
     public function test_replaying_a_batch_counts_it_again_from_the_state_its_step_started_with(): void
     {
+        $this->messages->append('tool-run-limit', new UserMessage('Search'));
         $initial = new AgentState();
         $initial->request = new InferenceRequest('Test');
         $initial->incrementToolRun('lookup');

@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Agent\Nodes;
 
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Events\StructuredInferenceEvent;
 use NeuronAI\Agent\InferenceRequest;
 use NeuronAI\Agent\Nodes\AwaitToolResultsNode;
+use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Tests\Support\AgentResourcesFactory;
 use NeuronAI\Tests\Support\WorkflowTestStore;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolOutput;
@@ -26,7 +29,10 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function array_map;
+use function array_values;
+use function end;
 use function iterator_to_array;
+use function ksort;
 
 class AwaitToolResultsNodeTest extends TestCase
 {
@@ -46,14 +52,13 @@ class AwaitToolResultsNodeTest extends TestCase
         $memoizer->memo('result.accepted', fn (): array => ['result' => 'already accepted']);
         $node = new AwaitToolResultsNode();
         $node->setWorkflowContext(new NodeContext(timedOut: true, memoizer: $memoizer));
-        $stream = $node($event, $state);
+        $resources = $this->resources($event);
+        $stream = $node($event, $state, $resources);
         $chunks = iterator_to_array($stream);
 
         $this->assertInstanceOf(StructuredInferenceEvent::class, $stream->getReturn());
         $this->assertCount(2, $chunks);
-        $result = $state->request->messages[0];
-        $this->assertInstanceOf(ToolResultMessage::class, $result);
-        $calls = $result->getToolCalls();
+        $calls = $this->writtenResult($resources)->getToolCalls();
         $this->assertSame('local result', $calls[1]->getResult());
         $this->assertSame('already accepted', $calls[0]->getResult());
         $this->assertInstanceOf(ToolOutput::class, $calls[2]->getResult());
@@ -70,19 +75,41 @@ class AwaitToolResultsNodeTest extends TestCase
         $memoizer->memo('result.a', fn (): array => ['result' => 'accepted before crash']);
         $node = new AwaitToolResultsNode();
         $node->setWorkflowContext(new NodeContext(memoizer: $memoizer));
-        $stream = $node($event, $state);
+        $resources = $this->resources($event);
+        $stream = $node($event, $state, $resources);
         iterator_to_array($stream);
 
-        $result = $state->request->messages[0];
+        $this->assertSame('accepted before crash', $this->writtenResult($resources)->getToolCalls()[0]->getResult());
+    }
+
+    /**
+     * What ToolNode leaves when it hands the batch over: the turn's question,
+     * then the call message it wrote before any call ran.
+     */
+    protected function resources(AwaitToolResultsEvent $event): AgentResources
+    {
+        $calls = $event->completedCalls + $event->deferredCalls;
+        ksort($calls);
+        $history = AgentResourcesFactory::askedHistory();
+        $history->addMessage(new ToolCallMessage(null, array_values($calls)));
+
+        return AgentResourcesFactory::make([], $history);
+    }
+
+    protected function writtenResult(AgentResources $resources): ToolResultMessage
+    {
+        $messages = $resources->history->getMessages();
+        $result = end($messages);
         $this->assertInstanceOf(ToolResultMessage::class, $result);
-        $this->assertSame('accepted before crash', $result->getToolCalls()[0]->getResult());
+
+        return $result;
     }
 
     /**
      * @param array<int, ToolCall> $completed
      * @param array<int, ToolCall> $deferred
      * @param array<string, mixed>|null $payload
-     * @return array{AgentState, list<object>, Event}
+     * @return array{AgentState, list<object>, Event, AgentResources}
      */
     protected function resume(array $completed, array $deferred, ?array $payload): array
     {
@@ -94,10 +121,12 @@ class AwaitToolResultsNodeTest extends TestCase
             memoizer: WorkflowTestStore::memoizer(new InMemoryPersistence(), 'resume', 'await'),
         ));
 
-        $stream = $node(new AwaitToolResultsEvent($completed, $deferred), $state);
+        $event = new AwaitToolResultsEvent($completed, $deferred);
+        $resources = $this->resources($event);
+        $stream = $node($event, $state, $resources);
         $chunks = iterator_to_array($stream, false);
 
-        return [$state, $chunks, $stream->getReturn()];
+        return [$state, $chunks, $stream->getReturn(), $resources];
     }
 
     /**
@@ -142,17 +171,16 @@ class AwaitToolResultsNodeTest extends TestCase
         $first = new ToolCall('browser', 'first', deferred: true);
         $last = new ToolCall('browser', 'last', deferred: true);
 
-        [$state, $chunks, $next] = $this->resume([1 => $local], [2 => $last, 0 => $first], [
+        [$state, $chunks, $next, $resources] = $this->resume([1 => $local], [2 => $last, 0 => $first], [
             'last' => ['result' => 'L'],
             'first' => ['result' => 'F'],
         ]);
 
         $this->assertInstanceOf(AIInferenceEvent::class, $next);
         $this->assertNotInstanceOf(StructuredInferenceEvent::class, $next);
-        $message = $state->request->messages[0];
-        $this->assertCount(1, $state->request->messages);
-        $this->assertInstanceOf(ToolResultMessage::class, $message);
-        $this->assertSame([$first, $local, $last], $message->getToolCalls());
+        // The result is written as soon as it is complete: nothing travels to the next inference.
+        $this->assertSame([], $state->request->messages);
+        $this->assertSame([$first, $local, $last], $this->writtenResult($resources)->getToolCalls());
         // Only the external calls stream a result: the local one already did.
         $this->assertSame([$last, $first], array_map(static fn (ToolResultChunk $chunk): ToolCall => $chunk->tool, $chunks));
     }

@@ -6,7 +6,9 @@ namespace NeuronAI\Agent\Nodes;
 
 use Generator;
 use JsonException;
+use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
+use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\AwaitToolResultsEvent;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
@@ -27,12 +29,14 @@ use const JSON_THROW_ON_ERROR;
 
 class AwaitToolResultsNode extends Node implements AgentNodeInterface
 {
+    use ChatHistoryHelper;
+
     /**
      * @throws WorkflowInterrupt
      * @throws WorkflowException
      * @throws JsonException
      */
-    public function __invoke(AwaitToolResultsEvent $event, AgentState $state): Generator
+    public function __invoke(AwaitToolResultsEvent $event, AgentState $state, AgentResources $resources): Generator
     {
         $calls = $event->deferredCalls;
         $results = [];
@@ -82,7 +86,11 @@ class AwaitToolResultsNode extends Node implements AgentNodeInterface
 
         $completed = $event->completedCalls + $calls;
         ksort($completed);
-        $state->request->messages = [new ToolResultMessage(array_values($completed))];
+
+        // Memoized, so a replayed step writes the same result instead of a second one.
+        $result = $this->memoize('tool.result', fn (): ToolResultMessage => new ToolResultMessage(array_values($completed)));
+        $this->addToChatHistory($resources->history, $state, $result);
+        $state->request->messages = [];
 
         return AIInferenceEvent::fromRequest($state->request);
     }

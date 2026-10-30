@@ -265,8 +265,9 @@ A pending decision has no clock of its own: a suspended run holds no lease, so
 the approval can arrive minutes or days later unless the request carries an
 `expiresAt`. Cancelling is a decline: deliver `reject` decisions and the model
 gets the rejection template as the tool result. `abandon()` refuses while an
-approval is pending, because the pre-suspend tool call would be left unanswered
-in history; `resetConversation()` wipes the history and frees the thread instead.
+approval is pending, because the next turn would answer the pre-suspend tool call
+with an interruption error instead of the user's decision; `resetConversation()`
+wipes the history and frees the thread instead.
 
 Approving a deferred tool authorizes its execution; it does not provide its result. When the frontend has executed the approved calls, send their outcomes with `submitToolResults(['call_123' => ['result' => $value]])->run()` (or `events()`). Each result entry contains exactly one `result` value or `error` string, and partial results are retained.
 

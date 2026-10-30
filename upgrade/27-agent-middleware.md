@@ -274,7 +274,7 @@ This applies inside agent middleware and inside nodes. In a node, `$resources` i
 | `$toolCallEvent->toolCallMessage` | unchanged |
 | `$event instanceof AgentStartEvent`, meant to match inference events | `$event instanceof AIInferenceEvent` |
 | `$result instanceof StopEvent` in `after()` for `ChatNode`, `StreamingNode` or `StructuredOutputNode` | `$result instanceof AgentOutputEvent` |
-| `$result->getMessages()` in `after()` for `ToolNode` | `$state->request->messages` |
+| `$result->getMessages()` in `after()` for `ToolNode` | `[$resources->history->getLastMessage()]`, the tool result, when `$result` is an `AIInferenceEvent`; the results of a deferred batch are written later, by `AwaitToolResultsNode` |
 
 Imports: `NeuronAI\Chat\Messages\ContentBlocks\TextContent`, `NeuronAI\Chat\Messages\SystemMessage`, `NeuronAI\Agent\Events\AgentOutputEvent`.
 
@@ -283,7 +283,7 @@ Rules:
 - **Instructions.** `$state->request` lasts for the whole run, including the tool loop and continuations after a pause. Add a text once, with the `contains()` guard. Drop a leading `"\n\n"`: each block is rendered separated from the previous one by a blank line.
 - **Tools.** `$resources->tools` lasts one execution segment. Add the tools on every call; `add()` ignores a tool whose name is already registered. A toolkit is not accepted: add each tool of `$toolkit->tools()`.
 - **Guard.** Guard every read or write of `$state->request` with `$event instanceof AIInferenceEvent`, which also matches `StructuredInferenceEvent`, or with `isset($state->request)`. Before RAG's `PreProcessNode` the request does not exist yet, and reading it throws.
-- **History.** The history holds only committed messages. The messages waiting for the next inference are in `$state->request->messages`: the new user message, or the last tool call and its results. They join the history after that inference succeeds. The conversation the next inference sends is `[...$resources->history->getMessages(), ...$state->request->messages]`.
+- **History.** The history holds only committed messages. A turn's new user message waits in `$state->request->messages`, with the messages that close a turn an earlier run left open, and joins the history after the turn's first inference succeeds; it stays in `$state->request->messages` until `ToolNode` empties it. `ToolNode` writes each tool call before it runs and its results as soon as they are complete; `AwaitToolResultsNode` writes the results of a deferred batch when they arrive. Before an inference node, the conversation it sends is `[...$resources->history->getMessages(), ...$state->request->messages]`; after the turn's first inference, read `$resources->history->getMessages()` alone.
 
 Other history changes:
 
@@ -383,7 +383,7 @@ $agent->addGlobalMiddleware(new ToolSearchMiddleware($pool, topN: 10));
 3. In a `ToolSearchMiddleware` subclass:
    - a `before()` or `after()` override moves into `beforeAgentNode()`, which first calls `parent::beforeAgentNode($node, $event, $state, $resources)`;
    - `$this->hasToolSearchTool($event->tools)` becomes `$resources->tools->find('tool_search') !== null`;
-   - `$this->extractDiscoveredTools($result)` becomes `$this->discoverFromMessages($state->request->messages)`;
+   - `$this->extractDiscoveredTools($result)` becomes `$this->discoverFromMessages($this->currentTurn([...$resources->history->getMessages(), ...$state->request->messages]))`, the messages the parent reads;
    - `$this->getToolNames($tools)` is removed: map `$resources->tools->all()` to `getName()`.
 4. In a `ToolSearchTool` subclass, an override of `protected function defaultSearch(string $query): array` becomes `public function search(string $query): array`. Calls to `parent::defaultSearch()` become `parent::search()`.
 5. `$tool->discoveredTools()` is removed. Use `$tool->search($query)` with the query of that call.

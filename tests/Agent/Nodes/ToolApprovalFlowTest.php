@@ -36,6 +36,7 @@ use RuntimeException;
 
 use function array_keys;
 use function array_map;
+use function end;
 use function implode;
 use function iterator_to_array;
 use function json_encode;
@@ -265,18 +266,18 @@ class ToolApprovalFlowTest extends TestCase
         $this->assertSame('executed', $call->getResult());
         $this->assertNull($call->getApprovalState(), 'A non-gated call must keep null approval state');
 
-        // Deferred pair-commit: with no suspend possible the node writes nothing —
-        // the call/result pair travels as the next inference's inbound messages
-        // and commits only after that provider call succeeds.
-        $this->assertCount(1, $this->history($node)->getMessages(), 'Only the opening user message');
-        $this->assertSame(
-            [$event->toolCallMessage, $state->request->messages[1]],
-            $state->request->messages
-        );
-        $this->assertInstanceOf(ToolResultMessage::class, $state->request->messages[1]);
+        // The call is written before it runs and the result as soon as the batch
+        // settles: nothing travels to the next inference.
+        $messages = $this->history($node)->getMessages();
+        $this->assertCount(3, $messages);
+        [, $toolCall, $toolResult] = $messages;
+        $this->assertSame($event->toolCallMessage->getId(), $toolCall->getId());
+        $this->assertInstanceOf(ToolResultMessage::class, $toolResult);
+        $this->assertSame('executed', $toolResult->getToolCalls()[0]->getResult());
+        $this->assertSame([], $state->request->messages);
     }
 
-    public function test_failed_tool_leaves_no_dangling_tool_call_in_history(): void
+    public function test_a_failed_tool_leaves_its_call_for_the_next_run_to_answer(): void
     {
         $tool = new class () extends Tool {
             public function __invoke(mixed ...$arguments): string
@@ -295,9 +296,11 @@ class ToolApprovalFlowTest extends TestCase
         } catch (RuntimeException) {
         }
 
-        // Deferred pair-commit: the crash happened before any history write, so
-        // the thread is not wedged behind a tool call with no result.
-        $this->assertCount(1, $this->history($node)->getMessages(), 'Only the opening user message');
+        // The call was written before the tool ran, so the history ends with it
+        // and the next run answers it.
+        $messages = $this->history($node)->getMessages();
+        $this->assertCount(2, $messages);
+        $this->assertInstanceOf(ToolCallMessage::class, $messages[1]);
     }
 
     public function test_require_approval_forces_the_gate(): void
@@ -453,7 +456,8 @@ class ToolApprovalFlowTest extends TestCase
             "TOOL NOT EXECUTED. The user rejected this action. User instruction: No specific instruction provided.. Do not attempt this tool again. Follow the user's instruction or reconsider your plan.",
             $call->getResult()
         );
-        $result = $state->request->messages[0];
+        $messages = $this->history($node)->getMessages();
+        $result = end($messages);
         $this->assertInstanceOf(ToolResultMessage::class, $result);
         $this->assertSame([$call], $result->getToolCalls());
     }
@@ -604,7 +608,8 @@ class ToolApprovalFlowTest extends TestCase
             message: 'Previously delivered decisions must survive a replay'
         );
 
-        $message = $state->request->messages[0];
+        $messages = $this->history($node)->getMessages();
+        $message = end($messages);
         $this->assertInstanceOf(ToolResultMessage::class, $message);
         $this->assertCount(2, $message->getToolCalls());
     }

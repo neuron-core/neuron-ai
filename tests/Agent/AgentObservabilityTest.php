@@ -95,10 +95,10 @@ class AgentObservabilityTest extends TestCase
         $this->assertSame([
             // First inference commits the user message after the provider call.
             'inference-start', 'inference-stop', 'message-saving', 'message-saved',
-            'tool-calling', 'tool-called',
-            // Second inference commits the call/result pair, then the answer.
-            'inference-start', 'inference-stop',
-            'message-saving', 'message-saved', 'message-saving', 'message-saved', 'message-saving', 'message-saved',
+            // The tool node saves the call before it runs and the result after.
+            'message-saving', 'message-saved', 'tool-calling', 'tool-called', 'message-saving', 'message-saved',
+            // Second inference commits the answer.
+            'inference-start', 'inference-stop', 'message-saving', 'message-saved',
         ], $this->eventNames());
 
         $saved = array_map(static fn (MessageSaved $event): string => $event->message::class, $this->eventsOf(MessageSaved::class));

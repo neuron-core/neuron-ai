@@ -80,7 +80,8 @@ class AgentRequestStateTest extends TestCase
         $freshProvider->assertSystemPrompt('Middleware instructions');
         $freshProvider->assertToolsConfigured(['count_users']);
         $this->assertSame(0, $state->request->options->maxRetries);
-        $toolResult = $state->request->messages[0];
+        // Question, tool call, tool result, answer.
+        $toolResult = $messageStore->loadActive('request-state')[2];
         $this->assertInstanceOf(ToolResultMessage::class, $toolResult);
         $this->assertSame('42', $toolResult->getToolCalls()[0]->getResult());
         if ($mode === 'structured') {

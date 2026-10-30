@@ -14,6 +14,8 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\FakeEmbeddingsProvider;
 use NeuronAI\Testing\FakeVectorStore;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Tests\RAG\Stub\ItalianPreProcessNode;
+use NeuronAI\Tests\RAG\Stub\ItalianRAG;
 use NeuronAI\Tests\Support\ReadsTurnContext;
 use PHPUnit\Framework\TestCase;
 
@@ -27,13 +29,17 @@ class RAGDurableTurnTest extends TestCase
 {
     use ReadsTurnContext;
 
+    /**
+     * @param class-string<RAG> $class
+     */
     protected function makeRag(
         FakeAIProvider $provider,
         FakeVectorStore $vectorStore,
         InMemoryMessageStore $messageStore,
         InMemoryPersistence $persistence,
+        string $class = RAG::class,
     ): RAG {
-        $rag = RAG::make(workflowId: 'thread');
+        $rag = $class::make(workflowId: 'thread');
         $rag->setAiProvider($provider);
         $rag->setEmbeddingsProvider(new FakeEmbeddingsProvider());
         $rag->setVectorStore($vectorStore);
@@ -83,5 +89,43 @@ class RAGDurableTurnTest extends TestCase
 
         $this->assertCount(2, $messageStore->loadActive('thread'));
         $this->assertNull($persistence->get($threadId, '__control'));
+    }
+
+    public function test_a_new_turn_closes_the_question_a_failed_turn_left_open(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Paris.'));
+        $vectorStore = new FakeVectorStore([
+            new Document('France is a country in Europe. Its capital is Paris.'),
+        ]);
+        $messageStore = new InMemoryMessageStore();
+        // What a turn that failed after its first inference leaves behind.
+        $messageStore->append('thread', new UserMessage('What is the capital of France?'));
+
+        $this->makeRag($provider, $vectorStore, $messageStore, new InMemoryPersistence())
+            ->chat(new UserMessage('Which city is the French capital?'));
+
+        $sent = $provider->getRecorded()[0]->messages;
+        $this->assertCount(3, $sent);
+        $this->assertSame('What is the capital of France?', $this->blocks($sent[0])[0]);
+        $this->assertInstanceOf(AssistantMessage::class, $sent[1]);
+        $this->assertSame('Which city is the French capital?', $this->blocks($sent[2])[0]);
+        $this->assertCount(4, $messageStore->loadActive('thread'));
+    }
+
+    public function test_an_entry_node_subclass_changes_what_the_closing_says(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Parigi.'));
+        $vectorStore = new FakeVectorStore([
+            new Document('France is a country in Europe. Its capital is Paris.'),
+        ]);
+        $messageStore = new InMemoryMessageStore();
+        $messageStore->append('thread', new UserMessage('Qual è la capitale della Francia?'));
+
+        $this->makeRag($provider, $vectorStore, $messageStore, new InMemoryPersistence(), ItalianRAG::class)
+            ->chat(new UserMessage('Quale città è la capitale francese?'));
+
+        $sent = $provider->getRecorded()[0]->messages;
+        $this->assertCount(3, $sent);
+        $this->assertSame(ItalianPreProcessNode::INTERRUPTED_ANSWER, $sent[1]->getContent());
     }
 }

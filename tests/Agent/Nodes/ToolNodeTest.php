@@ -14,6 +14,9 @@ use NeuronAI\Agent\Nodes\ToolNode;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Tests\Agent\Stub\AgentFailingTool;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Tests\Support\WorkflowTestStore;
+use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
 use NeuronAI\Tests\Agent\Stub\TestParametrizedTool;
 use NeuronAI\Tests\Tools\Stub\Ticket;
 use NeuronAI\Tools\ObjectProperty;
@@ -24,6 +27,8 @@ use NeuronAI\Tools\ToolOutput;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Throwable;
+
+use function iterator_to_array;
 
 class ToolNodeTest extends TestCase
 {
@@ -46,9 +51,35 @@ class ToolNodeTest extends TestCase
         // Set up the workflow context (required for Node::emit() to work)
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
+    }
+
+    /**
+     * A handled error is the call's result, recorded like any other: a replayed
+     * step restores it instead of running the tool again.
+     */
+    public function test_a_replay_restores_a_handled_error_instead_of_running_the_tool_again(): void
+    {
+        $tool = new CrashSearchTool();
+        $memoizer = WorkflowTestStore::memoizer(new InMemoryPersistence(), 'handled-error', 'ToolNode-1');
+        $handler = static fn (Throwable $e, ToolCall $call): ToolOutput => ToolOutput::error("Handled: {$e->getMessage()}");
+
+        foreach ([1, 2] as $pass) {
+            $call = ToolCall::make('search', 'call_1', ['query' => 'PHP']);
+            $state = new AgentState();
+            $state->request = new InferenceRequest('Test instructions');
+            $node = new ToolNode(errorHandler: $handler);
+            $node->setWorkflowContext(new NodeContext(memoizer: $memoizer));
+            iterator_to_array($node(new ToolCallEvent(new ToolCallMessage(null, [$call])), $state, AgentResourcesFactory::make([$tool], AgentResourcesFactory::askedHistory())));
+
+            $result = $call->getResult();
+            $this->assertInstanceOf(ToolOutput::class, $result, "Pass {$pass} restores the handled error");
+            $this->assertSame('Handled: Simulated crash during tool execution', $result->getText());
+        }
+
+        $this->assertSame(1, $tool->getCallCount());
     }
 
     /**
