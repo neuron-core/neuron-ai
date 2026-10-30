@@ -140,6 +140,17 @@ class WeaviateVectorStoreTest extends TestCase
         $this->assertFalse($this->sentRequest(0)->hasHeader('Authorization'));
     }
 
+    public function test_every_request_names_the_neuron_integration(): void
+    {
+        $this->store(null, null, $this->noObjects())->search(new SearchRequest([1, 0]));
+
+        $this->assertMatchesRegularExpression('#^neuron-ai/\S+$#', $this->sentRequest(0)->getHeaderLine('X-Weaviate-Client-Integration'));
+        $this->assertSame(
+            $this->sentRequest(0)->getHeaderLine('X-Weaviate-Client-Integration'),
+            $this->sentRequest(1)->getHeaderLine('X-Weaviate-Client-Integration'),
+        );
+    }
+
     public function test_adds_objects_with_json_metadata_and_declared_properties(): void
     {
         $document = (new Document('Hello'))

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\RAG\VectorStore;
 
+use Composer\InstalledVersions;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\VectorStoreException;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
@@ -16,6 +17,7 @@ use NeuronAI\RAG\Schema\DocumentSchema;
 use NeuronAI\RAG\Schema\DocumentSchemaException;
 use NeuronAI\RAG\VectorStore\Compilers\WeaviateFilterCompiler;
 use NeuronAI\RAG\VectorStore\Filter\FilterExpression;
+use Throwable;
 
 use function rtrim;
 use function array_chunk;
@@ -54,8 +56,22 @@ class WeaviateVectorStore implements VectorStoreInterface
         $this->baseUri = $host;
         $this->httpHeaders = [
             'Content-Type' => 'application/json',
+            'X-Weaviate-Client-Integration' => 'neuron-ai/' . self::frameworkVersion(),
             ...(!is_null($this->key) && $this->key !== '' ? ['Authorization' => 'Bearer '.$this->key] : []),
         ];
+    }
+
+    /**
+     * Weaviate attributes requests to the integration named in X-Weaviate-Client-Integration
+     */
+    protected static function frameworkVersion(): string
+    {
+        try {
+            return InstalledVersions::getPrettyVersion('neuron-core/neuron-ai') ?? 'unknown';
+        } catch (Throwable) {
+            // Not installed through Composer
+            return 'unknown';
+        }
     }
 
     /**
