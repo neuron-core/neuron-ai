@@ -124,7 +124,7 @@ class ChatJsonTest extends TestCase
 }
 ```
 
-A serialized message is `{"__id": …, "role": "assistant", "content": [{"type": "text", "content": "…"}]}`: assert on `message.content.0.content`. The last test fails with a 500 (`ChatHistoryException`) when the controller does not call `recoverFailedTurn()`.
+A serialized message is `{"__id": …, "role": "assistant", "content": [{"type": "text", "content": "…"}]}`: assert on `message.content.0.content`. The last test fails when the controller does not call `recoverFailedTurn()`: the new message then closes the failed turn instead of finishing it, and gets the answer queued for the failed one.
 
 ## A streamed AG-UI turn
 

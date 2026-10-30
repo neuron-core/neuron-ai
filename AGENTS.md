@@ -73,13 +73,14 @@ Before implementing:
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
+- Always explain things in very simple terms, avoid complicated jargon, and reference the code to help user understand the real implementation impact.
 
 ## Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
 - Keep the implementation small, sharp, easy to understand. Try to write elegant code in a state of grace. Don't settle for the first thing that comes to mind, try to find the most minimal and better working design. Don't introduce slop: very fragile code that just patches specific cases, dead code, useless code and code ways more complicated of how it should be.
-- Keep public APIs narrow. CLI/server code should not know tensor internals.
+- Keep public APIs narrow. External code should not know tensor internals.
 - No features beyond what was asked.
 - No "flexibility" or "configurability" that wasn't requested.
 - No error handling for impossible scenarios.

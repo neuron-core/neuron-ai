@@ -314,7 +314,7 @@ Ask the developer what a new message should do while an approval is pending:
   }
   ```
 - Reject the pending calls and let the model answer the rejection: `$state = $agent->submitApprovalDecisions(array_fill_keys(array_map(fn (Action $a): string => $a->id, $agent->pendingApprovals()), 'reject'))->run();`. Start the new turn only if `$state->isInterrupted()` is false; otherwise handle the new pause as in Case 2.
-- Discard the conversation with `$agent->resetConversation()`, which also deletes its history. `$agent->abandon()` throws `AgentException` while a tool call is unanswered.
+- Discard the conversation with `$agent->resetConversation()`, which also deletes its history. `$agent->abandon()` throws `AgentException` while the approval is pending.
 
 ### Case 7: Code that reads or builds approval requests
 

@@ -43,6 +43,8 @@ class AgentDurableWritesTest extends TestCase
             [$record(ChatNode::class . '-1::inference')],
             [$record(ChatNode::class . '-1'), '__control'],
             [$record(ToolNode::class . '-2::tool.call_1.0')],
+            // The result message, so a step replayed after its history write writes it once.
+            [$record(ToolNode::class . '-2::tool.result')],
             [$record(ToolNode::class . '-2'), '__control'],
             [$record(ChatNode::class . '-3::inference')],
             [$record(ChatNode::class . '-3'), '__control'],

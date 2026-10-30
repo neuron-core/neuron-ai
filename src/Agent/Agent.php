@@ -291,9 +291,10 @@ class Agent extends Workflow implements AgentInterface
     }
 
     /**
-     * Suspended tool cycles already have an assistant tool call in history.
-     * They must be settled before abandonment to avoid leaving an unanswered
-     * call in the next inference's context.
+     * A run suspended on a tool call's approval or result already has the call in
+     * history. It must be settled before abandonment: the next run would otherwise
+     * answer the call with an interruption error instead of the decision or
+     * result the user is waiting to give.
      *
      * @throws AgentException
      * @throws ChatHistoryException
@@ -301,16 +302,17 @@ class Agent extends Workflow implements AgentInterface
      */
     public function abandon(?string $expectedRunId = null, ?int $expectedExecutionAttempt = null): bool
     {
+        $run = $this->inspect();
         $messages = $this->getChatHistory()->getMessages();
-        $lastMessage = end($messages);
-        if ($lastMessage instanceof ToolCallMessage) {
+        if ($run?->status === WorkflowStatus::Suspended && end($messages) instanceof ToolCallMessage) {
             throw new AgentException(
-                'The conversation has an unanswered tool call: settle its approval or result '
+                'The run waits for a tool call to be approved or answered: settle it '
                 . 'with submitInputs() before abandoning the run.'
             );
         }
 
-        return parent::abandon($expectedRunId, $expectedExecutionAttempt);
+        // Fenced on the run just checked: one that changed since is refused, not discarded unchecked.
+        return parent::abandon($expectedRunId ?? $run?->runId, $expectedExecutionAttempt ?? $run?->executionAttempt);
     }
 
     /**

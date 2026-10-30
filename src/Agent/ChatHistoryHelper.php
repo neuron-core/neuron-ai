@@ -10,6 +10,8 @@ use NeuronAI\Chat\History\ChatHistory;
 use NeuronAI\Chat\Messages\Message;
 
 use function array_map;
+use function array_slice;
+use function array_values;
 use function in_array;
 use function is_array;
 
@@ -25,15 +27,20 @@ trait ChatHistoryHelper
 {
     protected function addToChatHistory(ChatHistory $history, AgentState $state, Message|array $messages): void
     {
-        $messages = is_array($messages) ? $messages : [$messages];
+        $messages = is_array($messages) ? array_values($messages) : [$messages];
         $held = array_map(static fn (Message $message): string => $message->getId(), $history->getMessages());
 
-        foreach ($messages as $message) {
-            // A replayed write changes nothing, so it reports nothing.
+        // A batch is written in order, so a held message proves every message before
+        // it was written too, even one the trim has archived since. A replayed write
+        // changes nothing, so it reports nothing.
+        $written = 0;
+        foreach ($messages as $index => $message) {
             if (in_array($message->getId(), $held, true)) {
-                continue;
+                $written = $index + 1;
             }
+        }
 
+        foreach (array_slice($messages, $written) as $message) {
             $this->emit(new MessageSaving($message));
             $history->addMessage($message);
             $this->emit(new MessageSaved($message));

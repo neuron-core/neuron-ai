@@ -52,11 +52,11 @@ use const JSON_PRETTY_PRINT;
  * decisions across deliveries. A tool runs only when explicitly approved;
  * an incomplete set re-suspends until every gated call has a decision.
  *
- * Gated and externally executed cycles write their ToolCallMessage once,
- * before suspension. Other cycles commit the call/result pair together
- * through the next inference's inbound write. Approved deferred calls pass
- * to a separate durable step, so awaiting results cannot replay this gate
- * or the completed local executions.
+ * The ToolCallMessage is written before any tool runs, a gated cycle's before
+ * it suspends, and the ToolResultMessage as soon as the batch settles, so the
+ * history records what ran even when a later step fails. Approved deferred
+ * calls pass to a separate durable step, so awaiting results cannot replay
+ * this gate or the completed local executions.
  */
 class ToolNode extends Node implements AgentNodeInterface
 {
@@ -83,7 +83,11 @@ class ToolNode extends Node implements AgentNodeInterface
         $calls = $event->toolCallMessage->getToolCalls();
         $this->assertUniqueCallIds(array_filter($calls, fn (ToolCall $call): bool => $call->isDeferred()));
 
-        $approvalGated = $this->resolveToolApprovals($event->toolCallMessage, $state, $resources);
+        $this->resolveToolApprovals($event->toolCallMessage, $state, $resources);
+
+        // Written before any tool runs, so a failure from here on leaves the call in
+        // history and the next run answers it. A gated cycle wrote it before suspending.
+        $this->addToChatHistory($resources->history, $state, $event->toolCallMessage);
 
         $executed = yield from $this->executeLocalTools($calls, $event->toolCallMessage->getId(), $state, $resources->tools);
         $deferred = $this->filterDeferredCalls($calls);
@@ -106,7 +110,6 @@ class ToolNode extends Node implements AgentNodeInterface
             }
 
             if ($deferred !== []) {
-                $this->addToChatHistory($resources->history, $state, $event->toolCallMessage);
                 foreach ($deferred as $call) {
                     $this->emit(new ToolCalling($call));
                     yield new ToolCallChunk($event->toolCallMessage->getId(), $call);
@@ -118,19 +121,11 @@ class ToolNode extends Node implements AgentNodeInterface
         }
 
         ksort($executed);
-        $toolCallResult = new ToolResultMessage(array_values($executed));
 
-        if (!$approvalGated) {
-            // Deferred pair-commit: the call/result pair travels as the next
-            // inference's inbound messages and commits together only after
-            // that provider call succeeds — a crash leaves the history tail
-            // at the last committed message, never at a dangling tool call.
-            $state->request->messages = [$event->toolCallMessage, $toolCallResult];
-        } else {
-            // The tool call message is already in history (pre-suspend write):
-            // only the result message travels as the next turn.
-            $state->request->messages = [$toolCallResult];
-        }
+        // Memoized, so a replayed step writes the same result instead of a second one.
+        $result = $this->memoize('tool.result', fn (): ToolResultMessage => new ToolResultMessage(array_values($executed)));
+        $this->addToChatHistory($resources->history, $state, $result);
+        $state->request->messages = [];
 
         return AIInferenceEvent::fromRequest($state->request);
     }
@@ -429,7 +424,8 @@ class ToolNode extends Node implements AgentNodeInterface
      * Execution is wrapped in a durable memo keyed by callId (or name) plus
      * the call's position, so parallel calls sharing a callId never share a
      * memo. On crash-replay the recorded result is restored WITHOUT
-     * re-running, so side-effecting tools execute at most once.
+     * re-running, so side-effecting tools execute at most once. An error the
+     * handler turns into a result is recorded the same way.
      *
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
@@ -456,7 +452,13 @@ class ToolNode extends Node implements AgentNodeInterface
 
             $call->setResult($result);
         } catch (Throwable $e) {
-            $this->handleError($e, $call);
+            // The batch's result message records this outcome, so a replay must
+            // restore it rather than run the call again.
+            $call->setResult($this->memoize($memoKey, function () use ($e, $call): string|ToolOutput {
+                $this->handleError($e, $call);
+
+                return $call->getResult();
+            }));
         } finally {
             $this->emit(new ToolCalled($call));
         }

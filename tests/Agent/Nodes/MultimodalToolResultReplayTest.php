@@ -41,7 +41,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $event = new ToolCallEvent($toolCallMessage);
         $toolNode->setWorkflowContext(new NodeContext());
 
-        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool])) as $_) {
+        foreach ($toolNode($event, $state, AgentResourcesFactory::make([$tool], AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -73,7 +73,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $event1 = new ToolCallEvent($toolCallMessage1);
         $node1 = new ToolNode();
         $node1->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node1($event1, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($node1($event1, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 
@@ -89,7 +89,7 @@ class MultimodalToolResultReplayTest extends TestCase
         $event2 = new ToolCallEvent($toolCallMessage2);
         $node2 = new ToolNode();
         $node2->setWorkflowContext(new NodeContext(null, false, WorkflowTestStore::memoizer($persistence, $runId, $stepId)));
-        foreach ($node2($event2, $state, AgentResourcesFactory::make($registry)) as $_) {
+        foreach ($node2($event2, $state, AgentResourcesFactory::make($registry, AgentResourcesFactory::askedHistory())) as $_) {
             $_ = null; // This is to prevent rector from removing it.
         }
 

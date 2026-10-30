@@ -92,8 +92,8 @@ Read the assistant message off it with `getMessage()`, and read an approval paus
 exposes.
 
 The inherited `run()` / `events()` terminals execute staged intent. Without a
-staged operation they start or recover a failed run. `resume($payload, ...)` stages
-an explicit continuation. Agent new-turn methods select a fresh execution internally. `resume()->run()` is an inputless continuation for due timers
+staged operation they start or recover a failed run. `run(ExecutionRequest::resume($payload, ...))`
+is an explicit continuation. Agent new-turn methods select a fresh execution internally. `run(ExecutionRequest::resume())` is an inputless continuation for due timers
 or crash recovery. To recover a failed turn, call `run()` or `events()`;
 calling `chat()` instead explicitly starts a new turn and supersedes it. Agent tool approval accepts decisions keyed by tool call ID through
 `submitApprovalDecisions($decisions)->run()` or
@@ -538,9 +538,9 @@ streams only if the turn started streaming. Raw AG-UI or Vercel payloads use
 `submitInputs($payload, $translator)` as described in **neuron-frontend-integration**.
 
 Other interruption types use the generic Workflow API: application-controlled
-event waits use `signal($name, $payload)->run()`, due timers and inputless
-recovery use `resume()->run()`, and durable platform SDKs pass run and execution-attempt fences to
-`resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt)->run()` or `->events()`. A background, workflow-ID-first
+event waits use `run(ExecutionRequest::signal($name, $payload))`, due timers and inputless
+recovery use `run(ExecutionRequest::resume())`, and durable platform SDKs pass run and execution-attempt fences to
+`run(ExecutionRequest::resume($payload, expectedRunId: $runId, expectedExecutionAttempt: $attempt))`, or `events()` with the same request. A background, workflow-ID-first
 continuation uses `make(workflowId:)`; the Agent's thread ID then arrives from
 the ignition record and is bound into history by the framework.
 
@@ -554,10 +554,112 @@ and a failed output node can leave the completed text exchange in history.
 Failure does not roll back committed writes.
 
 `run()` / `events()` recover a failed turn using committed steps and memos;
-`resume()->run()` is an explicit continuation. A new `chat()` supersedes the
+`run(ExecutionRequest::resume())` is an explicit continuation. A new `chat()` supersedes the
 failed run with a new user turn. A failed node may repeat an external operation
 if its result was not durably recorded; use `memoize()` inside custom nodes and
 external idempotency where needed.
+
+The new turn first closes the turn the failed run left open: a tool call left
+without a result gets an error result saying its outcome is unknown, and a
+question left unanswered gets a short assistant note before the new one. They
+are saved with the new question once its first inference succeeds. To change
+this, extend `AgentStartNode` and return it from `entryNodes()`. Its
+`requestMessages()` returns the messages the turn's request starts with: by
+default it closes the open turn, then adds the start event's messages. Override
+it to start a turn another way, or override only the pieces of the closing:
+
+```php
+use NeuronAI\Agent\Agent;
+use NeuronAI\Agent\AgentResources;
+use NeuronAI\Agent\Events\AgentStartEvent;
+use NeuronAI\Agent\Nodes\AgentStartNode;
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Tools\ToolCall;
+use NeuronAI\Tools\ToolOutput;
+
+class SupportStartNode extends AgentStartNode
+{
+    // The default: replace it to start a turn another way.
+    protected function requestMessages(AgentStartEvent $event, AgentResources $resources): array
+    {
+        return $this->closeOpenTurn($resources->history, $event->messages);
+    }
+
+    // The result of a tool call that has none.
+    protected function interruptedResult(ToolCall $call): string|ToolOutput
+    {
+        return ToolOutput::error('La chiamata è stata interrotta prima che il risultato fosse registrato: potrebbe essere stata eseguita oppure no.');
+    }
+
+    // The note between an unanswered question and the new one.
+    protected function interruptedAnswer(): AssistantMessage
+    {
+        return new AssistantMessage('La mia risposta precedente è stata interrotta prima di essere completata.');
+    }
+}
+
+class SupportAgent extends Agent
+{
+    protected function entryNodes(): array
+    {
+        return [new SupportStartNode()];
+    }
+}
+```
+
+What `requestMessages()` returns must continue the history in a valid order
+(every tool call answered, then alternating roles), or the turn fails when its
+messages are saved, after the provider call. Its result is saved with the start
+step, so a run recovered with `run()` reuses it. `interruptedResult()` can look
+the real outcome up, for example a payment by its idempotency key: keep it a
+read that can run again, and fall back to `parent::interruptedResult($call)`
+when the lookup fails, because a throw fails every new turn on the thread.
+
+A RAG agent has the same methods on `PreProcessNode`, which takes the agent's
+pre-processors:
+
+```php
+use NeuronAI\RAG\Nodes\PreProcessNode;
+use NeuronAI\RAG\RAG;
+use NeuronAI\Workflow\Node;
+
+class SupportRAG extends RAG
+{
+    protected function entryNodes(): array
+    {
+        // SupportPreProcessNode extends PreProcessNode with the overrides above.
+        return array_map(
+            fn (Node $node): Node => $node instanceof PreProcessNode
+                ? new SupportPreProcessNode($this->preProcessors ?? $this->preProcessors())
+                : $node,
+            parent::entryNodes(),
+        );
+    }
+}
+```
+
+The start node runs after `chat()` has superseded the failed run, so it cannot
+refuse the turn: a throw leaves a new failed run that every retry repeats. To
+finish the failed turn instead of closing it, so its tool results and answer
+land before the new question, decide before `chat()`:
+
+```php
+use NeuronAI\Workflow\Executor\ExecutionRequest;
+use NeuronAI\Workflow\WorkflowStatus;
+
+$run = $agent->inspect();
+$dead = $run?->status === WorkflowStatus::Failed
+    || ($run?->status === WorkflowStatus::Running && $run->leaseExpiresAt !== null && $run->leaseExpiresAt <= time());
+
+if ($dead) {
+    $agent->run(ExecutionRequest::resume(expectedRunId: $run->runId, expectedExecutionAttempt: $run->executionAttempt));
+}
+
+$agent->chat($message);
+```
+
+The fenced resume also takes over the run of a killed process once its lease has
+expired, which a plain `run()` would supersede instead.
 
 A **pending approval** does lock the thread: a `chat()` while the run is
 suspended throws `RunInFlightException`, whose `interrupt` property carries the
@@ -567,9 +669,9 @@ to re-render the pending decision, and settle it with `submitApprovalDecisions($
 
 `abandon()` discards an eligible paused, failed, or dead run without starting
 another and returns `false` when none exists. Agent refuses abandonment while
-history ends in an unanswered tool call, including approval and deferred-result
-waits. Settle that call first, or use `resetConversation()` to abandon the run
-and clear chat history. Reset bypasses the unanswered-call check,
+the run waits for a tool call's approval or deferred result. Settle that call
+first, or use `resetConversation()` to abandon the run and clear chat history.
+Reset bypasses that check,
 but still respects live execution leases and retained-completion guards.
 
 Every Agent run holds a **ten-minute lease** by default. A process killed with
@@ -578,13 +680,13 @@ OOM-killed container) leaves the thread `running`; once the lease deadline
 passes, the next `chat()` supersedes the dead run instead of refusing. Raise it
 above your slowest provider or tool call with `setLeaseTimeout()` or by
 overriding `leaseTimeout()`; `null` disables it, in which case a killed
-process strands the thread until `resume()->run()` takes it over. A suspended run holds
+process strands the thread until `run(ExecutionRequest::resume())` takes it over. A suspended run holds
 no lease. Default tool approval has no deadline; custom wait deadlines still
 need an inputless continuation to be evaluated.
 
 Successful runs release their persistence partition by default. For durable
 completion delivery, opt into `retainCompletionUntilAcknowledged()`, retrieve
-retained state with `resume()->run()`, and release that exact generation with
+retained state with `run(ExecutionRequest::resume())`, and release that exact generation with
 `acknowledge($runId)`. Retained completion blocks a new turn until
 acknowledged. File persistence is for controlled single-process use; choose
 `DatabasePersistence`, `EloquentPersistence`, or `RedisPersistence` for

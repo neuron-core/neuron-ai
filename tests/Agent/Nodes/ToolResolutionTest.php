@@ -82,7 +82,7 @@ class ToolResolutionTest extends TestCase
         $this->expectException(ToolException::class);
         $this->expectExceptionMessageMatches('/removed_tool/');
 
-        $this->drain($node, $event, $state, AgentResourcesFactory::make([$offered]));
+        $this->drain($node, $event, $state, AgentResourcesFactory::make([$offered], AgentResourcesFactory::askedHistory()));
     }
 
     public function test_every_segment_registers_the_agent_tools(): void
@@ -197,7 +197,7 @@ class ToolResolutionTest extends TestCase
         // Recovery: ChatNode #1 and ToolNode #1 replay from cache; ChatNode #2
         // runs live and must see the agent's tools on its inference request.
         // The durable history at crash time carries what the completed steps
-        // wrote: the user turn and the tool call message.
+        // wrote: the user turn, the tool call and its result.
         $provider2 = new FakeAIProvider(new AssistantMessage('Recovered answer.'));
 
         $messages2 = new InMemoryMessageStore();
@@ -205,6 +205,9 @@ class ToolResolutionTest extends TestCase
         $history2->addMessage(new UserMessage('Search for PHP frameworks'));
         $history2->addMessage(new ToolCallMessage(null, [
             ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks']),
+        ]));
+        $history2->addMessage(new ToolResultMessage([
+            ToolCall::make($searchTool->getName(), 'call_1', ['query' => 'PHP frameworks'])->setResult('Laravel, Symfony'),
         ]));
 
         $agent2 = Agent::make(workflowId: $workflowId);

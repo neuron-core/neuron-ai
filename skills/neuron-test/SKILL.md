@@ -460,6 +460,7 @@ class MyMiddlewareTest extends TestCase
 ### Testing Workflow Interruption
 
 ```php
+use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 
 class MyInterruptTest extends TestCase
@@ -481,7 +482,7 @@ class MyInterruptTest extends TestCase
         $this->assertSame('human input needed', $state->getInterruptRequest()->getMessage());
 
         // Resume with the human answer
-        $finalState = $workflow->resume(['approved' => true])->run();
+        $finalState = $workflow->run(ExecutionRequest::resume(['approved' => true]));
 
         $this->assertFalse($finalState->isInterrupted());
         $this->assertTrue($finalState->get('interruptable_node_executed'));

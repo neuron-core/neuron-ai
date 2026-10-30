@@ -379,9 +379,9 @@ class AgentTest extends TestCase
         }
 
         $provider->assertCallCount(1);
-        // The history tail stays at the last committed message, never at a dangling tool call.
+        // The call was written before the tool ran: the history ends with it, and the next run answers it.
         $this->assertSame(
-            [UserMessage::class],
+            [UserMessage::class, ToolCallMessage::class],
             array_map(static fn (Message $message): string => $message::class, $agent->getChatHistory()->getMessages())
         );
     }

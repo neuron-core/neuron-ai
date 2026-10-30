@@ -12,15 +12,20 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
+use NeuronAI\Tests\Agent\Stub\ReviewedAgent;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
- * Abandoning at the Agent level: a dead turn is discarded freely (its inbound
- * message was never committed), while a turn paused on an approval refuses,
- * because its pre-suspend ToolCallMessage would be left unanswered in history.
+ * Abandoning at the Agent level: a dead turn is discarded freely, even one
+ * whose tool call has no result, because the next run answers that call.
+ * A run waiting for an approval or a tool result refuses: the next run would
+ * answer the call with an interruption error instead of the user's decision.
  * resetConversation() frees the thread unconditionally since it wipes history.
  */
 class AgentAbandonTest extends TestCase
@@ -29,13 +34,13 @@ class AgentAbandonTest extends TestCase
         FakeAIProvider $provider,
         InMemoryMessageStore $messageStore,
         InMemoryPersistence $persistence,
-        ?SearchTool $tool = null,
+        ?ToolInterface $tool = null,
     ): Agent {
         $agent = Agent::make(workflowId: 'thread');
         $agent->setMessageStore($messageStore);
         $agent->setAiProvider($provider);
         $agent->setPersistence($persistence);
-        if ($tool instanceof SearchTool) {
+        if ($tool instanceof ToolInterface) {
             $agent->addTool($tool);
         }
 
@@ -100,6 +105,44 @@ class AgentAbandonTest extends TestCase
 
         $this->assertNull($persistence->get($threadId, '__control'));
         $this->assertCount(0, $messageStore->loadActive('thread'));
+    }
+
+    public function test_abandon_discards_a_failed_run_whose_tool_call_has_no_result(): void
+    {
+        $messageStore = new InMemoryMessageStore();
+        $persistence = new InMemoryPersistence();
+        $tool = new CrashSearchTool();
+        $provider = new FakeAIProvider(
+            new ToolCallMessage(null, [ToolCall::make($tool->getName(), 'call_1', ['query' => 'PHP frameworks'])]),
+        );
+
+        try {
+            $this->makeAgent($provider, $messageStore, $persistence, $tool)->chat(new UserMessage('Search for PHP frameworks'));
+            $this->fail('Expected the tool failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Simulated crash', $exception->getMessage());
+        }
+        $this->assertInstanceOf(ToolCallMessage::class, $messageStore->loadActive('thread')[1]);
+
+        // Nothing waits for a decision or a result.
+        $this->assertTrue($this->makeAgent($provider, $messageStore, $persistence, $tool)->abandon());
+        $this->assertNull($persistence->get('thread', '__control'));
+    }
+
+    public function test_abandon_discards_a_run_suspended_on_an_approval_no_tool_call_waits_for(): void
+    {
+        $messageStore = new InMemoryMessageStore();
+        $persistence = new InMemoryPersistence();
+        $provider = new FakeAIProvider(new AssistantMessage('Here is the answer.'));
+        $agent = fn (): Agent => ReviewedAgent::make(workflowId: 'thread')
+            ->setMessageStore($messageStore)
+            ->setAiProvider($provider)
+            ->setPersistence($persistence);
+
+        $this->assertTrue($agent()->chat(new UserMessage('Question'))->isInterrupted());
+
+        $this->assertTrue($agent()->abandon());
+        $this->assertNull($persistence->get('thread', '__control'));
     }
 
     public function test_abandon_reports_nothing_in_flight_as_false(): void
