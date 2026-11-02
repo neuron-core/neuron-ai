@@ -10,6 +10,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\JudgeScoreOutput;
 use NeuronAI\Evaluation\Conversation\Trajectory;
+use NeuronAI\Evaluation\Usage\UsageMeter;
 use NeuronAI\UniqueIdGenerator;
 
 use function get_debug_type;
@@ -53,7 +54,7 @@ class AgentJudge extends AbstractAssertion
         // Every judgment runs on a copy of its own: earlier judgments never reach
         // it, and the judge an evaluator shares across items is never modified.
         /** @var JudgeScoreOutput $result */
-        $result = $this->judge->for(UniqueIdGenerator::generateId('judge_'))->structured(
+        $result = UsageMeter::watch($this->judge->for(UniqueIdGenerator::generateId('judge_')))->structured(
             new UserMessage($prompt),
             JudgeScoreOutput::class
         );

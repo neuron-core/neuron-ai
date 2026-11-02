@@ -11,6 +11,7 @@ use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 use RuntimeException;
 use JsonException;
 
@@ -107,6 +108,12 @@ class JsonOutput implements EvaluationOutputInterface
             'failed' => $results->getFailedCount(),
             'success_rate' => $results->getSuccessRate(),
             'average_execution_time' => $results->getAverageExecutionTime(),
+            'average_run_time' => $results->getAverageRunTime(),
+            'average_evaluation_time' => $results->getAverageEvaluationTime(),
+            'run_usage' => $this->usageToArray($results->getRunUsage()),
+            'judge_usage' => $this->usageToArray($results->getJudgeUsage()),
+            'reruns' => $results->getRerunCount(),
+            'warnings' => $results->getWarnings(),
             'total_assertions' => $results->getTotalAssertions(),
             'assertions_passed' => $results->getTotalAssertionsPassed(),
             'assertions_failed' => $results->getTotalAssertionsFailed(),
@@ -126,6 +133,11 @@ class JsonOutput implements EvaluationOutputInterface
                     'input' => $r->getInput(),
                     'output' => $this->formatOutput($r->getOutput()),
                     'execution_time' => $r->getExecutionTime(),
+                    'run_time' => $r->getRunTime(),
+                    'evaluation_time' => $r->getEvaluationTime(),
+                    'run_usage' => $this->usageToArray($r->getRunUsage()),
+                    'judge_usage' => $this->usageToArray($r->getJudgeUsage()),
+                    'reruns' => array_map($this->rerunToArray(...), $r->getReruns()),
                     'cached_run' => $r->isCachedRun(),
                     'error' => $r->getError(),
                     'assertions_passed' => $r->getAssertionsPassed(),
@@ -136,12 +148,39 @@ class JsonOutput implements EvaluationOutputInterface
                             'label' => $s->label,
                             'value' => $s->value,
                             'passed' => $s->passed,
+                            'assertion' => $s->assertion,
+                            'message' => $s->message,
+                            'line' => $s->line,
                         ],
                         $r->getScoreRecords()
                     ),
                 ],
                 $results->getResults()
             ),
+        ];
+    }
+
+    /**
+     * @param array<ModelUsage> $usage
+     * @return array<array<string, mixed>>
+     */
+    protected function usageToArray(array $usage): array
+    {
+        return array_map(fn (ModelUsage $record): array => $record->toArray(), $usage);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function rerunToArray(EvaluatorResult $rerun): array
+    {
+        return [
+            'passed' => $rerun->isPassed(),
+            'error' => $rerun->getError(),
+            'run_time' => $rerun->getRunTime(),
+            'evaluation_time' => $rerun->getEvaluationTime(),
+            'run_usage' => $this->usageToArray($rerun->getRunUsage()),
+            'judge_usage' => $this->usageToArray($rerun->getJudgeUsage()),
         ];
     }
 

@@ -13,6 +13,8 @@ use NeuronAI\Tests\Support\LocatesSourceLines;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
+use function array_map;
+
 class RuleExecutorTest extends TestCase
 {
     use LocatesSourceLines;
@@ -40,8 +42,8 @@ class RuleExecutorTest extends TestCase
 
         $this->assertEquals(
             [
-                new Score('FixedResultAssertion', 0.9, true),
-                new Score('quality', 0.2, false),
+                new Score('FixedResultAssertion', 0.9, true, 'FixedResultAssertion', '', 10),
+                new Score('quality', 0.2, false, 'FixedResultAssertion', 'too low', 10),
             ],
             $executor->snapshot()->scores
         );
@@ -144,7 +146,20 @@ class RuleExecutorTest extends TestCase
         $this->assertSame(0, $second->failedCount);
         $this->assertSame(1, $second->passedCount);
         $this->assertSame([], $second->failures);
-        $this->assertEquals([new Score('second', 1.0, true)], $second->scores);
+        $this->assertSame(['second'], array_map(fn (Score $score): string => $score->label, $second->scores));
+    }
+
+    public function test_a_score_keeps_the_assertion_the_message_and_the_line_whatever_its_label_and_outcome(): void
+    {
+        $executor = new RuleExecutor(AssertingEvaluator::class);
+
+        $executor->execute(new FixedResultAssertion(AssertionResult::pass(0.9, 'Reads well.')), 'actual', 7, 'tone');
+
+        $score = $executor->snapshot()->scores[0];
+        $this->assertSame(
+            ['tone', 'FixedResultAssertion', 'Reads well.', 7],
+            [$score->label, $score->assertion, $score->message, $score->line],
+        );
     }
 
     public function test_a_failure_records_the_evaluator_and_the_line_it_is_given(): void

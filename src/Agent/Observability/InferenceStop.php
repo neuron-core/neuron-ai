@@ -6,13 +6,15 @@ namespace NeuronAI\Agent\Observability;
 
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\ProviderResponse;
 
 class InferenceStop extends ObservabilityEvent
 {
     public function __construct(
         public Message|false $message,
-        public ProviderResponse $response
+        public ProviderResponse $response,
+        public AIProviderInterface $provider
     ) {
     }
 

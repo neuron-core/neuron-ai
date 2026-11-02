@@ -596,6 +596,25 @@ class GeminiTest extends TestCase
         $this->assertSame([12, 5, 3, 7], [$usage->inputTokens, $usage->outputTokens, $usage->cachedInputTokens, $usage->reasoningTokens]);
     }
 
+    public function test_what_a_provider_tool_read_stays_out_of_the_input_tokens_and_goes_in_the_metadata(): void
+    {
+        $provider = $this->provider(self::answer([['text' => 'ok']]) + ['usageMetadata' => [
+            'promptTokenCount' => 27, 'candidatesTokenCount' => 45, 'toolUsePromptTokenCount' => 10309,
+        ]]);
+
+        $message = $provider->chat(new UserMessage('Hi'))->message();
+
+        $this->assertSame(27, $message->getUsage()->inputTokens);
+        $this->assertSame(10309, $message->getMetadata('toolInputTokens'));
+    }
+
+    public function test_a_call_with_no_provider_tool_has_no_tool_input_tokens(): void
+    {
+        $provider = $this->provider(self::answer([['text' => 'ok']]) + ['usageMetadata' => ['promptTokenCount' => 27, 'candidatesTokenCount' => 45]]);
+
+        $this->assertNull($provider->chat(new UserMessage('Hi'))->message()->getMetadata('toolInputTokens'));
+    }
+
     public function test_thought_parts_become_reasoning_blocks_and_signatures_are_kept(): void
     {
         $provider = $this->provider(self::answer([

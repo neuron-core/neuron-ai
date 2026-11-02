@@ -159,6 +159,10 @@ trait HandleChat
                     $result['usageMetadata']['thoughtsTokenCount'] ?? 0,
                 )
             );
+
+            if (($toolInputTokens = $result['usageMetadata']['toolUsePromptTokenCount'] ?? 0) > 0) {
+                $message->addMetadata('toolInputTokens', $toolInputTokens);
+            }
         }
 
         $message->setStopReason($finishReason);

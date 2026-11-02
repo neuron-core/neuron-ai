@@ -11,6 +11,8 @@ use NeuronAI\Evaluation\Output\JsonOutput;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
+use NeuronAI\Evaluation\Score;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\Tests\Evaluation\Stub\EvaluationReportFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -38,6 +40,12 @@ class JsonOutputTest extends TestCase
         'failed',
         'success_rate',
         'average_execution_time',
+        'average_run_time',
+        'average_evaluation_time',
+        'run_usage',
+        'judge_usage',
+        'reruns',
+        'warnings',
         'total_assertions',
         'assertions_passed',
         'assertions_failed',
@@ -61,7 +69,8 @@ class JsonOutputTest extends TestCase
         );
         $this->assertSame(
             [
-                'evaluator_class', 'index', 'passed', 'input', 'output', 'execution_time', 'cached_run', 'error',
+                'evaluator_class', 'index', 'passed', 'input', 'output', 'execution_time', 'run_time', 'evaluation_time',
+                'run_usage', 'judge_usage', 'reruns', 'cached_run', 'error',
                 'assertions_passed', 'assertions_failed', 'assertion_scores', 'scores',
             ],
             array_keys($data['results'][0])
@@ -92,6 +101,49 @@ class JsonOutputTest extends TestCase
         $this->assertTrue($data['has_failures']);
     }
 
+    public function test_a_measured_item_reports_its_times_its_usage_and_its_reruns(): void
+    {
+        $usage = new ModelUsage('OpenAI', 'gpt', 1, 100, 20, 40, 30, 5);
+        $judge = new ModelUsage('Anthropic', 'claude', 1, 10, 5, 4, 3, 2);
+        $rerun = new EvaluatorResult('App\\Eval', 0, true, [], 'ok', 0.5, 1, 0, runTime: 0.25, evaluationTime: 0.125, runUsage: [$usage], judgeUsage: [$judge]);
+        $results = new EvaluationResults([
+            new EvaluatorResult('App\\Eval', 0, false, [], 'no', 1.0, 0, 1, runTime: 0.75, evaluationTime: 0.25, runUsage: [$usage], judgeUsage: [$judge], reruns: [$rerun]),
+        ], ['Mind the cache']);
+
+        $data = $this->decode(EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $record = ['provider' => 'OpenAI', 'model' => 'gpt', 'calls' => 1, 'input_tokens' => 100, 'output_tokens' => 20, 'cached_input_tokens' => 40, 'cache_write_tokens' => 30, 'reasoning_tokens' => 5];
+        $judgeRecord = ['provider' => 'Anthropic', 'model' => 'claude', 'calls' => 1, 'input_tokens' => 10, 'output_tokens' => 5, 'cached_input_tokens' => 4, 'cache_write_tokens' => 3, 'reasoning_tokens' => 2];
+        $this->assertEqualsWithDelta(0.75, $data['average_run_time'], 1e-12);
+        $this->assertEqualsWithDelta(0.25, $data['average_evaluation_time'], 1e-12);
+        $this->assertSame(['Mind the cache'], $data['warnings']);
+        $this->assertSame(1, $data['reruns']);
+        $this->assertEquals([['calls' => 2, 'input_tokens' => 200, 'output_tokens' => 40, 'cached_input_tokens' => 80, 'cache_write_tokens' => 60, 'reasoning_tokens' => 10] + $record], $data['run_usage']);
+        $this->assertEquals([['calls' => 2, 'input_tokens' => 20, 'output_tokens' => 10, 'cached_input_tokens' => 8, 'cache_write_tokens' => 6, 'reasoning_tokens' => 4] + $judgeRecord], $data['judge_usage']);
+        $this->assertEquals([$record], $data['results'][0]['run_usage']);
+        $this->assertEquals([$judgeRecord], $data['results'][0]['judge_usage']);
+        $this->assertEqualsWithDelta(0.75, $data['results'][0]['run_time'], 1e-12);
+        $this->assertEqualsWithDelta(0.25, $data['results'][0]['evaluation_time'], 1e-12);
+        $this->assertEquals(
+            [['passed' => true, 'error' => null, 'run_time' => 0.25, 'evaluation_time' => 0.125, 'run_usage' => [$record], 'judge_usage' => [$judgeRecord]]],
+            $data['results'][0]['reruns'],
+        );
+    }
+
+    public function test_a_score_carries_its_assertion_its_message_and_its_line(): void
+    {
+        $results = new EvaluationResults([
+            new EvaluatorResult('App\\Eval', 0, true, [], 'yes', 1.0, 1, 0, [], [new Score('tone', 0.9, true, 'AgentJudge', 'Reads well.', 31)]),
+        ]);
+
+        $data = $this->decode(EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $this->assertEquals(
+            [['label' => 'tone', 'value' => 0.9, 'passed' => true, 'assertion' => 'AgentJudge', 'message' => 'Reads well.', 'line' => 31]],
+            $data['results'][0]['scores'],
+        );
+    }
+
     public function test_result_entries(): void
     {
         $results = $this->decode(EvaluationReportFixture::mixed())['results'];
@@ -106,14 +158,19 @@ class JsonOutputTest extends TestCase
                 'input' => ['q' => 'refund'],
                 'output' => '{"status":"denied"}',
                 'execution_time' => 0.5,
+                'run_time' => null,
+                'evaluation_time' => null,
+                'run_usage' => [],
+                'judge_usage' => [],
+                'reruns' => [],
                 'cached_run' => false,
                 'error' => null,
                 'assertions_passed' => 1,
                 'assertions_failed' => 1,
                 'assertion_scores' => [0, 0.8],
                 'scores' => [
-                    ['label' => 'ToolWasCalled', 'value' => 0, 'passed' => false],
-                    ['label' => 'quality', 'value' => 0.8, 'passed' => true],
+                    ['label' => 'ToolWasCalled', 'value' => 0, 'passed' => false, 'assertion' => null, 'message' => '', 'line' => null],
+                    ['label' => 'quality', 'value' => 0.8, 'passed' => true, 'assertion' => null, 'message' => '', 'line' => null],
                 ],
             ],
             $results[1]

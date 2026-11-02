@@ -28,14 +28,21 @@ class RuleExecutor
     /**
      * Execute an evaluation rule and track the result
      *
-     * @param int $line Where the evaluator asserted, reported with a failure.
+     * @param int $line Where the evaluator asserted, reported with the score and any failure.
      */
     public function execute(AssertionInterface $rule, mixed $actual, int $line, ?string $label = null): bool
     {
         $result = $rule->evaluate($actual);
 
         // Track the score regardless of pass/fail
-        $this->scores[] = new Score($label ?? $rule->getName(), $result->score, $result->passed);
+        $this->scores[] = new Score(
+            $label ?? $rule->getName(),
+            $result->score,
+            $result->passed,
+            $rule->getName(),
+            $result->message,
+            $line,
+        );
 
         if ($result->passed) {
             $this->passedCount++;

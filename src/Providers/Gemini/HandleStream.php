@@ -102,6 +102,7 @@ trait HandleStream
                 $this->streamState->getUsage()->outputTokens = $line['usageMetadata']['candidatesTokenCount'] ?? 0;
                 $this->streamState->getUsage()->cachedInputTokens = $line['usageMetadata']['cachedContentTokenCount'] ?? 0;
                 $this->streamState->getUsage()->reasoningTokens = $line['usageMetadata']['thoughtsTokenCount'] ?? 0;
+                $this->streamState->addMetadata('toolInputTokens', $line['usageMetadata']['toolUsePromptTokenCount'] ?? $this->streamState->getMetadata('toolInputTokens'));
             }
 
             if (isset($line['promptFeedback']['blockReason'])) {
@@ -140,6 +141,7 @@ trait HandleStream
                     $this->streamState->getContentBlocks(),
                     $this->streamState->getToolCalls()
                 )->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+                $this->addToolInputTokens($message);
                 return new ProviderResponse(message: $message);
             }
 
@@ -155,11 +157,14 @@ trait HandleStream
 
         // The last candidate carries the finish reason: without it the stream ended early
         if ($lastFinishReason === null) {
-            return $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+            $response = $this->earlyEndResponse($stream, $this->streamState->getContentBlocks(), $this->streamState->messageId(), $this->streamState->getUsage());
+            $this->addToolInputTokens($response->message());
+            return $response;
         }
 
         $message = new AssistantMessage($this->streamState->getContentBlocks());
         $message->setId($this->streamState->messageId())->setUsage($this->streamState->getUsage());
+        $this->addToolInputTokens($message);
 
         $message->setStopReason($lastFinishReason);
 
@@ -168,6 +173,13 @@ trait HandleStream
         }
 
         return new ProviderResponse(message: $message);
+    }
+
+    protected function addToolInputTokens(Message $message): void
+    {
+        if ($this->streamState->getMetadata('toolInputTokens') > 0) {
+            $message->addMetadata('toolInputTokens', $this->streamState->getMetadata('toolInputTokens'));
+        }
     }
 
     /**

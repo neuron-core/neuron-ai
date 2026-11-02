@@ -442,6 +442,15 @@ class TrajectoryTest extends TestCase
         $this->assertSame(12, $usage->reasoningTokens);
     }
 
+    public function test_usage_counts_what_a_provider_tool_read_as_input(): void
+    {
+        $answer = new AssistantMessage('Done.');
+        $answer->setUsage(new Usage(27, 45));
+        $answer->addMetadata('toolInputTokens', 10309);
+
+        $this->assertSame(27 + 10309, Trajectory::fromMessages([new UserMessage('Read this page'), $answer])->usage()->inputTokens);
+    }
+
     public function test_usage_does_not_mutate_the_messages_usage(): void
     {
         $answer = new AssistantMessage('Hi!');

@@ -18,6 +18,7 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
+use NeuronAI\HttpClient\StoppableHttpClient;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronAI\Tests\Support\ConsumesProviderStreams;
 use NeuronAI\Tests\Support\PhpWarningsAsExceptions;
@@ -25,6 +26,7 @@ use NeuronAI\Tests\Support\RecordsHttpRequests;
 use NeuronAI\Tests\Tools\Stub\ToolStub;
 use NeuronAI\Tools\ProviderTool;
 use NeuronAI\Tools\ProviderToolInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function iterator_to_array;
@@ -256,6 +258,92 @@ class GeminiStreamTest extends TestCase
         $this->assertSame('https://generativelanguage.googleapis.com/v1beta/files/abc', $file->content);
         $this->assertSame(SourceType::URL, $file->sourceType);
         $this->assertSame('application/pdf', $file->mediaType);
+    }
+
+    public function test_a_stream_keeps_what_a_provider_tool_read_in_the_metadata_of_its_answer(): void
+    {
+        $usage = ['promptTokenCount' => 27, 'candidatesTokenCount' => 45, 'toolUsePromptTokenCount' => 10309];
+        $provider = $this->provider([self::candidate([['text' => 'Hi']], 'STOP') + ['usageMetadata' => $usage]]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertSame(27, $message->getUsage()->inputTokens);
+        $this->assertSame(10309, $message->getMetadata('toolInputTokens'));
+    }
+
+    /**
+     * @param array<string, int> $first
+     * @param array<string, int> $last
+     */
+    #[DataProvider('usageFramesWithToolTokens')]
+    public function test_a_stream_counts_what_a_provider_tool_read_once_whichever_frames_report_it(array $first, array $last): void
+    {
+        $counts = ['promptTokenCount' => 27, 'candidatesTokenCount' => 45];
+        $provider = $this->provider([
+            self::candidate([['text' => 'Hel']]) + ['usageMetadata' => $counts + $first],
+            self::candidate([['text' => 'lo']], 'STOP') + ['usageMetadata' => $counts + $last],
+        ]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertSame(10309, $message->getMetadata('toolInputTokens'));
+    }
+
+    /**
+     * @return array<string, array{array<string, int>, array<string, int>}>
+     */
+    public static function usageFramesWithToolTokens(): array
+    {
+        $reported = ['toolUsePromptTokenCount' => 10309];
+
+        return [
+            'every frame' => [$reported, $reported],
+            'only the last frame' => [[], $reported],
+            'only the first frame' => [$reported, []],
+        ];
+    }
+
+    public function test_a_stream_ending_in_a_tool_call_keeps_what_a_provider_tool_read(): void
+    {
+        $usage = ['promptTokenCount' => 27, 'candidatesTokenCount' => 45, 'toolUsePromptTokenCount' => 10309];
+        $provider = $this->provider([
+            self::candidate([['functionCall' => ['id' => 'fc-1', 'name' => 'get_weather', 'args' => []]]], 'STOP') + ['usageMetadata' => $usage],
+        ]);
+        $provider->setTools([new ToolStub('get_weather', 'Weather lookup')]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Weather?')));
+
+        $this->assertInstanceOf(ToolCallMessage::class, $message);
+        $this->assertSame(10309, $message->getMetadata('toolInputTokens'));
+    }
+
+    public function test_a_stopped_stream_keeps_what_a_provider_tool_read(): void
+    {
+        $usage = ['promptTokenCount' => 27, 'candidatesTokenCount' => 45, 'toolUsePromptTokenCount' => 10309];
+        $stopped = false;
+        $client = $this->recordingClient(new Response(200, body: self::sseBody([
+            self::candidate([['text' => 'Hel']]) + ['usageMetadata' => $usage],
+            self::candidate([['text' => 'lo']], 'STOP'),
+        ], "\r\n")));
+        $provider = new Gemini(self::SECRET, 'gemini-2.5-flash', httpClient: new StoppableHttpClient($client, function () use (&$stopped): bool {
+            return $stopped;
+        }));
+
+        $answer = $provider->stream(new UserMessage('Hi'));
+        foreach ($answer as $chunk) {
+            $stopped = true;
+        }
+
+        $this->assertSame(10309, $answer->getReturn()->message()->getMetadata('toolInputTokens'));
+    }
+
+    public function test_a_stream_with_no_provider_tool_has_no_tool_input_tokens(): void
+    {
+        $provider = $this->provider([self::candidate([['text' => 'Hi']], 'STOP') + ['usageMetadata' => ['promptTokenCount' => 27, 'candidatesTokenCount' => 45]]]);
+
+        [, $message] = $this->consumeStream($provider->stream(new UserMessage('Hi')));
+
+        $this->assertNull($message->getMetadata('toolInputTokens'));
     }
 
     public function test_tool_call_with_finish_reason_in_the_same_chunk_returns_tool_call_message(): void

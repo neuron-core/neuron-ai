@@ -13,6 +13,7 @@ use NeuronAI\Agent\Interrupt\ToolResultsRequest;
 use NeuronAI\Agent\Interrupt\ToolResultsTranslator;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\EvaluationException;
+use NeuronAI\Evaluation\Usage\UsageMeter;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\StaticConstructor;
 use NeuronAI\UniqueIdGenerator;
@@ -117,7 +118,7 @@ class Conversation
             );
         }
 
-        $this->dialogue = $this->agent->for(UniqueIdGenerator::generateId('eval_'));
+        $this->dialogue = UsageMeter::watch($this->agent->for(UniqueIdGenerator::generateId('eval_')));
 
         foreach ($this->turns as $turn) {
             $this->deliver(is_string($turn) ? new UserMessage($turn) : $turn);
@@ -132,9 +133,11 @@ class Conversation
      */
     protected function runSimulated(): Trajectory
     {
+        $this->dialogue = UsageMeter::watch($this->agent->for(UniqueIdGenerator::generateId('eval_')));
+
+        // A copy, so the simulator an evaluator shares across items keeps no listener of this run
         /** @var UserSimulator $user */
-        $user = $this->user;
-        $this->dialogue = $this->agent->for(UniqueIdGenerator::generateId('eval_'));
+        $user = UsageMeter::watch(clone $this->user);
 
         for ($turn = 0; $turn < $this->maxTurns; $turn++) {
             $message = $user->nextTurn($this->soFar());

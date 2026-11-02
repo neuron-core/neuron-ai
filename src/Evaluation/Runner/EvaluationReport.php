@@ -29,14 +29,19 @@ class EvaluationReport
     public function getResults(): EvaluationResults
     {
         $results = [];
+        $warnings = [];
 
         foreach ($this->evaluatorReports as $report) {
             foreach ($report->getResults()->getResults() as $result) {
                 $results[] = $result;
             }
+
+            foreach ($report->getResults()->getWarnings() as $warning) {
+                $warnings[] = $warning;
+            }
         }
 
-        return new EvaluationResults($results);
+        return new EvaluationResults($results, $warnings);
     }
 
     public function getStartedAt(): DateTimeImmutable

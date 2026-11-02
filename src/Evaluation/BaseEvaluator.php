@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronAI\Evaluation;
 
+use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Evaluation\Contracts\AssertionInterface;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\Usage\UsageMeter;
 
 use function debug_backtrace;
 
@@ -71,6 +73,20 @@ abstract class BaseEvaluator implements EvaluatorInterface
         $this->evaluate($output, $datasetItem);
 
         return $this->ruleExecutor->snapshot();
+    }
+
+    /**
+     * Count the tokens of an agent run() calls directly, reported per dataset
+     * item: once in setUp() or on every item, both count each call once.
+     * Conversations and judges need none of this: they count their own.
+     *
+     * @template T of AgentInterface
+     * @param T $agent
+     * @return T
+     */
+    protected function metered(AgentInterface $agent): AgentInterface
+    {
+        return UsageMeter::watch($agent);
     }
 
     /**

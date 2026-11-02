@@ -12,12 +12,14 @@ use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\Tests\Evaluation\Stub\EvaluationReportFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use function ob_get_clean;
 use function ob_start;
+use function substr_count;
 
 class ConsoleOutputTest extends TestCase
 {
@@ -220,6 +222,69 @@ class ConsoleOutputTest extends TestCase
         (new ConsoleOutput($verbose))->printProgressSymbol($passed);
 
         $this->assertSame($symbol, ob_get_clean());
+    }
+
+    public function test_a_rerun_that_errored_is_said_apart_from_one_that_failed(): void
+    {
+        $results = new EvaluationResults([
+            new EvaluatorResult('App\\Eval', 0, false, [], 'no', 1.0, 0, 1, reruns: [
+                new EvaluatorResult('App\\Eval', 0, false, [], null, 0.5, 0, 0, [], [], 'RuntimeException: 429'),
+                new EvaluatorResult('App\\Eval', 0, false, [], 'no', 0.5, 0, 1),
+            ]),
+        ]);
+
+        $output = $this->render(new ConsoleOutput(), EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $this->assertStringContainsString('Re-runs: 0 of 2 passed, 1 errored', $output);
+    }
+
+    public function test_the_evaluation_time_is_printed_when_every_run_came_from_the_cache(): void
+    {
+        $results = new EvaluationResults([
+            new EvaluatorResult('App\\Eval', 0, true, [], 'yes', 1.0, 1, 0, cachedRun: true, evaluationTime: 0.25),
+        ]);
+
+        $output = $this->render(new ConsoleOutput(), EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $this->assertStringContainsString('Average evaluation time: 0.25s', $output);
+        $this->assertStringNotContainsString('Average run time', $output);
+    }
+
+    public function test_a_warning_is_printed_once_with_its_control_characters_escaped(): void
+    {
+        $results = new EvaluationResults([], ["Mind \033[2Jthe cache"]);
+
+        $output = $this->render(new ConsoleOutput(), EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $this->assertSame(1, substr_count($output, 'Warning: Mind \\033[2Jthe cache'));
+    }
+
+    public function test_times_tokens_and_reruns_are_printed_when_they_were_measured(): void
+    {
+        $usage = new ModelUsage('OpenAI', 'gpt', 1, 100, 20);
+        $rerun = new EvaluatorResult('App\\Eval', 0, true, [], 'ok', 0.5, 1, 0);
+        $results = new EvaluationResults([
+            new EvaluatorResult('App\\Eval', 0, false, [], 'no', 1.0, 0, 1, runTime: 0.75, evaluationTime: 0.25, runUsage: [$usage], judgeUsage: [new ModelUsage('OpenAI', 'gpt', 1, 10, 5)], reruns: [$rerun]),
+        ]);
+
+        $output = $this->render(new ConsoleOutput(), EvaluationReportFixture::report(EvaluationReportFixture::evaluatorReport('App\\Eval', $results)));
+
+        $this->assertStringContainsString('Average run time: 0.75s', $output);
+        $this->assertStringContainsString('Average evaluation time: 0.25s', $output);
+        $this->assertStringContainsString('Re-runs of failed items: 1', $output);
+        $this->assertStringContainsString('Re-runs: 1 of 1 passed', $output);
+        $this->assertStringContainsString("Agent tokens: 100 in, 20 out\n", $output);
+        $this->assertStringContainsString("Judges tokens: 10 in, 5 out\n", $output);
+    }
+
+    public function test_nothing_is_said_about_what_was_not_measured(): void
+    {
+        $output = $this->render(new ConsoleOutput(), EvaluationReportFixture::mixed());
+
+        $this->assertStringNotContainsString('Average run time', $output);
+        $this->assertStringNotContainsString('Average evaluation time', $output);
+        $this->assertStringNotContainsString('tokens', $output);
+        $this->assertStringNotContainsString('Re-run', $output);
     }
 
     protected function render(ConsoleOutput $console, EvaluationReport $report): string

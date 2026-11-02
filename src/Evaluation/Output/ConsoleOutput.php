@@ -9,10 +9,12 @@ use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 
 use function addcslashes;
 use function array_count_values;
 use function array_map;
+use function array_sum;
 use function array_unique;
 use function count;
 use function implode;
@@ -62,6 +64,10 @@ class ConsoleOutput implements EvaluationOutputInterface
 
         $totalTime = round($suite->getDuration(), 3);
         $avgTime = round($results->getAverageExecutionTime(), 3);
+
+        foreach ($results->getWarnings() as $warning) {
+            echo "Warning: {$this->escapeControlCharacters($warning)}\n\n";
+        }
 
         $this->printEvaluatorErrors($suite, $evaluatorLabels);
         if ($results->hasFailures()) {
@@ -156,6 +162,8 @@ class ConsoleOutput implements EvaluationOutputInterface
             );
         }
 
+        $this->printSpend($results, $indent);
+
         if ($results->getAllAssertionScores() === []) {
             return;
         }
@@ -177,6 +185,44 @@ class ConsoleOutput implements EvaluationOutputInterface
                 $stats['count'],
             );
         }
+    }
+
+    protected function printSpend(EvaluationResults $results, string $indent): void
+    {
+        $runTime = $results->getAverageRunTime();
+        $evaluationTime = $results->getAverageEvaluationTime();
+
+        if ($runTime !== null) {
+            echo $indent . sprintf("Average run time: %ss\n", round($runTime, 3));
+        }
+
+        if ($evaluationTime !== null) {
+            echo $indent . sprintf("Average evaluation time: %ss\n", round($evaluationTime, 3));
+        }
+
+        if ($results->getRerunCount() > 0) {
+            echo $indent . sprintf("Re-runs of failed items: %d\n", $results->getRerunCount());
+        }
+
+        $this->printUsage('Agent', $results->getRunUsage(), $indent);
+        $this->printUsage('Judges', $results->getJudgeUsage(), $indent);
+    }
+
+    /**
+     * @param array<ModelUsage> $usage
+     */
+    protected function printUsage(string $title, array $usage, string $indent): void
+    {
+        if ($usage === []) {
+            return;
+        }
+
+        echo $indent . sprintf(
+            "%s tokens: %d in, %d out\n",
+            $title,
+            array_sum(array_map(fn (ModelUsage $record): int => $record->inputTokens, $usage)),
+            array_sum(array_map(fn (ModelUsage $record): int => $record->outputTokens, $usage)),
+        );
     }
 
     /**
@@ -225,6 +271,15 @@ class ConsoleOutput implements EvaluationOutputInterface
                     "   Assertions: %d passed, %d failed\n",
                     $result->getAssertionsPassed(),
                     $result->getAssertionsFailed()
+                );
+            }
+
+            if ($result->getReruns() !== []) {
+                echo sprintf(
+                    "   Re-runs: %d of %d passed%s\n",
+                    $result->getRerunsPassed(),
+                    count($result->getReruns()),
+                    $result->getRerunsErrored() > 0 ? sprintf(', %d errored', $result->getRerunsErrored()) : ''
                 );
             }
 

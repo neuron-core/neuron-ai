@@ -6,6 +6,7 @@ namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Score;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 
 use function array_filter;
 use function array_map;
@@ -19,9 +20,11 @@ class EvaluationResults
 {
     /**
      * @param array<EvaluatorResult> $results
+     * @param array<string> $warnings What the reader should know about how the run was made.
      */
     public function __construct(
         protected readonly array $results,
+        protected readonly array $warnings = [],
     ) {
     }
 
@@ -31,6 +34,91 @@ class EvaluationResults
     public function getResults(): array
     {
         return $this->results;
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getWarnings(): array
+    {
+        return $this->warnings;
+    }
+
+    /**
+     * Seconds in run() per item that executed it: a cached item spent none, and
+     * would lower the average of the items that did.
+     */
+    public function getAverageRunTime(): ?float
+    {
+        return $this->average(array_map(fn (EvaluatorResult $result): ?float => $result->getRunTime(), $this->results));
+    }
+
+    /**
+     * Seconds in evaluate() per item, judges included.
+     */
+    public function getAverageEvaluationTime(): ?float
+    {
+        return $this->average(array_map(fn (EvaluatorResult $result): ?float => $result->getEvaluationTime(), $this->results));
+    }
+
+    /**
+     * What run() consumed, re-runs included: it is what the evaluation spent.
+     *
+     * @return array<ModelUsage>
+     */
+    public function getRunUsage(): array
+    {
+        $records = [];
+        foreach ($this->getAttempts() as $result) {
+            $records = array_merge($records, $result->getRunUsage());
+        }
+
+        return ModelUsage::merge($records);
+    }
+
+    /**
+     * What the judges consumed, re-runs included.
+     *
+     * @return array<ModelUsage>
+     */
+    public function getJudgeUsage(): array
+    {
+        $records = [];
+        foreach ($this->getAttempts() as $result) {
+            $records = array_merge($records, $result->getJudgeUsage());
+        }
+
+        return ModelUsage::merge($records);
+    }
+
+    public function getRerunCount(): int
+    {
+        return count($this->getAttempts()) - count($this->results);
+    }
+
+    /**
+     * Every item once, then every re-run.
+     *
+     * @return array<EvaluatorResult>
+     */
+    protected function getAttempts(): array
+    {
+        $attempts = $this->results;
+        foreach ($this->results as $result) {
+            $attempts = array_merge($attempts, $result->getReruns());
+        }
+
+        return $attempts;
+    }
+
+    /**
+     * @param array<float|null> $values
+     */
+    protected function average(array $values): ?float
+    {
+        $measured = array_filter($values, fn (?float $value): bool => $value !== null);
+
+        return $measured === [] ? null : array_sum($measured) / count($measured);
     }
 
     public function getTotalCount(): int

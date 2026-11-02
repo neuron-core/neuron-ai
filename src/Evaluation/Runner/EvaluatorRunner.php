@@ -7,12 +7,15 @@ namespace NeuronAI\Evaluation\Runner;
 use Closure;
 use NeuronAI\Evaluation\AssertionOutcomes;
 use NeuronAI\Evaluation\Cache\CacheKey;
+use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Cache\EvaluationCacheInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
 use NeuronAI\Evaluation\EvaluationException;
+use NeuronAI\Evaluation\Usage\UsageMeter;
 use Spatie\Fork\Fork;
 use Throwable;
 
+use function array_map;
 use function class_exists;
 use function count;
 use function function_exists;
@@ -40,13 +43,23 @@ class EvaluatorRunner
      *        run before its dataset item, to replace process-bound resources
      *        inherited from the parent, such as database connections.
      * @param callable|null $afterChild Runs in each child process after its dataset item.
+     * @param int $rerunFailed How many more times an item that failed an assertion
+     *        runs, with no cache, once every item has run. The verdict stays the
+     *        one of the first run: the attempts only tell the reader how often it
+     *        fails. An item that errored is not re-run.
+     * @throws EvaluationException
      */
     public function __construct(
         protected ?EvaluationCacheInterface $cache = null,
         protected bool $refresh = false,
         ?callable $beforeChild = null,
         ?callable $afterChild = null,
+        protected int $rerunFailed = 0,
     ) {
+        if ($rerunFailed < 0) {
+            throw new EvaluationException("rerunFailed cannot be negative, got {$rerunFailed}.");
+        }
+
         $this->beforeChild = $beforeChild !== null ? $beforeChild(...) : null;
         $this->afterChild = $afterChild !== null ? $afterChild(...) : null;
     }
@@ -72,11 +85,77 @@ class EvaluatorRunner
 
         $data = $this->validateDataset($evaluator, $evaluator->getDataset()->load());
 
-        $results = $concurrency > 1 && count($data) > 1 && self::supportsConcurrency()
+        return new EvaluationResults(
+            $this->rerunFailures($evaluator, $data, $this->runItems($evaluator, $data, $concurrency), $concurrency),
+            $this->warnings($evaluator),
+        );
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $data
+     * @return array<EvaluatorResult>
+     */
+    protected function runItems(EvaluatorInterface $evaluator, array $data, int $concurrency): array
+    {
+        return $concurrency > 1 && count($data) > 1 && self::supportsConcurrency()
             ? $this->runParallel($evaluator, $data, $concurrency)
             : $this->runSequential($evaluator, $data);
+    }
 
-        return new EvaluationResults($results);
+    /**
+     * @param array<int, array<string, mixed>> $data
+     * @param array<EvaluatorResult> $results
+     * @return array<EvaluatorResult>
+     */
+    protected function rerunFailures(EvaluatorInterface $evaluator, array $data, array $results, int $concurrency): array
+    {
+        $failed = [];
+
+        foreach ($results as $result) {
+            if (!$result->isPassed() && !$result->hasError()) {
+                $failed[$result->getIndex()] = $data[$result->getIndex()];
+            }
+        }
+
+        // A cached output would only repeat the failure
+        $uncached = clone $this;
+        $uncached->cache = null;
+
+        $reruns = [];
+
+        for ($attempt = 0; $failed !== [] && $attempt < $this->rerunFailed; $attempt++) {
+            foreach ($uncached->runItems($evaluator, $failed, $concurrency) as $rerun) {
+                $reruns[$rerun->getIndex()][] = $rerun;
+            }
+        }
+
+        return array_map(
+            static fn (EvaluatorResult $result): EvaluatorResult => isset($reruns[$result->getIndex()])
+                ? $result->withReruns($reruns[$result->getIndex()])
+                : $result,
+            $results,
+        );
+    }
+
+    /**
+     * Cached outputs say nothing about a change the cache key cannot see.
+     *
+     * @return array<string>
+     */
+    protected function warnings(EvaluatorInterface $evaluator): array
+    {
+        if (!$this->cache instanceof EvaluationCacheInterface || $this->refresh) {
+            return [];
+        }
+
+        if ($evaluator instanceof BaseEvaluator && $evaluator->cacheDependencies() !== []) {
+            return [];
+        }
+
+        return [
+            $evaluator::class . ' reads cached outputs but declares no cacheDependencies():'
+            . ' a change to its agent or prompts will not run it again.',
+        ];
     }
 
     /**
@@ -173,6 +252,10 @@ class EvaluatorRunner
         $output = null;
         $outcomes = null;
         $cachedRun = false;
+        $runTime = null;
+        $evaluationTime = null;
+        $runMeter = new UsageMeter();
+        $judgeMeter = new UsageMeter();
 
         try {
             if ($forked && $this->beforeChild instanceof Closure) {
@@ -188,14 +271,26 @@ class EvaluatorRunner
                     $output = $this->cache->get($cacheKey);
                     $cachedRun = true;
                 } else {
-                    $output = $evaluator->run($item);
+                    $runStartTime = microtime(true);
+
+                    try {
+                        $output = $runMeter->during(static fn (): mixed => $evaluator->run($item));
+                    } finally {
+                        $runTime = microtime(true) - $runStartTime;
+                    }
 
                     if ($cacheKey !== null) {
                         $this->cache?->set($cacheKey, $output);
                     }
                 }
 
-                $outcomes = $evaluator->performEvaluation($output, $item);
+                $evaluationStartTime = microtime(true);
+
+                try {
+                    $outcomes = $judgeMeter->during(static fn (): AssertionOutcomes => $evaluator->performEvaluation($output, $item));
+                } finally {
+                    $evaluationTime = microtime(true) - $evaluationStartTime;
+                }
             } finally {
                 if ($forked && $this->afterChild instanceof Closure) {
                     ($this->afterChild)();
@@ -219,7 +314,11 @@ class EvaluatorRunner
             $outcomes instanceof AssertionOutcomes ? $outcomes->failures : [],
             $outcomes instanceof AssertionOutcomes ? $outcomes->scores : [],
             $error,
-            $cachedRun
+            $cachedRun,
+            $runTime,
+            $evaluationTime,
+            $runMeter->usage(),
+            $judgeMeter->usage(),
         );
     }
 
@@ -245,20 +344,7 @@ class EvaluatorRunner
             serialize($result);
             return $result;
         } catch (Throwable) {
-            return new EvaluatorResult(
-                $result->getEvaluatorClass(),
-                $result->getIndex(),
-                $result->isPassed(),
-                $result->getInput(),
-                '[non-serializable output of type ' . get_debug_type($result->getOutput()) . ']',
-                $result->getExecutionTime(),
-                $result->getAssertionsPassed(),
-                $result->getAssertionsFailed(),
-                $result->getAssertionFailures(),
-                $result->getScoreRecords(),
-                $result->getError(),
-                $result->isCachedRun()
-            );
+            return $result->withOutput('[non-serializable output of type ' . get_debug_type($result->getOutput()) . ']');
         }
     }
 }

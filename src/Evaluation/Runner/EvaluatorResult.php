@@ -6,8 +6,11 @@ namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Score;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 
+use function array_filter;
 use function array_map;
+use function count;
 use function end;
 use function explode;
 
@@ -21,6 +24,11 @@ class EvaluatorResult
      * @param array<string, mixed> $input
      * @param array<AssertionFailure> $assertionFailures
      * @param array<Score> $assertionScores
+     * @param float|null $runTime Seconds in run(), null when it did not execute (a cached run).
+     * @param float|null $evaluationTime Seconds in evaluate(), judges included, null when it did not execute.
+     * @param array<ModelUsage> $runUsage What run() consumed: empty when nothing was measured.
+     * @param array<ModelUsage> $judgeUsage What the judges of evaluate() consumed.
+     * @param array<EvaluatorResult> $reruns Later attempts at a failed item. They never change its verdict.
      */
     public function __construct(
         private readonly string $evaluatorClass,
@@ -34,8 +42,56 @@ class EvaluatorResult
         private readonly array $assertionFailures = [],
         private readonly array $assertionScores = [],
         private readonly ?string $error = null,
-        private readonly bool $cachedRun = false
+        private readonly bool $cachedRun = false,
+        private readonly ?float $runTime = null,
+        private readonly ?float $evaluationTime = null,
+        private readonly array $runUsage = [],
+        private readonly array $judgeUsage = [],
+        private readonly array $reruns = [],
     ) {
+    }
+
+    /**
+     * @param array<EvaluatorResult> $reruns
+     */
+    public function withReruns(array $reruns): self
+    {
+        return $this->copy(['reruns' => $reruns]);
+    }
+
+    /**
+     * The same result with another output, for an output that cannot cross the fork boundary.
+     */
+    public function withOutput(mixed $output): self
+    {
+        return $this->copy(['output' => $output]);
+    }
+
+    /**
+     * @param array<string, mixed> $changes By constructor parameter name.
+     */
+    protected function copy(array $changes): self
+    {
+        return new self(...[
+            'evaluatorClass' => $this->evaluatorClass,
+            'index' => $this->index,
+            'passed' => $this->passed,
+            'input' => $this->input,
+            'output' => $this->output,
+            'executionTime' => $this->executionTime,
+            'assertionsPassed' => $this->assertionsPassed,
+            'assertionsFailed' => $this->assertionsFailed,
+            'assertionFailures' => $this->assertionFailures,
+            'assertionScores' => $this->assertionScores,
+            'error' => $this->error,
+            'cachedRun' => $this->cachedRun,
+            'runTime' => $this->runTime,
+            'evaluationTime' => $this->evaluationTime,
+            'runUsage' => $this->runUsage,
+            'judgeUsage' => $this->judgeUsage,
+            'reruns' => $this->reruns,
+            ...$changes,
+        ]);
     }
 
     public function getEvaluatorClass(): string
@@ -84,6 +140,53 @@ class EvaluatorResult
     public function getExecutionTime(): float
     {
         return $this->executionTime;
+    }
+
+    public function getRunTime(): ?float
+    {
+        return $this->runTime;
+    }
+
+    public function getEvaluationTime(): ?float
+    {
+        return $this->evaluationTime;
+    }
+
+    /**
+     * @return array<ModelUsage>
+     */
+    public function getRunUsage(): array
+    {
+        return $this->runUsage;
+    }
+
+    /**
+     * @return array<ModelUsage>
+     */
+    public function getJudgeUsage(): array
+    {
+        return $this->judgeUsage;
+    }
+
+    /**
+     * @return array<EvaluatorResult>
+     */
+    public function getReruns(): array
+    {
+        return $this->reruns;
+    }
+
+    public function getRerunsPassed(): int
+    {
+        return count(array_filter($this->reruns, fn (EvaluatorResult $rerun): bool => $rerun->isPassed()));
+    }
+
+    /**
+     * Re-runs that reached no verdict: they say nothing about the failure.
+     */
+    public function getRerunsErrored(): int
+    {
+        return count(array_filter($this->reruns, fn (EvaluatorResult $rerun): bool => $rerun->hasError()));
     }
 
     public function getError(): ?string

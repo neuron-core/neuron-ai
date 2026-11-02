@@ -9,9 +9,13 @@ use NeuronAI\Agent\AgentInterface;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Evaluation\AssertionResult;
 use NeuronAI\Evaluation\Assertions\AgentJudge;
 use NeuronAI\Evaluation\Conversation\Trajectory;
+use NeuronAI\Evaluation\Usage\ModelUsage;
+use NeuronAI\Evaluation\Usage\UsageMeter;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
@@ -20,6 +24,7 @@ use NeuronAI\Tools\ToolCall;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use InvalidArgumentException;
+use ReflectionProperty;
 
 use function count;
 use function json_encode;
@@ -49,6 +54,29 @@ class AgentJudgeTest extends TestCase
         }
 
         return Agent::make()->setAiProvider($fakeProvider);
+    }
+
+    public function test_a_judgment_reports_what_it_consumed_passing_or_failing(): void
+    {
+        $response = fn (float $score): AssistantMessage => (new AssistantMessage(json_encode(['score' => $score, 'reasoning' => 'Because.'], JSON_THROW_ON_ERROR)))->setUsage(new Usage(100, 20));
+        $agent = Agent::make()->setAiProvider(new FakeAIProvider($response(0.9), $response(0.1)));
+        $assertion = new AgentJudge($agent, 'Check it', 0.7);
+
+        $meter = new UsageMeter();
+        $meter->during(fn (): AssertionResult => $assertion->evaluate('first'));
+        $meter->during(fn (): AssertionResult => $assertion->evaluate('second'));
+
+        $this->assertEquals([new ModelUsage(FakeAIProvider::class, 'fake', 2, 200, 40)], $meter->usage());
+    }
+
+    public function test_counting_a_judgment_leaves_no_listener_on_the_judge_the_evaluator_shares(): void
+    {
+        $agent = $this->createFakeAgentWithScore(0.9, 'Fine.');
+        $listeners = (new ReflectionProperty($agent, 'listeners'));
+
+        (new AgentJudge($agent, 'Check it', 0.7))->evaluate('output');
+
+        $this->assertNull($listeners->getValue($agent));
     }
 
     public function test_passes_when_score_above_threshold(): void

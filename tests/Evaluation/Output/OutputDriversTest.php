@@ -259,8 +259,8 @@ class OutputDriversTest extends TestCase
         // Per-item labeled scores
         $this->assertEquals(
             [
-                ['label' => 'task_completion', 'value' => 0.8, 'passed' => true],
-                ['label' => 'helpfulness', 'value' => 0.6, 'passed' => true],
+                ['label' => 'task_completion', 'value' => 0.8, 'passed' => true, 'assertion' => null, 'message' => '', 'line' => null],
+                ['label' => 'helpfulness', 'value' => 0.6, 'passed' => true, 'assertion' => null, 'message' => '', 'line' => null],
             ],
             $data['results'][0]['scores']
         );

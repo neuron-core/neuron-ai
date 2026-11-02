@@ -54,7 +54,7 @@ class ChatNode extends InferenceNode
             $providerResponse = $this->memoize('inference', fn (): ProviderResponse => $providerResponse);
         }
 
-        $this->emit(new InferenceStop($lastMessage, $providerResponse));
+        $this->emit(new InferenceStop($lastMessage, $providerResponse, $resources->provider));
 
         $this->addToChatHistory($resources->history, $state, $inbound);
         $state->setResponse($providerResponse);

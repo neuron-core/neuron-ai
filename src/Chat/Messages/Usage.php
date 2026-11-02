@@ -12,7 +12,11 @@ class Usage implements JsonSerializable
         /**
          * The whole prompt, the tokens read from or written to the provider
          * prompt cache included: providers that report them apart, such as
-         * Anthropic and Bedrock, have them added back.
+         * Anthropic and Bedrock, have them added back. Gemini also reports
+         * what its own tools read apart, such as a page fetched by url_context:
+         * that is billed as input but is not sent again with the next turn, and
+         * this count tells the chat history how full the conversation is, so
+         * it stays out and is in the metadata of the message, as `toolInputTokens`.
          */
         public int $inputTokens,
         public int $outputTokens,

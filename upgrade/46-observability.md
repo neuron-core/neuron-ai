@@ -360,7 +360,7 @@ Apply every rule that matches the observer's code:
   - `$data` is always the event object, never an array or `null`.
   - For `'workflow-node-start'`, `'workflow-node-end'` and the `'middleware-*'` events, `$source` is now the node, not the workflow. Where the observer read the workflow ID from `$source` on those events, use `$data->execution?->workflowId`. The workflow object is still the `$source` of `'workflow-start'` and `'workflow-end'`.
   - `$branchId` is still `'__main__'` outside parallel branches.
-- **Tests that construct these events**: `new WorkflowInterrupted($state)` with a `WorkflowState`, `new InferenceStop($message, new ProviderResponse($responseMessage))`, and `new ToolCalling(ToolCall::make(name: 'search_orders', callId: 'call_1', inputs: []))`.
+- **Tests that construct these events**: `new WorkflowInterrupted($state)` with a `WorkflowState`, `new InferenceStop($message, new ProviderResponse($responseMessage), $provider)`, and `new ToolCalling(ToolCall::make(name: 'search_orders', callId: 'call_1', inputs: []))`.
 
 Before (3.x):
 

@@ -110,7 +110,7 @@ class StructuredOutputNode extends InferenceNode
                 );
 
                 $message = $providerResponse->message();
-                $this->emit(new InferenceStop($last, $providerResponse));
+                $this->emit(new InferenceStop($last, $providerResponse, $resources->provider));
 
                 $this->addToChatHistory($resources->history, $state, $pending);
                 $pending = [];

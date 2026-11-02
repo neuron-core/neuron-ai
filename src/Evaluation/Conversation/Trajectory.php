@@ -27,6 +27,7 @@ use function array_values;
 use function count;
 use function end;
 use function implode;
+use function is_int;
 use function json_decode;
 use function json_encode;
 use function strtr;
@@ -174,7 +175,8 @@ class Trajectory
         foreach ($this->messages as $message) {
             $usage = $message->getUsage();
             if ($usage instanceof Usage) {
-                $total->inputTokens += $usage->inputTokens;
+                $toolInputs = $message->getMetadata('toolInputTokens');
+                $total->inputTokens += $usage->inputTokens + (is_int($toolInputs) ? $toolInputs : 0);
                 $total->outputTokens += $usage->outputTokens;
                 $total->cachedInputTokens += $usage->cachedInputTokens;
                 $total->reasoningTokens += $usage->reasoningTokens;

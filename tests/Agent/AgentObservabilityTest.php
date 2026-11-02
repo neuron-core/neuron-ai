@@ -129,7 +129,8 @@ class AgentObservabilityTest extends TestCase
 
     public function test_inference_events_report_the_request_tail_and_the_response(): void
     {
-        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage('Hello!')));
+        $provider = new FakeAIProvider(new AssistantMessage('Hello!'));
+        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider($provider);
 
         $this->observe($agent)->chat(new UserMessage('Hi'));
 
@@ -140,6 +141,7 @@ class AgentObservabilityTest extends TestCase
         $this->assertSame('Hi', $start->message->getContent());
         $this->assertSame($start->message, $stop->message);
         $this->assertSame('Hello!', $stop->response->message()->getContent());
+        $this->assertSame($provider, $stop->provider);
         $this->assertSame('user', $stop->toArray()['message']['role']);
         $this->assertSame('assistant', $stop->toArray()['response']['role']);
     }
@@ -148,7 +150,8 @@ class AgentObservabilityTest extends TestCase
     {
         $invalid = '{"firstName":"","lastName":"Doe","address":{"street":"Main","city":"Rome","zip":"00100"},"tags":[]}';
         $valid = '{"firstName":"Jane","lastName":"Doe","address":{"street":"Main","city":"Rome","zip":"00100"},"tags":[]}';
-        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider(new FakeAIProvider(new AssistantMessage($invalid), new AssistantMessage($valid)));
+        $provider = new FakeAIProvider(new AssistantMessage($invalid), new AssistantMessage($valid));
+        $agent = Agent::make(workflowId: 'thread_1')->setAiProvider($provider);
 
         $this->observe($agent)->structured(new UserMessage('Generate a person'), Person::class);
 
@@ -158,6 +161,10 @@ class AgentObservabilityTest extends TestCase
             'structured-validating', 'structured-validated',
         ];
         $this->assertSame(['schema-generation', 'schema-generated', ...$attempt, ...$attempt], $this->eventNames());
+
+        foreach ($this->eventsOf(InferenceStop::class) as $stop) {
+            $this->assertSame($provider, $stop->provider);
+        }
 
         [$schema] = $this->eventsOf(SchemaGenerated::class);
         $this->assertSame(['class' => Person::class, 'schema' => $schema->schema], $schema->toArray());
