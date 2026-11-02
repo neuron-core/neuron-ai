@@ -55,7 +55,7 @@ class ParseFileTool extends FileSystemTool
         return match ($extension) {
             'pdf' => $this->parsePdf($path),
             'htm', 'html' => $this->parseHtml($path),
-            default => ToolOutput::error("Unsupported file format '{$extension}'. Supported formats: PDF, HTML. If the file is already in plain text you can access its content directly with other tools like grep_file_content or read_file."),
+            default => ToolOutput::error("Unsupported file format '{$extension}'. Supported formats: PDF, HTML. If the file is already in plain text you can access its content directly with other dedicated tools."),
         };
     }
 
