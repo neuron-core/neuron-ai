@@ -557,7 +557,11 @@ Failure does not roll back committed writes.
 `run(ExecutionRequest::resume())` is an explicit continuation. A new `chat()` supersedes the
 failed run with a new user turn. A failed node may repeat an external operation
 if its result was not durably recorded; use `memoize()` inside custom nodes and
-external idempotency where needed.
+external idempotency where needed. A tool call does not repeat: recovering a run
+whose process died while a tool ran, or whose tool threw, gives the call an error
+result saying its outcome is unknown, and the model decides what to do. To let
+the model read what went wrong instead, turn the exception into a result with
+`toolErrorHandler()`.
 
 The new turn first closes the turn the failed run left open: a tool call left
 without a result gets an error result saying its outcome is unknown, and a

@@ -156,7 +156,7 @@ class SupportAgentHandler
 | Redelivered while the run waits for approval | Nothing |
 | A new turn while an approval is pending | Given up (`UnrecoverableMessageHandlingException`); `PublishRunFailure` told the browser |
 | The previous turn failed on every delivery | Finished it on a copy without the channel, then ran: history held the old question, its tool call and result, the recovered answer, then the new turn, and only the new turn reached the relay |
-| A refund approved while the payment API threw | The run failed with its approval still pending: each retry staged it again and re-ran the tool. When Messenger gave up, the next turn finished it: the refund executed once, then the new turn ran |
+| A refund approved while the payment API threw | The run failed with its approval still pending: the retry staged it again and finished the run without calling the API, and the model was told the refund's outcome is unknown |
 | A new turn while the failed turn's retry was still queued | Finished the failed turn and answered; the queued retry then asked the failed turn's question again, as any redelivery after success does |
 | A continuation retried after the approved refund ran and the answer failed | Finished the run instead of staging the answers again (`There is no current interruption to answer`); the refund ran once |
 | The same message handled twice after success | Ran the turn twice (`Hi, One., Hi, Two.`): completion deletes the run's records |

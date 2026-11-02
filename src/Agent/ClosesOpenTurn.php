@@ -11,7 +11,6 @@ use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\ToolCall;
-use NeuronAI\Tools\ToolOutput;
 
 use function array_filter;
 use function array_map;
@@ -29,6 +28,8 @@ use function in_array;
  */
 trait ClosesOpenTurn
 {
+    use ReportsInterruptedCall;
+
     /**
      * @param Message[] $inbound
      * @return Message[]
@@ -79,13 +80,6 @@ trait ClosesOpenTurn
             ))->setResult($this->interruptedResult($call)),
             $message->getToolCalls(),
         ));
-    }
-
-    protected function interruptedResult(ToolCall $call): string|ToolOutput
-    {
-        return ToolOutput::error(
-            'The call was interrupted before its result was recorded: it may or may not have taken effect.'
-        );
     }
 
     protected function interruptedAnswer(): AssistantMessage

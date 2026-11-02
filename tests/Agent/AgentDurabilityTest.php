@@ -16,6 +16,7 @@ use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tests\Agent\Stub\ClosureDependencyTool;
 use NeuronAI\Tests\Agent\Stub\CrashSearchTool;
@@ -76,7 +77,7 @@ class AgentDurabilityTest extends TestCase
         $this->assertSame(1, $provider->getCallCount());
         $this->assertSame(1, $searchTool->getCallCount());
 
-        // Revive with the same workflow ID: ChatNode:0 memoized, the tool retries.
+        // Revive with the same workflow ID: ChatNode:0 memoized, the call that threw settles as interrupted.
         $agent2 = Agent::make(workflowId: $workflowId);
         $agent2->setMessageStore($messageStore);
         $agent2->setAiProvider($provider);
@@ -87,7 +88,7 @@ class AgentDurabilityTest extends TestCase
 
         $this->assertSame('Based on my search, here are the top PHP frameworks...', $message->getContent());
         $this->assertSame(2, $provider->getCallCount());
-        $this->assertSame(2, $searchTool->getCallCount());
+        $this->assertSame(1, $searchTool->getCallCount());
     }
 
     public function test_chat_node_inference_memoized_across_crash_recovery(): void
@@ -338,9 +339,6 @@ class AgentDurabilityTest extends TestCase
         $calls = 0;
         $tool = new ClosureDependencyTool(function () use (&$calls): string {
             $calls++;
-            if ($calls === 1) {
-                throw new RuntimeException('Simulated crash during tool execution');
-            }
 
             return '42';
         });
@@ -353,18 +351,19 @@ class AgentDurabilityTest extends TestCase
         );
 
         // Run 1: ChatNode completes (its step is serialized to disk — carrying only
-        // ToolCall data, never the tool's closure), then the tool crashes.
+        // ToolCall data, never the tool's closure), then the run fails before the tool starts.
         $agent1 = Agent::make(workflowId: $workflowId);
         $agent1->setMessageStore($messageStore);
         $agent1->setAiProvider($provider);
         $agent1->addTool($tool);
         $agent1->setPersistence($persistence);
+        $agent1->toolMaxRuns(0);
 
         try {
             $agent1->chat(new UserMessage('How many users in the database?'))->getMessage();
-            $this->fail('Expected RuntimeException was not thrown');
-        } catch (RuntimeException $e) {
-            $this->assertStringContainsString('Simulated crash', $e->getMessage());
+            $this->fail('Expected ToolRunsExceededException was not thrown');
+        } catch (ToolRunsExceededException) {
+            $this->assertSame(0, $calls);
         }
 
         // Revive in a new process: fresh engine, same file persistence. The recalled
@@ -379,7 +378,7 @@ class AgentDurabilityTest extends TestCase
         $message = $agent2->run(\NeuronAI\Workflow\Executor\ExecutionRequest::resume())->getMessage();
 
         $this->assertSame('There are 42 users in the database.', $message->getContent());
-        $this->assertSame(2, $calls);
+        $this->assertSame(1, $calls);
         // The recalled inference was not re-billed: one call per distinct response.
         $this->assertSame(2, $provider->getCallCount());
     }

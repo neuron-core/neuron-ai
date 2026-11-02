@@ -165,6 +165,8 @@ Conversation memory uses RAG's `SemanticMemoryRetrieval`, which builds source/th
 
 `ToolNode` gates execution: on every call it asks each tool `requiresApproval()` (declaration and attach-time overrides, see `src/Tools/AGENTS.md`), resolves the call against the segment's tool registry (a `ToolException` for anything else), clones the match, binds the inputs, executes under a durable memo, and settles the result on the `ToolCall`. Escaped exceptions are bugs and propagate unless `toolErrorHandler()` converts them.
 
+A tool call runs at most once, whatever recovers the run. Neither a killed process nor a thrown exception proves the effect did not land: a server can complete a request its client timed out on. So `ToolNode` records that a call started before running it (`ParallelToolNode` records one start for the batch it forks), at the cost of one more write per call. A replay that finds the start without a result settles the call with `interruptedResult()`, the error result that also closes an open turn, and the model decides what to do. Calling the tool again is a new call, which passes the approval gate again. A throw still fails the run when it happens, unless `toolErrorHandler()` settles it, and a handler's result is recorded like any other.
+
 ```php
 protected function tools(): array
 {
@@ -199,7 +201,7 @@ The persisted interruption is authoritative for the current UI request. The pre-
 
 ## Tool run limits
 
-`toolMaxRuns()` bounds logical tool calls across one complete agent run, including approval pauses and external execution waits. A tool's `getMaxRuns()` overrides the agent limit, and `getRunKey()` selects which counter it consumes. Rejected approvals consume no slot; a failed execution retried during recovery remains the same logical call.
+`toolMaxRuns()` bounds logical tool calls across one complete agent run, including approval pauses and external execution waits. A tool's `getMaxRuns()` overrides the agent limit, and `getRunKey()` selects which counter it consumes. Rejected approvals consume no slot; a call settled during recovery remains the same logical call.
 
 `AgentState` persists `__tool_runs`. `AgentStartNode` and RAG's `PreProcessNode` reset counters when initializing a new run; completed entry steps are skipped on resume. Custom entry nodes that replace these should reset counters when starting their new run as well, and build the request's messages through `ClosesOpenTurn::closeOpenTurn()`.
 

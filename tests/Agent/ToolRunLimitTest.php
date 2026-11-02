@@ -173,7 +173,7 @@ class ToolRunLimitTest extends TestCase
         $this->assertSame(2, CountingTool::$executions);
     }
 
-    public function test_failed_step_restores_accounting_for_cached_results_and_retries(): void
+    public function test_failed_step_restores_accounting_for_cached_results_and_settles_the_failed_call(): void
     {
         $this->messages->append('tool-run-limit', new UserMessage('Search'));
         $crashing = new CrashSearchTool();
@@ -196,7 +196,7 @@ class ToolRunLimitTest extends TestCase
         $this->assertSame(2, $restored->getToolRuns('lookup'));
         $this->assertSame(1, $restored->getToolRuns('search'));
         $this->assertSame(1, CountingTool::$executions);
-        $this->assertSame(2, $crashing->getCallCount());
+        $this->assertSame(1, $crashing->getCallCount());
 
         $next = new ToolCallEvent(new ToolCallMessage(null, [new ToolCall('lookup', 'next', ['query' => 'Rust'])]));
         $this->expectException(ToolRunsExceededException::class);

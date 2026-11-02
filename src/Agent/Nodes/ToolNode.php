@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Agent\Nodes;
 
+use Closure;
 use Generator;
 use NeuronAI\Agent\AgentResources;
 use NeuronAI\Agent\AgentState;
@@ -16,6 +17,7 @@ use NeuronAI\Agent\Interrupt\ActionDecision;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Agent\Observability\ToolCalled;
 use NeuronAI\Agent\Observability\ToolCalling;
+use NeuronAI\Agent\ReportsInterruptedCall;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
@@ -61,6 +63,7 @@ use const JSON_PRETTY_PRINT;
 class ToolNode extends Node implements AgentNodeInterface
 {
     use ChatHistoryHelper;
+    use ReportsInterruptedCall;
 
     /**
      * @var callable|null fn(Throwable $e, ToolCall $call): string|ToolOutput|null
@@ -424,8 +427,9 @@ class ToolNode extends Node implements AgentNodeInterface
      * Execution is wrapped in a durable memo keyed by callId (or name) plus
      * the call's position, so parallel calls sharing a callId never share a
      * memo. On crash-replay the recorded result is restored WITHOUT
-     * re-running, so side-effecting tools execute at most once. An error the
-     * handler turns into a result is recorded the same way.
+     * re-running, and a call that died running settles as interrupted, so
+     * side-effecting tools execute at most once. An error the handler turns
+     * into a result is recorded the same way.
      *
      * @throws ToolRunsExceededException If the tool exceeds its maximum retry attempts
      * @throws Throwable If the tool execution fails and no error handler is set
@@ -443,12 +447,12 @@ class ToolNode extends Node implements AgentNodeInterface
 
         try {
             $this->checkToolRuns($call, $state, $tools);
-            $result = $this->memoize($memoKey, function () use ($call, $tools): string|ToolOutput {
+            $result = $this->memoizeAtMostOnce($memoKey, function () use ($call, $tools): string|ToolOutput {
                 $tool = $this->resolveTool($call, $tools);
 
                 $tool->execute();
                 return $tool->getResult();
-            });
+            }, fn (): string|ToolOutput => $this->interruptedResult($call));
 
             $call->setResult($result);
         } catch (Throwable $e) {
@@ -462,6 +466,34 @@ class ToolNode extends Node implements AgentNodeInterface
         } finally {
             $this->emit(new ToolCalled($call));
         }
+    }
+
+    /**
+     * Neither a call whose process was killed nor one that threw proves the
+     * effect did not land: a database finishes a statement whose client is gone,
+     * a server completes a request its client timed out on. Recording the start
+     * first is what tells such a call from one that never ran, so a replay
+     * settles it with $interrupted instead of running it again under its old
+     * approval. Calling the tool again is the model's choice, and a new call.
+     *
+     * @template T
+     * @param Closure(): T $operation
+     * @param Closure(): T $interrupted
+     * @return T
+     */
+    protected function memoizeAtMostOnce(string $name, Closure $operation, Closure $interrupted): mixed
+    {
+        return $this->memoize($name, function () use ($name, $operation, $interrupted): mixed {
+            $started = $name . '.started';
+
+            if ($this->recallMemo($started) === true) {
+                return $interrupted();
+            }
+
+            $this->memoize($started, fn (): bool => true);
+
+            return $operation();
+        });
     }
 
     /**

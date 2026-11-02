@@ -133,8 +133,9 @@ class ParallelToolNode extends ToolNode
         if ($runnable !== []) {
             $runnableCalls = array_values($runnable);
             $runnableKeys = array_keys($runnable);
+            $replayed = $this->recallMemo('parallel.tools') !== null;
 
-            $serializedResults = $this->memoize('parallel.tools', function () use ($runnableCalls, $tools): array {
+            $serializedResults = $this->memoizeAtMostOnce('parallel.tools', function () use ($runnableCalls, $tools): array {
                 // Resolve parent-side, before forking.
                 $resolved = [];
                 foreach ($runnableCalls as $pos => $call) {
@@ -175,7 +176,10 @@ class ParallelToolNode extends ToolNode
                         $resolved
                     )
                 );
-            });
+            }, fn (): array => array_map(
+                fn (ToolCall $call): string => serialize($this->interruptedResult($call)),
+                $runnableCalls,
+            ));
 
             foreach ($serializedResults as $pos => $serializedResult) {
                 $data = unserialize($serializedResult);
@@ -183,10 +187,10 @@ class ParallelToolNode extends ToolNode
 
                 if (is_array($data) && isset($data['error']) && $data['error'] === true) {
                     // The original exception lives in the child process: report what it was.
-                    $this->handleError(new ToolException(
+                    $this->settleChildFailure(new ToolException(
                         "Tool {$data['tool_name']} failed with {$data['exception_class']}: {$data['exception_message']}",
                         (int) $data['exception_code'],
-                    ), $call);
+                    ), $call, $replayed);
                 } else {
                     $call->setResult($data);
                 }
@@ -206,6 +210,26 @@ class ParallelToolNode extends ToolNode
         }
 
         return $executedCalls;
+    }
+
+    /**
+     * A child's exception is recorded with its batch, so a replay would raise it
+     * on every recovery. The first pass fails the run with it; a replay settles
+     * the call like any other whose outcome nobody knows.
+     *
+     * @throws ToolException
+     */
+    protected function settleChildFailure(ToolException $failure, ToolCall $call, bool $replayed): void
+    {
+        try {
+            $this->handleError($failure, $call);
+        } catch (ToolException $e) {
+            if (!$replayed) {
+                throw $e;
+            }
+
+            $call->setResult($this->interruptedResult($call));
+        }
     }
 
     /**

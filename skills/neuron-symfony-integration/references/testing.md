@@ -389,7 +389,7 @@ class SupportAgentHandlerTest extends ChatTestCase
 ```
 
 - `TestContainer::set()` works on a private service only before it is instantiated: set the relay in `setUp()`, before the handler is fetched.
-- The suite also covered: a snapshot equal to the synchronous endpoint's, a browser tool handed over and continued in a queued turn, a turn given up while another run waits, a refund approved while the payment API threw and finished by the next turn, a continuation retried after it failed past the approved refund, a stale continuation that never finishes another run, a redelivery after success that runs the turn again, a delivery failure reported as `ChannelError` without failing the run, a channel factory that throws and fails it, and a refused turn published once.
+- The suite also covered: a snapshot equal to the synchronous endpoint's, a browser tool handed over and continued in a queued turn, a turn given up while another run waits, a refund approved while the payment API threw and not sent again by its retry, a continuation retried after it failed past the approved refund, a stale continuation that never finishes another run, a redelivery after success that runs the turn again, a delivery failure reported as `ChannelError` without failing the run, a channel factory that throws and fails it, and a refused turn published once.
 
 ## The relay endpoint
 

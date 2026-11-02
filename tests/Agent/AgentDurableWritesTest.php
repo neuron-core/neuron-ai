@@ -23,7 +23,7 @@ use PHPUnit\Framework\TestCase;
  */
 class AgentDurableWritesTest extends TestCase
 {
-    public function test_a_tool_round_writes_once_per_inference_tool_execution_and_step(): void
+    public function test_a_tool_round_writes_once_per_inference_and_step_and_twice_per_tool_execution(): void
     {
         $persistence = new RecordingPersistence();
         $agent = Agent::make(workflowId: 'thread_1')
@@ -42,6 +42,8 @@ class AgentDurableWritesTest extends TestCase
             [$record(AgentStartNode::class . '-0'), '__control'],
             [$record(ChatNode::class . '-1::inference')],
             [$record(ChatNode::class . '-1'), '__control'],
+            // The start of the call, so a process killed while it runs cannot repeat it.
+            [$record(ToolNode::class . '-2::tool.call_1.0.started')],
             [$record(ToolNode::class . '-2::tool.call_1.0')],
             // The result message, so a step replayed after its history write writes it once.
             [$record(ToolNode::class . '-2::tool.result')],
