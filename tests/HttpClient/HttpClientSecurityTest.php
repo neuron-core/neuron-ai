@@ -81,7 +81,7 @@ class HttpClientSecurityTest extends TestCase
      * Providers authenticate through Authorization and through custom headers (x-api-key,
      * api-key, x-goog-api-key), set on the request or as client defaults.
      *
-     * @return iterable<string, array{Closure(): HttpClientInterface, array<string, string>, bool}>
+     * @return iterable<string, array{Closure(): HttpClientInterface, array<string, string>, bool, string}>
      */
     public static function credentialsMeetingARedirect(): iterable
     {
@@ -90,12 +90,15 @@ class HttpClientSecurityTest extends TestCase
             'guzzle' => static fn (array $defaults): HttpClientInterface => new GuzzleHttpClient($defaults),
             'amp' => static fn (array $defaults): HttpClientInterface => new AmpHttpClient($defaults),
         ];
+        $redirects = ['two slashes' => '/redirect-to-other-host', 'one slash' => '/redirect-to-other-host-one-slash'];
 
         foreach ($clients as $name => $make) {
             foreach (['request' => false, 'stream' => true] as $call => $streamed) {
-                yield "{$name} {$call}, Authorization" => [static fn (): HttpClientInterface => $make([]), ['Authorization' => 'Bearer provider-secret'], $streamed];
-                yield "{$name} {$call}, x-api-key" => [static fn (): HttpClientInterface => $make([]), ['x-api-key' => 'provider-secret'], $streamed];
-                yield "{$name} {$call}, client default x-api-key" => [static fn (): HttpClientInterface => $make(['x-api-key' => 'provider-secret']), [], $streamed];
+                foreach ($redirects as $slashes => $redirect) {
+                    yield "{$name} {$call}, {$slashes}, Authorization" => [static fn (): HttpClientInterface => $make([]), ['Authorization' => 'Bearer provider-secret'], $streamed, $redirect];
+                    yield "{$name} {$call}, {$slashes}, x-api-key" => [static fn (): HttpClientInterface => $make([]), ['x-api-key' => 'provider-secret'], $streamed, $redirect];
+                    yield "{$name} {$call}, {$slashes}, client default x-api-key" => [static fn (): HttpClientInterface => $make(['x-api-key' => 'provider-secret']), [], $streamed, $redirect];
+                }
             }
         }
     }
@@ -108,10 +111,10 @@ class HttpClientSecurityTest extends TestCase
      * @param array<string, string> $headers
      */
     #[DataProvider('credentialsMeetingARedirect')]
-    public function test_credentials_never_reach_another_origin_on_redirect(Closure $makeClient, array $headers, bool $streamed): void
+    public function test_credentials_never_reach_another_origin_on_redirect(Closure $makeClient, array $headers, bool $streamed, string $redirect): void
     {
         $record = sys_get_temp_dir() . '/neuron-redirect-' . bin2hex(random_bytes(6));
-        $request = HttpRequest::get(static::$baseUri . '/redirect-to-other-host?record=' . basename($record), $headers);
+        $request = HttpRequest::get(static::$baseUri . $redirect . '?record=' . basename($record), $headers);
 
         try {
             $client = $makeClient();

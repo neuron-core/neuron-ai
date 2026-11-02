@@ -79,6 +79,13 @@ switch ($path) {
         \header("Location: http://localhost:{$_SERVER['SERVER_PORT']}/headers{$record}");
         break;
 
+    case '/redirect-to-other-host-one-slash':
+        // PHP's parse_url() sees no host in this target, libcurl sees localhost.
+        \http_response_code(302);
+        $record = isset($_GET['record']) ? '?record=' . \rawurlencode((string) $_GET['record']) : '';
+        \header("Location: http:/localhost:{$_SERVER['SERVER_PORT']}/headers{$record}");
+        break;
+
     case '/redirect-loop':
         \http_response_code(302);
         \header('Location: /redirect-loop');

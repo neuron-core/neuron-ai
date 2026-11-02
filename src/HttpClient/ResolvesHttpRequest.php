@@ -37,7 +37,8 @@ trait ResolvesHttpRequest
             return false;
         }
 
-        if (!isset($redirect['host'])) {
+        // A scheme makes a target absolute even when parse_url() finds no host: libcurl reads http:/example.com as the host example.com
+        if (!isset($redirect['scheme']) && !isset($redirect['host'])) {
             return true;
         }
 
