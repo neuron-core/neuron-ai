@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\RAG\VectorStore;
 
+use NeuronAI\Exceptions\VectorStoreException;
+use NeuronAI\HttpClient\Curl\CurlHttpClient;
+use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\RAG\Document;
 use NeuronAI\RAG\Schema\DocumentField;
 use NeuronAI\RAG\Schema\DocumentSchema;
@@ -209,5 +212,53 @@ class WeaviateTest extends TestCase
         $this->assertCount(2, $results);
 
         $store->destroy();
+    }
+
+    public function test_a_document_rejected_by_the_server_raises_an_exception(): void
+    {
+        $valid = (new Document('Valid'))->setEmbedding([1, 0, 0]);
+        $wrongSize = (new Document('Wrong size'))->setEmbedding([1, 0]);
+        $this->store->addDocument((new Document('Hello World!'))->setEmbedding([0, 1, 0]));
+
+        try {
+            $this->store->addDocuments([$valid, $wrongSize]);
+            $this->fail('The rejected document must raise an exception.');
+        } catch (VectorStoreException $exception) {
+            $this->assertStringStartsWith("Weaviate rejected 1 of 2 documents: [{$wrongSize->getId()}]", $exception->getMessage());
+        }
+
+        $this->assertCount(2, $this->store->search(new SearchRequest([1, 0, 0])));
+    }
+
+    public function test_a_read_only_collection_refuses_additions_and_deletes(): void
+    {
+        $this->store->addDocument((new Document('Hello World!'))->setEmbedding([1, 0, 0]));
+        $this->makeShardsReadOnly();
+
+        try {
+            $this->store->addDocument((new Document('Refused'))->setEmbedding([0, 1, 0]));
+            $this->fail('The rejected document must raise an exception.');
+        } catch (VectorStoreException $exception) {
+            $this->assertStringContainsString('read-only', $exception->getMessage());
+        }
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Weaviate rejected the delete: store is read-only');
+
+        $this->store->delete(Filter::eq('sourceType', 'manual'));
+    }
+
+    protected function makeShardsReadOnly(): void
+    {
+        $client = new CurlHttpClient();
+        $shardsUri = 'http://127.0.0.1:' . self::SERVICE_PORT . '/v1/schema/' . $this->collectionName . '/shards';
+
+        foreach ($client->request(HttpRequest::get($shardsUri))->json() as $shard) {
+            $client->request(HttpRequest::put(
+                uri: $shardsUri . '/' . $shard['name'],
+                body: ['status' => 'READONLY'],
+                headers: ['Content-Type' => 'application/json'],
+            ));
+        }
     }
 }

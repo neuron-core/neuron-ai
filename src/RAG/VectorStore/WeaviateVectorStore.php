@@ -22,6 +22,7 @@ use function array_chunk;
 use function array_column;
 use function array_key_exists;
 use function array_map;
+use function count;
 use function implode;
 use function in_array;
 use function is_array;
@@ -118,29 +119,63 @@ class WeaviateVectorStore implements VectorStoreInterface
         ], $documents);
 
         $chunks = array_chunk($objects, 100);
+        $outcomes = [];
 
         foreach ($chunks as $chunk) {
-            $this->httpClient->request(
+            $outcomes = [...$outcomes, ...$this->httpClient->request(
                 HttpRequest::post(
                     uri: rtrim($this->baseUri, '/') . '/v1/batch/objects',
                     body: ['objects' => $chunk],
                     headers: $this->httpHeaders,
                 )
-            );
+            )->json()];
         }
+
+        $this->assertStored($outcomes);
 
         return $this;
     }
 
     /**
+     * The batch API answers 200 even when it rejects objects: the rejections are listed in the response.
+     *
+     * @param array<mixed> $outcomes
+     * @throws VectorStoreException
+     */
+    protected function assertStored(array $outcomes): void
+    {
+        $rejections = [];
+        foreach ($outcomes as $outcome) {
+            if (isset($outcome['result']['errors'])) {
+                $rejections[] = "[{$outcome['id']}] {$this->errorMessages($outcome['result']['errors'])}";
+            }
+        }
+
+        if ($rejections !== []) {
+            throw new VectorStoreException(
+                'Weaviate rejected '.count($rejections).' of '.count($outcomes).' documents: '.implode('; ', $rejections)
+            );
+        }
+    }
+
+    /**
+     * @param array{error: array<int, array{message: string}>} $errors
+     */
+    protected function errorMessages(array $errors): string
+    {
+        return implode(', ', array_column($errors['error'], 'message'));
+    }
+
+    /**
      * @throws HttpException
      * @throws DocumentSchemaException
+     * @throws VectorStoreException
      */
     public function delete(FilterExpression $filters): VectorStoreInterface
     {
         $this->validateFilters($filters);
         $this->initialize();
-        $this->httpClient->request(
+        $response = $this->httpClient->request(
             HttpRequest::delete(
                 uri: rtrim($this->baseUri, '/') . '/v1/batch/objects',
                 body: [
@@ -151,7 +186,13 @@ class WeaviateVectorStore implements VectorStoreInterface
                 ],
                 headers: $this->httpHeaders,
             )
-        );
+        )->json();
+
+        // Also a 200, and its counts don't add up (two matches can report one failure), so only the reasons are shown
+        if (($response['results']['failed'] ?? 0) > 0) {
+            $reasons = array_map(fn (array $object): string => $this->errorMessages($object['errors']), $response['results']['objects']);
+            throw new VectorStoreException('Weaviate rejected the delete: ' . implode('; ', $reasons));
+        }
 
         return $this;
     }

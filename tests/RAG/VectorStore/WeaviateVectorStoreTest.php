@@ -19,7 +19,10 @@ use NeuronAI\Tests\RAG\VectorStore\Stub\RecordsVectorStoreRequests;
 use NeuronAI\Tests\RAG\VectorStore\Stub\RejectsInvalidInputBeforeRemoteCalls;
 use PHPUnit\Framework\TestCase;
 
+use function array_fill;
+use function array_map;
 use function count;
+use function range;
 
 /**
  * Offline contract of the Weaviate REST and GraphQL calls; WeaviateTest covers a live server.
@@ -46,6 +49,11 @@ class WeaviateVectorStoreTest extends TestCase
     protected function noObjects(): Response
     {
         return $this->jsonResponse(['data' => ['Get' => ['Articles' => []]]]);
+    }
+
+    protected function nothingFailed(): Response
+    {
+        return $this->jsonResponse(['results' => ['failed' => 0, 'objects' => null]]);
     }
 
     protected function schema(): DocumentSchema
@@ -149,7 +157,7 @@ class WeaviateVectorStoreTest extends TestCase
             ->setSourceName('a.txt')
             ->setMetadata(['tenant' => 'acme', 'year' => 2026, 'extra' => ['x' => true]]);
 
-        $this->store(null, $this->schema(), new Response(200))->addDocument($document);
+        $this->store(null, $this->schema(), $this->jsonResponse([]))->addDocument($document);
 
         $this->assertSame('POST http://weaviate.test:8080/v1/batch/objects', $this->sentTargets()[1]);
         $this->assertSame(['objects' => [[
@@ -174,7 +182,7 @@ class WeaviateVectorStoreTest extends TestCase
             ->setEmbedding([1, 0])
             ->setMetadata(['tenant' => 'acme', 'price' => null]);
 
-        $this->store(null, $this->schema(), new Response(200))->addDocument($document);
+        $this->store(null, $this->schema(), $this->jsonResponse([]))->addDocument($document);
 
         $this->assertSame([
             'content' => 'Hello',
@@ -183,6 +191,42 @@ class WeaviateVectorStoreTest extends TestCase
             'metadata' => '{"tenant":"acme","price":null}',
             'tenant' => 'acme',
         ], $this->sentJson(1)['objects'][0]['properties']);
+    }
+
+    public function test_documents_weaviate_rejects_raise_their_errors(): void
+    {
+        $store = $this->store(null, null, $this->jsonResponse([
+            ['id' => 'obj-1', 'result' => ['status' => 'SUCCESS']],
+            ['id' => 'obj-2', 'result' => ['status' => 'FAILED', 'errors' => ['error' => [['message' => 'store is read-only'], ['message' => 'wrong vector length']]]]],
+        ]));
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Weaviate rejected 1 of 2 documents: [obj-2] store is read-only, wrong vector length');
+
+        $store->addDocuments([
+            (new Document('Stored'))->setEmbedding([1, 0]),
+            (new Document('Rejected'))->setEmbedding([0, 1]),
+        ]);
+    }
+
+    public function test_every_batch_is_sent_before_a_rejection_is_raised(): void
+    {
+        $errors = ['error' => [['message' => 'store is read-only']]];
+        $store = $this->store(
+            null,
+            null,
+            $this->jsonResponse([
+                ['id' => 'first-batch', 'result' => ['status' => 'FAILED', 'errors' => $errors]],
+                ...array_fill(0, 99, ['id' => 'stored', 'result' => ['status' => 'SUCCESS']]),
+            ]),
+            $this->jsonResponse([['id' => 'second-batch', 'result' => ['status' => 'FAILED', 'errors' => $errors]]]),
+        );
+        $documents = array_map(fn (int $number): Document => (new Document("Document {$number}"))->setEmbedding([1, 0]), range(1, 101));
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Weaviate rejected 2 of 101 documents: [first-batch] store is read-only; [second-batch] store is read-only');
+
+        $store->addDocuments($documents);
     }
 
     public function test_search_renders_a_graphql_query_with_escaped_filter_values(): void
@@ -301,7 +345,7 @@ class WeaviateVectorStoreTest extends TestCase
 
     public function test_whole_number_filters_on_float_fields_compare_numbers(): void
     {
-        $store = $this->store(null, $this->schema(), $this->jsonResponse(['data' => ['Get' => ['Articles' => []]]]), new Response(200));
+        $store = $this->store(null, $this->schema(), $this->jsonResponse(['data' => ['Get' => ['Articles' => []]]]), $this->nothingFailed());
 
         $store->search(new SearchRequest([1.0], Filter::gt('price', 10)));
         $store->delete(Filter::eq('price', 10));
@@ -312,7 +356,7 @@ class WeaviateVectorStoreTest extends TestCase
 
     public function test_delete_sends_a_batch_delete_with_the_rest_filter(): void
     {
-        $this->store(null, $this->schema(), new Response(200))->delete(FilterGroup::anyOf(
+        $this->store(null, $this->schema(), $this->nothingFailed())->delete(FilterGroup::anyOf(
             Filter::eq('sourceName', 'a.txt'),
             Filter::containsAny('tags', ['old', 'stale']),
         ));
@@ -328,6 +372,21 @@ class WeaviateVectorStoreTest extends TestCase
                 ],
             ],
         ]], $this->sentJson(1));
+    }
+
+    public function test_a_delete_weaviate_rejects_raises_its_errors(): void
+    {
+        $store = $this->store(null, $this->schema(), $this->jsonResponse(['results' => [
+            'failed' => 1,
+            'matches' => 2,
+            'objects' => [['errors' => ['error' => [['message' => 'store is read-only']]], 'status' => 'FAILED']],
+            'successful' => 0,
+        ]]));
+
+        $this->expectException(VectorStoreException::class);
+        $this->expectExceptionMessage('Weaviate rejected the delete: store is read-only');
+
+        $store->delete(Filter::eq('sourceName', 'a.txt'));
     }
 
     public function test_filters_on_non_filterable_fields_are_rejected_before_any_query(): void

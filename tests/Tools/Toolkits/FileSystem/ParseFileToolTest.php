@@ -140,7 +140,7 @@ class ParseFileToolTest extends TestCase
         file_put_contents($this->tempDir . '/' . $name, '<?php echo "hello"; ?>');
 
         $this->assertToolError(
-            "Unsupported file format '{$extension}'. Supported formats: PDF, HTML. If the file is already in plain text you can access its content directly with other tools like grep_file_content or read_file.",
+            "Unsupported file format '{$extension}'. Supported formats: PDF, HTML. If the file is already in plain text you can access its content directly with other dedicated tools.",
             ($this->tool)($this->tempDir . '/' . $name)
         );
     }
