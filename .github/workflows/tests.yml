@@ -70,6 +70,8 @@ jobs:
                     discovery.type: single-node
                     plugins.security.disabled: "true"
                     DISABLE_INSTALL_DEMO_CONFIG: true
+                    # Pulling the service images can fill the runner's disk past 90%, which would refuse new indexes
+                    cluster.routing.allocation.disk.threshold_enabled: "false"
                 options: --health-cmd="curl -s http://localhost:9200/_cluster/health | grep '\"status\":\"green\"'" --health-interval=10s --health-timeout=5s --health-retries=5
             weaviate:
                 image: cr.weaviate.io/semitechnologies/weaviate:1.39.13
@@ -81,6 +83,8 @@ jobs:
                     PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
                     ENABLE_MODULES: ''
                     CLUSTER_HOSTNAME: 'node1'
+                    # Pulling the service images can fill the runner's disk past 90%, which would make every shard read-only
+                    DISK_USE_READONLY_PERCENTAGE: '100'
             neo4j:
                 image: neo4j:5.26.19-ubi9
                 ports:
