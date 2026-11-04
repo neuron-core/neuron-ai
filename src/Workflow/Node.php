@@ -7,6 +7,7 @@ namespace NeuronAI\Workflow;
 use Closure;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\StepMemoizer;
@@ -166,6 +167,8 @@ abstract class Node implements NodeInterface
      * the exception propagate, so the node stops instead of finishing work it
      * can no longer commit. Without a lease, or without an executor (e.g. in
      * isolation), it does nothing.
+     *
+     * @throws WorkflowRefusedException
      */
     protected function heartbeat(): void
     {
@@ -238,6 +241,8 @@ abstract class Node implements NodeInterface
      * NOT compare the clock itself.
      *
      * @return array<string, mixed>|null The event payload, or null on timeout.
+     * @throws WorkflowException
+     * @throws WorkflowInterrupt
      */
     protected function awaitEvent(string $eventName, ?DateTimeImmutable $expiresAt = null): ?array
     {

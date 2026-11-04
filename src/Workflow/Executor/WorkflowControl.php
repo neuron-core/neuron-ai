@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Executor;
 
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Interrupt\ResumeInput;
 use NeuronAI\Workflow\WorkflowStatus;
 
@@ -52,7 +53,7 @@ final class WorkflowControl
         return $this->with([
             'nextInterruptId' => $active->request->getId() + 1,
             'interrupt' => $this->interrupt ?? $active,
-            'pendingSteps' => $this->interrupt instanceof \NeuronAI\Workflow\Executor\ActiveInterrupt
+            'pendingSteps' => $this->interrupt instanceof ActiveInterrupt
                 ? [...$this->pendingSteps, $active->stepId]
                 : $this->pendingSteps,
         ]);
@@ -66,6 +67,9 @@ final class WorkflowControl
         ]);
     }
 
+    /**
+     * @throws WorkflowRefusedException
+     */
     public function withInput(ResumeInput $input): self
     {
         return $this->with(['interrupt' => $this->interrupt->withInput($input)]);

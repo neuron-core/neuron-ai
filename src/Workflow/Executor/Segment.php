@@ -6,6 +6,7 @@ namespace NeuronAI\Workflow\Executor;
 
 use Closure;
 use Generator;
+use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Observability\ObservabilityEvent;
@@ -168,7 +169,10 @@ final class Segment
         return true;
     }
 
-    /** @phpstan-impure The control record changes as branch generators advance. */
+    /**
+     * @phpstan-impure The control record changes as branch generators advance.
+     * @throws WorkflowException
+     */
     public function shouldPause(): bool
     {
         $active = $this->store->control()->interrupt;
@@ -241,6 +245,9 @@ final class Segment
         }
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function fail(Throwable $e): void
     {
         $this->stamp($this->state);
@@ -274,6 +281,9 @@ final class Segment
         return true;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function markControlFailed(): void
     {
         if (!$this->store->hasControl() || $this->store->control()->status === WorkflowStatus::Completed) {
@@ -503,6 +513,10 @@ final class Segment
         }
     }
 
+    /**
+     * @throws PersistenceException
+     * @throws WorkflowException
+     */
     protected function settleInterrupt(WorkflowControl $control): WorkflowControl
     {
         $nextStepId = $control->pendingSteps[0] ?? null;

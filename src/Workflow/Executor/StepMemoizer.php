@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Workflow\Executor;
 
 use Closure;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 
 /** Durable memoization bound to one node-execution step, and the lease renewal of its run. */
 final class StepMemoizer
@@ -25,6 +26,9 @@ final class StepMemoizer
         return $this->store->recallMemo($this->stepId, $name);
     }
 
+    /**
+     * @throws WorkflowRefusedException
+     */
     public function heartbeat(): void
     {
         $this->store->heartbeat();

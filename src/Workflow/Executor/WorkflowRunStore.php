@@ -88,6 +88,9 @@ final class WorkflowRunStore
         return true;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     public function loadControl(): ?WorkflowControl
     {
         $this->resetRecords();
@@ -140,18 +143,27 @@ final class WorkflowRunStore
         $this->commit([], $control);
     }
 
+    /**
+     * @throws WorkflowRefusedException
+     */
     public function commitStep(StepResult $step, ?WorkflowControl $control = null): void
     {
         $this->commit([$this->recordKey($step->getStepId()) => $step], $control);
     }
 
-    /** The suspended run's state, committed together with its suspension. */
+    /** The suspended run's state, committed together with its suspension.
+     * @throws WorkflowRefusedException
+     */
     public function commitCheckpoint(WorkflowState $checkpoint, WorkflowControl $control): void
     {
         $this->commit([$this->recordKey(self::CHECKPOINT_KEY) => $checkpoint], $control);
     }
 
-    /** The retained terminal state, committed together with its completion. */
+    /**
+     * The retained terminal state, committed together with its completion.
+     *
+     * @throws WorkflowRefusedException
+     */
     public function commitOutcome(WorkflowState $outcome, WorkflowControl $control): void
     {
         $this->commit([$this->recordKey(self::OUTCOME_KEY) => $outcome], $control);
@@ -219,6 +231,9 @@ final class WorkflowRunStore
         return new StepMemoizer($this, $stepId);
     }
 
+    /**
+     * @throws WorkflowRefusedException
+     */
     public function memo(string $stepId, string $name, Closure $operation): mixed
     {
         $key = $this->memoKey($stepId, $name);
@@ -236,8 +251,6 @@ final class WorkflowRunStore
     /**
      * Renews the lease once half of it has passed and writes nothing before,
      * so a long node can call it on every iteration of a loop.
-     *
-     * @throws WorkflowRefusedException When another process took the run over.
      */
     public function heartbeat(): void
     {
@@ -304,7 +317,10 @@ final class WorkflowRunStore
         return $this->records[$key];
     }
 
-    /** @param array<string, mixed> $records */
+    /**
+     * @param array<string, mixed> $records
+     * @throws WorkflowException
+     */
     protected function commit(array $records, ?WorkflowControl $control = null): void
     {
         $committed = $this->serializeRecords($records);
@@ -339,6 +355,8 @@ final class WorkflowRunStore
      * Control with a fresh lease once half of the current one has passed, or
      * unchanged. No other process can take the run while its lease holds, so
      * a renewal skipped before then never hides a takeover.
+     *
+     * @throws WorkflowException
      */
     protected function renewedLease(): WorkflowControl
     {
@@ -358,11 +376,17 @@ final class WorkflowRunStore
         $this->freshRun = $freshRun;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function recordKey(string $name): string
     {
         return $this->control()->runId . '/' . $name;
     }
 
+    /**
+     * @throws WorkflowException
+     */
     protected function memoKey(string $stepId, string $name): string
     {
         return $this->recordKey($stepId) . '::' . $name;
