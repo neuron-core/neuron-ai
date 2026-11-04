@@ -15,6 +15,7 @@ use NeuronAI\Workflow\WorkflowState;
 use Throwable;
 
 use function array_key_exists;
+use function time;
 
 /**
  * Persistence protocol for one Workflow run partition.
@@ -62,6 +63,7 @@ final class WorkflowRunStore
         protected PersistenceInterface $persistence,
         protected Serializer $serializer,
         public readonly string $workflowId,
+        public readonly ?int $leaseTimeout = null,
     ) {
     }
 
@@ -226,9 +228,23 @@ final class WorkflowRunStore
         }
 
         $value = $operation();
-        $this->commit([$key => $value]);
+        $this->commit([$key => $value], $this->renewedLease());
 
         return $value;
+    }
+
+    /**
+     * Renews the lease once half of it has passed and writes nothing before,
+     * so a long node can call it on every iteration of a loop.
+     *
+     * @throws WorkflowRefusedException When another process took the run over.
+     */
+    public function heartbeat(): void
+    {
+        $control = $this->renewedLease();
+        if ($control !== $this->control) {
+            $this->replaceControl($control);
+        }
     }
 
     public function recallMemo(string $stepId, string $name): mixed
@@ -317,6 +333,23 @@ final class WorkflowRunStore
         foreach ($committed as $key => $value) {
             $this->records[$key] = $value;
         }
+    }
+
+    /**
+     * Control with a fresh lease once half of the current one has passed, or
+     * unchanged. No other process can take the run while its lease holds, so
+     * a renewal skipped before then never hides a takeover.
+     */
+    protected function renewedLease(): WorkflowControl
+    {
+        $control = $this->control();
+        $expiresAt = $control->leaseExpiresAt;
+        $now = time();
+        if ($this->leaseTimeout === null || $expiresAt === null || $expiresAt - $now > $this->leaseTimeout / 2) {
+            return $control;
+        }
+
+        return $control->heartbeat($now + $this->leaseTimeout);
     }
 
     protected function resetRecords(bool $freshRun = false): void

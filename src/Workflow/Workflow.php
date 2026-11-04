@@ -151,15 +151,18 @@ class Workflow implements WorkflowInterface
 
     /**
      * Opt into the execution lease: while a run is executing, the engine
-     * renews the lease deadline inside __control with every step commit, and an inputless continuation
+     * renews the lease deadline inside __control with every step commit, and
+     * inside a node with memo commits and Node::heartbeat() once half of it
+     * has passed. An inputless continuation
      * arriving while the lease is fresh is refused — it would
      * probably duplicate a live process, not revive a dead one. Suspension,
      * failure, and completion all clear the deadline, so only a process killed
      * with no chance to commit (memory limit, timeout, OOM kill) leaves it
      * held, and the next ignition supersedes it once it expires. Pick $seconds
-     * well above the longest silent stretch between step boundaries (a
-     * slow provider or tool call): a too-short lease revives runs that are merely
-     * slow. Null disables the lease; the default comes from leaseTimeout():
+     * well above the longest node, or, for a node that memoizes or calls
+     * heartbeat() as it goes, twice the longest stretch between two such calls
+     * (a slow provider or tool call): a too-short lease revives runs that are
+     * merely slow. Null disables the lease; the default comes from leaseTimeout():
      * null for a plain Workflow, ten minutes for an Agent.
      *
      * @throws WorkflowException

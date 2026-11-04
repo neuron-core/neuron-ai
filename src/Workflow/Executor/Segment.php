@@ -85,7 +85,6 @@ final class Segment
         protected WorkflowRunStore $store,
         protected ExecutionContext $context,
         protected WorkflowState $state,
-        protected ?int $leaseTimeout,
         protected bool $retainCompletion,
     ) {
         $this->processId = getmypid();
@@ -430,10 +429,10 @@ final class Segment
             return $result;
         }
 
-        if ($this->leaseTimeout !== null) {
+        if ($this->store->leaseTimeout !== null) {
             // The commit carries the lease renewal for the node that runs
-            // next, so a heartbeat never costs a write of its own.
-            $control = $control->heartbeat(time() + $this->leaseTimeout);
+            // next, in full and at no write of its own.
+            $control = $control->heartbeat(time() + $this->store->leaseTimeout);
         }
 
         $this->store->commitStep($result, $control);

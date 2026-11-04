@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Workflow\Executor;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Tests\Workflow\Persistence\Stub\CountingPersistence;
+use NeuronAI\Tests\Workflow\Persistence\Stub\RecordingPersistence;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\Ignition;
 use NeuronAI\Workflow\Executor\StepResult;
@@ -16,11 +17,25 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function time;
+
 class WorkflowRunStoreTest extends TestCase
 {
+    protected function leasedStore(RecordingPersistence $persistence, int $leaseExpiresAt): WorkflowRunStore
+    {
+        $store = new WorkflowRunStore($persistence, new PhpSerializer(), 'workflow-1', leaseTimeout: 300);
+        $store->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running, leaseExpiresAt: $leaseExpiresAt),
+            new Ignition('run-1', new StartEvent()),
+        );
+
+        return $store;
+    }
+
     public function test_initializes_and_loads_one_run_partition(): void
     {
         $persistence = new InMemoryPersistence();
@@ -542,6 +557,55 @@ class WorkflowRunStoreTest extends TestCase
         }
 
         $this->assertSame('retried', $store->memo('step-1', 'provider', fn (): string => 'retried'));
+    }
+
+    /** @return iterable<string, array{int, list<list<string>>}> */
+    public static function leaseAhead(): iterable
+    {
+        yield 'more than half of the lease ahead' => [200, [['run-1/step-1::provider']]];
+        yield 'half of the lease passed' => [150, [['run-1/step-1::provider', '__control']]];
+    }
+
+    /** @param list<list<string>> $writes */
+    #[DataProvider('leaseAhead')]
+    public function test_a_memo_carries_the_lease_renewal_once_half_of_the_lease_has_passed(int $secondsAhead, array $writes): void
+    {
+        $persistence = new RecordingPersistence();
+        $store = $this->leasedStore($persistence, time() + $secondsAhead);
+        $persistence->writes = [];
+
+        $store->memo('step-1', 'provider', fn (): string => 'result');
+
+        $this->assertSame($writes, $persistence->writes);
+    }
+
+    public function test_a_heartbeat_renews_the_lease_once_half_of_it_has_passed_and_writes_nothing_before(): void
+    {
+        $persistence = new RecordingPersistence();
+        $store = $this->leasedStore($persistence, time() + 150);
+        $persistence->writes = [];
+        $renewedUntil = time() + 300;
+
+        $store->heartbeat();
+        $store->heartbeat();
+
+        // The first call renewed the lease, so the second had more than half of it ahead.
+        $this->assertSame([['__control']], $persistence->writes);
+        $reader = new WorkflowRunStore($persistence, new PhpSerializer(), 'workflow-1');
+        $this->assertGreaterThanOrEqual($renewedUntil, $reader->loadControl()->leaseExpiresAt);
+    }
+
+    public function test_a_run_without_a_lease_gets_no_renewal(): void
+    {
+        $persistence = new RecordingPersistence();
+        $store = new WorkflowRunStore($persistence, new PhpSerializer(), 'workflow-1');
+        $store->initialize(new WorkflowControl('run-1', WorkflowStatus::Running), new Ignition('run-1', new StartEvent()));
+        $persistence->writes = [];
+
+        $store->heartbeat();
+        $store->memo('step-1', 'provider', fn (): string => 'result');
+
+        $this->assertSame([['run-1/step-1::provider']], $persistence->writes);
     }
 
     public function test_load_outcome_rejects_a_present_record_with_the_wrong_type(): void

@@ -193,7 +193,7 @@ class WorkflowEngine
         ?int $leaseTimeout,
         bool $retainCompletion,
     ): Segment|WorkflowState {
-        $store = $this->store($workflowId);
+        $store = $this->store($workflowId, $leaseTimeout);
 
         return $request->starting
             ? $this->startRun($store, $request, $state, $leaseTimeout, $retainCompletion)
@@ -264,7 +264,7 @@ class WorkflowEngine
                 );
         }
 
-        return $this->openSegment($store, $ignition, $state, $leaseTimeout, $retainCompletion);
+        return $this->openSegment($store, $ignition, $state, $retainCompletion);
     }
 
     /**
@@ -382,7 +382,7 @@ class WorkflowEngine
 
         $store->replaceControl($control->claim($this->leaseExpiry($leaseTimeout)));
 
-        return $this->openSegment($store, $ignition, $state, $leaseTimeout, $retainCompletion);
+        return $this->openSegment($store, $ignition, $state, $retainCompletion);
     }
 
     protected function dueInput(WorkflowControl $control): ?ResumeInput
@@ -469,12 +469,11 @@ class WorkflowEngine
         WorkflowRunStore $store,
         Ignition $ignition,
         WorkflowState $state,
-        ?int $leaseTimeout,
         bool $retainCompletion,
     ): Segment {
         $context = new ExecutionContext($store->workflowId, $ignition->runId, $store->control()->executionAttempt, $ignition);
 
-        return new Segment($store, $context, $state, $leaseTimeout, $retainCompletion);
+        return new Segment($store, $context, $state, $retainCompletion);
     }
 
     protected function leaseExpiry(?int $leaseTimeout): ?int
@@ -488,12 +487,12 @@ class WorkflowEngine
      *
      * @throws WorkflowException
      */
-    protected function store(string $workflowId): WorkflowRunStore
+    protected function store(string $workflowId, ?int $leaseTimeout = null): WorkflowRunStore
     {
         if (preg_match('/^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$/uD', $workflowId) !== 1) {
             throw new WorkflowException('Invalid workflow ID: use a nonempty address of at most 255 characters without control characters or the __ prefix.');
         }
 
-        return new WorkflowRunStore($this->persistence, $this->serializer, $workflowId);
+        return new WorkflowRunStore($this->persistence, $this->serializer, $workflowId, $leaseTimeout);
     }
 }

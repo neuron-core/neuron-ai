@@ -597,7 +597,7 @@ framework:
 
 | Clock | Rule | Otherwise, as run |
 |---|---|---|
-| Agent lease, 600 s (`leaseTimeout()` hook) | Above the longest single step, one inference or one whole tool batch: it renews only at step commits | Past it the engine treats a live run as dead. A killed worker holds the thread until it expires: new turns get 409 with `Retry-After` |
+| Agent lease, 600 s (`leaseTimeout()` hook) | Above the longest single step, one inference or one whole tool batch: it renews in full at step commits | Past it the engine treats a live run as dead. A killed worker holds the thread until it expires: new turns get 409 with `Retry-After` |
 | `redeliver_timeout` (Doctrine and Redis transports) | Above the longest turn, or run `php bin/console messenger:consume async --keepalive` | 8 s against a 15 s turn: a second worker claimed the message, waited on the lease, and ran the turn again once the first completed; the first worker then crashed on "Could not acknowledge redis message". With `--keepalive=2` the turn ran once |
 
 - `doctrine_ping_connection` needs Doctrine ORM. **Never add `doctrine_transaction`** to the bus that runs agents: inside an open transaction the suspended run was invisible to other processes, and the rollback erased it.

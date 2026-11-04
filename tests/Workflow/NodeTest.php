@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Tests\Workflow;
 
 use DateTimeImmutable;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Tests\Observability\Stub\CustomTestEvent;
 use NeuronAI\Tests\Support\ExecutorTestHelpers;
 use NeuronAI\Tests\Workflow\Stub\ExposedNode;
@@ -15,17 +16,26 @@ use NeuronAI\Tests\Workflow\Stub\ProvidedResources;
 use NeuronAI\Tests\Workflow\Stub\RecordingEventDispatcher;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Events\StopEvent;
+use NeuronAI\Workflow\Executor\Ignition;
+use NeuronAI\Workflow\Executor\WorkflowControl;
+use NeuronAI\Workflow\Executor\WorkflowRunStore;
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\NodeContext;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronAI\Workflow\Persistence\PhpSerializer;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowResources;
 use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+
+use function time;
 
 class NodeTest extends TestCase
 {
@@ -254,6 +264,37 @@ class NodeTest extends TestCase
         $this->assertSame($node, $event->source);
         $this->assertSame('left', $event->branchId);
         $this->assertSame([], (array) $foreign);
+    }
+
+    public function test_heartbeat_without_an_executor_is_a_no_op(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        (new ExposedNode())->callHeartbeat();
+    }
+
+    public function test_heartbeat_stops_a_node_whose_run_another_process_took_over(): void
+    {
+        $persistence = new InMemoryPersistence();
+        $serializer = new PhpSerializer();
+        $owner = new WorkflowRunStore($persistence, $serializer, 'workflow-1', leaseTimeout: 300);
+        $owner->initialize(
+            new WorkflowControl('run-1', WorkflowStatus::Running, leaseExpiresAt: time() - 1),
+            new Ignition('run-1', new StartEvent()),
+        );
+        $node = new ExposedNode();
+        $node->setWorkflowContext(new NodeContext(memoizer: $owner->memoizer('step-1')));
+
+        // The lease ran out while the node worked, and another process claimed the run.
+        $recovery = new WorkflowRunStore($persistence, $serializer, 'workflow-1');
+        $recovery->replaceControl($recovery->loadControl()->claim(time() + 300));
+
+        try {
+            $node->callHeartbeat();
+            $this->fail('The heartbeat must refuse a run another process took over.');
+        } catch (WorkflowRefusedException $refused) {
+            $this->assertSame(RefusalReason::StaleAttempt, $refused->reason);
+        }
     }
 
     /** @return iterable<string, array{NodeContext, bool}> */

@@ -156,6 +156,23 @@ abstract class Node implements NodeInterface
     }
 
     /**
+     * Renew the run's lease from inside a long node, for example on every
+     * iteration of a loop, so the lease has to cover twice the longest stretch
+     * between two calls instead of the whole node. It writes only once half of
+     * the lease has passed, so calling it often is cheap; memoize() renews the
+     * lease the same way.
+     *
+     * Once another process has taken the run over, the renewal is refused: let
+     * the exception propagate, so the node stops instead of finishing work it
+     * can no longer commit. Without a lease, or without an executor (e.g. in
+     * isolation), it does nothing.
+     */
+    protected function heartbeat(): void
+    {
+        $this->memoizer?->heartbeat();
+    }
+
+    /**
      * Suspend the workflow, carrying $request OUTBOUND to the caller.
      * On first pass this throws the internal suspend signal; on resume it
      * returns the inbound payload — node code after the call runs only on resume.

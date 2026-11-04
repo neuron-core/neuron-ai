@@ -384,7 +384,13 @@ Every step commit renews a deadline inside the control record at no extra
 write. A run whose deadline has passed is treated as dead: the next `run()`
 supersedes it and `run(ExecutionRequest::resume())` may take it over. Without a lease only `run(ExecutionRequest::resume())`
 can take over a `running` record. Pick a value above the longest single node
-(a slow provider or tool call). Plain workflows are opt-in; `Agent` holds a
+(a slow provider or tool call). A node that runs longer, such as a loop over
+many items, renews the lease as it goes by calling `$this->heartbeat()`, and
+every `memoize()` commit renews it too. Both write only once half of the lease
+has passed, so the lease then has to cover twice the longest stretch between
+two calls. Once another process has taken the run over, the heartbeat throws
+`WorkflowRefusedException`: let it propagate, so the node stops instead of
+finishing work it can no longer commit. Plain workflows are opt-in; `Agent` holds a
 ten-minute lease by default, and `setLeaseTimeout(null)` disables it. A
 suspended run holds no lease, so a pause never expires on its own.
 

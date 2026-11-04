@@ -54,4 +54,9 @@ class ExposedNode extends Node
     {
         $this->emit($event);
     }
+
+    public function callHeartbeat(): void
+    {
+        $this->heartbeat();
+    }
 }

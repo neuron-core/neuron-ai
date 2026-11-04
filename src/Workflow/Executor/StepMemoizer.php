@@ -6,7 +6,7 @@ namespace NeuronAI\Workflow\Executor;
 
 use Closure;
 
-/** Durable memoization bound to one node-execution step. */
+/** Durable memoization bound to one node-execution step, and the lease renewal of its run. */
 final class StepMemoizer
 {
     public function __construct(
@@ -23,5 +23,10 @@ final class StepMemoizer
     public function get(string $name): mixed
     {
         return $this->store->recallMemo($this->stepId, $name);
+    }
+
+    public function heartbeat(): void
+    {
+        $this->store->heartbeat();
     }
 }

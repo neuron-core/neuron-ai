@@ -82,7 +82,8 @@
         "style": "Run PHP CS Fixer to fix coding style issues.",
         "refactor": "Run rector for code refactoring.",
         "test": "Run PHPUnit to test",
-        "test:frontend": "Run the Playwright frontend protocol integration suite"
+        "test:frontend": "Run the Playwright frontend protocol integration suite",
+		"pre-release": "Run the complete source code verification."
     },
     "autoload": {
         "psr-4": {
