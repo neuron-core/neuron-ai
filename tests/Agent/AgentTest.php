@@ -446,6 +446,23 @@ class AgentTest extends TestCase
         $agent->chat(new UserMessage('Test'));
     }
 
+    public function test_a_hidden_toolkit_is_neither_offered_nor_listed_in_the_guidelines(): void
+    {
+        $provider = new FakeAIProvider(new AssistantMessage('Done'));
+        $agent = Agent::make()->setThreadId('thread_1')->setAiProvider($provider)
+            ->setInstructions('You are a helpful assistant.')
+            ->addTool([new SearchTool(), (new WeatherToolkit())->visible(false)]);
+
+        $agent->chat(new UserMessage('Hi'));
+
+        $record = $provider->getRecorded()[0];
+        $this->assertSame(
+            ['search'],
+            array_map(static fn (ToolInterface|ProviderToolInterface $tool): string => $tool->getName(), $record->tools)
+        );
+        $this->assertSame('You are a helpful assistant.', $record->systemPrompt?->getContent());
+    }
+
     protected function weatherToolkitHidingSearch(): ToolkitInterface
     {
         $toolkit = new class () extends WeatherToolkit {

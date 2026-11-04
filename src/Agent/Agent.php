@@ -34,6 +34,7 @@ use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolInterface;
 use NeuronAI\Tools\ToolRegistry;
 use NeuronAI\Tools\Toolkits\ToolkitInterface;
+use NeuronAI\Tools\Toolkits\ToolkitVisibilityInterface;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\PendingExecution;
@@ -241,6 +242,10 @@ class Agent extends Workflow implements AgentInterface
 
         foreach ($this->getTools() as $tool) {
             if ($tool instanceof ToolkitInterface) {
+                if ($tool instanceof ToolkitVisibilityInterface && !$tool->isVisible()) {
+                    continue;
+                }
+
                 $innerTools = array_filter($tool->tools(), fn (ToolInterface $tool): bool => $tool->isVisible());
                 $tools = array_merge($tools, $innerTools);
 

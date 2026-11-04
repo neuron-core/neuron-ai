@@ -373,9 +373,14 @@ $tool->visible(false);
 
 // A toolkit tool, hidden the same way
 $toolkit->with(DeleteFileTool::class, fn (ToolInterface $tool): ToolInterface => $tool->visible(false));
+
+// A whole toolkit: none of its tools are offered, and its guidelines are left out
+$toolkit->visible(false);
 ```
 
 Use case: attaching a tool only under a condition, such as `DeleteFileTool::make()->visible($user->isAdmin())`.
+
+Toolkits get `visible()` from `AbstractToolkit`. A toolkit that implements `ToolkitInterface` directly is always attached, unless it also implements `ToolkitVisibilityInterface`.
 
 ## Max Runs
 

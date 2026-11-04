@@ -7,8 +7,8 @@ namespace NeuronAI\Workflow\Executor;
 use Generator;
 use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\ParallelEvent;
-
 use Throwable;
+
 use function array_keys;
 
 /** Runs the branches of a fork one after another, up to the first pause. */

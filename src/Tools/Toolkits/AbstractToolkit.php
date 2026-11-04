@@ -12,7 +12,7 @@ use function array_map;
 use function array_values;
 use function in_array;
 
-abstract class AbstractToolkit implements ToolkitInterface
+abstract class AbstractToolkit implements ToolkitInterface, ToolkitVisibilityInterface
 {
     use StaticConstructor;
 
@@ -20,6 +20,7 @@ abstract class AbstractToolkit implements ToolkitInterface
     protected array $only = [];
     protected array $with = [];
     protected array $added = [];
+    protected bool $visible = true;
 
     public function guidelines(): ?string
     {
@@ -54,6 +55,17 @@ abstract class AbstractToolkit implements ToolkitInterface
     {
         $this->added = [...$this->added, ...array_values($tools)];
         return $this;
+    }
+
+    public function visible(bool $visible): ToolkitInterface
+    {
+        $this->visible = $visible;
+        return $this;
+    }
+
+    public function isVisible(): bool
+    {
+        return $this->visible;
     }
 
     /**
