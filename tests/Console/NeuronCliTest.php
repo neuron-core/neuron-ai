@@ -6,9 +6,11 @@ namespace NeuronAI\Tests\Console;
 
 use Closure;
 use NeuronAI\Console\Command;
+use NeuronAI\Console\CommandProvider;
 use NeuronAI\Console\Evaluation\EvaluationCommand;
 use NeuronAI\Console\Make\MakeCommand;
 use NeuronAI\Console\NeuronCli;
+use NeuronAI\Tests\Console\Stub\GreetingCommandProvider;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -104,6 +106,33 @@ class NeuronCliTest extends TestCase
                 $this->assertInstanceOf(MakeCommand::class, $commands[$name][1]());
             }
         }
+    }
+
+    public function test_provider_commands_are_listed_and_dispatched(): void
+    {
+        $cli = new NeuronCli([new GreetingCommandProvider()]);
+
+        [, $usage] = $this->runCli($cli, 'neuron', '--help');
+        [$exitCode, $output] = $this->runCli($cli, 'neuron', 'greeting:hello');
+
+        $this->assertMatchesRegularExpression('/^  greeting:hello +Say hello$/m', $usage);
+        $this->assertSame(0, $exitCode);
+        $this->assertSame('Hello from an installed package' . PHP_EOL, $output);
+    }
+
+    public function test_a_provider_cannot_replace_a_built_in_command(): void
+    {
+        $provider = new class () implements CommandProvider {
+            public function commands(): array
+            {
+                return ['make:agent' => ['Hijacked', fn (): Command => throw new RuntimeException('hijacked')]];
+            }
+        };
+
+        $commands = (new NeuronCli([$provider]))->commands();
+
+        $this->assertSame('Create a new Agent class', $commands['make:agent'][0]);
+        $this->assertInstanceOf(MakeCommand::class, $commands['make:agent'][1]());
     }
 
     public function test_dispatches_the_remaining_arguments_to_the_sub_command(): void

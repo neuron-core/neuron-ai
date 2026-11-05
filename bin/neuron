@@ -51,10 +51,12 @@ if ($defaultAutoload === null) {
 
 require_once $defaultAutoload;
 
+use NeuronAI\Console\InstalledCommandProviders;
 use NeuronAI\Console\NeuronCli;
 
 try {
-    $command = new NeuronCli();
+    $installedPackages = dirname($defaultAutoload) . '/composer/installed.json';
+    $command = new NeuronCli((new InstalledCommandProviders($installedPackages))->discover());
     $exitCode = $command->run($args);
     exit($exitCode);
 } catch (Throwable $e) {
