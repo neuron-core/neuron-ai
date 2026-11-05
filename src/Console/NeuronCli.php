@@ -17,11 +17,21 @@ use const PHP_EOL;
 class NeuronCli extends Command
 {
     /**
+     * @param CommandProvider[] $providers
+     */
+    public function __construct(protected array $providers = [])
+    {
+    }
+
+    /**
+     * Built-in commands come first and win name collisions, so an installed
+     * package can add commands but never change what an existing one does.
+     *
      * @return array<string, array{string, Closure(): Command}>
      */
     public function commands(): array
     {
-        return [
+        $commands = [
             'evaluation' => ['Run AI evaluation tests on a directory of evaluators', fn (): Command => new EvaluationCommand()],
             'make:agent' => ['Create a new Agent class', fn (): Command => new MakeCommand('make:agent', 'Agent', 'agent.stub')],
             'make:middleware' => ['Create a new Workflow Middleware class', fn (): Command => new MakeCommand('make:middleware', 'Middleware', 'middleware.stub')],
@@ -32,6 +42,12 @@ class NeuronCli extends Command
             'make:event' => ['Create a new Event class', fn (): Command => new MakeCommand('make:event', 'Event', 'event.stub')],
             'make:evaluators' => ['Create a new Evaluator class', fn (): Command => new MakeCommand('make:evaluators', 'Evaluator', 'evaluator.stub')],
         ];
+
+        foreach ($this->providers as $provider) {
+            $commands += $provider->commands();
+        }
+
+        return $commands;
     }
 
     /**
