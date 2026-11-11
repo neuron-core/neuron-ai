@@ -119,12 +119,12 @@ jobs:
                 password: ${{ secrets.DOCKERHUB_TOKEN }}
 
             -   name: Install poppler-utils (for pdftotext)
+                # The real-PDF tests skip without pdftotext, so an Ubuntu mirror outage must not fail the job
+                continue-on-error: true
                 run: |
                     sudo apt-get update
                     sudo apt-get install -y poppler-utils
-
-            -   name: Verify pdftotext installation
-                run: pdftotext -v
+                    pdftotext -v
 
             - name: Setup PHP
               uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
@@ -222,7 +222,12 @@ jobs:
               run: npm ci
 
             - name: Install Chromium
-              run: npx playwright install --with-deps chromium
+              run: npx playwright install chromium
+
+            - name: Install Chromium system dependencies
+              # The runner image already ships these libraries for Chrome, so an Ubuntu mirror outage must not fail the job
+              continue-on-error: true
+              run: npx playwright install-deps chromium
 
             - name: TypeScript unit tests
               run: npm test

@@ -8,6 +8,7 @@ use Closure;
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Tests\Workflow\Stub\KeyedWorkflow;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
@@ -27,6 +28,7 @@ use PHPUnit\Framework\TestCase;
 
 use function serialize;
 use function str_repeat;
+use function time;
 
 class WorkflowEngineTest extends TestCase
 {
@@ -136,6 +138,35 @@ class WorkflowEngineTest extends TestCase
 
         self::assertSame('run_b', $snapshot?->runId);
         self::assertSame(WorkflowStatus::Suspended, $snapshot->status);
+    }
+
+    public function test_a_reserved_run_id_taken_again_between_the_two_reads_is_read_again(): void
+    {
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(4))->method('get')->willReturnOnConsecutiveCalls(
+            serialize(new WorkflowControl('reserved', WorkflowStatus::Running)),
+            // The run ended, so its records are gone...
+            null,
+            // ...and the next start took the same reserved ID
+            serialize(new WorkflowControl('reserved', WorkflowStatus::Suspended)),
+            serialize(new Ignition('reserved', new StartEvent())),
+        );
+
+        $snapshot = (new WorkflowEngine($persistence))->inspect('racing');
+
+        self::assertSame('reserved', $snapshot?->runId);
+        self::assertSame(WorkflowStatus::Suspended, $snapshot->status);
+    }
+
+    public function test_a_run_still_without_its_ignition_record_on_a_second_look_is_invalid(): void
+    {
+        $control = serialize(new WorkflowControl('run_a', WorkflowStatus::Suspended));
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::exactly(5))->method('get')->willReturnOnConsecutiveCalls($control, null, $control, null, $control);
+
+        $this->expectException(WorkflowException::class);
+        $this->expectExceptionMessage("Run 'run_a' for workflow ID 'corrupt' has no ignition record.");
+        (new WorkflowEngine($persistence))->inspect('corrupt');
     }
 
     public function test_a_run_without_its_ignition_record_is_invalid(): void
@@ -389,6 +420,31 @@ class WorkflowEngineTest extends TestCase
         } catch (StaleWorkflowRunException $stale) {
             self::assertSame('run_a', $stale->expectedRunId);
             self::assertSame('run_b', $stale->actualRunId);
+        }
+    }
+
+    public function test_a_continuation_whose_reserved_run_id_is_taken_again_between_the_two_reads_judges_the_run_holding_it(): void
+    {
+        $taken = serialize(new WorkflowControl('reserved', WorkflowStatus::Running, leaseExpiresAt: time() + 60));
+        $ignition = serialize(new Ignition('reserved', new StartEvent()));
+        $persistence = $this->createMock(PersistenceInterface::class);
+        $persistence->expects(self::never())->method('writeIfUnchanged');
+        $persistence->expects(self::exactly(6))->method('get')->willReturnOnConsecutiveCalls(
+            // The run the continuation found could be continued...
+            serialize(new WorkflowControl('reserved', WorkflowStatus::Failed)),
+            // ...but it ended, and the next start took the same reserved ID: a worker is executing that one
+            null,
+            $taken,
+            $ignition,
+            $taken,
+            $ignition,
+        );
+
+        try {
+            (new WorkflowEngine($persistence))->admit('racing', ExecutionRequest::resume(null, 'reserved'), new WorkflowState(), null, false);
+            self::fail('A run another worker is executing must not be continued.');
+        } catch (WorkflowRefusedException $refused) {
+            self::assertSame(RefusalReason::Executing, $refused->reason);
         }
     }
 

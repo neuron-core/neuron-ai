@@ -52,11 +52,14 @@ class WorkflowEngine
     public function inspect(string $workflowId): ?WorkflowRunSnapshot
     {
         $store = $this->store($workflowId);
-        $control = $store->loadControl();
+        $store->loadControl();
 
-        while ($control instanceof WorkflowControl) {
-            $ignition = $store->loadIgnition();
-            if ($ignition instanceof Ignition && $ignition->runId === $control->runId) {
+        // A run replaced while it was read gives way to the one holding the workflow ID now.
+        while ($store->hasControl()) {
+            $ignition = $this->loadIgnition($store);
+            if ($ignition instanceof Ignition) {
+                $control = $store->control();
+
                 return new WorkflowRunSnapshot(
                     $control->runId,
                     $control->status,
@@ -69,13 +72,6 @@ class WorkflowEngine
                     $ignition->tag,
                 );
             }
-
-            // Only a run that ended or was replaced between the two reads may miss its ignition.
-            $current = $store->loadControl();
-            if ($current?->runId === $control->runId) {
-                throw new WorkflowException("Run '{$control->runId}' for workflow ID '{$workflowId}' has no ignition record.");
-            }
-            $control = $current;
         }
 
         return null;
@@ -320,7 +316,13 @@ class WorkflowEngine
             );
         }
 
-        $ignition = $this->loadIgnition($store, $runId);
+        $ignition = $this->loadIgnition($store)
+            ?? throw new StaleWorkflowRunException($workflowId, $runId, $store->hasControl() ? $store->control()->runId : null);
+
+        if ($store->control() !== $control) {
+            // The run judged above ended and the next start took its reserved ID: judge the one holding it now.
+            return $this->continueRun($store, $request, $state, $leaseTimeout, $retainCompletion);
+        }
 
         if ($control->status === WorkflowStatus::Completed) {
             if ($signalName !== null) {
@@ -442,21 +444,32 @@ class WorkflowEngine
     }
 
     /**
-     * @throws StaleWorkflowRunException
+     * The ignition of the run whose control the store holds, or null when that
+     * run no longer holds the workflow ID: the store then holds the control of
+     * the run that does, if any.
+     *
+     * The two records are separate reads, so a run that ended or was replaced
+     * between them misses its ignition. So does a run whose reserved ID the next
+     * start took again: that one is read again, control first. Only a run still
+     * without its ignition on that second look is a broken store.
+     *
      * @throws WorkflowException
      */
-    protected function loadIgnition(WorkflowRunStore $store, string $runId): Ignition
+    protected function loadIgnition(WorkflowRunStore $store): ?Ignition
     {
-        $ignition = $store->loadIgnition();
-        if ($ignition instanceof Ignition && $ignition->runId === $runId) {
-            return $ignition;
-        }
+        $runId = $store->control()->runId;
+        $looks = 2;
 
-        // Only a run that ended or was replaced between the two reads may miss its ignition.
-        $current = $store->loadControl();
-        if ($current?->runId !== $runId) {
-            throw new StaleWorkflowRunException($store->workflowId, $runId, $current?->runId);
-        }
+        do {
+            $ignition = $store->loadIgnition();
+            if ($ignition instanceof Ignition && $ignition->runId === $runId) {
+                return $ignition;
+            }
+
+            if ($store->loadControl()?->runId !== $runId) {
+                return null;
+            }
+        } while (--$looks > 0);
 
         throw new WorkflowException(
             $ignition instanceof Ignition
