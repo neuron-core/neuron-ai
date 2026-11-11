@@ -8,14 +8,25 @@ use NeuronAI\Exceptions\PersistenceException;
 use Redis;
 use RedisException;
 
+use function addcslashes;
+use function array_keys;
+use function array_map;
+use function is_array;
+use function strlen;
+use function strval;
+use function substr;
+
 /**
  * Requires ext-redis and a connected client outside a transaction or pipeline.
  * Each partition is one Redis hash. Lua keeps comparisons and mutations atomic
  * and bypasses client serialization so records remain opaque bytes.
  * Configure Redis durability and eviction to suit the workflow's retention needs.
  */
-class RedisPersistence implements PersistenceInterface
+class RedisPersistence implements PersistenceInterface, PersistenceListingInterface
 {
+    /** How many keys Redis is asked to look at in one pass of a listing. */
+    protected const SCAN_COUNT = 1000;
+
     public function __construct(
         protected Redis $client,
         protected string $prefix = 'neuron:workflow:',
@@ -105,14 +116,63 @@ class RedisPersistence implements PersistenceInterface
     }
 
     /**
+     * Redis keeps no list of its keys, so this walks every key of the
+     * database to find the partitions: its cost grows with the whole
+     * database, not with the number of names that match.
+     *
+     * @throws PersistenceException
+     */
+    public function partitions(string $prefix = ''): iterable
+    {
+        $this->assertOutsideTransaction();
+
+        // The keys as Redis holds them, under the key prefix the client itself may add
+        $keyPrefix = $this->client->_prefix($this->prefix);
+        $pattern = addcslashes($keyPrefix . $prefix, '*?[]\\') . '*';
+
+        $names = [];
+        $cursor = '0';
+
+        try {
+            do {
+                // Sent raw: the client's own scan adds its key prefix or not, depending on an option
+                $pass = $this->client->rawCommand('SCAN', $cursor, 'MATCH', $pattern, 'COUNT', (string) self::SCAN_COUNT);
+                if (!is_array($pass)) {
+                    throw new PersistenceException('Workflow Redis persistence failed: ' . $this->client->getLastError());
+                }
+
+                [$cursor, $keys] = $pass;
+
+                // A pass may come back empty, or with a key an earlier pass already gave
+                foreach ($keys as $key) {
+                    $names[substr((string) $key, strlen($keyPrefix))] = true;
+                }
+            } while ((string) $cursor !== '0');
+        } catch (RedisException $e) {
+            throw new PersistenceException('Workflow Redis persistence failed: ' . $e->getMessage(), $e->getCode(), previous: $e);
+        }
+
+        // PHP turns a numeric string key into an integer
+        return array_map(strval(...), array_keys($names));
+    }
+
+    /**
+     * @throws PersistenceException
+     */
+    protected function assertOutsideTransaction(): void
+    {
+        if ($this->client->getMode() !== Redis::ATOMIC) {
+            throw new PersistenceException('Workflow Redis persistence cannot run inside a transaction or pipeline.');
+        }
+    }
+
+    /**
      * @param list<string> $arguments
      * @throws PersistenceException
      */
     protected function evaluate(string $script, string $partition, array $arguments): mixed
     {
-        if ($this->client->getMode() !== Redis::ATOMIC) {
-            throw new PersistenceException('Workflow Redis persistence cannot run inside a transaction or pipeline.');
-        }
+        $this->assertOutsideTransaction();
 
         try {
             $result = $this->client->eval($script, [$this->prefix . $partition, ...$arguments], 1);

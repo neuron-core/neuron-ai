@@ -14,6 +14,7 @@ use Redis;
 use RedisException;
 
 use function array_sum;
+use function array_unique;
 use function bin2hex;
 use function fclose;
 use function fgets;
@@ -146,6 +147,77 @@ class RedisPersistenceTest extends TestCase
             $this->client->setOption(Redis::OPT_PREFIX, '');
         }
         self::assertSame(1, $this->client->exists($this->prefix . 'client:neuron:workflow:workflow'));
+    }
+
+    public function test_a_listing_stays_inside_the_prefix_of_its_store(): void
+    {
+        $orders = new RedisPersistence($this->client, $this->prefix . 'orders:');
+        $threads = new RedisPersistence($this->client, $this->prefix . 'threads:');
+        $orders->initializeIfAbsent('order:1', 'control', 'owner');
+        $threads->initializeIfAbsent('order:2', 'control', 'owner');
+
+        self::assertSame(['order:1'], [...$orders->partitions('order:')]);
+        self::assertSame(['order:2'], [...$threads->partitions()]);
+    }
+
+    public function test_a_listing_finds_the_partitions_under_the_key_prefix_of_the_client(): void
+    {
+        $this->client->setOption(Redis::OPT_PREFIX, $this->prefix . 'client:');
+        try {
+            $store = new RedisPersistence($this->client);
+            $store->initializeIfAbsent('order:1', 'control', 'owner');
+            $store->initializeIfAbsent('thread-1', 'control', 'owner');
+
+            self::assertSame(['order:1'], [...$store->partitions('order:')]);
+
+            // Whether the client prefixes its own scans or not changes nothing
+            $this->client->setOption(Redis::OPT_SCAN, Redis::SCAN_PREFIX);
+            self::assertSame(['order:1'], [...$store->partitions('order:')]);
+        } finally {
+            $this->client->setOption(Redis::OPT_SCAN, Redis::SCAN_NOPREFIX);
+            $this->client->setOption(Redis::OPT_PREFIX, '');
+        }
+    }
+
+    public function test_a_listing_reads_names_as_text_with_client_serialization_enabled(): void
+    {
+        $this->store->initializeIfAbsent('order:1', 'control', 'owner');
+        $this->client->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
+
+        self::assertSame(['order:1'], [...$this->store->partitions('order:')]);
+    }
+
+    public function test_a_listing_longer_than_one_pass_gives_every_partition_once(): void
+    {
+        $pipeline = $this->client->pipeline();
+        for ($i = 0; $i < 2500; $i++) {
+            $pipeline->hSet($this->prefix . "order:{$i}", 'control', 'owner');
+        }
+        $pipeline->exec();
+        $this->store->initializeIfAbsent('thread-1', 'control', 'owner');
+
+        $names = [...$this->store->partitions('order:')];
+
+        self::assertCount(2500, $names);
+        self::assertCount(2500, array_unique($names));
+        self::assertNotContains('thread-1', $names);
+    }
+
+    #[DataProvider('modeProvider')]
+    public function test_queued_clients_are_rejected_before_listing(string $mode): void
+    {
+        $this->client->multi($mode === 'transaction' ? Redis::MULTI : Redis::PIPELINE);
+        try {
+            $this->store->partitions();
+            self::fail('A queued client must be rejected.');
+        } catch (PersistenceException $e) {
+            self::assertStringContainsString('transaction or pipeline', $e->getMessage());
+            self::assertSame([], $this->client->exec());
+        } finally {
+            if ($this->client->getMode() !== Redis::ATOMIC) {
+                $this->client->discard();
+            }
+        }
     }
 
     public function test_values_remain_byte_exact_with_client_serialization_enabled(): void

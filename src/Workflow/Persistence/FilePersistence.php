@@ -18,9 +18,14 @@ use function is_string;
 use function json_decode;
 use function json_encode;
 use function mkdir;
+use function rawurldecode;
 use function rawurlencode;
 use function rename;
+use function scandir;
+use function str_ends_with;
+use function str_starts_with;
 use function strlen;
+use function substr;
 use function tempnam;
 use function unlink;
 
@@ -39,8 +44,10 @@ use const JSON_THROW_ON_ERROR;
  * File replacement is deliberately not a lock or CAS protocol for concurrent
  * workers; use a transactional database backend there.
  */
-class FilePersistence implements PersistenceInterface
+class FilePersistence implements PersistenceInterface, PersistenceListingInterface
 {
+    protected const EXTENSION = '.store';
+
     public function __construct(
         protected string $directory,
     ) {
@@ -108,6 +115,35 @@ class FilePersistence implements PersistenceInterface
         }
 
         return true;
+    }
+
+    /**
+     * @throws PersistenceException
+     */
+    public function partitions(string $prefix = ''): iterable
+    {
+        if (!is_dir($this->directory)) {
+            return [];
+        }
+
+        $files = @scandir($this->directory);
+        if ($files === false) {
+            throw new PersistenceException("Unable to list the Workflow partitions in '{$this->directory}'.");
+        }
+
+        $names = [];
+        foreach ($files as $file) {
+            if (!str_ends_with($file, self::EXTENSION)) {
+                continue;
+            }
+
+            $name = rawurldecode(substr($file, 0, -strlen(self::EXTENSION)));
+            if (str_starts_with($name, $prefix)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /** @return array<string, string> */
@@ -229,6 +265,6 @@ class FilePersistence implements PersistenceInterface
      */
     protected function filePath(string $partition): string
     {
-        return $this->directory . DIRECTORY_SEPARATOR . rawurlencode($partition) . '.store';
+        return $this->directory . DIRECTORY_SEPARATOR . rawurlencode($partition) . self::EXTENSION;
     }
 }

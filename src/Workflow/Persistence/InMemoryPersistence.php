@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace NeuronAI\Workflow\Persistence;
 
-class InMemoryPersistence implements PersistenceInterface
+use function array_filter;
+use function array_keys;
+use function array_map;
+use function array_values;
+use function str_starts_with;
+use function strval;
+
+class InMemoryPersistence implements PersistenceInterface, PersistenceListingInterface
 {
     /**
      * Values keyed by partition then key. The engine hands the backend
@@ -68,5 +75,13 @@ class InMemoryPersistence implements PersistenceInterface
         unset($this->storage[$partition]);
 
         return true;
+    }
+
+    public function partitions(string $prefix = ''): iterable
+    {
+        // PHP turns a numeric string key into an integer
+        $names = array_map(strval(...), array_keys($this->storage));
+
+        return array_values(array_filter($names, static fn (string $name): bool => str_starts_with($name, $prefix)));
     }
 }

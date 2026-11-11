@@ -14,6 +14,7 @@ use NeuronAI\Exceptions\PersistenceException;
 use function base64_decode;
 use function base64_encode;
 use function bin2hex;
+use function hex2bin;
 use function preg_match;
 use function strlen;
 
@@ -23,7 +24,7 @@ use function strlen;
  * bytes. Configure mass assignment and timestamps on the model. Casts must
  * preserve these strings, and records must be physically deleted (no SoftDeletes).
  */
-class EloquentPersistence implements PersistenceInterface
+class EloquentPersistence implements PersistenceInterface, PersistenceListingInterface
 {
     /** @param class-string<Model> $modelClass */
     public function __construct(protected string $modelClass)
@@ -71,6 +72,23 @@ class EloquentPersistence implements PersistenceInterface
     {
         return $this->atomically(fn (): bool => $this->holds($partition, $conditionKey, $expectedValue)
             && $this->purge($partition));
+    }
+
+    /**
+     * Names are stored as hex, so the ones that start with the prefix are a
+     * range of the partition column: every digit that can follow it sorts before "g".
+     */
+    public function partitions(string $prefix = ''): iterable
+    {
+        $from = $this->encodeKey($prefix);
+
+        return $this->records()
+            ->where('partition', '>=', $from)
+            ->where('partition', '<', $from . 'g')
+            ->distinct()
+            ->pluck('partition')
+            ->map(static fn (string $name): string => (string) hex2bin($name))
+            ->all();
     }
 
     /** @param Closure(): bool $operation */

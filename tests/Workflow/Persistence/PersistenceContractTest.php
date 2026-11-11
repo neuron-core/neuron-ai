@@ -9,6 +9,7 @@ use NeuronAI\Tests\Workflow\Persistence\Stub\SqlPersistenceFactory;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\Persistence\PersistenceListingInterface;
 use NeuronAI\Workflow\Persistence\RedisPersistence;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -25,10 +26,13 @@ use function file_exists;
 use function is_dir;
 use function random_bytes;
 use function rmdir;
+use function sort;
 use function str_repeat;
 use function sys_get_temp_dir;
 use function unlink;
 use function array_combine;
+
+use const SORT_STRING;
 
 /**
  * The opaque atomic store contract, exercised against every built-in backend.
@@ -366,6 +370,108 @@ class PersistenceContractTest extends TestCase
                 }
             }
         }
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_every_built_in_backend_lists_its_partitions(string $backend): void
+    {
+        $store = $this->listing($backend);
+
+        $this->assertSame([], $this->names($store->partitions()));
+        $this->assertSame([], $this->names($store->partitions('order:')));
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_partitions_are_listed_by_the_prefix_of_their_name(string $backend): void
+    {
+        $store = $this->listing($backend);
+        foreach (['order:1', 'order:2', 'orders', 'thread-1', 'Order:3', 'rder:4'] as $name) {
+            $store->initializeIfAbsent($name, '__control', 'owner');
+        }
+
+        $this->assertSame(['order:1', 'order:2'], $this->names($store->partitions('order:')));
+        $this->assertSame(['order:1', 'order:2', 'orders'], $this->names($store->partitions('order')));
+        $this->assertSame(['order:1'], $this->names($store->partitions('order:1')));
+        $this->assertSame([], $this->names($store->partitions('order:12')));
+        $this->assertSame(
+            ['Order:3', 'order:1', 'order:2', 'orders', 'rder:4', 'thread-1'],
+            $this->names($store->partitions()),
+        );
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_a_partition_is_listed_once_however_many_records_it_holds(string $backend): void
+    {
+        $store = $this->listing($backend);
+        $store->initializeIfAbsent('order:1', '__control', 'owner', ['step-1' => 'a', 'step-2' => 'b']);
+        $store->writeIfUnchanged('order:1', '__control', 'owner', ['step-3' => 'c']);
+
+        $this->assertSame(['order:1'], $this->names($store->partitions('order:')));
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_a_deleted_partition_is_no_longer_listed(string $backend): void
+    {
+        $store = $this->listing($backend);
+        $store->initializeIfAbsent('order:1', '__control', 'owner', ['step' => 'a']);
+        $store->initializeIfAbsent('order:2', '__control', 'owner');
+
+        $store->deleteIfUnchanged('order:1', '__control', 'owner');
+
+        $this->assertSame(['order:2'], $this->names($store->partitions('order:')));
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_a_prefix_is_text_never_a_pattern(string $backend): void
+    {
+        $store = $this->listing($backend);
+        $names = ['a%b:1', 'aXb:1', 'a_b:1', 'a*b:1', 'a?b:1', 'a[bc]d', 'ab', 'a\\b:1', 'a.b:1', 'a/b:1', '../a', "a\0b", 'ordine:è-1', 'ordine:e-1'];
+        foreach ($names as $name) {
+            $store->initializeIfAbsent($name, '__control', 'owner');
+        }
+
+        $this->assertSame(['a%b:1'], $this->names($store->partitions('a%b')));
+        $this->assertSame(['a_b:1'], $this->names($store->partitions('a_b')));
+        $this->assertSame(['a*b:1'], $this->names($store->partitions('a*b')));
+        $this->assertSame(['a?b:1'], $this->names($store->partitions('a?b')));
+        $this->assertSame(['a[bc]d'], $this->names($store->partitions('a[bc]')));
+        $this->assertSame(['a\\b:1'], $this->names($store->partitions('a\\')));
+        $this->assertSame(['a.b:1'], $this->names($store->partitions('a.')));
+        $this->assertSame(['a/b:1'], $this->names($store->partitions('a/')));
+        $this->assertSame(['../a'], $this->names($store->partitions('../')));
+        $this->assertSame(["a\0b"], $this->names($store->partitions("a\0")));
+        $this->assertSame(['ordine:è-1'], $this->names($store->partitions('ordine:è')));
+    }
+
+    #[DataProvider('backendProvider')]
+    public function test_a_numeric_name_is_listed_as_the_string_it_is(string $backend): void
+    {
+        $store = $this->listing($backend);
+        $store->initializeIfAbsent('123', '__control', 'owner');
+        $store->initializeIfAbsent('0123', '__control', 'owner');
+
+        $this->assertSame(['0123', '123'], $this->names($store->partitions()));
+        $this->assertSame(['123'], $this->names($store->partitions('12')));
+    }
+
+    protected function listing(string $name): PersistenceInterface&PersistenceListingInterface
+    {
+        $store = $this->backend($name);
+        $this->assertInstanceOf(PersistenceListingInterface::class, $store);
+
+        return $store;
+    }
+
+    /**
+     * @param iterable<string> $partitions
+     * @return list<string> In byte order, since a listing promises none.
+     */
+    protected function names(iterable $partitions): array
+    {
+        $names = [...$partitions];
+        sort($names, SORT_STRING);
+
+        return $names;
     }
 
     protected function removeDirectory(string $directory): void

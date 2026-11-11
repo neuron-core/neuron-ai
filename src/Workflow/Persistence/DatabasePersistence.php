@@ -12,10 +12,12 @@ use PDOStatement;
 use Throwable;
 
 use function array_fill;
+use function array_map;
 use function base64_decode;
 use function base64_encode;
 use function bin2hex;
 use function count;
+use function hex2bin;
 use function implode;
 use function str_contains;
 use function str_replace;
@@ -48,7 +50,7 @@ use function strlen;
  *     PRIMARY KEY (`partition`, `key`)
  * ) ENGINE=InnoDB;
  */
-class DatabasePersistence implements PersistenceInterface
+class DatabasePersistence implements PersistenceInterface, PersistenceListingInterface
 {
     protected const SAVEPOINT = 'neuron_workflow';
 
@@ -126,6 +128,24 @@ class DatabasePersistence implements PersistenceInterface
     public function deleteIfUnchanged(string $partition, string $conditionKey, string $expectedValue): bool
     {
         return $this->commitIf($partition, $conditionKey, $expectedValue, deletePartition: true);
+    }
+
+    /**
+     * Names are stored as hex, so the ones that start with the prefix are a
+     * range of the primary key: every digit that can follow it sorts before "g".
+     *
+     * @throws PersistenceException
+     */
+    public function partitions(string $prefix = ''): iterable
+    {
+        $from = $this->encodeKey($prefix);
+
+        $names = $this->execute(
+            "SELECT DISTINCT {$this->partitionCol} FROM {$this->table} WHERE {$this->partitionCol} >= :from AND {$this->partitionCol} < :to",
+            ['from' => $from, 'to' => $from . 'g'],
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        return array_map(static fn (string $name): string => (string) hex2bin($name), $names);
     }
 
     /** @param array<string, string> $writes */
