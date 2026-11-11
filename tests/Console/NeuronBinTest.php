@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Console;
 
+use NeuronAI\Tests\Console\Stub\ArgumentsCommandProvider;
 use NeuronAI\Tests\Console\Stub\GreetingCommandProvider;
 use NeuronAI\Tests\Support\FileSystemSandbox;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function dirname;
 use function escapeshellarg;
 use function exec;
 use function file_put_contents;
+use function implode;
 use function json_encode;
 use function mkdir;
 use function var_export;
@@ -77,5 +80,35 @@ class NeuronBinTest extends TestCase
 
         $this->assertSame(0, $exitCode);
         $this->assertSame(['Hello from an installed package'], $output);
+    }
+
+    public function test_passes_everything_after_the_double_dash_to_the_command(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $proxy = $this->sandbox . '/neuron';
+        $payload = $this->sandbox . '/payload.php';
+
+        mkdir($this->sandbox . '/composer');
+        file_put_contents($this->sandbox . '/composer/installed.json', json_encode(['packages' => [
+            ['name' => 'acme/arguments', 'extra' => ['neuron' => ['command-provider' => ArgumentsCommandProvider::class]]],
+        ]], JSON_THROW_ON_ERROR));
+        file_put_contents($this->sandbox . '/autoload.php', '<?php require ' . var_export($root . '/vendor/autoload.php', true) . ';');
+        file_put_contents($payload, "<?php echo 'payload ran', PHP_EOL;");
+        file_put_contents(
+            $proxy,
+            "<?php \$GLOBALS['_composer_autoload_path'] = " . var_export($this->sandbox . '/autoload.php', true) . ';'
+            . ' return include ' . var_export($root . '/bin/neuron', true) . ';'
+        );
+
+        $arguments = ['first', '--', '--autoload-file=' . $payload, '--autoload-file', $payload];
+        exec(
+            escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($proxy) . ' arguments:echo '
+            . implode(' ', array_map(escapeshellarg(...), $arguments)) . ' 2>&1',
+            $output,
+            $exitCode,
+        );
+
+        $this->assertSame(0, $exitCode);
+        $this->assertSame($arguments, $output);
     }
 }

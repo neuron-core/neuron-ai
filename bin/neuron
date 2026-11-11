@@ -6,6 +6,12 @@ declare(strict_types=1);
 $autoloadFile = null;
 $args = [$argv[0]];
 for ($i = 1; $i < $argc; $i++) {
+    // Everything from "--" on belongs to the command, even an argument that looks like this option
+    if ($argv[$i] === '--') {
+        $args = [...$args, ...array_slice($argv, $i)];
+        break;
+    }
+
     if ($argv[$i] === '--autoload-file') {
         if (!isset($argv[$i + 1])) {
             fwrite(STDERR, 'The --autoload-file option requires a file path' . PHP_EOL);

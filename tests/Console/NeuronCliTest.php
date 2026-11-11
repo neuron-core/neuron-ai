@@ -85,6 +85,21 @@ class NeuronCliTest extends TestCase
         }
     }
 
+    public function test_usage_aligns_descriptions_after_the_longest_command_name(): void
+    {
+        $provider = new class () implements CommandProvider {
+            public function commands(): array
+            {
+                return ['make:subagent-task' => ['Create a subagent task', fn (): Command => throw new RuntimeException('not run')]];
+            }
+        };
+
+        [, $output] = $this->runCli(new NeuronCli([$provider]), 'neuron', '--help');
+
+        $this->assertStringContainsString('  make:subagent-task Create a subagent task' . PHP_EOL, $output);
+        $this->assertStringContainsString('  make:agent         Create a new Agent class' . PHP_EOL, $output);
+    }
+
     public function test_registry_exposes_the_documented_commands(): void
     {
         $commands = (new NeuronCli())->commands();

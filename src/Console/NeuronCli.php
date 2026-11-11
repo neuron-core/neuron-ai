@@ -9,8 +9,12 @@ use NeuronAI\Console\Evaluation\EvaluationCommand;
 use NeuronAI\Console\Make\MakeCommand;
 use Throwable;
 
+use function array_keys;
+use function array_map;
 use function array_shift;
+use function max;
 use function str_pad;
+use function strlen;
 
 use const PHP_EOL;
 
@@ -98,8 +102,10 @@ class NeuronCli extends Command
         echo 'Usage: neuron <command> [options]' . PHP_EOL . PHP_EOL;
 
         echo 'Available Commands:' . PHP_EOL;
-        foreach ($this->commands() as $name => [$description]) {
-            echo '  ' . str_pad($name, 16) . $description . PHP_EOL;
+        $commands = $this->commands();
+        $nameWidth = max(array_map(strlen(...), array_keys($commands))) + 1;
+        foreach ($commands as $name => [$description]) {
+            echo '  ' . str_pad($name, $nameWidth) . $description . PHP_EOL;
         }
         echo PHP_EOL;
 
