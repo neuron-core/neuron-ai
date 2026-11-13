@@ -3,16 +3,27 @@ import type { BaseEvent, RunAgentInput } from '@ag-ui/core';
 import { EventSchemas } from '@ag-ui/core/schemas';
 import { Observable } from 'rxjs';
 import { readUIMessageStream, uiMessageChunkSchema } from 'ai';
-import { createChannelConsumer, createProtocolStream, subscribeToMercure } from '@neuron-core/streaming';
+import { createChannelConsumer, createProtocolStream, subscribeToIQ, subscribeToMercure } from '@neuron-core/streaming';
 
-/** Frames are envelopes handed to the core, or the data of Mercure updates dispatched as an EventSource does. */
-export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'vercel', transport: 'core' | 'mercure' = 'core'): Promise<string> {
+/**
+ * Frames are envelopes handed to the core, or the data of Mercure updates or IQ frames dispatched as an
+ * EventSource does.
+ */
+export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'vercel', transport: 'core' | 'mercure' | 'iq' = 'core'): Promise<string> {
   let feed!: () => void;
   const subscribe = (callbacks: Parameters<typeof createChannelConsumer>[0]) => {
     if (transport === 'mercure') {
       const source = new EventTarget();
       feed = () => frames.forEach(data => source.dispatchEvent(new MessageEvent('message', { data })));
       return subscribeToMercure(source as unknown as EventSource, callbacks);
+    }
+    if (transport === 'iq') {
+      const source = Object.assign(new EventTarget(), { readyState: 1, close() { this.readyState = 2; } });
+      feed = () => {
+        frames.forEach(data => source.dispatchEvent(new MessageEvent('message', { data })));
+        source.dispatchEvent(new MessageEvent('iq:end', { data: JSON.stringify({ lastEventId: frames.length }) }));
+      };
+      return subscribeToIQ(source as unknown as EventSource, callbacks);
     }
     const consumer = createChannelConsumer(callbacks);
     feed = () => frames.forEach(frame => consumer.accept(frame));

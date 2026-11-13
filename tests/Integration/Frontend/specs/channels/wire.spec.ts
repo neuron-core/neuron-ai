@@ -14,6 +14,7 @@ interface Frame extends Event {
 interface Fixture {
   frames: Frame[];
   updates: string[];
+  lines: Array<{ data?: string; close?: string }>;
   wireEvents: Array<{ event: string; data: { nonce: string; ciphertext: string } }>;
   channel: string;
   authorization: { auth: string; shared_secret: string };
@@ -26,6 +27,7 @@ declare global {
     createChannelConsumer: typeof import("@neuron-core/streaming")["createChannelConsumer"];
     subscribeToPusher: typeof import("@neuron-core/streaming")["subscribeToPusher"];
     subscribeToMercure: typeof import("@neuron-core/streaming")["subscribeToMercure"];
+    subscribeToIQ: typeof import("@neuron-core/streaming")["subscribeToIQ"];
     channelSubscription: { close(): void };
     channelEvents: Event[];
     channelGaps: string[];
@@ -64,7 +66,7 @@ async function deliver(page: Page, frames: Frame[]): Promise<void> {
   }, frames);
 }
 
-for (const transport of ["pusher", "redis", "mercure"]) {
+for (const transport of ["pusher", "redis", "mercure", "iq"]) {
   for (const outcome of ["completed", "interrupted", "failed"]) {
     test(`${transport}: reordered events preserve payloads and ${outcome} follows preceding data`, async ({ page, request }) => {
       const { frames, expected, errors } = await fixture(request, transport, outcome);
@@ -119,6 +121,56 @@ for (const outcome of ["completed", "interrupted", "failed"]) {
     expect(received.gaps).toEqual([]);
   });
 }
+
+/**
+ * What an EventSource on an IQ stream dispatches: one message per frame holding its data, then IQ's
+ * terminal event. Returns what the subscription delivered and whether it closed the source.
+ */
+async function consumeIQ(page: Page, messages: string[], terminal: { name: string; data: object }) {
+  await page.goto(`${FRONTEND}/channels/`);
+  await page.waitForFunction(() => typeof window.subscribeToIQ === "function");
+  return page.evaluate(({ messages, terminal }) => {
+    const events: Event[] = [];
+    const gaps: string[] = [];
+    const source = Object.assign(new EventTarget(), { readyState: 1, close() { this.readyState = 2; } });
+    window.subscribeToIQ(source as unknown as EventSource, {
+      onEvent: ({ type, data }) => events.push({ type, data } as Event),
+      onGap: (reason) => gaps.push(reason),
+    });
+    for (const data of messages) source.dispatchEvent(new MessageEvent("message", { data }));
+    const gapsBeforeTerminal = gaps.length;
+    source.dispatchEvent(new MessageEvent(terminal.name, { data: JSON.stringify(terminal.data) }));
+    return { events, gaps, gapsBeforeTerminal, closed: source.readyState === 2 };
+  }, { messages, terminal });
+}
+
+for (const outcome of ["completed", "interrupted", "failed"]) {
+  test(`iq: subscribeToIQ reads every NDJSON frame and ${outcome} follows preceding data`, async ({ page, request }) => {
+    const { lines, frames, expected, errors } = await fixture(request, "iq", outcome);
+    expect(errors).toBe(0);
+    expect(lines.at(-1)).toEqual({ close: outcome === "failed" ? "fail" : "end" });
+    const messages = lines.slice(0, -1).map((line) => line.data!);
+    expect(messages.map((data) => JSON.parse(data))).toEqual(frames);
+    const terminal = outcome === "failed"
+      ? { name: "iq:fail", data: { reason: "publisher", lastEventId: messages.length } }
+      : { name: "iq:end", data: { lastEventId: messages.length } };
+    const received = await consumeIQ(page, messages, terminal);
+    expect(received.events).toEqual(expected);
+    expect(received.gaps).toEqual([]);
+    expect(received.closed).toBe(true);
+  });
+}
+
+test("iq: a frame the page never received is reported when IQ ends the stream, not 30 seconds later", async ({ page, request }) => {
+  const { lines } = await fixture(request, "iq", "completed");
+  const messages = lines.slice(0, -1).map((line) => line.data!);
+  // The first frame is missing: every later one, the terminal envelope included, waits behind it.
+  const received = await consumeIQ(page, messages.slice(1), { name: "iq:end", data: { lastEventId: messages.length } });
+  expect(received.events).toEqual([]);
+  expect(received.gapsBeforeTerminal).toBe(0);
+  expect(received.gaps).toEqual(["Missing channel events"]);
+  expect(received.closed).toBe(true);
+});
 
 test("independent streams sharing a destination cannot mix their fragments", async ({ page, request }) => {
   const first = await fixture(request);

@@ -16,6 +16,7 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use Pusher\Pusher;
 use NeuronAI\Tests\Workflow\Channel\Stub\ManualClockMercureChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
+use NeuronAI\Tests\Workflow\Channel\Stub\SocketPairIQStreamChannel;
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -29,6 +30,7 @@ use Throwable;
 use function array_fill;
 use function array_map;
 use function array_merge;
+use function array_slice;
 use function in_array;
 use function json_decode;
 use function str_repeat;
@@ -41,7 +43,7 @@ final class ChannelFixture
     /** @return array<string, mixed> */
     public static function run(string $transport, string $outcome, bool $failDelivery = false, ?string $protocol = null): array
     {
-        if (!in_array($transport, ['pusher', 'pusher-encrypted', 'redis', 'mercure'], true)
+        if (!in_array($transport, ['pusher', 'pusher-encrypted', 'redis', 'mercure', 'iq'], true)
             || !in_array($outcome, ['completed', 'interrupted', 'failed'], true)) {
             throw new InvalidArgumentException('Unknown channel fixture transport or outcome.');
         }
@@ -60,6 +62,9 @@ final class ChannelFixture
             });
             // Paced on a clock that never sleeps: what follows the first event is packed into the next requests.
             $channel = new ManualClockMercureChannel($hub, 'https://frontend.test/threads/1', maxRequestBytes: 2_000, maxRequestsPerSecond: 20.0);
+        } elseif ($transport === 'iq') {
+            // The channel writes its publish request to a socket pair, which keeps it for the frames below.
+            $channel = new SocketPairIQStreamChannel([SocketPairIQStreamChannel::answering()], 'https://iq.test', 'frontend-test-stream', 'pub-token', maxFrameBytes: 2_000);
         } elseif ($transport !== 'redis') {
             $responses = array_fill(0, 1_000, new Response(200, [], '{}'));
             if ($failDelivery) {
@@ -136,10 +141,17 @@ final class ChannelFixture
         if ($updates !== []) {
             $frames = array_merge(...array_map(static fn (string $data): array => json_decode($data, true), $updates));
         }
+        $lines = [];
+        if ($channel instanceof SocketPairIQStreamChannel) {
+            $lines = array_map(static fn (string $line): array => json_decode($line, true), SocketPairIQStreamChannel::lines($channel->requests()[0]));
+            // Every line but the close line carries an envelope as its data.
+            $frames = array_map(static fn (array $line): array => json_decode($line['data'], true), array_slice($lines, 0, -1));
+        }
 
         return [
             'frames' => $frames,
             'updates' => $updates,
+            'lines' => $lines,
             'wireEvents' => $wireEvents,
             'channel' => $destination,
             'authorization' => $encrypted ? json_decode($pusher->authorizeChannel($destination, '123.456'), true) : null,

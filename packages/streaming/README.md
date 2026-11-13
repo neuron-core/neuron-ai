@@ -2,7 +2,7 @@
 
 Reconstruct Neuron AI events delivered through transports with message-size limits. The PHP backend splits oversized events into fragments; this package orders the envelopes, joins their fragments, suppresses duplicates, and reports gaps that require application recovery.
 
-The core is independent of transport, UI framework, and agent protocol. Use it with any source of Neuron envelopes: WebSockets, a Redis-to-browser bridge, Pusher, a Mercure hub, or an in-process callback. Consume the reconstructed events directly, update React/Vue state, or bridge them into AG-UI or the Vercel AI SDK.
+The core is independent of transport, UI framework, and agent protocol. Use it with any source of Neuron envelopes: WebSockets, a Redis-to-browser bridge, Pusher, a Mercure hub, an IQ streaming server, or an in-process callback. Consume the reconstructed events directly, update React/Vue state, or bridge them into AG-UI or the Vercel AI SDK.
 
 ```sh
 npm install @neuron-core/streaming
@@ -24,7 +24,7 @@ Application callbacks / UI state / createProtocolStream
 
 The backend's `AbstractChannel` owns sequencing and fragmentation. Transport implementations such as `PusherChannel` supply delivery and byte budgets. The frontend core understands the shared Neuron envelope contract, without knowing which transport carried it or what the event payload means.
 
-`subscribeToPusher` and `subscribeToMercure` are thin input adapters around the same core. `createProtocolStream` is an optional output bridge. Neither is required for direct consumption.
+`subscribeToPusher`, `subscribeToMercure` and `subscribeToIQ` are thin input adapters around the same core. `createProtocolStream` is an optional output bridge. Neither is required for direct consumption.
 
 ## Core: consume events from any source
 
@@ -176,6 +176,41 @@ Open the source before starting execution, and wait for its `open` event before 
 
 To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStream` as shown below, on a topic or a `streamId` that carries one execution segment.
 
+## IQ
+
+Pass an `EventSource` opened on a stream of an IQ server, with the `sub` token your backend minted for it:
+
+```ts
+import { subscribeToIQ } from '@neuron-core/streaming';
+
+const source = new EventSource(`https://stream.example.com/${stream}?token=${subscribeToken}`);
+
+const subscription = subscribeToIQ(source, {
+  onEvent: ({ type, data }) => renderEvent(type, data),
+  onGap: reason => reloadConversation(reason),
+});
+
+// On cleanup:
+subscription.close();
+```
+
+The backend's `IQStreamChannel` publishes one execution segment per IQ stream, one envelope per frame, so the adapter takes no `streamId`. IQ numbers the frames and resumes a reconnecting `EventSource` right after the last one it received, so the core gets every envelope in order, once each.
+
+The subscription owns the source. IQ ends every stream with an event of its own, sent after every frame it holds: `iq:end`, `iq:fail` or `iq:gone`. The adapter then closes the source, since an open `EventSource` would reconnect. If the segment's terminal event (`stream.completed`, `stream.interrupted` or `stream.failed`) has arrived by then, the segment is whole and nothing else happens: a failed run reaches your callbacks as the protocol's error events and `stream.failed`. If it has not, the missing events will never come, and `onGap` reports it at once instead of after the 30-second deadline:
+
+| Event | `onGap` reason |
+| --- | --- |
+| `iq:end` | `Missing channel events`: the backend's delivery broke during the segment |
+| `iq:fail` | `IQ stream failed: <reason>`, such as `max_duration`, `too_large` or `publisher_idle` |
+| `iq:gone` | `IQ stream gone`: frames this page never received are gone, as for a page that subscribed after the end |
+| `error` with `readyState` `CLOSED` | `IQ subscription refused`: an invalid or expired token, a limit, or a server that is unavailable |
+
+An `error` while the source is connecting again is a dropped connection, which the browser resumes by itself. `close()` detaches the adapter, closes the source, and clears the core's buffers and timers; so do a gap and a callback that throws.
+
+IQ keeps every frame while the stream runs, so the page may subscribe before or after the backend starts executing: a late subscriber still gets the stream from its first frame. A page that subscribes first makes IQ wait for the backend, for as long as the server allows. The browser sends the token in the URL again on every reconnection, so it must stay valid until the stream ends. This package opens no connections and mints no tokens.
+
+To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStream`: an IQ stream carries one execution segment.
+
 ## React, Vue, and other UI frameworks
 
 The callback API requires no framework wrapper. Subscribe when a component mounts and close on disposal. For example, in React:
@@ -325,7 +360,7 @@ A missing sequence or incomplete event has a 30-second deadline. Ordered deliver
 
 The package cannot detect a lost final event, silence before the first event, or a connection failure without subsequent frames. Watch transport connection state and backend run status/timeouts. Close subscriptions on disconnection and reconcile from authoritative history. Sequence numbers detect ordering gaps; they cannot replay lost events. A source ending or a local `close()` call is not evidence of successful backend completion.
 
-This contract is supplied by Neuron's `RedisChannel` and `PusherChannel` and custom channels extending `AbstractChannel`. `CallbackChannel` bypasses the envelope contract; ordinary SSE from `SSEEncoder` already carries protocol objects and does not need this reconciliation layer.
+This contract is supplied by Neuron's `RedisChannel`, `PusherChannel`, `MercureChannel` and `IQStreamChannel` and custom channels extending `AbstractChannel`. `CallbackChannel` bypasses the envelope contract; ordinary SSE from `SSEEncoder` already carries protocol objects and does not need this reconciliation layer.
 
 ## Development
 

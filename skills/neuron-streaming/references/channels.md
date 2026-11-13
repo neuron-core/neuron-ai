@@ -1,6 +1,6 @@
 # Channel wire contract
 
-`RedisChannel` publishes each envelope as JSON. `PusherChannel` passes the envelope to the injected official Pusher SDK as already-encoded event `data`, named by the envelope's `type`. On `private-encrypted-*` channels the SDK encrypts it, and the encryption-enabled browser SDK restores the envelope before invoking callbacks. `MercureChannel` publishes a JSON array of envelopes as the `data` of each update, with no SSE event type, so a single `message` listener receives every update. `CallbackChannel` calls its configured closures directly and does not use this contract. Pull streaming and SSE remain protocol events; this envelope belongs only to broadcast channel delivery.
+`RedisChannel` publishes each envelope as JSON. `PusherChannel` passes the envelope to the injected official Pusher SDK as already-encoded event `data`, named by the envelope's `type`. On `private-encrypted-*` channels the SDK encrypts it, and the encryption-enabled browser SDK restores the envelope before invoking callbacks. `MercureChannel` publishes a JSON array of envelopes as the `data` of each update, with no SSE event type, so a single `message` listener receives every update. `IQStreamChannel` writes each envelope as the `data` of one NDJSON line of its publish request, without an event name: IQ relays it as an SSE `message`, and ends the stream with an event of its own, `iq:end`, `iq:fail` or `iq:gone`. `CallbackChannel` calls its configured closures directly and does not use this contract. Pull streaming and SSE remain protocol events; this envelope belongs only to broadcast channel delivery.
 
 ```json
 {"streamId":"81d4f00e881563538f272ca26aa7a8d4","sequence":0,"type":"text-delta","data":{"id":"message-1","delta":"Hello"}}
@@ -19,7 +19,7 @@ An oversized event becomes one or more `stream.fragment` envelopes:
 
 All fragments of one logical event share `(streamId, sequence)`. Sort their zero-based `index` values, concatenate `part`, translate URL-safe base64 to standard base64, decode, and parse the resulting JSON to recover the original `data`. Unicode remains JSON-escaped, so decoded JSON is ASCII. `event` is the original type. The final fragment may contain base64 padding; earlier fragments do not.
 
-Ordering is a consumer responsibility. Pusher [guarantees order within a batch, not between batches](https://docs.bird.com/pusher/channels/channels/events/why-dont-channels-events-arrive-in-order). A terminal event can therefore arrive before earlier data. Do not close on its arrival until preceding sequences are complete, or declare a gap and reconcile from application history. Redis orders one publisher's messages, but different segments can share a destination and must still be distinguished. `MercureChannel` publishes one update after the other, so a hub delivers a segment's updates in stream order, and the envelopes inside an update are in stream order.
+Ordering is a consumer responsibility. Pusher [guarantees order within a batch, not between batches](https://docs.bird.com/pusher/channels/channels/events/why-dont-channels-events-arrive-in-order). A terminal event can therefore arrive before earlier data. Do not close on its arrival until preceding sequences are complete, or declare a gap and reconcile from application history. Redis orders one publisher's messages, but different segments can share a destination and must still be distinguished. `MercureChannel` publishes one update after the other, so a hub delivers a segment's updates in stream order, and the envelopes inside an update are in stream order. IQ numbers the frames of a stream and replays the ones a reconnecting `EventSource` missed, so a subscriber receives them in order, once each, then IQ's terminal event; frames it can no longer get are reported as `iq:gone`.
 
 ## Browser consumer
 
@@ -71,6 +71,24 @@ source.close();
 A Mercure update holds a JSON array of envelopes, however many the channel packed into that request, and nothing in it announces the count. The adapter unwraps the array: `onEvent` receives one event at a time, in order, as with every other transport. A whole update passed to `createChannelConsumer().accept()` is refused as `Invalid channel envelope`; the core takes one envelope. The third argument selects one segment, as for Pusher, and `close()` leaves the `EventSource` open.
 
 Wait for the source's `open` event before starting backend execution. An `EventSource` reconnects with the ID of the last update it received, and a hub with history replays the updates published since: the consumer ignores the ones it already delivered, so a short interruption leaves no gap. History is the hub's: Mercure Cloud retains about a hundred updates for the whole hub, and a hub on the `local` transport none. When the source's `error` event finds its `readyState` `CLOSED`, the browser has given up: close the subscription and reconcile.
+
+For an IQ stream, open an `EventSource` on the stream with the `sub` token the application minted, and pass it to `subscribeToIQ`:
+
+```js
+import { subscribeToIQ } from '@neuron-core/streaming';
+
+const source = new EventSource(`https://stream.example.com/${stream}?token=${subscribeToken}`);
+
+const subscription = subscribeToIQ(source, {
+  onEvent: ({ type, data }) => renderEvent(type, data),
+  onGap: (reason) => reloadConversation(reason),
+});
+
+// On cleanup:
+subscription.close();
+```
+
+The subscription owns the source: it closes it when IQ ends the stream, on a gap and on `close()`, since an `EventSource` left open reconnects. IQ ends a stream with `iq:end`, `iq:fail` or `iq:gone`, sent after every frame the stream holds. A segment whose terminal event has arrived by then is whole, whatever IQ's event. Any other is reported through `onGap` at once, instead of after the consumer's 30-second deadline: `iq:end` after the channel's delivery broke mid-segment, `iq:fail` when the stream was cut (`IQ stream failed: max_duration`), and `iq:gone` when frames this page never received are gone. A refused subscription (an invalid or expired token, a limit, an unavailable server) is reported the same way; a dropped connection is not, since the browser resumes after the last frame by itself. An IQ stream carries one segment, so the adapter takes no `streamId`, and `createProtocolStream` can read the subscription as it is.
 
 The AG-UI `HttpAgent` and the default `useChat` transport read one SSE response from the application, so they cannot read a channel, whichever its transport. Give them a custom `AbstractAgent` or `ChatTransport` built on `createProtocolStream`, which turns one segment of a subscription into the validated protocol objects those clients expect: they then receive AG-UI or Vercel events one by one and never see envelopes, fragments or packed updates. The [package guide](../../../packages/streaming/README.md) has both. Where the stock client must stay, relay the run through `RedisChannelReader` instead.
 

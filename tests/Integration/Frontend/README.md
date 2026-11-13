@@ -3,7 +3,7 @@
 Executable evidence that Neuron's frontend-tool flow works with real clients:
 the official AG-UI client, Vercel AI SDK `useChat`, and CopilotKit's hooks through
 its runtime bridge. A dedicated Chromium project also verifies the broadcast
-channel wire contract using real Redis/Pusher/Mercure encoders and in-memory transport fakes.
+channel wire contract using real Redis/Pusher/Mercure/IQ encoders and in-memory transport fakes.
 
 ## Layout
 
@@ -11,7 +11,7 @@ channel wire contract using real Redis/Pusher/Mercure encoders and in-memory tra
 |---|---|
 | `backend/router.php` | Example application endpoint for the built-in PHP server: `/agui`, the AG-UI reload route `/agui/threads/{id}`, `/vercel`, and test-only `/_test/*` routes |
 | `Stub/Fixture.php` | SQLite-backed application state: workflow persistence, chat history, thread→scenario binding, audit reads |
-| `Stub/ChannelFixture.php` | Real Redis/Pusher/Mercure channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker or hub |
+| `Stub/ChannelFixture.php` | Real Redis/Pusher/Mercure/IQ channel frames for browser ordering, fragmentation, lifecycle, and failure checks; no live broker, hub or IQ server |
 | `Stub/ScenarioProvider.php` | Deterministic provider choosing replies from the inference input; every invocation is persisted |
 | `fixtures/vercel/` | React app on `useChat` with a browser-side `read_title` handler |
 | `fixtures/copilotkit/` | React app on `useFrontendTool` + `CopilotChat`, and `server.mjs`, the CopilotKit runtime bridge that drives `/agui` through `HttpAgent` |
@@ -108,7 +108,10 @@ them through Pusher, and feed reordered duplicates through `createProtocolStream
 into the official AG-UI agent and Vercel message-stream consumer. Mercure cases pace the
 channel on a clock that never sleeps, so its updates hold several envelopes, and dispatch
 them as the `MessageEvent`s of an `EventSource`, each one twice as a reconnection replays
-them, through `subscribeToMercure` to the same consumers.
+them, through `subscribeToMercure` to the same consumers. IQ cases publish through a real
+`IQStreamChannel` that writes its chunked publish request to a socket pair, which keeps it;
+the browser receives the data of each NDJSON line as a `MessageEvent`, then IQ's `iq:end`
+or `iq:fail`, through `subscribeToIQ`.
 
 Coverage includes reversed/interleaved fragments from two events of the same type,
 Unicode and structured payloads, duplicate delivery, isolation of concurrent stream

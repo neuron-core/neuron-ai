@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `subscribeToIQ` and its `IQSource` type, an input adapter for an IQ streaming server. It feeds the core the envelopes the backend's `IQStreamChannel` publishes, closes the `EventSource` when IQ ends the stream, and reports through `onGap` a stream that ended before its terminal event, failed, is gone, or refused the subscription.
+
 ## 0.3.0
 
 - Add `subscribeToMercure` and its `MercureSource` type, an input adapter for a Mercure hub: every update the backend's `MercureChannel` publishes holds a JSON array of envelopes, which the adapter unwraps for the core.

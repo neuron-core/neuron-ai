@@ -30,7 +30,7 @@ interface Budget {
 }
 
 const byteLimit = 8 * 1024 * 1024;
-const terminalTypes = new Set(['stream.completed', 'stream.interrupted', 'stream.failed']);
+export const terminalTypes = new Set(['stream.completed', 'stream.interrupted', 'stream.failed']);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

@@ -44,3 +44,20 @@ for (const protocol of ['agui', 'vercel'] as const) {
     expect(text).toBe('Hello 日本語 🌍 '.repeat(400));
   });
 }
+
+for (const protocol of ['agui', 'vercel'] as const) {
+  test(`PHP ${protocol} events survive IQ fragmentation and reach the official client`, async ({ page, request }) => {
+    const response = await request.post(`${BACKEND}/_test/channels`, {
+      data: { transport: 'iq', outcome: 'completed', protocol },
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    const { lines, frames } = await response.json();
+    expect(frames.some((frame: { type: string }) => frame.type === 'stream.fragment')).toBe(true);
+    await page.goto(`${FRONTEND}/channels/protocols.html`);
+    const text = await page.evaluate(async ({ messages, protocol }) => {
+      // IQ relays every frame once, in order: the data of each NDJSON line, as an SSE message.
+      return window.consumeProtocol(messages, protocol, 'iq');
+    }, { messages: lines.slice(0, -1).map((line: { data: string }) => line.data), protocol });
+    expect(text).toBe('Hello 日本語 🌍 '.repeat(400));
+  });
+}

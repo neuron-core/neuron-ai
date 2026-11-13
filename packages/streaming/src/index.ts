@@ -4,5 +4,7 @@ export { subscribeToPusher } from './pusher.js';
 export type { PusherChannel } from './pusher.js';
 export { subscribeToMercure } from './mercure.js';
 export type { MercureSource } from './mercure.js';
+export { subscribeToIQ } from './iq.js';
+export type { IQSource } from './iq.js';
 export { createProtocolStream } from './protocol.js';
 export type { ProtocolEvent } from './protocol.js';

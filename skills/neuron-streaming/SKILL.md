@@ -1,6 +1,6 @@
 ---
 name: neuron-streaming
-description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE) or for Neuron's native vocabulary, and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket, Redis, Pusher or a Mercure hub, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, NativeAdapter, StreamingChannelInterface, AbstractChannel, CallbackChannel, RedisChannel, PusherChannel, MercureChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
+description: Stream Neuron AI agent and workflow output to a consumer — iterating native chunks, yielding portable progress events from nodes, attaching a stream adapter for a UI protocol (Vercel AI SDK, AG-UI, SSE) or for Neuron's native vocabulary, and pushing output through a streaming channel when the consumer is not the HTTP response (queue worker, websocket, resumed run). Use this skill whenever the user mentions streaming, stream chunks, TextChunk, real-time responses, SSE, server-sent events, useChat, Vercel AI SDK, AG-UI, CopilotKit, stream adapters, streaming channels, pushing output to a websocket, Redis, Pusher, a Mercure hub or an IQ streaming server, progress events from a workflow node, or testing streamed output. Also trigger for any task involving setStreamAdapter, setChannel, StreamAdapterInterface, NativeAdapter, StreamingChannelInterface, AbstractChannel, CallbackChannel, RedisChannel, PusherChannel, MercureChannel, IQStreamChannel, FakeChannel, ProtocolEvent, SSEEncoder, ActivityStreamEvent, StepStartedStreamEvent, or CustomStreamEvent.
 ---
 
 # Neuron AI Streaming
@@ -213,7 +213,7 @@ Implement `StreamAdapterInterface`: `start()`, `transform(object)`, `end()`, `in
 
 Pull iteration only works when the code driving the generator is also the consumer, typically an HTTP response. Often it is not:
 
-- A queue worker runs the agent and the browser is connected to a websocket, a Redis or Pusher stream, or a Mercure hub.
+- A queue worker runs the agent and the browser is connected to a websocket, a Redis or Pusher stream, a Mercure hub, or an IQ streaming server.
 - A run is resumed after an approval from a different process than the one the client is watching.
 - The application calls `run()` or `chat()` and still wants live output somewhere.
 
@@ -411,6 +411,46 @@ PHP has no timer, so a partial update leaves only with the next event or at the 
 A publish blocks the run until the hub answers: configure timeouts on the HTTP client the hub was built with. Failures other than a 429 are not retried.
 
 In the browser, `subscribeToMercure` from `@neuron-core/streaming` takes the `EventSource`, unwraps every update and delivers its events one at a time. Read [Channel wire contract and consumers](references/channels.md) for it, and for driving the AG-UI client or `useChat` from a channel.
+
+### IQStreamChannel
+
+`IQStreamChannel` publishes the segment to an IQ streaming server (the `ghcr.io/neuron-core/iq-stream` image), which relays it to browsers over plain Server-Sent Events. It needs no package, only `ext-openssl` for an `https` URL. The channel holds one chunked `POST` open from the first event to the end of the segment and writes every event as one NDJSON line as soon as it is produced, which is how IQ is meant to be published to.
+
+IQ authorizes each request with a token the application signs with the app's secret: a `pub` token for the worker and a `sub` token for the browser, both naming one stream:
+
+```php
+use NeuronAI\Workflow\Streaming\Channel\IQStreamChannel;
+
+function iqToken(string $scope, string $stream, int $ttl): string
+{
+    $base64url = static fn (string $bytes): string => rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+    $body = $base64url(json_encode(['app_key' => $_ENV['IQ_APP_KEY'], 'stream' => $stream, 'exp' => time() + $ttl], JSON_UNESCAPED_SLASHES));
+
+    return $body . '.' . $base64url(hash_hmac('sha256', "{$scope}.{$body}", $_ENV['IQ_APP_SECRET'], true));
+}
+
+// The endpoint picks the stream, dispatches the job with it, and answers the browser with its sub token.
+$stream = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+$subscribeToken = iqToken('sub', $stream, ttl: 3600);
+
+// Inside the queued job:
+$agent = MyAgent::make(workflowId: $threadId)
+    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setChannel(fn (): IQStreamChannel => new IQStreamChannel('https://stream.example.com', $stream, iqToken('pub', $stream, ttl: 3600)));
+
+$state = $agent->chat(new UserMessage($message), stream: true);
+```
+
+Every frame is the same `{streamId, sequence, type, data}` envelope as Redis, Pusher and Mercure, sent without an SSE event name, so the browser's `message` listener receives them all. The line that closes the IQ stream follows the terminal envelope: a completed or interrupted segment ends it, and subscribers get `iq:end`; a failed one fails it, and they get `iq:fail` with the reason `publisher`.
+
+- **One stream per segment.** A closed stream takes no more frames, so mint a new stream ID and its tokens for every request that runs the agent, a resumed run included.
+- **Token lifetime.** The worker sends the same `pub` token with every request of the segment, and the browser's `EventSource` the same `sub` token with every reconnection: cover the run, plus, for the `sub` one, the time IQ remembers a closed stream, within the longest token lifetime the server accepts.
+- **Frame size.** `maxFrameBytes`, 64 KiB by default, is the longest line the server takes from the app. A larger event is fragmented.
+- **Silent steps.** IQ lets go of a publish request that sends nothing for a while, as while a tool runs: it answers `408 read_timeout`, and the next event continues the stream over a new request. The stream itself waits for that event only so long, then closes with `publisher_idle`: for tools that run for minutes, raise the server's limit on idle streams. A connection closed without an answer continues the same way.
+- **Failures.** Any other answer (an invalid token, a closed stream, a limit, a proxy error) stops the segment's delivery with an exception quoting it, reported as `ChannelError`; the terminal event is then attempted on a new request. Connecting, handing IQ a line and waiting for its answer get ten seconds each.
+- **Reverse proxy.** The proxy in front of IQ must not buffer request bodies and must allow requests as long as a run: see the Deployment section of IQ's README.
+
+IQ keeps every frame while the stream runs and resumes a reconnecting `EventSource` after the last frame it received, so a page that subscribes after the worker started still gets the stream from its first frame; one that comes after the end gets `iq:gone` and reloads from history. A page that subscribes first makes the stream wait for its worker for a limited time, after which the stream fails with `publisher_timeout` and refuses the worker. In the browser, `subscribeToIQ` from `@neuron-core/streaming` takes the `EventSource`, closes it when IQ ends the stream, and reports through `onGap` a segment that ended without its terminal event: see [Channel wire contract and consumers](references/channels.md).
 
 ### Writing and consuming a channel
 
