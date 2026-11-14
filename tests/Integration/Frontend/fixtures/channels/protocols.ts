@@ -23,7 +23,7 @@ export async function consumeProtocol(frames: unknown[], protocol: 'agui' | 'ver
         frames.forEach(data => source.dispatchEvent(new MessageEvent('message', { data })));
         source.dispatchEvent(new MessageEvent('iq:end', { data: JSON.stringify({ lastEventId: frames.length }) }));
       };
-      return subscribeToIQ(source as unknown as EventSource, callbacks);
+      return subscribeToIQ(() => source, callbacks);
     }
     const consumer = createChannelConsumer(callbacks);
     feed = () => frames.forEach(frame => consumer.accept(frame));

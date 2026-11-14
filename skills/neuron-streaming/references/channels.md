@@ -72,14 +72,12 @@ A Mercure update holds a JSON array of envelopes, however many the channel packe
 
 Wait for the source's `open` event before starting backend execution. An `EventSource` reconnects with the ID of the last update it received, and a hub with history replays the updates published since: the consumer ignores the ones it already delivered, so a short interruption leaves no gap. History is the hub's: Mercure Cloud retains about a hundred updates for the whole hub, and a hub on the `local` transport none. When the source's `error` event finds its `readyState` `CLOSED`, the browser has given up: close the subscription and reconcile.
 
-For an IQ stream, open an `EventSource` on the stream with the `sub` token the application minted, and pass it to `subscribeToIQ`:
+For an IQ stream, pass `subscribeToIQ` the stream's subscribe URL, with the `sub` token the application minted:
 
 ```js
 import { subscribeToIQ } from '@neuron-core/streaming';
 
-const source = new EventSource(`https://stream.example.com/${stream}?token=${subscribeToken}`);
-
-const subscription = subscribeToIQ(source, {
+const subscription = subscribeToIQ(`https://stream.example.com/${stream}?token=${subscribeToken}`, {
   onEvent: ({ type, data }) => renderEvent(type, data),
   onGap: (reason) => reloadConversation(reason),
 });
@@ -88,7 +86,7 @@ const subscription = subscribeToIQ(source, {
 subscription.close();
 ```
 
-The subscription owns the source: it closes it when IQ ends the stream, on a gap and on `close()`, since an `EventSource` left open reconnects. IQ ends a stream with `iq:end`, `iq:fail` or `iq:gone`, sent after every frame the stream holds. A segment whose terminal event has arrived by then is whole, whatever IQ's event. Any other is reported through `onGap` at once, instead of after the consumer's 30-second deadline: `iq:end` after the channel's delivery broke mid-segment, `iq:fail` when the stream was cut (`IQ stream failed: max_duration`), and `iq:gone` when frames this page never received are gone. A refused subscription (an invalid or expired token, a limit, an unavailable server) is reported the same way; a dropped connection is not, since the browser resumes after the last frame by itself. An IQ stream carries one segment, so the adapter takes no `streamId`, and `createProtocolStream` can read the subscription as it is.
+The adapter reads the stream through `@neuron-core/iq-stream`, the IQ server's own client and a dependency of the package: it opens the `EventSource` and closes it when IQ ends the stream, on a gap and on `close()`, since an `EventSource` left open reconnects. IQ ends a stream with `iq:end`, `iq:fail` or `iq:gone`, sent after every frame the stream holds. A segment whose terminal event has arrived by then is whole, whatever IQ's event. Any other is reported through `onGap` at once, instead of after the consumer's 30-second deadline: `iq:end` after the channel's delivery broke mid-segment, `iq:fail` when the stream was cut (`IQ stream failed: max_duration`), and `iq:gone` when frames this page never received are gone. A refused subscription (an invalid or expired token, a limit, an unavailable server) is reported the same way; a dropped connection is not, since the browser resumes after the last frame by itself. The optional third argument takes the client's options: with `retry`, a subscription refused because its token expired is reopened after the last frame received, with the URL the application's `refresh` function returns. An IQ stream carries one segment, so the adapter takes no `streamId`, and `createProtocolStream` can read the subscription as it is.
 
 The AG-UI `HttpAgent` and the default `useChat` transport read one SSE response from the application, so they cannot read a channel, whichever its transport. Give them a custom `AbstractAgent` or `ChatTransport` built on `createProtocolStream`, which turns one segment of a subscription into the validated protocol objects those clients expect: they then receive AG-UI or Vercel events one by one and never see envelopes, fragments or packed updates. The [package guide](../../../packages/streaming/README.md) has both. Where the stock client must stay, relay the run through `RedisChannelReader` instead.
 

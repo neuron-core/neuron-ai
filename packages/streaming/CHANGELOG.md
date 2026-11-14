@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `subscribeToIQ` and its `IQSource` type, an input adapter for an IQ streaming server. It feeds the core the envelopes the backend's `IQStreamChannel` publishes, closes the `EventSource` when IQ ends the stream, and reports through `onGap` a stream that ended before its terminal event, failed, is gone, or refused the subscription.
+- Add `subscribeToIQ`, an input adapter for an IQ streaming server, built on the server's own client, `@neuron-core/iq-stream`, which becomes this package's one dependency. It takes the stream's subscribe URL, or a function that returns the source, with the client's options. It feeds the core the envelopes the backend's `IQStreamChannel` publishes, and reports through `onGap` a stream that ended before its terminal event, failed, is gone, or refused the subscription.
 
 ## 0.3.0
 

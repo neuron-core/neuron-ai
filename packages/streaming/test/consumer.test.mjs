@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { FakeEventSource } from '@neuron-core/iq-stream/client/testing';
 import { createChannelConsumer, createProtocolStream, subscribeToIQ, subscribeToMercure, subscribeToPusher } from '../dist/index.js';
 
 const id = 'a'.repeat(32);
@@ -30,17 +31,12 @@ function mercure() {
     raw(data) { for (const listener of [...listeners]) listener({ data }); },
   };
 }
+// The IQ client's own test source: subscribeToIQ is given the function that opens it.
 function iq() {
-  const listeners = [];
-  return {
-    listeners, readyState: 1, closes: 0,
-    addEventListener(type, listener) { listeners.push([type, listener]); },
-    removeEventListener(type, listener) { listeners.splice(listeners.findIndex(([t, l]) => t === type && l === listener), 1); },
-    close() { this.readyState = 2; this.closes++; },
-    // One frame, as IQ relays it: the data of a message event holds one envelope.
-    send(...envelopes) { for (const envelope of envelopes) this.dispatch('message', JSON.stringify(envelope)); },
-    dispatch(type, data) { for (const [t, listener] of [...listeners]) if (t === type) listener({ data }); },
-  };
+  const source = new FakeEventSource();
+  // One frame, as IQ relays it: the data of a message event holds one envelope.
+  source.send = (...envelopes) => { for (const envelope of envelopes) source.frame(JSON.stringify(envelope)); };
+  return source;
 }
 
 test('orders interleaved fragments, decodes UTF-8, and waits before terminal delivery', () => {
@@ -335,26 +331,26 @@ test('Mercure feeds a protocol bridge, which releases the subscription at the te
 
 test('IQ delivers the envelopes in order and closes the source when IQ ends a whole stream', () => {
   const source = iq(), events = [];
-  subscribeToIQ(source, { onEvent: e => events.push(e), onGap: assert.fail });
+  subscribeToIQ(() => source, { onEvent: e => events.push(e), onGap: assert.fail });
   const encoded = Buffer.from(JSON.stringify({ text: 'こんにちは 🌍' })).toString('base64url');
   source.send(frame(0), fragment(1, encoded.slice(0, 4), 0, 2), fragment(1, encoded.slice(4), 1, 2), frame(2, {}, 'stream.completed'));
-  source.dispatch('iq:future', '{}');
-  assert.equal(source.closes, 0);
-  source.dispatch('iq:end', '{"lastEventId":4}');
+  source.emit('iq:future', { data: '{}' });
+  assert.equal(source.closeCalls, 0);
+  source.terminal('iq:end', { lastEventId: 4 });
   assert.deepEqual(events.map(e => [e.sequence, e.type, e.data]), [
     [0, 'text-delta', { value: 0 }], [1, 'text-delta', { text: 'こんにちは 🌍' }], [2, 'stream.completed', {}],
   ]);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 for (const [type, data] of [['iq:fail', '{"reason":"publisher","lastEventId":2}'], ['iq:gone', '{"outcome":"fail","reason":"publisher","lastEventId":2}']]) {
   test(`IQ closes quietly on ${type} after the segment's terminal event`, () => {
     const source = iq(), events = [];
-    subscribeToIQ(source, { onEvent: e => events.push(e), onGap: assert.fail });
+    subscribeToIQ(() => source, { onEvent: e => events.push(e), onGap: assert.fail });
     source.send(frame(0), frame(1, {}, 'stream.failed'));
-    source.dispatch(type, data);
+    source.terminal(type, data);
     assert.deepEqual(events.map(e => e.type), ['text-delta', 'stream.failed']);
-    assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+    assert.equal(source.closeCalls, 1);
   });
 }
 
@@ -369,79 +365,102 @@ for (const [type, data, reason] of [
 ]) test(`IQ reports ${type} (${data}) before the terminal event as a gap at once`, t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const source = iq(), events = [], gaps = [];
-  subscribeToIQ(source, { onEvent: e => events.push(e), onGap: reason => gaps.push(reason) });
+  subscribeToIQ(() => source, { onEvent: e => events.push(e), onGap: reason => gaps.push(reason) });
   // The frame that carried sequence 1 never arrives: the terminal event waits behind it.
   source.send(frame(0), frame(2, {}, 'stream.completed'));
-  source.dispatch(type, data);
+  source.terminal(type, data);
   t.mock.timers.tick(60_000);
   assert.deepEqual(events.map(e => e.sequence), [0]);
   assert.deepEqual(gaps, [reason]);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 test('IQ waits while the source reconnects and reports a refused subscription', () => {
   const source = iq(), gaps = [];
-  subscribeToIQ(source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
-  source.readyState = 0; source.dispatch('error');
-  assert.deepEqual(gaps, []); assert.equal(source.closes, 0);
-  source.readyState = 2; source.dispatch('error');
+  subscribeToIQ(() => source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
+  source.error('connecting');
+  assert.deepEqual(gaps, []); assert.equal(source.closeCalls, 0);
+  source.error('closed');
   assert.deepEqual(gaps, ['IQ subscription refused']);
-  assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 test('IQ closes quietly when a reconnection is refused after the segment\'s terminal event', () => {
   const source = iq(), events = [];
-  subscribeToIQ(source, { onEvent: e => events.push(e), onGap: assert.fail });
+  subscribeToIQ(() => source, { onEvent: e => events.push(e), onGap: assert.fail });
   source.send(frame(0), frame(1, {}, 'stream.completed'));
   // The connection dropped before IQ's own terminal event, and the server refused the reconnection.
-  source.readyState = 0; source.dispatch('error');
-  assert.equal(source.closes, 0);
-  source.readyState = 2; source.dispatch('error');
+  source.error('connecting');
+  assert.equal(source.closeCalls, 0);
+  source.error('closed');
   assert.deepEqual(events.map(e => e.type), ['text-delta', 'stream.completed']);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 test('IQ reports a stream that fails before its first frame, as when no publisher came', () => {
   const source = iq(), gaps = [];
-  subscribeToIQ(source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
-  source.dispatch('iq:fail', '{"reason":"publisher_timeout","lastEventId":0}');
+  subscribeToIQ(() => source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
+  source.terminal('iq:fail', { reason: 'publisher_timeout', lastEventId: 0 });
   assert.deepEqual(gaps, ['IQ stream failed: publisher_timeout']);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 for (const [label, data] of [
   ['text that is not JSON', 'not json'],
   ['an array of envelopes', JSON.stringify([frame(0)])],
-  ['no text at all', undefined],
-]) test(`IQ rejects ${label} and closes the source`, () => {
+]) test(`IQ rejects ${label}, closes the source and ignores what it still emits`, () => {
   const source = iq(), gaps = [];
-  subscribeToIQ(source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
-  source.dispatch('message', data); source.send(frame(0));
+  subscribeToIQ(() => source, { onEvent: assert.fail, onGap: reason => gaps.push(reason) });
+  source.frame(data); source.send(frame(0));
   assert.deepEqual(gaps, ['Invalid channel envelope']);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
-test('IQ close() detaches and closes the source, and so does a throwing application', t => {
+test('IQ close() closes the source, and so does a throwing application', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const source = iq();
-  const subscription = subscribeToIQ(source, { onEvent: assert.fail, onGap: assert.fail });
+  const subscription = subscribeToIQ(() => source, { onEvent: assert.fail, onGap: assert.fail });
   source.send(frame(1));
   subscription.close(); subscription.close();
   t.mock.timers.tick(60_000);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 
   const failing = iq();
-  subscribeToIQ(failing, { onEvent() { throw new Error('application'); }, onGap: assert.fail });
+  subscribeToIQ(() => failing, { onEvent() { throw new Error('application'); }, onGap: assert.fail });
   assert.throws(() => failing.send(frame(0)), /application/);
-  assert.equal(failing.closes, 1); assert.equal(failing.listeners.length, 0);
+  assert.equal(failing.closeCalls, 1);
+});
+
+test('IQ opens a subscribe URL itself, and reopens a refused subscription with the URL the application refreshes', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  FakeEventSource.reset();
+  const events = [];
+  subscribeToIQ('https://iq.test/stream?token=old', { onEvent: e => events.push(e.type), onGap: assert.fail }, {
+    EventSource: FakeEventSource,
+    retry: { attempts: 1, refresh: async () => 'https://iq.test/stream?token=new' },
+  });
+  const [first] = FakeEventSource.instances;
+  assert.equal(first.url, 'https://iq.test/stream?token=old');
+  first.frame(JSON.stringify(frame(0)), { id: '1' });
+  // The token expired while the stream ran.
+  first.error('closed');
+  t.mock.timers.tick(1_000);
+  await new Promise(resolve => setImmediate(resolve));
+  const second = FakeEventSource.instances[1];
+  // The new source resumes after the last frame the first one delivered.
+  assert.equal(second.url, 'https://iq.test/stream?token=new&lastEventId=1');
+  second.frame(JSON.stringify(frame(1, {}, 'stream.completed')), { id: '2' });
+  second.terminal('iq:end', { lastEventId: 2 });
+  assert.deepEqual(events, ['text-delta', 'stream.completed']);
+  assert.equal(second.closeCalls, 1);
 });
 
 test('IQ feeds a protocol bridge, which closes the source at the terminal event', async () => {
   const source = iq();
-  const stream = createProtocolStream(callbacks => subscribeToIQ(source, callbacks), event => event);
+  const stream = createProtocolStream(callbacks => subscribeToIQ(() => source, callbacks), event => event);
   source.send(frame(0, { delta: 'Hel' }), frame(1, { delta: 'lo' }), frame(2, { workflowId: 'workflow' }, 'stream.completed'));
   assert.deepEqual(await collect(stream), [{ type: 'text-delta', delta: 'Hel' }, { type: 'text-delta', delta: 'lo' }]);
-  assert.equal(source.closes, 1); assert.equal(source.listeners.length, 0);
+  assert.equal(source.closeCalls, 1);
 });
 
 function protocol(parse = event => event) {

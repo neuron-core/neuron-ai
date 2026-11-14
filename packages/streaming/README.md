@@ -8,7 +8,7 @@ The core is independent of transport, UI framework, and agent protocol. Use it w
 npm install @neuron-core/streaming
 ```
 
-Dependency-free ESM with TypeScript declarations, for modern browsers and Node.js 22+.
+ESM with TypeScript declarations, for modern browsers and Node.js 22+. Its one dependency is [`@neuron-core/iq-stream`](https://www.npmjs.com/package/@neuron-core/iq-stream), the IQ server's own client, which `subscribeToIQ` reads through and which has no dependency itself.
 
 ## Architecture
 
@@ -178,14 +178,12 @@ To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStr
 
 ## IQ
 
-Pass an `EventSource` opened on a stream of an IQ server, with the `sub` token your backend minted for it:
+Pass the subscribe URL of a stream of an IQ server, with the `sub` token your backend minted for it:
 
 ```ts
 import { subscribeToIQ } from '@neuron-core/streaming';
 
-const source = new EventSource(`https://stream.example.com/${stream}?token=${subscribeToken}`);
-
-const subscription = subscribeToIQ(source, {
+const subscription = subscribeToIQ(`https://stream.example.com/${stream}?token=${subscribeToken}`, {
   onEvent: ({ type, data }) => renderEvent(type, data),
   onGap: reason => reloadConversation(reason),
 });
@@ -194,20 +192,32 @@ const subscription = subscribeToIQ(source, {
 subscription.close();
 ```
 
+The adapter reads the stream through `@neuron-core/iq-stream`, the IQ server's own client: it opens the `EventSource`, follows the server's transport rules and closes the source when the subscription is over. The first argument and an optional third one are those of that client's `subscribe`: a URL or a function that returns the source to read, and its options.
+
 The backend's `IQStreamChannel` publishes one execution segment per IQ stream, one envelope per frame, so the adapter takes no `streamId`. IQ numbers the frames and resumes a reconnecting `EventSource` right after the last one it received, so the core gets every envelope in order, once each.
 
-The subscription owns the source. IQ ends every stream with an event of its own, sent after every frame it holds: `iq:end`, `iq:fail` or `iq:gone`. The adapter then closes the source, since an open `EventSource` would reconnect. If the segment's terminal event (`stream.completed`, `stream.interrupted` or `stream.failed`) has arrived by then, the segment is whole and nothing else happens: a failed run reaches your callbacks as the protocol's error events and `stream.failed`. If it has not, the missing events will never come, and `onGap` reports it at once instead of after the 30-second deadline:
+IQ ends every stream with an event of its own, sent after every frame it holds: `iq:end`, `iq:fail` or `iq:gone`. If the segment's terminal event (`stream.completed`, `stream.interrupted` or `stream.failed`) has arrived by then, the segment is whole and nothing else happens: a failed run reaches your callbacks as the protocol's error events and `stream.failed`. If it has not, the missing events will never come, and `onGap` reports it at once instead of after the 30-second deadline:
 
-| Event | `onGap` reason |
+| How the subscription ended | `onGap` reason |
 | --- | --- |
 | `iq:end` | `Missing channel events`: the backend's delivery broke during the segment |
 | `iq:fail` | `IQ stream failed: <reason>`, such as `max_duration`, `too_large` or `publisher_idle` |
 | `iq:gone` | `IQ stream gone`: frames this page never received are gone, as for a page that subscribed after the end |
-| `error` with `readyState` `CLOSED` | `IQ subscription refused`: an invalid or expired token, a limit, or a server that is unavailable |
+| The server refused the subscription | `IQ subscription refused`: an invalid or expired token, a limit, or a server that is unavailable |
 
-An `error` while the source is connecting again is a dropped connection, which the browser resumes by itself. `close()` detaches the adapter, closes the source, and clears the core's buffers and timers; so do a gap and a callback that throws.
+A dropped connection is none of these: the browser resumes it by itself. `close()` closes the source and clears the core's buffers and timers; so do a gap and a callback that throws.
 
-IQ keeps every frame while the stream runs, so the page may subscribe before or after the backend starts executing: a late subscriber still gets the stream from its first frame. A page that subscribes first makes IQ wait for the backend, for as long as the server allows. The browser sends the token in the URL again on every reconnection, so it must stay valid until the stream ends. This package opens no connections and mints no tokens.
+IQ keeps every frame while the stream runs, so the page may subscribe before or after the backend starts executing: a late subscriber still gets the stream from its first frame. A page that subscribes first makes IQ wait for the backend, for as long as the server allows.
+
+The browser sends the token in the URL again on every reconnection, so it must stay valid until the stream ends, or be renewed: with the client's `retry` option, a refused subscription is reopened after the last frame received, with the URL your `refresh` function returns.
+
+```ts
+subscribeToIQ(url, callbacks, {
+  retry: { attempts: 2, refresh: async () => (await fetch(`/chat/${chatId}/stream`)).text() },
+});
+```
+
+To keep the token out of the URL, pass a function that returns the client's `fetch` source instead of a URL. This package mints no tokens.
 
 To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStream`: an IQ stream carries one execution segment.
 

@@ -133,7 +133,7 @@ async function consumeIQ(page: Page, messages: string[], terminal: { name: strin
     const events: Event[] = [];
     const gaps: string[] = [];
     const source = Object.assign(new EventTarget(), { readyState: 1, close() { this.readyState = 2; } });
-    window.subscribeToIQ(source as unknown as EventSource, {
+    window.subscribeToIQ(() => source, {
       onEvent: ({ type, data }) => events.push({ type, data } as Event),
       onGap: (reason) => gaps.push(reason),
     });

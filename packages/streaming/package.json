@@ -28,5 +28,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@neuron-core/iq-stream": "^0.1.0"
   }
 }
