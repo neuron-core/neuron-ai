@@ -11,7 +11,7 @@
     "@ai-sdk/react": "^4.0.167",
     "@copilotkit/react-core": "^1.84.1",
     "@copilotkit/runtime": "^1.84.1",
-    "@neuron-core/streaming": "0.3.0",
+    "@neuron-core/streaming": "0.4.1",
     "ai": "^7.0.98",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
