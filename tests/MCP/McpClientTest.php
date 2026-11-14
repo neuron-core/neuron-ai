@@ -6,6 +6,7 @@ namespace NeuronAI\Tests\MCP;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\MCP\McpClient;
@@ -106,6 +107,9 @@ class McpClientTest extends TestCase
         $httpClient->method('request')
             ->willReturnCallback(function (HttpRequest $request) use (&$requests, &$initializations): HttpResponse {
                 $requests[] = $request;
+                if ($request->method === HttpMethod::DELETE) {
+                    return new HttpResponse(200, '');
+                }
                 $message = json_decode($request->body, true);
 
                 if ($message['method'] === 'initialize') {
@@ -132,6 +136,13 @@ class McpClientTest extends TestCase
         // The new session starts without the expired ID.
         $this->assertArrayNotHasKey('Mcp-Session-Id', $requests[3]->headers);
         $this->assertSame('renewed', $requests[5]->headers['Mcp-Session-Id']);
+
+        unset($client);
+
+        // Only the live session is ended: the expired one is already gone on the server.
+        $this->assertCount(7, $requests);
+        $this->assertSame(HttpMethod::DELETE, $requests[6]->method);
+        $this->assertSame('renewed', $requests[6]->headers['Mcp-Session-Id']);
     }
 
     public function test_a_404_outside_a_session_is_not_retried(): void

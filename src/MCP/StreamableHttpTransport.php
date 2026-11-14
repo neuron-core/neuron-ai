@@ -91,15 +91,7 @@ class StreamableHttpTransport implements McpTransportInterface
             $headers = array_merge($this->getAuthHeaders(), [
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
-            ]);
-
-            if ($this->sessionId !== null) {
-                $headers['Mcp-Session-Id'] = $this->sessionId;
-            }
-
-            if ($this->protocolVersion !== null) {
-                $headers['MCP-Protocol-Version'] = $this->protocolVersion;
-            }
+            ], $this->sessionHeaders());
 
             $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
 
@@ -122,6 +114,8 @@ class StreamableHttpTransport implements McpTransportInterface
         } catch (HttpException $e) {
             // The server ended the session and processed nothing: the client must initialize a new one.
             if ($e->response?->statusCode === 404 && $this->sessionId !== null) {
+                // Already gone on the server: disconnect() has nothing left to end.
+                $this->sessionId = null;
                 throw new McpSessionLostException('The MCP session has expired', $e->getCode(), $e);
             }
 
@@ -218,11 +212,51 @@ class StreamableHttpTransport implements McpTransportInterface
 
     public function disconnect(): void
     {
-        // HTTP is stateless: nothing to close, just drop session state
+        if ($this->sessionId !== null) {
+            $this->endSession();
+        }
+
         $this->sessionId = null;
         $this->protocolVersion = null;
         $this->lastResponse = null;
         $this->pendingMessages = [];
+    }
+
+    /**
+     * Ask the server to end the session now rather than when it expires. Best effort: this
+     * runs from the client's destructor, and the server may refuse it (405), have already
+     * ended the session (404), or be unreachable.
+     */
+    protected function endSession(): void
+    {
+        try {
+            $this->httpClient->request(new HttpRequest(
+                method: HttpMethod::DELETE,
+                uri: $this->config['url'],
+                headers: array_merge($this->getAuthHeaders(), $this->sessionHeaders()),
+                timeout: (float) ($this->config['timeout'] ?? 30),
+            ));
+        } catch (HttpException) {
+            // The local session state is dropped anyway.
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function sessionHeaders(): array
+    {
+        $headers = [];
+
+        if ($this->sessionId !== null) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
+
+        if ($this->protocolVersion !== null) {
+            $headers['MCP-Protocol-Version'] = $this->protocolVersion;
+        }
+
+        return $headers;
     }
 
     /**
