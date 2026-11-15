@@ -83,7 +83,7 @@ new AnthropicVertex(
 );
 ```
 
-`NeuronAI\Providers\Gemini\GeminiVertex` takes the same arguments. `location: null` selects the global endpoint. Bedrock speaks the Converse API: tuning options go in `inferenceConfig` under Converse's names (`maxTokens`, `temperature`, ...), and `setHttpClient()` is a no-op because the AWS SDK owns the transport.
+`NeuronAI\Providers\Gemini\GeminiVertex` takes the same arguments. `location: null` selects the global endpoint. Both send the OAuth token request through google/auth's default Guzzle client, which blocks, unless `authHttpClient:` gives them an `HttpClientInterface` (an `AmpHttpClient` in an async runtime); it is separate from `httpClient`, which only carries the Vertex API calls. Bedrock speaks the Converse API: tuning options go in `inferenceConfig` under Converse's names (`maxTokens`, `temperature`, ...), and `setHttpClient()` is a no-op because the AWS SDK owns the transport.
 
 ## Vendor request parameters
 
