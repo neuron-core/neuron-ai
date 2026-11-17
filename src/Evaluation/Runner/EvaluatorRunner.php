@@ -10,6 +10,7 @@ use NeuronAI\Evaluation\Cache\CacheKey;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Cache\EvaluationCacheInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Evaluation\Usage\UsageMeter;
 use Spatie\Fork\Fork;
@@ -83,11 +84,13 @@ class EvaluatorRunner
     {
         $evaluator->setUp();
 
-        $data = $this->validateDataset($evaluator, $evaluator->getDataset()->load());
+        $dataset = $evaluator->getDataset();
+        $data = $this->validateDataset($evaluator, $dataset->load());
 
         return new EvaluationResults(
             $this->rerunFailures($evaluator, $data, $this->runItems($evaluator, $data, $concurrency), $concurrency),
             $this->warnings($evaluator),
+            $dataset instanceof NamedDatasetInterface ? $dataset : null,
         );
     }
 

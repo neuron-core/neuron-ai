@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronAI\Evaluation\Runner;
 
 use NeuronAI\Evaluation\AssertionFailure;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronAI\Evaluation\Score;
 use NeuronAI\Evaluation\Usage\ModelUsage;
 
@@ -21,10 +22,12 @@ class EvaluationResults
     /**
      * @param array<EvaluatorResult> $results
      * @param array<string> $warnings What the reader should know about how the run was made.
+     * @param NamedDatasetInterface|null $dataset The dataset the items came from, when it has a name.
      */
     public function __construct(
         protected readonly array $results,
         protected readonly array $warnings = [],
+        protected readonly ?NamedDatasetInterface $dataset = null,
     ) {
     }
 
@@ -34,6 +37,14 @@ class EvaluationResults
     public function getResults(): array
     {
         return $this->results;
+    }
+
+    /**
+     * The dataset the items came from, or null when it has no name or never loaded.
+     */
+    public function getDataset(): ?NamedDatasetInterface
+    {
+        return $this->dataset;
     }
 
     /**

@@ -7,6 +7,7 @@ namespace NeuronAI\Tests\Evaluation\Runner;
 use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\Evaluation\EvaluationException;
 use NeuronAI\Tests\Evaluation\Stub\ChildProcessEvaluator;
@@ -314,6 +315,48 @@ class EvaluatorRunnerTest extends TestCase
 
         $this->assertSame([], $summary->getResults());
         $this->assertFalse($summary->hasFailures());
+    }
+
+    public function test_the_results_carry_the_dataset_when_it_has_a_name(): void
+    {
+        $dataset = new class () implements NamedDatasetInterface {
+            public function load(): array
+            {
+                return [['name' => 'Ada']];
+            }
+
+            public function getName(): string
+            {
+                return 'greetings';
+            }
+        };
+        $evaluator = new class ($dataset) extends BaseEvaluator {
+            public function __construct(protected DatasetInterface $dataset)
+            {
+                parent::__construct();
+            }
+
+            public function getDataset(): DatasetInterface
+            {
+                return $this->dataset;
+            }
+
+            public function run(array $datasetItem): mixed
+            {
+                return $datasetItem['name'];
+            }
+
+            public function evaluate(mixed $output, array $datasetItem): void
+            {
+            }
+        };
+
+        $this->assertSame($dataset, (new EvaluatorRunner())->run($evaluator)->getDataset());
+    }
+
+    public function test_the_results_carry_no_dataset_when_it_has_no_name(): void
+    {
+        $this->assertNull((new EvaluatorRunner())->run(new FailingItemEvaluator([['name' => 'a']]))->getDataset());
     }
 
     public function test_concurrent_run_replaces_non_serializable_outputs_with_a_placeholder(): void

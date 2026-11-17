@@ -9,10 +9,16 @@ use NeuronAI\Evaluation\Dataset\JsonDataset;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function basename;
+use function chdir;
 use function file_put_contents;
+use function getcwd;
 use function is_file;
+use function mkdir;
+use function rmdir;
 use function sys_get_temp_dir;
 use function tempnam;
+use function uniqid;
 use function unlink;
 
 class JsonDatasetTest extends TestCase
@@ -119,5 +125,30 @@ class JsonDatasetTest extends TestCase
         file_put_contents($this->file, '[{"version":2}]');
 
         $this->assertSame([['version' => 2]], $dataset->load());
+    }
+
+    public function test_a_file_under_the_working_directory_is_named_by_its_path_from_there(): void
+    {
+        $directory = sys_get_temp_dir() . '/neuron-dataset-' . uniqid();
+        mkdir($directory . '/datasets', recursive: true);
+        file_put_contents($directory . '/datasets/refunds.json', '[]');
+        $workingDirectory = (string) getcwd();
+        chdir($directory);
+
+        try {
+            $name = (new JsonDataset($directory . '/datasets/refunds.json'))->getName();
+        } finally {
+            chdir($workingDirectory);
+            unlink($directory . '/datasets/refunds.json');
+            rmdir($directory . '/datasets');
+            rmdir($directory);
+        }
+
+        $this->assertSame('datasets/refunds.json', $name);
+    }
+
+    public function test_a_file_outside_the_working_directory_is_named_by_its_file_name_alone(): void
+    {
+        $this->assertSame(basename($this->file), (new JsonDataset($this->file))->getName());
     }
 }

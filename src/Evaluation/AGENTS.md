@@ -91,3 +91,5 @@ The key (`Cache/CacheKey`) is a content fingerprint of what determines `run()`'s
 ## Output drivers
 
 `evaluation.php` in the project root lists `output` drivers: a class string, built by the resolver after all runs complete, or a constructed instance; a custom driver implements `EvaluationOutputInterface::output(EvaluationReport $report)`.
+
+A dataset that implements `NamedDatasetInterface` tells a driver which data an evaluator ran on: the runner puts it on `EvaluationResults::getDataset()`, null for a dataset with no name and for an evaluator whose dataset never loaded. `JsonDataset` names itself by its path from the working directory, or by its file name when it sits elsewhere, so the name is the same on every machine and tells nothing about the one it ran on. The interface is separate from `DatasetInterface` so that existing datasets keep working without a name.
