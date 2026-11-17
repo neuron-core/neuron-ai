@@ -113,12 +113,12 @@ class SupportAgentEvaluator extends BaseEvaluator
 
     public function run(array $datasetItem): mixed
     {
-        return $this->agent()->chat(new UserMessage($datasetItem['question']))->getMessage()->getContent();
+        return $this->agent()->chat(new UserMessage($datasetItem['input']))->getMessage()->getContent();
     }
 
     public function evaluate(mixed $output, array $datasetItem): void
     {
-        $this->assert(new StringContains($datasetItem['expected']), $output);
+        $this->assert(new StringContains($datasetItem['expected_output']), $output);
     }
 
     /** Outside run(): a change to the agent, its prompt or its tools must invalidate the --cache entries. */
@@ -139,8 +139,8 @@ class SupportAgentEvaluator extends BaseEvaluator
 
 ```json
 [
-    {"question": "What is the status of order A-1?", "expected": "shipped"},
-    {"question": "Hi there", "expected": "Hello"}
+    {"input": "What is the status of order A-1?", "expected_output": "shipped"},
+    {"input": "Hi there", "expected_output": "Hello"}
 ]
 ```
 
@@ -186,7 +186,7 @@ class RefundConversationEvaluator extends BaseEvaluator
     public function getDataset(): DatasetInterface
     {
         return new ArrayDataset([
-            ['turns' => ['Hi', 'Please refund order A-2.']],
+            ['input' => ['turns' => ['Hi', 'Please refund order A-2.']]],
         ]);
     }
 
@@ -194,7 +194,7 @@ class RefundConversationEvaluator extends BaseEvaluator
     {
         // Conversation binds its own copy of this one: the in-memory stores go with it.
         return Conversation::make($this->agent())
-            ->withTurns($datasetItem['turns'])
+            ->withTurns($datasetItem['input']['turns'])
             ->withApprovals(fn (ApprovalRequest $request): array => array_fill_keys(
                 array_map(fn ($action): string => $action->id, $request->getActions()),
                 'approve',

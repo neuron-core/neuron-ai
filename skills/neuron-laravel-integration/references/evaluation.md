@@ -161,15 +161,15 @@ class OrderAnswerEvaluator extends BaseEvaluator
     public function run(array $datasetItem): mixed
     {
         // A fresh thread per item, named like the app's own: the tools act for that customer.
-        return $this->agent->for("user-{$datasetItem['customer']}-".Str::uuid())
-            ->chat(new UserMessage($datasetItem['question']))
+        return $this->agent->for("user-{$datasetItem['input']['customer']}-".Str::uuid())
+            ->chat(new UserMessage($datasetItem['input']['question']))
             ->getMessage()
             ->getContent();
     }
 
     public function evaluate(mixed $output, array $datasetItem): void
     {
-        $this->assert(new StringContains($datasetItem['expected']), $output);
+        $this->assert(new StringContains($datasetItem['expected_output']), $output);
     }
 }
 ```
@@ -178,10 +178,10 @@ class OrderAnswerEvaluator extends BaseEvaluator
 
 ```json
 [
-    {"customer": 1, "question": "What is the status of order 1?", "expected": "shipped"},
-    {"customer": 1, "question": "How much was order 2?", "expected": "40 EUR"},
-    {"customer": 1, "question": "Tell me about order 3", "expected": "Order 3"},
-    {"customer": 1, "question": "And order 4?", "expected": "Order 4"}
+    {"input": {"customer": 1, "question": "What is the status of order 1?"}, "expected_output": "shipped"},
+    {"input": {"customer": 1, "question": "How much was order 2?"}, "expected_output": "40 EUR"},
+    {"input": {"customer": 1, "question": "Tell me about order 3"}, "expected_output": "Order 3"},
+    {"input": {"customer": 1, "question": "And order 4?"}, "expected_output": "Order 4"}
 ]
 ```
 
@@ -240,7 +240,7 @@ class RefundConversationEvaluator extends BaseEvaluator
     public function run(array $datasetItem): mixed
     {
         return Conversation::make($this->agent)
-            ->withTurns($datasetItem['turns'])
+            ->withTurns($datasetItem['input']['turns'])
             ->withApprovals(fn (ApprovalRequest $request): array => array_fill_keys(
                 array_map(fn ($action): string => $action->id, $request->getActions()),
                 'approve',
@@ -261,10 +261,10 @@ class RefundConversationEvaluator extends BaseEvaluator
 
 ```json
 [
-    {"turns": ["Where is order 5?", "Please refund order 5"]},
-    {"turns": ["Where is order 6?", "Please refund order 6"]},
-    {"turns": ["Where is order 7?", "Please refund order 7"]},
-    {"turns": ["Where is order 8?", "Please refund order 8"]}
+    {"input": {"turns": ["Where is order 5?", "Please refund order 5"]}},
+    {"input": {"turns": ["Where is order 6?", "Please refund order 6"]}},
+    {"input": {"turns": ["Where is order 7?", "Please refund order 7"]}},
+    {"input": {"turns": ["Where is order 8?", "Please refund order 8"]}}
 ]
 ```
 

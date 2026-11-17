@@ -48,14 +48,8 @@ class ContainsEvaluator extends BaseEvaluator
     public function getDataset(): DatasetInterface
     {
         return new ArrayDataset([
-            [
-                'text' => 'I love this product!',
-                'content' => 'product',
-            ],
-            [
-                'text' => 'This is terrible.',
-                'content' => 'positive',
-            ],
+            ['input' => 'I love this product!', 'expected_output' => 'positive'],
+            ['input' => 'This is terrible.', 'expected_output' => 'negative'],
         ]);
     }
 
@@ -64,7 +58,7 @@ class ContainsEvaluator extends BaseEvaluator
         // A fresh thread per item, so no item sees another item's conversation
         $response = MyAgent::make()
             ->setThreadId(UniqueIdGenerator::generateId('eval_'))
-            ->chat(new UserMessage($datasetItem['text']))
+            ->chat(new UserMessage($datasetItem['input']))
             ->getMessage();
 
         return $response->getContent();
@@ -73,7 +67,7 @@ class ContainsEvaluator extends BaseEvaluator
     public function evaluate(mixed $output, array $datasetItem): void
     {
         $this->assert(
-            new StringContains($datasetItem['content']),
+            new StringContains($datasetItem['expected_output']),
             $output
         );
     }
@@ -96,10 +90,22 @@ public function getDataset(): DatasetInterface
 JSON format (`sentiment.json`):
 ```json
 [
-    {"text": "I love this!", "expected": "positive"},
-    {"text": "This is bad.", "expected": "negative"}
+    {"input": "I love this!", "expected_output": "positive"},
+    {"input": "This is bad.", "expected_output": "negative", "metadata": {"difficulty": "easy"}}
 ]
 ```
+
+### The Item Shape
+
+The runner hands `run()` and `evaluate()` each item as the dataset holds it, whatever its keys. Give every item the same three keys, the shape a dataset kept on Neuron IQ has too:
+
+| Key | Holds |
+|---|---|
+| `input` | What `run()` gives the application: a string, or an object for several values (a question and a customer, the turns of a conversation) |
+| `expected_output` | What `evaluate()` checks against: the expected answer, or an object of expectations (key facts, the tools to call, the goal). Leave it out when the evaluator applies criteria only |
+| `metadata` | Anything else about the item, such as its difficulty, topic or source |
+
+Each holds any JSON value. Read the keys you need inside `run()` and `evaluate()`; never spread an item into named arguments. An evaluator written against these keys moves from a JSON file to a dataset kept on Neuron IQ by changing `getDataset()` alone, to `$cloud->dataset('refund-requests')` of `neuron-core/cloud-sdk`. An item of a Neuron IQ dataset also carries `dataset_item_id`, which ties each result to its item: a dataset class that reshapes items must keep that key.
 
 ## Built-in Assertions
 
@@ -216,7 +222,7 @@ $this->assert(new AgentJudge(
     judge: $judge,
     criteria: 'The response should convey the same meaning as the reference',
     threshold: 0.8,
-    reference: $datasetItem['expected_answer']
+    reference: $datasetItem['expected_output']
 ), $output);
 
 // With few-shot examples for calibration
@@ -253,7 +259,7 @@ $this->assert(new ClassifierJudge(
     classifier: $classifier,
     criteria: new Boolean('Does actual directly answer the question in reference?'),
     threshold: 0.9,
-    reference: $datasetItem['question'],
+    reference: $datasetItem['input'],
 ), $output, 'relevance');
 
 $this->assert(new ClassifierJudge(
@@ -263,7 +269,7 @@ $this->assert(new ClassifierJudge(
         levels: ['Incorrect.', 'Partially correct.', 'Fully correct and complete.'],
     ),
     threshold: 0.8,
-    reference: $datasetItem['expected_answer'],
+    reference: $datasetItem['expected_output'],
 ), $output, 'correctness');
 ```
 
@@ -321,14 +327,14 @@ $this->assert(new FaithfulnessJudge(
 // Correctness - compare to expected answer
 $this->assert(new CorrectnessJudge(
     judge: $judge,
-    expected: $datasetItem['expected_answer'],
+    expected: $datasetItem['expected_output'],
     threshold: 0.7
 ), $output);
 
 // Relevance - check if output addresses the question
 $this->assert(new RelevanceJudge(
     judge: $judge,
-    question: $datasetItem['question'],
+    question: $datasetItem['input'],
     threshold: 0.7
 ), $output);
 
@@ -344,7 +350,7 @@ use NeuronAI\Evaluation\Assertions\Judges\TaskCompletionJudge;
 
 $this->assert(new TaskCompletionJudge(
     judge: $judge,
-    goal: $datasetItem['goal'],
+    goal: $datasetItem['expected_output']['goal'],
     threshold: 0.7
 ), $trajectory);
 ```
@@ -413,7 +419,7 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 public function run(array $datasetItem): mixed
 {
     return Conversation::make($this->makeAgent())
-        ->withTurns($datasetItem['turns'])        // list of strings (or UserMessage objects)
+        ->withTurns($datasetItem['input']['turns'])   // list of strings (or UserMessage objects)
         ->run();                                  // : Trajectory
 }
 ```
@@ -512,7 +518,7 @@ use NeuronAI\Evaluation\Assertions\Trajectory\{
 public function evaluate(mixed $trajectory, array $datasetItem): void
 {
     // The workhorse — optional argument constraint (subset match or callable)
-    $this->assert(new ToolWasCalled('search_orders', ['customer' => $datasetItem['customer']]), $trajectory);
+    $this->assert(new ToolWasCalled('search_orders', ['customer' => $datasetItem['input']['customer']]), $trajectory);
     $this->assert(new ToolWasCalled('refund_order', fn (array $args): bool => $args['amount'] <= 100), $trajectory);
 
     // Guardrails
@@ -523,7 +529,7 @@ public function evaluate(mixed $trajectory, array $datasetItem): void
     //   Unordered — same calls, any order
     //   Subset    — expected appears in order, extras allowed
     //   Superset  — no call outside the expected set
-    $this->assert(new TrajectoryMatches($datasetItem['expected_tools'], Mode::Subset), $trajectory);
+    $this->assert(new TrajectoryMatches($datasetItem['expected_output']['tools'], Mode::Subset), $trajectory);
 
     // HITL outcomes (approval state recorded in chat history)
     $this->assert(new ToolWasRejected('refund_order'), $trajectory);
@@ -532,7 +538,7 @@ public function evaluate(mixed $trajectory, array $datasetItem): void
     $this->assert(new StringContains('cannot process'), $trajectory->finalAnswer());
 
     // Conversation-level judge: goal + whole transcript
-    $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['goal']), $trajectory);
+    $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['expected_output']['goal']), $trajectory);
 }
 ```
 
@@ -549,10 +555,10 @@ class RefundConversationEvaluator extends BaseEvaluator
     public function run(array $datasetItem): mixed
     {
         return Conversation::make($this->makeAgent())
-            ->withTurns($datasetItem['turns'])
+            ->withTurns($datasetItem['input']['turns'])
             ->withApprovals(fn (ApprovalRequest $request, Trajectory $soFar): array =>
                 array_reduce($request->getActions(), function (array $payload, $action) use ($datasetItem) {
-                    $payload[$action->id] = $datasetItem['decisions'][$action->name] ?? 'approve';
+                    $payload[$action->id] = $datasetItem['input']['decisions'][$action->name] ?? 'approve';
                     return $payload;
                 }, [])
             )
@@ -561,11 +567,27 @@ class RefundConversationEvaluator extends BaseEvaluator
 
     public function evaluate(mixed $trajectory, array $datasetItem): void
     {
-        $this->assert(new TrajectoryMatches($datasetItem['expected_tools'], Mode::Subset), $trajectory);
+        $this->assert(new TrajectoryMatches($datasetItem['expected_output']['tools'], Mode::Subset), $trajectory);
         $this->assert(new ToolWasRejected('refund_order'), $trajectory);
         $this->assert(new StringContains('cannot'), $trajectory->finalAnswer());
-        $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['goal']), $trajectory);
+        $this->assert(new TaskCompletionJudge($this->judge, goal: $datasetItem['expected_output']['goal']), $trajectory);
     }
+}
+```
+
+An item of `refunds.json`: the turns and the approver's decisions are what the evaluator plays, the tools and the goal what it checks.
+
+```json
+{
+    "input": {
+        "turns": ["I want a refund for order #123", "Yes, do it."],
+        "decisions": {"refund_order": ["reject", "outside the refund window"]}
+    },
+    "expected_output": {
+        "tools": ["lookup_order", "refund_order"],
+        "goal": "The customer learns why the refund was refused"
+    },
+    "metadata": {"topic": "refunds"}
 }
 ```
 
@@ -950,7 +972,7 @@ $failure->getFullDescription();    // string
 ```php
 public function evaluate(mixed $output, array $datasetItem): void
 {
-    $this->assert(new StringContains($datasetItem['topic']), $output);
+    $this->assert(new StringContains($datasetItem['expected_output']['topic']), $output);
     $this->assert(new StringLengthBetween(50, 500), $output);
     $this->assert(new IsValidJson(), $output);
 }
@@ -982,7 +1004,7 @@ public function evaluate(mixed $output, array $datasetItem): void
     // Or use pre-configured judges
     $this->assert(new CorrectnessJudge(
         judge: $this->judge,
-        expected: $datasetItem['expected'],
+        expected: $datasetItem['expected_output'],
         threshold: 0.7
     ), $output);
 }
@@ -997,15 +1019,16 @@ class RAGEvaluator extends BaseEvaluator
     {
         return MyRAGAgent::make()
             ->setThreadId(UniqueIdGenerator::generateId('eval_'))
-            ->chat(new UserMessage($datasetItem['question']))
+            ->chat(new UserMessage($datasetItem['input']))
             ->getMessage()->getContent();
     }
 
+    // An item: {"input": "...", "expected_output": {"answer": "...", "key_facts": ["...", "..."]}}
     public function evaluate(mixed $output, array $datasetItem): void
     {
-        $this->assert(new StringContainsAny($datasetItem['key_facts']), $output);
+        $this->assert(new StringContainsAny($datasetItem['expected_output']['key_facts']), $output);
         $this->assert(new StringSimilarity(
-            reference: $datasetItem['expected_answer'],
+            reference: $datasetItem['expected_output']['answer'],
             embeddingsProvider: $this->embeddings,
             threshold: 0.7
         ), $output);
@@ -1039,7 +1062,7 @@ public function evaluate(mixed $output, array $datasetItem): void
 ### Evaluator Design
 
 1. **Keep evaluators focused** - One evaluator per use case
-2. **Use descriptive dataset items** - Include expected values, metadata
+2. **Give every item the same shape** - `input`, `expected_output`, `metadata` (see "The Item Shape")
 3. **Leverage `setUp()`** - Initialize expensive resources once
 4. **Test in isolation** - Make `run()` and `evaluate()` pure functions
 
@@ -1145,6 +1168,8 @@ When helping users with evaluations:
 1. **Dataset format** depends on:
     - Small datasets → `ArrayDataset` (in code)
     - Large/external datasets → `JsonDataset` (files)
+    - Datasets a team curates outside the code → a Neuron IQ dataset (`neuron-core/cloud-sdk`)
+    - Whatever the source, items hold `input`, `expected_output` and `metadata`
 
 2. **Assertion choice** depends on:
     - Exact matching → `StringContains`, `StringStartsWith`
