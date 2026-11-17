@@ -34,6 +34,12 @@ use const JSON_THROW_ON_ERROR;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
+    /**
+     * How long ending a session may take. It runs from the client's destructor, usually
+     * before the user gets a response, and nothing waits on the server's answer.
+     */
+    protected const SESSION_END_TIMEOUT_SECONDS = 2.0;
+
     protected readonly HttpClientInterface $httpClient;
     protected ?string $sessionId = null;
     protected ?string $protocolVersion = null;
@@ -114,8 +120,6 @@ class StreamableHttpTransport implements McpTransportInterface
         } catch (HttpException $e) {
             // The server ended the session and processed nothing: the client must initialize a new one.
             if ($e->response?->statusCode === 404 && $this->sessionId !== null) {
-                // Already gone on the server: disconnect() has nothing left to end.
-                $this->sessionId = null;
                 throw new McpSessionLostException('The MCP session has expired', $e->getCode(), $e);
             }
 
@@ -234,7 +238,7 @@ class StreamableHttpTransport implements McpTransportInterface
                 method: HttpMethod::DELETE,
                 uri: $this->config['url'],
                 headers: array_merge($this->getAuthHeaders(), $this->sessionHeaders()),
-                timeout: (float) ($this->config['timeout'] ?? 30),
+                timeout: static::SESSION_END_TIMEOUT_SECONDS,
             ));
         } catch (HttpException) {
             // The local session state is dropped anyway.

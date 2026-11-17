@@ -130,19 +130,72 @@ class McpClientTest extends TestCase
 
         $this->assertSame([], $client->listTools());
         $this->assertSame(
-            ['initialize', 'notifications/initialized', 'tools/list', 'initialize', 'notifications/initialized', 'tools/list'],
-            array_map(fn (HttpRequest $request): string => json_decode($request->body, true)['method'], $requests),
+            ['initialize', 'notifications/initialized', 'tools/list', 'DELETE', 'initialize', 'notifications/initialized', 'tools/list'],
+            array_map($this->describe(...), $requests),
         );
+        $this->assertSame('expired', $requests[3]->headers['Mcp-Session-Id']);
         // The new session starts without the expired ID.
-        $this->assertArrayNotHasKey('Mcp-Session-Id', $requests[3]->headers);
-        $this->assertSame('renewed', $requests[5]->headers['Mcp-Session-Id']);
+        $this->assertArrayNotHasKey('Mcp-Session-Id', $requests[4]->headers);
+        $this->assertSame('renewed', $requests[6]->headers['Mcp-Session-Id']);
 
         unset($client);
 
-        // Only the live session is ended: the expired one is already gone on the server.
-        $this->assertCount(7, $requests);
-        $this->assertSame(HttpMethod::DELETE, $requests[6]->method);
-        $this->assertSame('renewed', $requests[6]->headers['Mcp-Session-Id']);
+        $this->assertCount(8, $requests);
+        $this->assertSame(HttpMethod::DELETE, $requests[7]->method);
+        $this->assertSame('renewed', $requests[7]->headers['Mcp-Session-Id']);
+    }
+
+    public function test_a_session_lost_again_on_retry_is_replaced_by_the_next_request(): void
+    {
+        $requests = [];
+        $initializations = 0;
+
+        // Sessions 1 and 2 are lost before they serve a request, as behind a load balancer
+        // without sticky sessions; session 3 works.
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('request')
+            ->willReturnCallback(function (HttpRequest $request) use (&$requests, &$initializations): HttpResponse {
+                $requests[] = $request;
+                if ($request->method === HttpMethod::DELETE) {
+                    throw HttpException::statusError($request, new HttpResponse(404, ''));
+                }
+                $message = json_decode($request->body, true);
+
+                if ($message['method'] === 'initialize') {
+                    $initializations++;
+                    return new HttpResponse(200, $this->response($message, []), ['Mcp-Session-Id' => "session-{$initializations}"]);
+                }
+                if (!isset($message['id'])) {
+                    return new HttpResponse(202, '');
+                }
+                if (!isset($request->headers['Mcp-Session-Id'])) {
+                    throw HttpException::statusError($request, new HttpResponse(400, ''));
+                }
+                if ($request->headers['Mcp-Session-Id'] !== 'session-3') {
+                    throw HttpException::statusError($request, new HttpResponse(404, ''));
+                }
+
+                return new HttpResponse(200, $this->response($message, ['tools' => []]));
+            });
+
+        $client = new McpClient(['url' => 'https://example.com/mcp'], $httpClient);
+
+        try {
+            $client->listTools();
+            $this->fail('A session lost again on retry must fail the request.');
+        } catch (McpSessionLostException) {
+        }
+
+        $this->assertSame([], $client->listTools());
+        $this->assertSame(3, $initializations);
+        // The next request still carries the lost ID, so its 404 opens a new session.
+        $this->assertSame('tools/list', $this->describe($requests[7]));
+        $this->assertSame('session-2', $requests[7]->headers['Mcp-Session-Id']);
+    }
+
+    protected function describe(HttpRequest $request): string
+    {
+        return $request->method === HttpMethod::DELETE ? 'DELETE' : json_decode($request->body, true)['method'];
     }
 
     public function test_a_404_outside_a_session_is_not_retried(): void

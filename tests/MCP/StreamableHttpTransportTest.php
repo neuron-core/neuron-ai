@@ -165,7 +165,8 @@ class StreamableHttpTransportTest extends TestCase
         $this->assertSame(HttpMethod::DELETE, $delete->method);
         $this->assertSame(self::URL, $delete->uri);
         $this->assertNull($delete->body);
-        $this->assertSame(7.0, $delete->timeout);
+        // The configured timeout is for tool calls: ending a session must not hold up the destructor.
+        $this->assertSame(2.0, $delete->timeout);
         $this->assertSame([
             'X-Tenant' => 'acme',
             'Authorization' => 'Bearer mcp-secret',
@@ -196,7 +197,7 @@ class StreamableHttpTransportTest extends TestCase
     {
         yield 'ending sessions not supported' => [new HttpResponse(405, '')];
         yield 'session already expired' => [new HttpResponse(404, '')];
-        yield 'network error' => [HttpException::networkError(HttpRequest::post(self::URL), 'Connection refused')];
+        yield 'network error' => [HttpException::networkError(new HttpRequest(HttpMethod::DELETE, self::URL), 'Connection refused')];
     }
 
     #[DataProvider('failedSessionEndings')]
@@ -217,26 +218,6 @@ class StreamableHttpTransportTest extends TestCase
         $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
         $this->assertArrayNotHasKey('Mcp-Session-Id', $httpClient->requests[2]->headers);
         $this->assertArrayNotHasKey('MCP-Protocol-Version', $httpClient->requests[2]->headers);
-    }
-
-    public function test_a_lost_session_is_not_ended_on_disconnect(): void
-    {
-        $httpClient = new ScriptedHttpClient(
-            new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}', ['Mcp-Session-Id' => 'session-1']),
-            new HttpResponse(404, ''),
-        );
-        $transport = new StreamableHttpTransport(['url' => self::URL], $httpClient);
-        $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
-
-        try {
-            $transport->send(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']);
-            $this->fail('Expected McpSessionLostException was not thrown');
-        } catch (McpSessionLostException) {
-        }
-
-        $transport->disconnect();
-
-        $this->assertCount(2, $httpClient->requests);
     }
 
     public function test_disconnect_drops_unread_messages(): void
