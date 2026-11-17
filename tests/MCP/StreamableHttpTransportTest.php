@@ -147,10 +147,65 @@ class StreamableHttpTransportTest extends TestCase
         }
     }
 
-    public function test_disconnect_forgets_the_session(): void
+    public function test_disconnect_ends_the_session_on_the_server_and_forgets_it(): void
     {
         $httpClient = new ScriptedHttpClient(
             new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}', ['Mcp-Session-Id' => 'session-1']),
+            new HttpResponse(200, ''),
+            new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}'),
+        );
+        $transport = new StreamableHttpTransport(['url' => self::URL, 'token' => 'mcp-secret', 'headers' => ['X-Tenant' => 'acme'], 'timeout' => 7], $httpClient);
+        $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
+        $transport->setProtocolVersion('2025-11-25');
+
+        $transport->disconnect();
+
+        $this->assertCount(2, $httpClient->requests);
+        $delete = $httpClient->requests[1];
+        $this->assertSame(HttpMethod::DELETE, $delete->method);
+        $this->assertSame(self::URL, $delete->uri);
+        $this->assertNull($delete->body);
+        // The configured timeout is for tool calls: ending a session must not hold up the destructor.
+        $this->assertSame(2.0, $delete->timeout);
+        $this->assertSame([
+            'X-Tenant' => 'acme',
+            'Authorization' => 'Bearer mcp-secret',
+            'Mcp-Session-Id' => 'session-1',
+            'MCP-Protocol-Version' => '2025-11-25',
+        ], $delete->headers);
+
+        $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
+        $this->assertArrayNotHasKey('Mcp-Session-Id', $httpClient->requests[2]->headers);
+        $this->assertArrayNotHasKey('MCP-Protocol-Version', $httpClient->requests[2]->headers);
+    }
+
+    public function test_disconnect_without_a_session_sends_nothing(): void
+    {
+        $httpClient = new ScriptedHttpClient(new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}'));
+        $transport = new StreamableHttpTransport(['url' => self::URL], $httpClient);
+        $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
+
+        $transport->disconnect();
+
+        $this->assertCount(1, $httpClient->requests);
+    }
+
+    /**
+     * @return iterable<string, array{HttpResponse|HttpException}>
+     */
+    public static function failedSessionEndings(): iterable
+    {
+        yield 'ending sessions not supported' => [new HttpResponse(405, '')];
+        yield 'session already expired' => [new HttpResponse(404, '')];
+        yield 'network error' => [HttpException::networkError(new HttpRequest(HttpMethod::DELETE, self::URL), 'Connection refused')];
+    }
+
+    #[DataProvider('failedSessionEndings')]
+    public function test_a_failed_session_ending_is_ignored_and_the_session_forgotten(HttpResponse|HttpException $reply): void
+    {
+        $httpClient = new ScriptedHttpClient(
+            new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}', ['Mcp-Session-Id' => 'session-1']),
+            $reply,
             new HttpResponse(200, '{"jsonrpc":"2.0","id":1,"result":{}}'),
         );
         $transport = new StreamableHttpTransport(['url' => self::URL], $httpClient);
@@ -159,9 +214,10 @@ class StreamableHttpTransportTest extends TestCase
 
         $transport->disconnect();
 
+        $this->assertSame(HttpMethod::DELETE, $httpClient->requests[1]->method);
         $transport->send(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize']);
-        $this->assertArrayNotHasKey('Mcp-Session-Id', $httpClient->requests[1]->headers);
-        $this->assertArrayNotHasKey('MCP-Protocol-Version', $httpClient->requests[1]->headers);
+        $this->assertArrayNotHasKey('Mcp-Session-Id', $httpClient->requests[2]->headers);
+        $this->assertArrayNotHasKey('MCP-Protocol-Version', $httpClient->requests[2]->headers);
     }
 
     public function test_disconnect_drops_unread_messages(): void

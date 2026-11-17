@@ -34,6 +34,12 @@ use const JSON_THROW_ON_ERROR;
 
 class StreamableHttpTransport implements McpTransportInterface
 {
+    /**
+     * How long ending a session may take. It runs from the client's destructor, usually
+     * before the user gets a response, and nothing waits on the server's answer.
+     */
+    protected const SESSION_END_TIMEOUT_SECONDS = 2.0;
+
     protected readonly HttpClientInterface $httpClient;
     protected ?string $sessionId = null;
     protected ?string $protocolVersion = null;
@@ -91,15 +97,7 @@ class StreamableHttpTransport implements McpTransportInterface
             $headers = array_merge($this->getAuthHeaders(), [
                 'Accept' => 'application/json, text/event-stream',
                 'Content-Type' => 'application/json',
-            ]);
-
-            if ($this->sessionId !== null) {
-                $headers['Mcp-Session-Id'] = $this->sessionId;
-            }
-
-            if ($this->protocolVersion !== null) {
-                $headers['MCP-Protocol-Version'] = $this->protocolVersion;
-            }
+            ], $this->sessionHeaders());
 
             $jsonData = json_encode($data, JSON_THROW_ON_ERROR);
 
@@ -218,11 +216,51 @@ class StreamableHttpTransport implements McpTransportInterface
 
     public function disconnect(): void
     {
-        // HTTP is stateless: nothing to close, just drop session state
+        if ($this->sessionId !== null) {
+            $this->endSession();
+        }
+
         $this->sessionId = null;
         $this->protocolVersion = null;
         $this->lastResponse = null;
         $this->pendingMessages = [];
+    }
+
+    /**
+     * Ask the server to end the session now rather than when it expires. Best effort: this
+     * runs from the client's destructor, and the server may refuse it (405), have already
+     * ended the session (404), or be unreachable.
+     */
+    protected function endSession(): void
+    {
+        try {
+            $this->httpClient->request(new HttpRequest(
+                method: HttpMethod::DELETE,
+                uri: $this->config['url'],
+                headers: array_merge($this->getAuthHeaders(), $this->sessionHeaders()),
+                timeout: static::SESSION_END_TIMEOUT_SECONDS,
+            ));
+        } catch (HttpException) {
+            // The local session state is dropped anyway.
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function sessionHeaders(): array
+    {
+        $headers = [];
+
+        if ($this->sessionId !== null) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
+
+        if ($this->protocolVersion !== null) {
+            $headers['MCP-Protocol-Version'] = $this->protocolVersion;
+        }
+
+        return $headers;
     }
 
     /**
