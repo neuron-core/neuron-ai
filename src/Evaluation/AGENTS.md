@@ -24,7 +24,7 @@ class RefundEvaluator extends BaseEvaluator
     public function run(array $item): mixed
     {
         return Conversation::make(RefundAgent::make())
-            ->withTurns($item['turns'])
+            ->withTurns($item['input']['turns'])
             ->withApprovals(function (ApprovalRequest $request, Trajectory $soFar): array {
                 $decisions = [];
                 foreach ($request->getActions() as $action) {
@@ -37,11 +37,13 @@ class RefundEvaluator extends BaseEvaluator
 
     public function evaluate(mixed $trajectory, array $item): void
     {
-        $this->assert(new ToolWasCalled('refund_order', ['order_id' => $item['order_id']]), $trajectory);
-        $this->assert(new TaskCompletionJudge($this->judge, goal: $item['goal']), $trajectory, 'task_completion');
+        $this->assert(new ToolWasCalled('refund_order', ['order_id' => $item['expected_output']['order_id']]), $trajectory);
+        $this->assert(new TaskCompletionJudge($this->judge, goal: $item['expected_output']['goal']), $trajectory, 'task_completion');
     }
 }
 ```
+
+The runner hands `run()` and `evaluate()` each item as the dataset holds it, whatever its keys. The items of the evaluator template and of the docs hold an `input`, an `expected_output` and `metadata`, each any JSON value, because a dataset kept on Neuron IQ answers in that shape: an evaluator written for a JSON file then moves to a platform dataset by changing `getDataset()` alone.
 
 Neither agent needs a thread ID: `Conversation` runs each conversation, and an agent judge each judgment, on a copy of the agent bound to a fresh thread (`for()`). The agents an evaluator passes are never modified, so one agent can serve every dataset item without carrying one item's conversation into the next.
 

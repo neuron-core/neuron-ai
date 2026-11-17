@@ -14,6 +14,11 @@ class [classname] extends BaseEvaluator
 {
     /**
      * 1. Get the dataset to evaluate against
+     *
+     * Each item holds an "input", an "expected_output" and "metadata", each any
+     * JSON value, the shape a dataset kept on Neuron IQ has too:
+     *
+     *   [{"input": "Can I get a refund?", "expected_output": "refund", "metadata": {"topic": "billing"}}]
      */
     public function getDataset(): DatasetInterface
     {
@@ -41,7 +46,7 @@ class [classname] extends BaseEvaluator
     {
         /*
         $this->assert(
-            new StringContains($datasetItem['reference']),
+            new StringContains($datasetItem['expected_output']),
             $output,
         );
         */
