@@ -69,11 +69,11 @@ Copy & paste this initial prompt to tell your coding agent how to install and co
 ```
 You are going to set up Neuron AI, a PHP framework for building agentic applications, in this project, and you must follow three steps in order.
 
-- First: install the framework: check composer.json, and if neuron-core/neuron-ai is not already required, run `composer require neuron-core/neuron-ai`;
+- First: install the framework: check composer.json, and if `neuron-core/neuron-ai` is not already required, run `composer require neuron-core/neuron-ai`;
 
-- Second: install the agent skills that ship with the package by running npx --yes skills add ./vendor/neuron-core/neuron-ai/skills -y -a <agent>, where <agent> is your own skills agent id (e.g. claude-code, codex, cursor). Add the same command, with the -a flag, to post-update-cmd.. From then on, load the relevant skill before you write any Neuron code instead of relying on what you remember about the framework;
+- Second: install the agent skills that ship with the package by running `npx --yes skills add ./vendor/neuron-core/neuron-ai/skills -y -a <agent>`, where `<agent>` is your own skills agent id (e.g. claude-code, codex, cursor). Add the same command, with the -a flag, to `post-update-cmd`. From then on, load the relevant skill before you write any Neuron code instead of relying on what you remember about the framework;
 
-- Third: work out what kind of app this is. Look at composer.json and the project structure to see whether it is an application based on Laravel, Symfony, or another framework, then activate the matching skill: neuron-laravel-integration or neuron-symfony-integration. If Neuron is already part of the app go through the skill's foundations checklist item by item. Report what differs from the recommended setup;
+- Third: work out what kind of app this is. Look at composer.json and the project structure to see whether it is an application based on Laravel, Symfony, or another framework, then activate the matching skill: `neuron-laravel-integration` or `neuron-symfony-integration`. If Neuron is already part of the app go through the skill's foundations checklist item by item. Report what differs from the recommended setup;
 
 If Neuron is not in the app yet, follow the same checklist to do the first setup. If the app uses neither framework, start from a plain PHP agent using the neuron-agent skill. Finish with a short summary of what you installed and what you found.
 ```
