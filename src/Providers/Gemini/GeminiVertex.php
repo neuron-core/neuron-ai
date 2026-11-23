@@ -24,7 +24,6 @@ class GeminiVertex extends Gemini
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
-        ?HttpClientInterface $authHttpClient = null,
     ) {
         // Set Vertex AI specific base URI
         $this->baseUri = $location !== null
@@ -33,7 +32,6 @@ class GeminiVertex extends Gemini
 
         // Bearer token authentication (see requestHeaders()), no x-goog-api-key
         $this->httpClient = $httpClient ?? new CurlHttpClient();
-        $this->authHttpClient = $authHttpClient;
         $this->httpHeaders = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',

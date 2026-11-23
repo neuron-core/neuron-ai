@@ -30,7 +30,6 @@ class AnthropicVertex extends Anthropic
         protected string $model,
         protected array $parameters = [],
         ?HttpClientInterface $httpClient = null,
-        ?HttpClientInterface $authHttpClient = null,
     ) {
         // "global" location uses a different host than regional locations.
         $this->baseUri = $location !== null
@@ -49,7 +48,6 @@ class AnthropicVertex extends Anthropic
 
         // CurlHttpClient always suppresses "Expect: 100-continue", which Vertex rejects.
         $this->httpClient = $httpClient ?? new CurlHttpClient();
-        $this->authHttpClient = $authHttpClient;
         $this->httpHeaders = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
