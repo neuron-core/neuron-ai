@@ -11,6 +11,7 @@ use NeuronAI\Tests\Tools\Stub\Address;
 use NeuronAI\Tests\Tools\Stub\Company;
 use NeuronAI\Tests\Tools\Stub\Contact;
 use NeuronAI\Tests\StructuredOutput\Stub\Person as StructuredPerson;
+use NeuronAI\Tests\StructuredOutput\Stub\ScalarLists;
 use NeuronAI\Tests\Tools\Stub\Person;
 use NeuronAI\Tests\Tools\Stub\Ticket;
 use NeuronAI\Tests\Tools\Stub\TicketPriority;
@@ -673,6 +674,19 @@ class ObjectPropertyTest extends TestCase
         $this->assertFalse($ticket->urgent);
         $this->assertSame(1.5, $ticket->score);
         $this->assertSame(3, $ticket->estimate);
+    }
+
+    public function test_a_mapped_object_asks_for_scalar_array_items_and_casts_them(): void
+    {
+        $property = new ObjectProperty('lists', class: ScalarLists::class);
+
+        $this->assertSame(['type' => 'array', 'items' => ['type' => 'integer']], $property->getJsonSchema()['properties']['ints']);
+
+        $lists = $property->cast(['ints' => ['3', 7], 'floats' => [2, '2.5']]);
+
+        $this->assertInstanceOf(ScalarLists::class, $lists);
+        $this->assertSame([3, 7], $lists->ints);
+        $this->assertSame([2.0, 2.5], $lists->floats);
     }
 
     public static function mappedObjectValuesOfTheWrongType(): array

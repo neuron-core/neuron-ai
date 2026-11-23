@@ -26,6 +26,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\IntEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
+use NeuronAI\Tests\StructuredOutput\Stub\ScalarLists;
 use NeuronAI\Tests\StructuredOutput\Stub\Shop\Item as ShopItem;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
@@ -278,6 +279,44 @@ class JsonSchemaTest extends TestCase
         ], $schema);
     }
 
+    public function test_a_single_scalar_any_of_member_is_the_array_item_type(): void
+    {
+        $properties = (new JsonSchema())->generate(ScalarLists::class)['properties'];
+
+        $this->assertSame(['type' => 'integer'], $properties['ints']['items']);
+        $this->assertSame(['type' => 'number'], $properties['floats']['items']);
+        $this->assertSame(['type' => 'boolean'], $properties['bools']['items']);
+        $this->assertSame(['type' => 'string'], $properties['strings']['items']);
+    }
+
+    public function test_an_array_of_scalars_keeps_its_size_bounds_and_nullability(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(min: 1, max: 5, anyOf: ['int'])]
+            public ?array $ids;
+        };
+
+        $schema = (new JsonSchema())->generate($class::class);
+
+        $this->assertSame(
+            ['type' => ['array', 'null'], 'items' => ['type' => 'integer'], 'minItems' => 1, 'maxItems' => 5],
+            $schema['properties']['ids']
+        );
+    }
+
+    public function test_a_json_schema_type_name_is_not_a_scalar_item_type(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: ['integer'])]
+            public array $ids;
+        };
+
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf member 'integer' is neither a class nor one of the scalar types int, float, bool, string");
+
+        (new JsonSchema())->generate($class::class);
+    }
+
     public function test_array_with_multiple_types_using_anyof(): void
     {
         $class = new class () {
@@ -364,6 +403,19 @@ class JsonSchemaTest extends TestCase
 
         $this->expectException(StructuredOutputException::class);
         $this->expectExceptionMessage("anyOf member '".StringEnum::class."' is an enum: an enum can only be the single anyOf member");
+
+        (new JsonSchema())->generate($class::class);
+    }
+
+    public function test_a_scalar_type_cannot_be_one_of_several_any_of_members(): void
+    {
+        $class = new class () {
+            #[SchemaProperty(anyOf: [FtpMode::class, 'int'])]
+            public array $modes;
+        };
+
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf member 'int' is a scalar type: a scalar type can only be the single anyOf member");
 
         (new JsonSchema())->generate($class::class);
     }
@@ -791,7 +843,7 @@ class JsonSchemaTest extends TestCase
             try {
                 $generator->generate($invalid::class);
                 $this->fail("Attempt {$attempt}: generation with an unknown anyOf class must fail");
-            } catch (ReflectionException) {
+            } catch (StructuredOutputException) {
             }
         }
 
@@ -870,8 +922,8 @@ class JsonSchemaTest extends TestCase
             public array $values;
         };
 
-        $this->expectException(ReflectionException::class);
-        $this->expectExceptionMessage('Class "NeuronAI\\Tests\\StructuredOutput\\Stub\\DoesNotExist" does not exist');
+        $this->expectException(StructuredOutputException::class);
+        $this->expectExceptionMessage("anyOf member 'NeuronAI\\Tests\\StructuredOutput\\Stub\\DoesNotExist' is neither a class nor one of the scalar types int, float, bool, string");
 
         (new JsonSchema())->generate($class::class);
     }

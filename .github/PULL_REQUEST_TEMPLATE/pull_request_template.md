@@ -24,7 +24,7 @@
 
 
 ## Related Issues
-**Link any related issues using GitHub keywords (e.g., "Fixes #123", "Closes #456")**
+**Link any related issues using GitHub keywords (e.g., "Fixes #XXX", "Closes #XXX")**
 
 -
 

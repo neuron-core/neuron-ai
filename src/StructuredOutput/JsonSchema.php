@@ -38,6 +38,11 @@ class JsonSchema
     use StaticConstructor;
 
     /**
+     * The scalar types an array's single anyOf member can name, with the JSON Schema type the model is asked for.
+     */
+    protected const SCALAR_ITEM_TYPES = ['int' => 'integer', 'float' => 'number', 'bool' => 'boolean', 'string' => 'string'];
+
+    /**
      * Classes currently being processed, to break circular references.
      */
     protected array $processedClasses = [];
@@ -50,6 +55,7 @@ class JsonSchema
      * Generate the JSON schema for a fully qualified class name.
      *
      * @throws ReflectionException
+     * @throws StructuredOutputException
      */
     public function generate(string $class): array
     {
@@ -63,6 +69,7 @@ class JsonSchema
 
     /**
      * @throws ReflectionException
+     * @throws StructuredOutputException
      */
     protected function generateClassSchema(string $class): array
     {
@@ -169,7 +176,7 @@ class JsonSchema
 
             if ($attribute instanceof SchemaProperty && $attribute->anyOf !== null && $attribute->anyOf !== []) {
                 if (count($attribute->anyOf) === 1) {
-                    $schema['items'] = $this->generateClassSchema($attribute->anyOf[0]);
+                    $schema['items'] = $this->generateItemSchema($attribute->anyOf[0]);
                 } else {
                     $schema['items'] = $this->generateAnyOfSchema($attribute->anyOf);
                 }
@@ -308,6 +315,25 @@ class JsonSchema
     }
 
     /**
+     * The schema of the one type an array holds: a scalar type, a class or an enum.
+     *
+     * @throws ReflectionException
+     * @throws StructuredOutputException
+     */
+    protected function generateItemSchema(string $type): array
+    {
+        if (isset(self::SCALAR_ITEM_TYPES[$type])) {
+            return ['type' => self::SCALAR_ITEM_TYPES[$type]];
+        }
+
+        if (!class_exists($type)) {
+            throw new StructuredOutputException("anyOf member '{$type}' is neither a class nor one of the scalar types int, float, bool, string");
+        }
+
+        return $this->generateClassSchema($type);
+    }
+
+    /**
      * @param string[] $types Class names
      * @throws ReflectionException
      * @throws StructuredOutputException
@@ -318,6 +344,10 @@ class JsonSchema
 
         // The Deserializer tells the items apart by the discriminator, which only an object carries
         foreach ($types as $type) {
+            if (isset(self::SCALAR_ITEM_TYPES[$type])) {
+                throw new StructuredOutputException("anyOf member '{$type}' is a scalar type: a scalar type can only be the single anyOf member");
+            }
+
             if (!class_exists($type)) {
                 throw new StructuredOutputException("anyOf member '{$type}' is not a class");
             }

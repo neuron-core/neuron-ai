@@ -41,7 +41,7 @@ The `SchemaProperty` attribute defines how properties are represented in the JSO
     int $max = null,             // Maximum value (numbers) or items (arrays)
     int $minLength = null,       // Minimum string length
     int $maxLength = null,       // Maximum string length
-    array $anyOf = null,         // Array of allowed class/enum types
+    array $anyOf = null,         // Array item types: classes/enums, or one scalar type
 )]
 ```
 
@@ -57,7 +57,7 @@ The `SchemaProperty` attribute defines how properties are represented in the JSO
 | `max` | `maximum` (numbers) or `maxItems` (arrays) | Upper bound constraint |
 | `minLength` | `minLength` | Minimum string characters |
 | `maxLength` | `maxLength` | Maximum string characters |
-| `anyOf` | `anyOf: [...]` | Polymorphic types (multiple possible classes) |
+| `anyOf` | `items` (one type) or `items.anyOf` (several classes) | Array item type: one class, enum or scalar type (`int`, `float`, `bool`, `string`), or several classes for polymorphic items |
 
 ### Required Property Logic
 
@@ -215,6 +215,20 @@ class TagList
     public array $tags;
 }
 ```
+
+### Array of Integers, Numbers or Booleans
+
+Without `anyOf`, the model is asked for an array of strings. Name one scalar type in `anyOf` to ask for another:
+
+```php
+class TopicMentions
+{
+    #[SchemaProperty(description: 'Line numbers that mention the topic', anyOf: ['int'])]
+    public array $lines;
+}
+```
+
+The schema gets `items: {"type": "integer"}`, and each item is converted to that type, so `"7"` becomes `7`. An item that can't be converted without changing it, like `"seven"` or `2.7`, goes back to the model as a correction. The scalar types are `int`, `float`, `bool` and `string`, and a scalar type must be the only `anyOf` member.
 
 ### Array of Objects
 

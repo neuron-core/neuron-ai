@@ -28,6 +28,7 @@ use NeuronAI\Tests\StructuredOutput\Stub\ImageBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\MassAssignmentTarget;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
 use NeuronAI\Tests\StructuredOutput\Stub\ProtectedConstructorModel;
+use NeuronAI\Tests\StructuredOutput\Stub\ScalarLists;
 use NeuronAI\Tests\StructuredOutput\Stub\Tag;
 use NeuronAI\Tests\StructuredOutput\Stub\TextBlock;
 use NeuronAI\Tests\StructuredOutput\Stub\StringEnum;
@@ -284,6 +285,43 @@ class DeserializerTest extends TestCase
         $this->expectExceptionMessage("Invalid enum value 'four' for " . StringEnum::class);
 
         Deserializer::make()->fromJson('{"numbers": ["one", "four"]}', $class::class);
+    }
+
+    public function test_an_array_of_scalars_gets_items_of_its_declared_type(): void
+    {
+        $json = '{"ints": [3, "7"], "floats": [2, "2.5"], "bools": [true, "false"], "strings": ["a", 7]}';
+
+        $obj = Deserializer::make()->fromJson($json, ScalarLists::class);
+
+        $this->assertSame([3, 7], $obj->ints);
+        $this->assertSame([2.0, 2.5], $obj->floats);
+        $this->assertSame([true, false], $obj->bools);
+        $this->assertSame(['a', '7'], $obj->strings);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function scalarItemsThatWouldChange(): array
+    {
+        return [
+            'a word in a list of integers' => ['{"ints": [3, "three"]}', 'Property "ints" element 1 must be of type integer, string given'],
+            'a fraction in a list of integers' => ['{"ints": [2.7]}', 'Property "ints" element 0 must be of type integer, float given'],
+            'null in a list of integers' => ['{"ints": [null]}', 'Property "ints" element 0 must be of type integer, null given'],
+            'a word in a list of numbers' => ['{"floats": ["n/a"]}', 'Property "floats" element 0 must be of type number, string given'],
+            'a word in a list of booleans' => ['{"bools": ["maybe"]}', 'Property "bools" element 0 must be of type boolean, string given'],
+            'a boolean in a list of strings' => ['{"strings": [true]}', 'Property "strings" element 0 must be of type string, bool given'],
+            'a list in a list of strings' => ['{"strings": [["a"]]}', 'Property "strings" element 0 must be of type string, array given'],
+        ];
+    }
+
+    #[DataProvider('scalarItemsThatWouldChange')]
+    public function test_a_scalar_item_that_would_change_is_rejected(string $json, string $message): void
+    {
+        $this->expectException(DeserializerException::class);
+        $this->expectExceptionMessage($message);
+
+        Deserializer::make()->fromJson($json, ScalarLists::class);
     }
 
     public function test_a_pure_enum_is_read_by_the_case_name_the_schema_advertises(): void

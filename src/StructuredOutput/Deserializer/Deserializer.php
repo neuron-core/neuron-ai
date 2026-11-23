@@ -60,6 +60,11 @@ class Deserializer
 {
     use StaticConstructor;
 
+    /**
+     * The scalar types an array's single anyOf member can name, with the JSON Schema type the model was asked for.
+     */
+    protected const SCALAR_ITEM_TYPES = ['int' => 'integer', 'float' => 'number', 'bool' => 'boolean', 'string' => 'string'];
+
     public function __construct(protected string $discriminator = '__classname__')
     {
     }
@@ -315,7 +320,7 @@ class Deserializer
 
         $types = SchemaProperty::resolve($class, $property)->anyOf ?? [];
 
-        if ($types === [] || (count($types) === 1 && !class_exists($types[0]))) {
+        if ($types === [] || (count($types) === 1 && !class_exists($types[0]) && !isset(self::SCALAR_ITEM_TYPES[$types[0]]))) {
             return $value;
         }
 
@@ -330,8 +335,12 @@ class Deserializer
      * @param string[] $types
      * @throws DeserializerException|ReflectionException
      */
-    protected function deserializeItem(mixed $item, array $types, string $subject): object
+    protected function deserializeItem(mixed $item, array $types, string $subject): object|int|float|string|bool
     {
+        if (count($types) === 1 && isset(self::SCALAR_ITEM_TYPES[$types[0]])) {
+            return $this->castItem($item, $types[0], $subject);
+        }
+
         // class_exists() is true for an enum too
         if (count($types) === 1 && enum_exists($types[0])) {
             return $this->handleEnum($types[0], $item);
@@ -344,6 +353,19 @@ class Deserializer
         return count($types) === 1
             ? $this->deserializeObject($item, $types[0])
             : $this->deserializeObjectWithDiscriminator($item, $types);
+    }
+
+    /**
+     * @throws DeserializerException
+     */
+    protected function castItem(mixed $item, string $type, string $subject): int|float|string|bool
+    {
+        $jsonType = self::SCALAR_ITEM_TYPES[$type];
+
+        $value = ScalarCaster::cast($item, $jsonType) ?? throw $this->typeMismatch($subject, $jsonType, $item);
+
+        // A float property widens a whole number on assignment, but an array item has no declared type to do it
+        return $type === 'float' ? (float) $value : $value;
     }
 
     protected function typeMismatch(string $subject, string $type, mixed $value): DeserializerException

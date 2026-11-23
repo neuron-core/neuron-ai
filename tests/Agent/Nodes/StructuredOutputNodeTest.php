@@ -27,6 +27,7 @@ use NeuronAI\Chat\Messages\SystemMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Tests\Agent\Stub\SearchTool;
 use NeuronAI\Tests\StructuredOutput\Stub\Person;
+use NeuronAI\Tests\StructuredOutput\Stub\ScalarLists;
 use NeuronAI\Tools\ProviderToolInterface;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Tools\ToolInterface;
@@ -241,6 +242,28 @@ class StructuredOutputNodeTest extends TestCase
             $provider->getRecorded()[1]->messages
         ));
         $this->assertSame('Rome', $state->get('structured_output')->address->city);
+    }
+
+    public function test_the_model_is_asked_for_and_held_to_the_scalar_item_type(): void
+    {
+        $rejected = new AssistantMessage('{"ints": ["3", "seven"]}');
+        $provider = new FakeAIProvider($rejected, new AssistantMessage('{"ints": ["3", 7]}'));
+        $state = $this->structuredState(ScalarLists::class, 1);
+        $node = new StructuredOutputNode();
+        $node->setWorkflowContext(new NodeContext());
+
+        $this->assertInstanceOf(AgentOutputEvent::class, $node(new StructuredInferenceEvent(), $state, AgentResourcesFactory::make([], null, $provider)));
+
+        $this->assertSame(['type' => 'integer'], $provider->getRecorded()[0]->structuredSchema['properties']['ints']['items']);
+
+        $correction = "There was a problem in your previous response that generated the following error:\n\n"
+            . "Property \"ints\" element 1 must be of type integer, string given\n\n"
+            . 'Try to generate the correct JSON structure based on the provided schema.';
+        $this->assertSame(['Generate a person', $rejected->getContent(), $correction], array_map(
+            static fn (Message $message): ?string => $message->getContent(),
+            $provider->getRecorded()[1]->messages
+        ));
+        $this->assertSame([3, 7], $state->get('structured_output')->ints);
     }
 
     public function test_exhausted_retries_raise_the_last_error(): void
