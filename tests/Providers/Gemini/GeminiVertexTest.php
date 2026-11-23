@@ -4,18 +4,12 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tests\Providers\Gemini;
 
-use Google\Auth\HttpHandler\HttpClientCache;
-use GuzzleHttp\Client;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Providers\Gemini\GeminiVertex;
 use NeuronAI\Tests\Support\RecordsHttpRequests;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
 
 use function base64_decode;
 use function explode;
@@ -39,8 +33,8 @@ use const OPENSSL_ALGO_SHA256;
 use const OPENSSL_KEYTYPE_RSA;
 
 /**
- * The OAuth exchange runs offline: google/auth takes its HTTP client from
- * HttpClientCache, which answers the token request with a fixed access token.
+ * The OAuth exchange runs offline: the token request goes through the
+ * provider's HTTP client, whose first queued response answers it.
  */
 class GeminiVertexTest extends TestCase
 {
@@ -48,13 +42,11 @@ class GeminiVertexTest extends TestCase
 
     protected const ACCESS_TOKEN = 'ya29.vertex-access-token';
     protected const ANSWER = '{"candidates":[{"content":{"role":"model","parts":[{"text":"Hi from Vertex"}]},"finishReason":"STOP"}]}';
+    protected const TOKEN_URI = 'https://oauth2.googleapis.com/token';
 
     protected string $credentialsPath;
 
     protected string $publicKey;
-
-    /** @var array<int, array{request: RequestInterface, response: ResponseInterface|null, error: mixed, options: array<mixed>}> */
-    protected array $tokenRequests = [];
 
     protected function setUp(): void
     {
@@ -70,23 +62,12 @@ class GeminiVertexTest extends TestCase
             'private_key' => $privateKey,
             'client_email' => 'neuron@my-project.iam.gserviceaccount.com',
             'client_id' => '123',
-            'token_uri' => 'https://oauth2.googleapis.com/token',
+            'token_uri' => self::TOKEN_URI,
         ], JSON_THROW_ON_ERROR));
-
-        $stack = HandlerStack::create(new MockHandler([
-            new Response(200, ['Content-Type' => 'application/json'], json_encode([
-                'access_token' => self::ACCESS_TOKEN,
-                'expires_in' => 3600,
-                'token_type' => 'Bearer',
-            ], JSON_THROW_ON_ERROR)),
-        ]));
-        $stack->push(Middleware::history($this->tokenRequests));
-        HttpClientCache::setHttpClient(new Client(['handler' => $stack]));
     }
 
     protected function tearDown(): void
     {
-        HttpClientCache::setHttpClient();
         @unlink($this->credentialsPath);
     }
 
@@ -97,26 +78,27 @@ class GeminiVertexTest extends TestCase
             'europe-west8',
             'my-project',
             'gemini-2.5-pro',
-            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: self::ANSWER)),
         );
 
         $message = $provider->chat(new UserMessage('Hi'))->message();
 
         $this->assertSame('Hi from Vertex', $message->getContent());
         $this->assertSame([
+            'POST '.self::TOKEN_URI,
             'POST https://europe-west8-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west8/publishers/google/models/gemini-2.5-pro:generateContent',
         ], $this->sentTargets());
-        $request = $this->sentRequests[0]['request'];
+        $request = $this->sentRequests[1]['request'];
         $this->assertSame('Bearer '.self::ACCESS_TOKEN, $request->getHeaderLine('Authorization'));
         $this->assertFalse($request->hasHeader('x-goog-api-key'));
     }
 
     public function test_building_the_provider_fetches_no_token(): void
     {
-        $provider = new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro');
+        $provider = new GeminiVertex($this->credentialsPath, 'us-central1', 'my-project', 'gemini-2.5-pro', httpClient: $this->recordingClient());
 
         $this->assertInstanceOf(GeminiVertex::class, $provider);
-        $this->assertSame([], $this->tokenRequests);
+        $this->assertSame([], $this->sentRequests);
     }
 
     public function test_building_the_provider_reads_no_credentials_file(): void
@@ -128,13 +110,33 @@ class GeminiVertexTest extends TestCase
             'us-central1',
             'my-project',
             'gemini-2.5-pro',
-            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: self::ANSWER)),
         );
 
         file_put_contents($this->credentialsPath, $credentials);
         $provider->chat(new UserMessage('Hi'));
 
-        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_the_token_request_goes_through_the_provider_http_client_with_a_short_timeout(): void
+    {
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: self::ANSWER)),
+        );
+        $provider->chat(new UserMessage('Hi'));
+
+        [$tokenCall, $apiCall] = $this->sentRequests;
+        $this->assertSame('POST '.self::TOKEN_URI, $tokenCall['request']->getMethod().' '.$tokenCall['request']->getUri());
+        $this->assertSame('application/x-www-form-urlencoded', $tokenCall['request']->getHeaderLine('Content-Type'));
+        parse_str((string) $tokenCall['request']->getBody(), $form);
+        $this->assertSame('urn:ietf:params:oauth:grant-type:jwt-bearer', $form['grant_type']);
+        $this->assertSame(10.0, $tokenCall['options']['timeout']);
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $apiCall['request']->getHeaderLine('Authorization'));
     }
 
     public function test_token_is_obtained_with_a_signed_service_account_assertion(): void
@@ -144,15 +146,11 @@ class GeminiVertexTest extends TestCase
             'us-central1',
             'my-project',
             'gemini-2.5-pro',
-            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER)),
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: self::ANSWER)),
         );
         $provider->chat(new UserMessage('Hi'));
 
-        $this->assertCount(1, $this->tokenRequests);
-        $tokenRequest = $this->tokenRequests[0]['request'];
-        $this->assertSame('POST https://oauth2.googleapis.com/token', $tokenRequest->getMethod().' '.$tokenRequest->getUri());
-        parse_str((string) $tokenRequest->getBody(), $form);
-        $this->assertSame('urn:ietf:params:oauth:grant-type:jwt-bearer', $form['grant_type']);
+        parse_str((string) $this->sentRequests[0]['request']->getBody(), $form);
 
         [$header, $claims, $signature] = explode('.', $form['assertion']);
         $this->assertSame('RS256', $this->decodeSegment($header)['alg']);
@@ -183,15 +181,16 @@ class GeminiVertexTest extends TestCase
             null,
             'my-project',
             'gemini-2.5-flash',
-            httpClient: $this->recordingClient(new Response(200, body: 'data: '.self::ANSWER."\r\n\r\n")),
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: 'data: '.self::ANSWER."\r\n\r\n")),
         );
 
         iterator_to_array($provider->stream(new UserMessage('Hi')));
 
         $this->assertSame([
+            'POST '.self::TOKEN_URI,
             'POST https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
         ], $this->sentTargets());
-        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
     }
 
     public function test_a_valid_access_token_is_reused_across_requests(): void
@@ -201,35 +200,68 @@ class GeminiVertexTest extends TestCase
             'us-central1',
             'my-project',
             'gemini-2.5-pro',
-            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)),
+            httpClient: $this->recordingClient($this->tokenResponse(), new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)),
         );
 
         $provider->chat(new UserMessage('Hi'));
         $provider->chat(new UserMessage('Hi again'));
 
-        $this->assertCount(1, $this->tokenRequests);
-        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('POST '.self::TOKEN_URI, $this->sentTargets()[0]);
+        $this->assertCount(3, $this->sentRequests, 'one token request and two API calls');
+        $this->assertSame('Bearer '.self::ACCESS_TOKEN, $this->sentRequests[2]['request']->getHeaderLine('Authorization'));
     }
 
     public function test_an_access_token_about_to_expire_is_refreshed_before_the_next_request(): void
     {
-        $stack = HandlerStack::create(new MockHandler([
-            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.first","expires_in":30,"token_type":"Bearer"}'),
-            new Response(200, ['Content-Type' => 'application/json'], '{"access_token":"ya29.second","expires_in":3600,"token_type":"Bearer"}'),
-        ]));
-        HttpClientCache::setHttpClient(new Client(['handler' => $stack]));
         $provider = new GeminiVertex(
             $this->credentialsPath,
             'us-central1',
             'my-project',
             'gemini-2.5-pro',
-            httpClient: $this->recordingClient(new Response(200, body: self::ANSWER), new Response(200, body: self::ANSWER)),
+            httpClient: $this->recordingClient(
+                $this->tokenResponse('ya29.first', expiresIn: 30),
+                new Response(200, body: self::ANSWER),
+                $this->tokenResponse('ya29.second'),
+                new Response(200, body: self::ANSWER),
+            ),
         );
 
         $provider->chat(new UserMessage('Hi'));
         $provider->chat(new UserMessage('Hi again'));
 
-        $this->assertSame('Bearer ya29.first', $this->sentRequests[0]['request']->getHeaderLine('Authorization'));
-        $this->assertSame('Bearer ya29.second', $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('POST '.self::TOKEN_URI, $this->sentTargets()[2]);
+        $this->assertSame('Bearer ya29.first', $this->sentRequests[1]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('Bearer ya29.second', $this->sentRequests[3]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_an_error_status_from_the_token_endpoint_throws_http_exception_with_the_response(): void
+    {
+        $error = '{"error":"invalid_grant","error_description":"Invalid JWT Signature."}';
+        $provider = new GeminiVertex(
+            $this->credentialsPath,
+            'us-central1',
+            'my-project',
+            'gemini-2.5-pro',
+            httpClient: $this->recordingClient(new Response(400, ['Content-Type' => 'application/json'], $error)),
+        );
+
+        try {
+            $provider->chat(new UserMessage('Hi'));
+            $this->fail('The token error was not raised');
+        } catch (HttpException $exception) {
+            $this->assertSame(400, $exception->response?->statusCode);
+            $this->assertSame($error, $exception->response->body);
+        }
+
+        $this->assertSame(['POST '.self::TOKEN_URI], $this->sentTargets());
+    }
+
+    protected function tokenResponse(string $accessToken = self::ACCESS_TOKEN, int $expiresIn = 3600): Response
+    {
+        return new Response(200, ['Content-Type' => 'application/json'], json_encode([
+            'access_token' => $accessToken,
+            'expires_in' => $expiresIn,
+            'token_type' => 'Bearer',
+        ], JSON_THROW_ON_ERROR));
     }
 }
