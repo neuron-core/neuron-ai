@@ -435,7 +435,7 @@ return $ticket; // JSON: {"streamId", "token", "url", "expiresAt"}; the browser 
 
 // Inside the queued job, with the client from the container and $this->streamId from the dispatch:
 $agent = MyAgent::make(workflowId: $threadId)
-    ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
+    ->setStreamAdapter(fn (): AGUIAdapter => new AGUIAdapter())
     ->setChannel(fn (): IQStreamChannel => new IQStreamChannel($iq, $this->streamId));
 
 $state = $agent->chat(new UserMessage($message), stream: true);
