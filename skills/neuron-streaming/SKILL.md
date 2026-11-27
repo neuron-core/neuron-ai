@@ -414,40 +414,43 @@ In the browser, `subscribeToMercure` from `@neuron-core/streaming` takes the `Ev
 
 ### IQStreamChannel
 
-`IQStreamChannel` publishes the segment to an IQ streaming server (the `ghcr.io/neuron-core/iq-stream` image), which relays it to browsers over plain Server-Sent Events. It needs no package, only `ext-openssl` for an `https` URL. The channel holds one chunked `POST` open from the first event to the end of the segment and writes every event as one NDJSON line as soon as it is produced, which is how IQ is meant to be published to.
+`IQStreamChannel` publishes the segment to an IQ streaming server (the `ghcr.io/neuron-core/iq-stream` image), which relays it to browsers over plain Server-Sent Events. It publishes through the server's PHP client, which the application requires: `composer require neuron-core/iq-stream-php`. The channel holds one request open from the segment's first event to its end and writes every event into it as soon as it is produced, which is how IQ is meant to be published to.
 
-IQ authorizes each request with a token the application signs with the app's secret: a `pub` token for the worker and a `sub` token for the browser, both naming one stream:
+IQ authorizes every request with a token signed with the app's secret, and the client signs them: the application never builds a token. It takes three moves, and only a string crosses from the endpoint to the job:
+
+1. **One client for the application**, made from `IQ_STREAM_URL`, `IQ_STREAM_APP_KEY`, `IQ_STREAM_APP_SECRET` and, when browsers reach the server at another address, `IQ_STREAM_PUBLIC_URL`. Bind it once in the container, where the framework has one.
+2. **The endpoint makes a ticket.** `ticket()` picks a new stream and signs the browser's subscribe token for it. The endpoint dispatches the job with the stream's ID and answers the browser with the ticket.
+3. **The job builds the channel** from the client and that ID. It mints nothing: the client signs a short-lived publish token for each request it opens.
 
 ```php
+use IQStream\IQClient;
 use NeuronAI\Workflow\Streaming\Channel\IQStreamChannel;
 
-function iqToken(string $scope, string $stream, int $ttl): string
-{
-    $base64url = static fn (string $bytes): string => rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
-    $body = $base64url(json_encode(['app_key' => $_ENV['IQ_APP_KEY'], 'stream' => $stream, 'exp' => time() + $ttl], JSON_UNESCAPED_SLASHES));
+$iq = IQClient::fromEnvironment();
 
-    return $body . '.' . $base64url(hash_hmac('sha256', "{$scope}.{$body}", $_ENV['IQ_APP_SECRET'], true));
-}
+// The endpoint: a new stream, the job that publishes to it, and the ticket the browser subscribes with.
+$ticket = $iq->ticket();
+dispatch(new RunAgent($threadId, $message, $ticket->streamId->value));
+return $ticket; // JSON: {"streamId", "token", "url", "expiresAt"}; the browser subscribes to its url
 
-// The endpoint picks the stream, dispatches the job with it, and answers the browser with its sub token.
-$stream = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
-$subscribeToken = iqToken('sub', $stream, ttl: 3600);
-
-// Inside the queued job:
+// Inside the queued job, with the client from the container and $this->streamId from the dispatch:
 $agent = MyAgent::make(workflowId: $threadId)
     ->setStreamAdapter(fn (): VercelAIAdapter => new VercelAIAdapter())
-    ->setChannel(fn (): IQStreamChannel => new IQStreamChannel('https://stream.example.com', $stream, iqToken('pub', $stream, ttl: 3600)));
+    ->setChannel(fn (): IQStreamChannel => new IQStreamChannel($iq, $this->streamId));
 
 $state = $agent->chat(new UserMessage($message), stream: true);
 ```
 
-Every frame is the same `{streamId, sequence, type, data}` envelope as Redis, Pusher and Mercure, sent without an SSE event name, so the browser's `message` listener receives them all. The line that closes the IQ stream follows the terminal envelope: a completed or interrupted segment ends it, and subscribers get `iq:end`; a failed one fails it, and they get `iq:fail` with the reason `publisher`.
+Every frame is the same `{streamId, sequence, type, data}` envelope as Redis, Pusher and Mercure, sent without an SSE event name, so the browser's `message` listener receives them all. A terminal envelope closes the IQ stream after its own frame: a completed or interrupted segment ends it, and subscribers get `iq:end`; a failed one fails it, and they get `iq:fail` with the reason `publisher`.
 
-- **One stream per segment.** A closed stream takes no more frames, so mint a new stream ID and its tokens for every request that runs the agent, a resumed run included.
-- **Token lifetime.** The worker sends the same `pub` token with every request of the segment, and the browser's `EventSource` the same `sub` token with every reconnection: cover the run, plus, for the `sub` one, the time IQ remembers a closed stream, within the longest token lifetime the server accepts.
-- **Frame size.** `maxFrameBytes`, 64 KiB by default, is the longest line the server takes from the app. A larger event is fragmented.
-- **Silent steps.** IQ lets go of a publish request that sends nothing for a while, as while a tool runs: it answers `408 read_timeout`, and the next event continues the stream over a new request. The stream itself waits for that event only so long, then closes with `publisher_idle`: for tools that run for minutes, raise the server's limit on idle streams. A connection closed without an answer continues the same way.
-- **Failures.** Any other answer (an invalid token, a closed stream, a limit, a proxy error) stops the segment's delivery with an exception quoting it, reported as `ChannelError`; the terminal event is then attempted on a new request. Connecting, handing IQ a line and waiting for its answer get ten seconds each.
+- **Only the stream ID goes to the job.** Never the client or the ticket: the client holds the app's secret, and a job's arguments wait in the queue as they are. The job takes the client from the container, or makes its own with `IQClient::fromEnvironment()`.
+- **One ticket per segment.** A closed stream takes no more frames: a second segment on it is refused with `stream_closed`. Every request that runs the agent makes a new ticket and answers with it, a continuation after an approval or an interruption included, and the browser subscribes to the new one. Do not use the run ID as the stream ID: a continuation and a redelivered job share it.
+- **A job that waits in a queue.** A page that subscribes first keeps the stream waiting for its worker for 30 seconds by default, after which the stream fails with `publisher_timeout`. Where the job can wait longer, reserve the stream in the endpoint, `$iq->reserve($ticket->streamId)`: it then waits for its worker for as long as the server waits for an idle stream, two minutes by default.
+- **Token lifetime.** The browser's `EventSource` reconnects with the ticket's subscribe token, which lives an hour by default (`ticket(ttl:)`), the longest the server accepts unless its `MAX_TOKEN_TTL_S` says otherwise. The job's tokens are the client's concern: one per request, five minutes each, however long the run.
+- **Frame size.** The client's `maxFrameBytes`, 64 KiB by default (`new PublisherOptions(maxFrameBytes:)`), is the longest line the server takes from the app. A larger event is fragmented.
+- **Silent steps.** IQ lets go of a publish request that sends nothing for a minute by default, as while a tool runs, and the next event continues the stream over a new request, with nothing lost. The stream itself waits for that event only so long, then closes with `publisher_idle`: for tools that run for minutes, raise the server's limit on idle streams.
+- **A short segment closes after three seconds.** The client holds the close of a stream younger than its `minOpen`, three seconds by default, so that a page that subscribes just after a fast segment still receives it. The job waits that long; `new PublisherOptions(minOpen: 0)` skips the wait.
+- **Failures.** A refusal (an invalid token, a closed stream, a limit) or a server out of reach after the client's retries stops the segment's delivery with an `IQStream\Exceptions\IQError` that carries the server's status and code and never the secret, reported as `ChannelError`; the run goes on. The client closes the stream with `fail` when the server may still hold it, so the page hears of it at once, and writes the error to PHP's error log unless the client was made with its own `ErrorReporter`.
 - **Reverse proxy.** The proxy in front of IQ must not buffer request bodies and must allow requests as long as a run: see the Deployment section of IQ's README.
 
 IQ keeps every frame while the stream runs and resumes a reconnecting `EventSource` after the last frame it received, so a page that subscribes after the worker started still gets the stream from its first frame; one that comes after the end gets `iq:gone` and reloads from history. A page that subscribes first makes the stream wait for its worker for a limited time, after which the stream fails with `publisher_timeout` and refuses the worker. In the browser, `subscribeToIQ` from `@neuron-core/streaming` takes the stream's subscribe URL, reads it through the IQ server's own client, and reports through `onGap` a segment that ended without its terminal event: see [Channel wire contract and consumers](references/channels.md).

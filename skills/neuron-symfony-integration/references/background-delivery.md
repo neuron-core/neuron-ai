@@ -1,13 +1,14 @@
 # Delivering a Messenger run to the browser
 
-The handler ([background-runs.md](background-runs.md)) runs the turn in a worker with an `AGUIAdapter` seeded from the browser's input and a channel from `RedisRelay::publisher()`. Two ways to get those frames to the browser:
+The handler ([background-runs.md](background-runs.md)) runs the turn in a worker with an `AGUIAdapter` seeded from the browser's input and a channel from `RedisRelay::publisher()`. Three ways to get those frames to the browser:
 
 | Option | Fits | Browser side |
 |---|---|---|
 | Redis Pub/Sub relay | AG-UI clients that need one SSE response per request: the `HttpAgent`, or CopilotKit driving it in the browser | The same requests and frames as the synchronous endpoint: new turns, `resume`, trailing tool messages, browser tools. No `useChat` variant is shown |
 | Mercure | Pages that subscribe once and receive pushes | `EventSource` on the hub, read with `subscribeToMercure` from `@neuron-core/streaming` |
+| IQ streaming server | Pages that read each turn as one stream, from a ticket the endpoint answers with | `EventSource` on the ticket's URL, read with `subscribeToIQ` from `@neuron-core/streaming` |
 
-Both carry the channel envelope `{streamId, sequence, type, data}` (a Mercure update holds an array of them) and end each segment with `stream.completed`, `stream.interrupted` or `stream.failed` (**neuron-streaming**, `references/channels.md`).
+All carry the channel envelope `{streamId, sequence, type, data}` (a Mercure update holds an array of them) and end each segment with `stream.completed`, `stream.interrupted` or `stream.failed` (**neuron-streaming**, `references/channels.md`).
 
 ## Redis relay
 
@@ -435,3 +436,124 @@ setInterval(subscribe, expiresIn * 500);
 - **A hub with limits**: Mercure Cloud caps the requests it accepts per second and their size, for the whole hub. With `new MercureChannel($this->hub, $this->topic($threadId), maxRequestBytes: 15_000, maxRequestsPerSecond: 1.0)` against a hub limited to 15KB (`max_request_body_size 15KB`), a 2,600-character answer of 524 events arrived as 18 updates about a second apart, some 33 events in each, and the hub refused none. Every run streaming at the same time shares the hub's rate: give a run its share of the plan. What the channel does with a full request, a large event or a refused one: **neuron-streaming** ("MercureChannel").
 
 Not run: a hub over HTTPS with the default `__Secure-` cookie, the `mercure()` Twig helper in place of the subscription endpoint, and Mercure Cloud itself. The size limit was reproduced on the open-source hub; no hub here refused a request for its rate, so the channel only paced itself. Events published before the subscription are gone: reconcile from the reload endpoint on `onGap` and on page load.
+
+## IQ
+
+The page posts the turn. The controller makes a ticket for a new IQ stream, dispatches the message with the stream's ID and answers 202 with the ticket; the worker publishes every AG-UI event through Neuron's `IQStreamChannel`, and the page reads them from the ticket's URL with `subscribeToIQ` from `@neuron-core/streaming`. The page subscribes after it posts: IQ keeps a stream's frames while it runs and gives a late subscriber all of them. The ticket is the page's authorization to read that stream: there is no cookie to set and no subscriber token to renew.
+
+### The client
+
+`composer require neuron-core/iq-stream-php`, then the keys in `.env` and one service:
+
+```dotenv
+IQ_STREAM_URL=http://iq.internal:8080            # how the workers reach the server
+IQ_STREAM_PUBLIC_URL=https://stream.example.com  # how browsers reach it, when that is another address
+IQ_STREAM_APP_KEY=support-app
+IQ_STREAM_APP_SECRET=...                          # at least 32 bytes; bin/console secrets:set in production
+```
+
+```yaml
+# config/packages/neuron.yaml, under services
+    IQStream\IQClient:
+        arguments:
+            $url: '%env(IQ_STREAM_URL)%'
+            $credentials: !service
+                class: IQStream\Credentials
+                arguments: ['%env(IQ_STREAM_APP_KEY)%', '%env(IQ_STREAM_APP_SECRET)%']
+            $publicUrl: '%env(default::IQ_STREAM_PUBLIC_URL)%'
+```
+
+- `%env()%` reads Symfony's secrets too, which `IQClient::fromEnvironment()` would not. Without `IQ_STREAM_PUBLIC_URL`, tickets point at `IQ_STREAM_URL`.
+- The client holds the app's secret: it signs the page's ticket and a short-lived token for every request the worker opens. Neither the controller nor the handler builds a token.
+
+### The stream travels with the message
+
+A stream carries one segment: once a segment closes it, IQ refuses any other with `stream_closed`. So every message gets a stream of its own, a continuation included, and the run ID cannot be the stream's ID, since a continuation and a retry share it. Both messages of [background-runs.md](background-runs.md) carry the ticket's stream, as one more argument:
+
+```php
+// RunSupportAgent and ResumeSupportAgent: one more argument, last
+public readonly ?string $stream = null, // the IQ stream of the controller's ticket
+```
+
+In the handler and in `PublishRunFailure` above, inject `IQClient $iq` in place of `RedisRelay $relay` and publish on the message's stream:
+
+```php
+// SupportAgentHandler: start() and resume() call $this->agent($message->threadId, $message->runId, $message->input, $message->stream)
+protected function agent(string $threadId, string $runId, array $input, string $stream): SupportAgent
+{
+    return $this->agent->for($threadId)
+        // ->setStreamAdapter(...) as before
+        ->setChannel(fn (): StreamingChannelInterface => new IQStreamChannel($this->iq, $stream))
+        ->addFrontendTools((new AGUIInputTranslator())->tools($input));
+}
+
+// PublishRunFailure::__invoke()
+$channel = new IQStreamChannel($this->iq, $message->stream);
+```
+
+`IQStreamChannel` is `NeuronAI\Workflow\Streaming\Channel\IQStreamChannel`. Another message's dead run is still finished on `$this->agent->for($threadId)`, a copy without a channel: its own stream is not this message's.
+
+### The endpoint
+
+The Mercure endpoint above, with the client and the ticket:
+
+```php
+use IQStream\IQClient;
+
+    public function __construct(
+        protected SupportAgent $agent,
+        protected StopSignal $stopSignal,
+        protected MessageBusInterface $bus,
+        protected IQClient $iq,
+    ) {
+    }
+
+    // __invoke(): after the input is checked
+        // A new stream for every message, and the ticket the page reads it with.
+        $ticket = $this->iq->ticket();
+        $stream = $ticket->streamId->value;
+        if ($this->isContinuation($input)) {
+            $agent->submitInputs($input, $translator);
+            $message = new ResumeSupportAgent($threadId, $agent->inspect()->runId, $input, $stream);
+        } else {
+            $message = new RunSupportAgent($threadId, (string) Uuid::v7(), $this->lastUserText($input), $input, $stream);
+        }
+
+        $this->stopSignal->clear($threadId);
+        $this->bus->dispatch($message);
+
+        return new JsonResponse(['runId' => $message->runId, 'ticket' => $ticket], 202);
+```
+
+- **The ticket is the authorization.** It lets its holder read one stream, and only this endpoint hands it out, behind the voter (`#[IsGranted('THREAD', subject: 'threadId')]`).
+- **Only the stream's ID goes in the message**, never the client or the ticket: a message waits in the transport as it was serialized, and the client holds the secret.
+- **A transport that keeps messages waiting.** The page subscribes at once, and IQ waits 30 seconds by default for the stream's worker, after which the stream fails with `publisher_timeout`. Where a message can wait longer, reserve the stream before dispatching, `$this->iq->reserve($ticket->streamId)`: IQ then waits as long as it waits for an idle stream, two minutes by default. It throws when IQ cannot be reached, so decide whether that should refuse the turn.
+
+### The subscriber
+
+```js
+import { subscribeToIQ } from "@neuron-core/streaming";
+
+const headers = { "Content-Type": "application/json", "X-CSRF-Token": "csrf-token" };
+
+const response = await fetch(`/chat/${threadId}/runs`, { method: "POST", headers, body: JSON.stringify(input) });
+const { ticket } = await response.json();
+
+const subscription = subscribeToIQ(ticket.url, {
+  // AG-UI events in order, then stream.completed, stream.interrupted or stream.failed
+  onEvent: ({ type, data }) => render(type, data),
+  onGap: () => reloadConversation(),
+});
+// When the component unmounts: subscription.close()
+```
+
+`input` is the AG-UI `RunAgentInput` of the Mercure subscriber above. An approval ends the segment with `RUN_FINISHED` carrying the interrupt, then `stream.interrupted`, and IQ ends the stream; the `resume` request answers with the ticket of the continuation, a stream of its own, which the page subscribes to.
+
+### When something goes wrong
+
+- **IQ unreachable or refusing**: the turn still completes and its answer is in history, and each segment raises `ChannelError` with an `IQStream\Exceptions\IQError` carrying IQ's status and code, after the client's retries (10 seconds by default). The client also writes it to PHP's error log, unless the `IQClient` is built with an `ErrorReporter` of its own.
+- **A retry after a failed segment cannot stream.** The first attempt closed the stream with `fail`, and the page heard `iq:fail`: the retry's segment is refused with `stream_closed` (a `ChannelError`) and runs without delivery, and `PublishRunFailure` finds the stream closed too. The page reloads the conversation from history.
+- **A silent tool**: IQ lets go of a publish request that sends nothing for a minute and the next event continues the stream, but after about three minutes of silence the stream closes with `publisher_idle`: raise the server's limit on idle streams for tools that run longer.
+- **A fast segment holds the worker three seconds** at its close, so that a page that subscribes just after it still receives it: the client's `minOpen`.
+
+Verified: the service definition above, compiled by a Symfony container with and without `IQ_STREAM_PUBLIC_URL`, and `IQStreamChannel` publishing an agent run to a `ghcr.io/neuron-core/iq-stream:1` server, the ticket made by `IQClient::ticket()` and only the stream's ID passed on, with the ticket's URL receiving every event, `stream.completed` and `iq:end`. Not run: this controller, handler and listener in a Symfony application, a `messenger:consume` worker, and the page in a browser.

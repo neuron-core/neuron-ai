@@ -72,12 +72,12 @@ A Mercure update holds a JSON array of envelopes, however many the channel packe
 
 Wait for the source's `open` event before starting backend execution. An `EventSource` reconnects with the ID of the last update it received, and a hub with history replays the updates published since: the consumer ignores the ones it already delivered, so a short interruption leaves no gap. History is the hub's: Mercure Cloud retains about a hundred updates for the whole hub, and a hub on the `local` transport none. When the source's `error` event finds its `readyState` `CLOSED`, the browser has given up: close the subscription and reconcile.
 
-For an IQ stream, pass `subscribeToIQ` the stream's subscribe URL, with the `sub` token the application minted:
+For an IQ stream, pass `subscribeToIQ` the `url` of the ticket the application's endpoint answered with (`IQClient::ticket()`): the stream's subscribe URL, with the browser's token in it.
 
 ```js
 import { subscribeToIQ } from '@neuron-core/streaming';
 
-const subscription = subscribeToIQ(`https://stream.example.com/${stream}?token=${subscribeToken}`, {
+const subscription = subscribeToIQ(ticket.url, {
   onEvent: ({ type, data }) => renderEvent(type, data),
   onGap: (reason) => reloadConversation(reason),
 });

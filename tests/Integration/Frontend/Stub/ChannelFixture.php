@@ -8,6 +8,9 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use IQStream\Credentials;
+use IQStream\IQClient;
+use IQStream\PublisherOptions;
 use InvalidArgumentException;
 use GuzzleHttp\Client;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
@@ -16,7 +19,8 @@ use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use Pusher\Pusher;
 use NeuronAI\Tests\Workflow\Channel\Stub\ManualClockMercureChannel;
 use NeuronAI\Tests\Workflow\Channel\Stub\RecordingRedis;
-use NeuronAI\Tests\Workflow\Channel\Stub\SocketPairIQStreamChannel;
+use NeuronAI\Tests\Workflow\Channel\Stub\RecordingIQTransport;
+use NeuronAI\Workflow\Streaming\Channel\IQStreamChannel;
 use NeuronAI\Workflow\Streaming\Channel\PusherChannel;
 use NeuronAI\Workflow\Streaming\Channel\RedisChannel;
 use NeuronAI\Workflow\Streaming\ProtocolEvent;
@@ -51,6 +55,7 @@ final class ChannelFixture
         $sent = [];
         $updates = [];
         $redis = null;
+        $iq = null;
         $pusher = null;
         $encrypted = $transport === 'pusher-encrypted';
         $destination = $encrypted ? 'private-encrypted-frontend-test' : 'private-frontend-test';
@@ -63,8 +68,15 @@ final class ChannelFixture
             // Paced on a clock that never sleeps: what follows the first event is packed into the next requests.
             $channel = new ManualClockMercureChannel($hub, 'https://frontend.test/threads/1', maxRequestBytes: 2_000, maxRequestsPerSecond: 20.0);
         } elseif ($transport === 'iq') {
-            // The channel writes its publish request to a socket pair, which keeps it for the frames below.
-            $channel = new SocketPairIQStreamChannel([SocketPairIQStreamChannel::answering()], 'https://iq.test', 'frontend-test-stream', 'pub-token', maxFrameBytes: 2_000);
+            // The channel publishes through the IQ client to a recording server, which keeps every line for the frames below.
+            $iq = new RecordingIQTransport();
+            $client = new IQClient(
+                'https://iq.test',
+                new Credentials('frontend-app', 'test-app-secret-0123456789abcdef0123'),
+                options: new PublisherOptions(minOpen: 0, maxFrameBytes: 2_000),
+                transport: $iq,
+            );
+            $channel = new IQStreamChannel($client, 'frontend-test-stream');
         } elseif ($transport !== 'redis') {
             $responses = array_fill(0, 1_000, new Response(200, [], '{}'));
             if ($failDelivery) {
@@ -142,8 +154,8 @@ final class ChannelFixture
             $frames = array_merge(...array_map(static fn (string $data): array => json_decode($data, true), $updates));
         }
         $lines = [];
-        if ($channel instanceof SocketPairIQStreamChannel) {
-            $lines = array_map(static fn (string $line): array => json_decode($line, true), SocketPairIQStreamChannel::lines($channel->requests()[0]));
+        if ($iq instanceof RecordingIQTransport) {
+            $lines = array_map(static fn (string $line): array => json_decode($line, true), $iq->lines());
             // Every line but the close line carries an envelope as its data.
             $frames = array_map(static fn (array $line): array => json_decode($line['data'], true), array_slice($lines, 0, -1));
         }
