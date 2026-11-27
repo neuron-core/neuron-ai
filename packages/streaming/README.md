@@ -178,12 +178,12 @@ To drive AG-UI or the Vercel AI SDK, hand the subscription to `createProtocolStr
 
 ## IQ
 
-Pass the subscribe URL of a stream of an IQ server, with the `sub` token your backend minted for it:
+Pass the `url` of the ticket your backend's endpoint answered with (`IQClient::ticket()`): the stream's subscribe URL, with the browser's token in it.
 
 ```ts
 import { subscribeToIQ } from '@neuron-core/streaming';
 
-const subscription = subscribeToIQ(`https://stream.example.com/${stream}?token=${subscribeToken}`, {
+const subscription = subscribeToIQ(ticket.url, {
   onEvent: ({ type, data }) => renderEvent(type, data),
   onGap: reason => reloadConversation(reason),
 });
