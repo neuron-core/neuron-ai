@@ -551,7 +551,7 @@ const subscription = subscribeToIQ(ticket.url, {
 
 ### When something goes wrong
 
-- **IQ unreachable or refusing**: the turn still completes and its answer is in history, and each segment raises `ChannelError` with an `IQStream\Exceptions\IQError` carrying IQ's status and code, after the client's retries (10 seconds by default). The client also writes it to PHP's error log, unless the `IQClient` is built with an `ErrorReporter` of its own.
+- **IQ unreachable or refusing**: the turn still completes and its answer is in history, and each segment raises `ChannelError` with an `IQStream\Exceptions\IQError` carrying IQ's status and code, after the client's retries (10 seconds by default).
 - **A retry after a failed segment cannot stream.** The first attempt closed the stream with `fail`, and the page heard `iq:fail`: the retry's segment is refused with `stream_closed` (a `ChannelError`) and runs without delivery, and `PublishRunFailure` finds the stream closed too. The page reloads the conversation from history.
 - **A silent tool**: IQ lets go of a publish request that sends nothing for a minute and the next event continues the stream, but after about three minutes of silence the stream closes with `publisher_idle`: raise the server's limit on idle streams for tools that run longer.
 - **A fast segment holds the worker three seconds** at its close, so that a page that subscribes just after it still receives it: the client's `minOpen`.

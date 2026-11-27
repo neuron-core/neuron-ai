@@ -8,8 +8,6 @@ use Closure;
 use InvalidArgumentException;
 use IQStream\Answer;
 use IQStream\Credentials;
-use IQStream\ErrorReporter;
-use IQStream\Exceptions\IQError;
 use IQStream\IQClient;
 use IQStream\PublisherOptions;
 use NeuronAI\Agent\Adapters\VercelAIAdapter;
@@ -54,16 +52,10 @@ class IQStreamChannelTest extends TestCase
      */
     protected function client(RecordingIQTransport $server, int $maxFrameBytes = 65_536): IQClient
     {
-        $quiet = new class () implements ErrorReporter {
-            public function report(IQError $error): void
-            {
-            }
-        };
-
         return new IQClient(
             'http://iq.example',
             new Credentials('neuron-app', 'test-app-secret-0123456789abcdef0123'),
-            options: new PublisherOptions(minOpen: 0, maxFrameBytes: $maxFrameBytes, errorReporter: $quiet, retryBudget: 0),
+            options: new PublisherOptions(minOpen: 0, maxFrameBytes: $maxFrameBytes, retryBudget: 0),
             transport: $server,
         );
     }

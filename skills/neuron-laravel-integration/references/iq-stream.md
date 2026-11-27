@@ -164,7 +164,7 @@ An approval ends the segment with `RUN_FINISHED` carrying the interrupt, then `s
 
 ## When something goes wrong
 
-- **IQ unreachable or refusing.** The turn still completes and its answer is in history; the page receives nothing, or its subscription is refused and `onGap` reloads the conversation. Each segment raises `ChannelError` with an `IQStream\Exceptions\IQError` that carries IQ's status and code, after the client's retries (10 seconds by default). The client also writes it to PHP's error log, unless the `IQClient` is built with an `ErrorReporter` of its own, such as one that logs through `Log::warning()`.
+- **IQ unreachable or refusing.** The turn still completes and its answer is in history; the page receives nothing, or its subscription is refused and `onGap` reloads the conversation. Each segment raises `ChannelError` with an `IQStream\Exceptions\IQError` that carries IQ's status and code, after the client's retries (10 seconds by default).
 - **A retry after a failed segment cannot stream.** The first attempt closed the stream with `fail`, and the page heard `iq:fail`: the retry's segment is refused with `stream_closed` (a `ChannelError`), and the retry runs without delivery. The page reloads the conversation from history.
 - **`failed()` after such an attempt** finds the stream closed too, and its channel throws `stream_closed`: the page already heard of the failure.
 - **A silent tool.** IQ lets go of a publish request that sends nothing for a minute and the next event continues the stream, but after about three minutes of silence the stream closes with `publisher_idle`: for tools that run longer, raise the server's limit on idle streams.
